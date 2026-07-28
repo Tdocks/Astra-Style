@@ -53,18 +53,11 @@ struct RootView: View {
 private struct LaunchingView: View {
     var body: some View {
         ZStack {
-            AstraColor.backgroundPrimary
-                .ignoresSafeArea()
+            Color.clear.astraMarbleBackground(scrimmed: false)
 
-            VStack(spacing: AstraSpacing.md) {
-                Text("ASTRA STYLE")
-                    .astraText(.displayL)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .tracking(2)
-
-                Text("Your style. Your journey. Your best self.")
-                    .astraText(.callout)
-                    .foregroundStyle(AstraColor.textSecondary)
+            VStack(spacing: AstraSpacing.xl) {
+                AstraMonogram(size: 84)
+                AstraWordmark(showsTagline: true)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("Astra Style. Your style. Your journey. Your best self."))
@@ -87,18 +80,20 @@ private struct SignedOutGateView: View {
     /// consumed in `handleSignInWithApple` — see `AppleSignInNonce`'s doc
     /// comment for why both the raw and hashed forms matter.
     @State private var currentNonce: String?
+    @State private var isShowingEmailSheet = false
 
     var body: some View {
         ZStack {
-            AstraColor.backgroundPrimary.ignoresSafeArea()
+            // Spec §3 names the welcome/paywall hero as one of the few surfaces
+            // marble belongs on. Scrimmed so the buttons below stay legible.
+            Color.clear.astraMarbleBackground()
 
             VStack(spacing: AstraSpacing.lg) {
                 Spacer()
 
-                VStack(spacing: AstraSpacing.sm) {
-                    Text("ASTRA STYLE")
-                        .astraText(.displayL)
-                        .foregroundStyle(AstraColor.textPrimary)
+                VStack(spacing: AstraSpacing.lg) {
+                    AstraMonogram(size: 72)
+                    AstraWordmark()
                     Text("Meet Kyra, your personal stylist.")
                         .astraText(.body)
                         .foregroundStyle(AstraColor.textSecondary)
@@ -133,7 +128,7 @@ private struct SignedOutGateView: View {
                     .accessibilityLabel(Text("Continue with Apple"))
 
                     AstraButton(title: String(localized: "Continue with Email", comment: "Auth entry action")) {
-                        router.presentModal(.paywall(context: .onboarding)) // placeholder route hook
+                        isShowingEmailSheet = true
                     }
                     .disabled(isAuthenticating)
 
@@ -153,11 +148,42 @@ private struct SignedOutGateView: View {
                             .foregroundStyle(AstraColor.destructive)
                             .accessibilityLabel(Text("Sign-in error: \(authError)"))
                     }
+
+                    legalFootnote
                 }
                 .padding(.horizontal, AstraSpacing.pagePadding)
                 .padding(.bottom, AstraSpacing.lg)
             }
         }
+        .sheet(isPresented: $isShowingEmailSheet) {
+            EmailAuthSheet { _ in
+                router.routeState = .onboarding
+            }
+        }
+    }
+
+    /// Spec §6.2 lists "Terms and Privacy links" as required on this screen,
+    /// and App Store review expects them reachable before an account is
+    /// created — not buried in Settings afterwards.
+    private var legalFootnote: some View {
+        VStack(spacing: AstraSpacing.xxs) {
+            Text("By continuing you agree to our")
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+
+            HStack(spacing: AstraSpacing.xs) {
+                Link(String(localized: "Terms of Service"), destination: AstraLegal.termsURL)
+                Text("·")
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+                Link(String(localized: "Privacy Policy"), destination: AstraLegal.privacyURL)
+            }
+            .astraText(.caption)
+            .tint(AstraColor.accentChampagne)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.top, AstraSpacing.xs)
     }
 
     private func handleSignInWithApple(_ result: Result<ASAuthorization, Error>) {

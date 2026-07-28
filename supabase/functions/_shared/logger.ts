@@ -52,6 +52,18 @@ export interface RequestLogger {
   info(event: string, fields?: LogFields): void;
   warn(event: string, fields?: LogFields): void;
   error(event: string, fields?: LogFields): void;
+
+  /**
+   * Re-points this logger at a different request id.
+   *
+   * A logger has to exist before the request body is read, so that a body
+   * that fails to parse still logs against *something*. But the caller's own
+   * id may only appear inside that body. Rather than build a second logger
+   * and risk half the request's lines being filed under a throwaway id, the
+   * logger adopts the real id once it is known — so every line for a request,
+   * including the ones written before parsing, correlates.
+   */
+  adoptRequestId(requestId: string): void;
 }
 
 function write(
@@ -78,9 +90,15 @@ function write(
 }
 
 export function createLogger(requestId: string): RequestLogger {
+  // Held in a mutable local rather than captured by value, so `adoptRequestId`
+  // affects every subsequent line from this logger.
+  let currentRequestId = requestId;
   return {
-    info: (event, fields = {}) => write("info", requestId, event, fields),
-    warn: (event, fields = {}) => write("warn", requestId, event, fields),
-    error: (event, fields = {}) => write("error", requestId, event, fields),
+    info: (event, fields = {}) => write("info", currentRequestId, event, fields),
+    warn: (event, fields = {}) => write("warn", currentRequestId, event, fields),
+    error: (event, fields = {}) => write("error", currentRequestId, event, fields),
+    adoptRequestId: (next) => {
+      currentRequestId = next;
+    },
   };
 }

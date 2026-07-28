@@ -274,3 +274,52 @@ Deno.test("a second user's JWT independently only ever sees that user's own clos
     assertEquals(USER_A_CLOSET.some((item) => item.id === id), false);
   }
 });
+
+// ---------------------------------------------------------------------------
+// request_id correlation
+// ---------------------------------------------------------------------------
+// Regression tests for a bug found by exercising the deployed function with
+// curl rather than by any test here: `resolveRequestId` accepted a
+// body-supplied id, but the handler never passed one, so the envelope's
+// `request_id` was silently discarded and replaced with a server-generated
+// value. The iOS client happens to also send an `X-Request-Id` header, which
+// is why the app never noticed — but any other client (including the exact
+// curl invocation documented in supabase/functions/README.md) got back an id
+// it had never seen, making server logs impossible to correlate.
+
+Deno.test("echoes the envelope's request_id when no header is supplied", async () => {
+  const req = requestFor(
+    { ...VALID_ENVELOPE, request_id: "envelope-supplied-id" },
+    { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` },
+  );
+  const response = await handleGenerateOutfits(req, buildDeps());
+  assertEquals(response.status, 200);
+  const json = await response.json();
+  assertEquals(json.request_id, "envelope-supplied-id");
+});
+
+Deno.test("the X-Request-Id header wins over the envelope, so a gateway can override", async () => {
+  const req = requestFor(
+    { ...VALID_ENVELOPE, request_id: "envelope-supplied-id" },
+    {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+      "X-Request-Id": "header-supplied-id",
+    },
+  );
+  const response = await handleGenerateOutfits(req, buildDeps());
+  const json = await response.json();
+  assertEquals(json.request_id, "header-supplied-id");
+});
+
+Deno.test("generates a request_id when the caller supplies neither", async () => {
+  const req = requestFor(
+    { client_version: "ios/1.0.0", body: { desired_count: 2 } },
+    { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` },
+  );
+  const response = await handleGenerateOutfits(req, buildDeps());
+  const json = await response.json();
+  // Not asserting a specific value — only that one exists, so every response
+  // is correlatable even when the client is careless.
+  assertEquals(typeof json.request_id, "string");
+  assertEquals(json.request_id.length > 0, true);
+});

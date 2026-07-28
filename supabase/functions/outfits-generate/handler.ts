@@ -92,7 +92,14 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     return preflight;
   }
 
-  const requestId = resolveRequestId(req);
+  // Resolved in two stages on purpose. The header is available immediately,
+  // so logging can start before the body is read — which matters, because a
+  // request whose body fails to parse still needs an id to log against. Once
+  // the envelope IS parsed, a body-supplied `request_id` is adopted if no
+  // header was present, so a client that sends only the envelope field (the
+  // shape documented in supabase/functions/README.md) still gets its own id
+  // echoed back rather than a server-generated one it has never seen.
+  let requestId = resolveRequestId(req);
   const logger = createLogger(requestId);
 
   try {
@@ -120,6 +127,10 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     // 3. Validate request schema.
     const rawJson = await readJsonBody(req);
     const envelope = parseEnvelope(rawJson);
+    // Adopt the envelope's id only when the caller did not supply a header —
+    // the header stays authoritative so a proxy or gateway can override.
+    requestId = resolveRequestId(req, envelope.requestId);
+    logger.adoptRequestId(requestId);
     const body = parseGenerateOutfitsBody(envelope.body);
 
     // 4. Validate ownership: `userId` below is the JWT-verified id from
