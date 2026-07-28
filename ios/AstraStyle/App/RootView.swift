@@ -56,7 +56,7 @@ private struct LaunchingView: View {
             Color.clear.astraMarbleBackground(scrimmed: false)
 
             VStack(spacing: AstraSpacing.xl) {
-                AstraMonogram(size: 84)
+                AstraMonogram(size: 100)
                 AstraWordmark(showsTagline: true)
             }
             .accessibilityElement(children: .combine)
@@ -92,7 +92,7 @@ private struct SignedOutGateView: View {
                 Spacer()
 
                 VStack(spacing: AstraSpacing.lg) {
-                    AstraMonogram(size: 72)
+                    AstraMonogram(size: 88)
                     AstraWordmark()
                     Text("Meet Kyra, your personal stylist.")
                         .astraText(.body)
