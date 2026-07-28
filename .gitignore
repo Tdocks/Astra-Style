@@ -78,3 +78,9 @@ ios/AstraStyle/Resources/DownloadedAssets/
 *.xcresult
 TestResults/
 __snapshots__/**/*.actual.png
+
+# XcodeGen-generated at `xcodegen generate` time from the `info:` and
+# `entitlements:` blocks in ios/project.yml. Tracking them would mean two
+# sources of truth for the same values, and they'd churn on every regen.
+ios/AstraStyle/Resources/Info.plist
+ios/AstraStyle/Resources/AstraStyle.entitlements
