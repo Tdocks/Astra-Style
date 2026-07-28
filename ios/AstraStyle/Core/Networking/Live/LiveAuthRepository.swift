@@ -25,10 +25,10 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
         self.supabase = supabase
     }
 
-    public func signInWithApple(identityToken: String) async throws -> AuthSession {
+    public func signInWithApple(identityToken: String, nonce: String) async throws -> AuthSession {
         do {
             let response = try await supabase.auth.signInWithIdToken(
-                credentials: OpenIDConnectCredentials(provider: .apple, idToken: identityToken)
+                credentials: OpenIDConnectCredentials(provider: .apple, idToken: identityToken, nonce: nonce)
             )
             let session = AuthSession(
                 userID: response.user.id,
@@ -82,14 +82,14 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
         return session
     }
 
-    public func migrateGuestToAccount(identityToken: String) async throws -> AuthSession {
+    public func migrateGuestToAccount(identityToken: String, nonce: String) async throws -> AuthSession {
         // Sign in for real, then the Live repositories are responsible for
         // re-pointing any content created under the guest's local-only
         // storage at the newly-authenticated user id (spec §7 "Guest
         // migration to account"). That reconciliation is intentionally not
         // performed here — it belongs to whichever repository owns the
         // guest-local data (Closet, primarily).
-        try await signInWithApple(identityToken: identityToken)
+        try await signInWithApple(identityToken: identityToken, nonce: nonce)
     }
 
     public func restoreSession() async throws -> AuthSession? {

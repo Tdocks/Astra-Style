@@ -41,6 +41,13 @@ ASTRA_BUNDLE_ID_PREFIX = com.astrastyle
 
 // Pull in the environment-specific secrets file. This file is intentionally
 // NOT committed — see Secrets.example.xcconfig and the ios/README.md setup
-// instructions. Xcode will fail to resolve this include until the developer
-// copies Secrets.example.xcconfig to Secrets.xcconfig.
-#include "Secrets.xcconfig"
+// instructions.
+//
+// The "?" makes this an OPTIONAL include: a fresh clone configures and builds
+// without a Secrets.xcconfig present, instead of failing before a single line
+// has compiled with "could not find included file 'Secrets.xcconfig'". A
+// missing config is still caught loudly, but at the right moment —
+// AstraEnvironment calls preconditionFailure() on launch with the exact
+// command to run. A configuration-time error is the wrong place to teach a
+// setup step, and it buries every real compile error behind it.
+#include? "Secrets.xcconfig"

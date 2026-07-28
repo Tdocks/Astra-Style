@@ -17,7 +17,7 @@ public actor MockAuthRepository: AuthRepository {
         }
     }
 
-    public func signInWithApple(identityToken: String) async throws -> AuthSession {
+    public func signInWithApple(identityToken: String, nonce: String) async throws -> AuthSession {
         let newSession = AuthSession(userID: SampleData.userID, accessToken: "preview-token", refreshToken: "preview-refresh", expiresAt: .distantFuture)
         session = newSession
         return newSession
@@ -37,8 +37,8 @@ public actor MockAuthRepository: AuthRepository {
         return newSession
     }
 
-    public func migrateGuestToAccount(identityToken: String) async throws -> AuthSession {
-        try await signInWithApple(identityToken: identityToken)
+    public func migrateGuestToAccount(identityToken: String, nonce: String) async throws -> AuthSession {
+        try await signInWithApple(identityToken: identityToken, nonce: nonce)
     }
 
     public func restoreSession() async throws -> AuthSession? {

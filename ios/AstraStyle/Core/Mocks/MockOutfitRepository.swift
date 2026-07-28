@@ -60,7 +60,7 @@ public actor MockOutfitRepository: OutfitRepository {
         try await generateOutfits(OutfitGenerationRequest())
     }
 
-    public func saveOutfit(from recommendation: OutfitRecommendation, name: String?) async throws -> Outfit {
+    public func saveOutfit(from recommendation: OutfitRecommendation, name: String?, closetItems: [ClosetItem]) async throws -> Outfit {
         let outfit = Outfit(
             id: recommendation.id,
             userID: SampleData.userID,
@@ -70,6 +70,16 @@ public actor MockOutfitRepository: OutfitRepository {
             source: .kyraGenerated
         )
         outfits[outfit.id] = outfit
+
+        let itemsByID = Dictionary(uniqueKeysWithValues: closetItems.map { ($0.id, $0) })
+        outfitItemsByOutfit[outfit.id] = recommendation.itemIDs.enumerated().compactMap { index, closetItemID in
+            guard
+                let category = itemsByID[closetItemID]?.category,
+                let role = OutfitItemRole(rawValue: category.rawValue)
+            else { return nil }
+            return OutfitItem(outfitID: outfit.id, closetItemID: closetItemID, role: role, sortOrder: index)
+        }
+
         return outfit
     }
 

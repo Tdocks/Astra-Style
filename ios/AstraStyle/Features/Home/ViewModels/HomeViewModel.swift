@@ -132,19 +132,7 @@ public final class HomeViewModel {
     }
 }
 
-/// A minimal reachability seam so `HomeViewModel` never imports `Network`
-/// directly — kept in Home rather than Core/Utilities since, at time of
-/// writing, Home is the only screen that needs to distinguish "loaded from
-/// cache while offline" from "loaded fresh". If a second feature needs
-/// this, promote it to Core/Utilities.
-public protocol NetworkReachabilityMonitoring: Sendable {
-    func isOffline() async -> Bool
-}
-
-public struct SystemNetworkReachabilityMonitor: NetworkReachabilityMonitoring {
-    public init() {}
-
-    public func isOffline() async -> Bool {
-        await AstraReachability.shared.isOffline
-    }
-}
+// `NetworkReachabilityMonitoring` / `SystemNetworkReachabilityMonitor` now
+// live in Core/Utilities/NetworkReachabilityMonitoring.swift — promoted
+// out of this file once `Features/Slice` became a second consumer, per
+// the promotion note that used to be here.

@@ -28,7 +28,17 @@ public protocol OutfitRepository: Sendable {
     /// (spec §5.4 "User can lock items and regenerate the rest").
     func rankOutfits(candidateOutfitIDs: [UUID], lockedClosetItemIDs: [UUID]) async throws -> [OutfitRecommendation]
 
-    func saveOutfit(from recommendation: OutfitRecommendation, name: String?) async throws -> Outfit
+    /// Persists `recommendation` as a real `outfits` row plus one
+    /// `outfit_items` row per resolvable entry in `recommendation.itemIDs`
+    /// (`closetItems` supplies the category each item needs for
+    /// `outfit_items.role` — the recommendation itself carries no role
+    /// info). This is required, not optional, before an id from
+    /// `generateOutfits` can be passed to `recordWear`: `outfit_wears
+    /// .outfit_id` is a `NOT NULL` foreign key with no `ON DELETE SET
+    /// NULL`, so recording a wear against an outfit that was never
+    /// actually saved fails outright, and the `wear_count`-bumping trigger
+    /// needs real `outfit_items` rows to have anything to join against.
+    func saveOutfit(from recommendation: OutfitRecommendation, name: String?, closetItems: [ClosetItem]) async throws -> Outfit
     func updateOutfit(_ outfit: Outfit) async throws -> Outfit
     func deleteOutfit(id: UUID) async throws
 

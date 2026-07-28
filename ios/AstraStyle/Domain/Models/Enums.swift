@@ -135,8 +135,22 @@ public enum OutfitItemRole: String, Codable, CaseIterable, Sendable {
 }
 
 /// `outfits.source` — how the outfit came to exist.
+///
+/// Raw values must match the Postgres `outfit_source` enum type exactly
+/// (`supabase/migrations/20260728100100_core_enums.sql`: `ai_generated`,
+/// `user_created`, `kyra_suggested`, `studio_derived`) — an insert with any
+/// other string is rejected by Postgres as an invalid enum value, not
+/// silently coerced. `.kyraGenerated` was previously `"kyra_generated"`,
+/// which does not exist in the DB type at all; fixed here to
+/// `"ai_generated"` (the DB's term for the same concept — outfit
+/// generation, spec §5.4) since this is the case
+/// `LiveOutfitRepository.saveOutfit` actually writes on the vertical
+/// slice's generate -> save path. `.kyraEdited` and `.imported` are left
+/// as-is: they don't cleanly map to `kyra_suggested`/`studio_derived`
+/// without a product decision this fix doesn't make unilaterally, and
+/// neither is written by any code path yet.
 public enum OutfitSource: String, Codable, Sendable {
-    case kyraGenerated = "kyra_generated"
+    case kyraGenerated = "ai_generated"
     case userCreated = "user_created"
     case kyraEdited = "kyra_edited"
     case imported

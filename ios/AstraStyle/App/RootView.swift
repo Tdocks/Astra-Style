@@ -20,15 +20,27 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            switch router.routeState {
-            case .launching:
-                LaunchingView()
-            case .signedOut:
-                SignedOutGateView()
-            case .onboarding:
-                OnboardingPlaceholderView()
-            case .main:
-                MainTabView()
+            // Vertical-slice bypass (see Features/Slice/README.md): boots
+            // straight into the temporary end-to-end scaffold screen
+            // instead of the normal `AppRouteState` flow below, without
+            // changing `AppRouteState`'s meaning or any of its branches for
+            // the real app. Gated behind `AstraFeatureFlags
+            // .verticalSliceEnabled` (Debug builds only, opt-in via the
+            // `ASTRA_VERTICAL_SLICE` environment variable) so it can never
+            // ship active in a Release build.
+            if AstraFeatureFlags.verticalSliceEnabled {
+                SliceRootView()
+            } else {
+                switch router.routeState {
+                case .launching:
+                    LaunchingView()
+                case .signedOut:
+                    SignedOutGateView()
+                case .onboarding:
+                    OnboardingPlaceholderView()
+                case .main:
+                    MainTabView()
+                }
             }
         }
         .astraAnimation(AstraMotion.standard, value: router.routeState)
@@ -70,6 +82,11 @@ private struct SignedOutGateView: View {
     @Environment(AppRouter.self) private var router
     @State private var isAuthenticating = false
     @State private var authError: String?
+    /// The raw (unhashed) nonce for the in-flight sign-in attempt, set
+    /// synchronously in the `SignInWithAppleButton` request closure and
+    /// consumed in `handleSignInWithApple` — see `AppleSignInNonce`'s doc
+    /// comment for why both the raw and hashed forms matter.
+    @State private var currentNonce: String?
 
     var body: some View {
         ZStack {
@@ -92,6 +109,20 @@ private struct SignedOutGateView: View {
                 VStack(spacing: AstraSpacing.sm) {
                     SignInWithAppleButton(.continue) { request in
                         request.requestedScopes = [.fullName, .email]
+                        // Nonce must be generated fresh per attempt and its
+                        // SHA-256 hash attached here; the raw value is
+                        // stashed for the Supabase exchange below. See
+                        // `AppleSignInNonce`'s doc comment — sending the
+                        // token without this makes Supabase's replay check
+                        // meaningless, not just incomplete.
+                        do {
+                            let rawNonce = try AppleSignInNonce.random()
+                            currentNonce = rawNonce
+                            request.nonce = AppleSignInNonce.sha256(rawNonce)
+                        } catch {
+                            currentNonce = nil
+                            authError = String(localized: "Couldn't start a secure sign-in. Please try again.")
+                        }
                     } onCompletion: { result in
                         handleSignInWithApple(result)
                     }
@@ -142,7 +173,11 @@ private struct SignedOutGateView: View {
                         authError = String(localized: "Apple did not return a valid credential.")
                         return
                     }
-                    _ = try await container.authRepository.signInWithApple(identityToken: identityToken)
+                    guard let nonce = currentNonce else {
+                        authError = String(localized: "Your sign-in session expired. Please try again.")
+                        return
+                    }
+                    _ = try await container.authRepository.signInWithApple(identityToken: identityToken, nonce: nonce)
                     router.routeState = .onboarding
                 case .failure(let error):
                     authError = error.localizedDescription
@@ -150,6 +185,7 @@ private struct SignedOutGateView: View {
             } catch {
                 authError = error.localizedDescription
             }
+            currentNonce = nil
         }
     }
 

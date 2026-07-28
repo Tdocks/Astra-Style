@@ -88,7 +88,28 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
         )
     }
 
-    public func saveOutfit(from recommendation: OutfitRecommendation, name: String?) async throws -> Outfit {
+    /// Persists an `outfits` row **and** its `outfit_items` rows for every
+    /// resolvable item in `recommendation.itemIDs`.
+    ///
+    /// `POST /outfits/generate` (the Edge Function) returns a transient
+    /// recommendation — it does not write to the database itself, so
+    /// `recommendation.id` is not yet a real `outfits.id` anywhere. That
+    /// matters beyond bookkeeping: `outfit_wears.outfit_id` is `NOT NULL
+    /// REFERENCES outfits(id)` with no `ON DELETE SET NULL`
+    /// (`supabase/migrations/20260728100400_outfits.sql`), so
+    /// `recordWear(outfitID:...)` will fail a foreign-key check against any
+    /// id that was never actually inserted here — and
+    /// `bump_closet_item_wear_stats()` (the trigger that increments
+    /// `closet_items.wear_count` on wear) joins through `outfit_items`, so
+    /// without those rows the wear-count bump is silently a no-op even if
+    /// the FK happened to pass. Both `outfits` and `outfit_items` inserts
+    /// are therefore required, not optional, for a generated recommendation
+    /// to ever be meaningfully "worn". `closetItems` is the caller's
+    /// already-loaded closet (`SliceViewModel` has this in memory already)
+    /// — used only to resolve each item's `category` into
+    /// `outfit_items.role`, since the recommendation itself carries no role
+    /// information, just a flat `item_ids` array.
+    public func saveOutfit(from recommendation: OutfitRecommendation, name: String?, closetItems: [ClosetItem]) async throws -> Outfit {
         do {
             let session = try await supabase.auth.session
             let outfit = Outfit(
@@ -99,7 +120,25 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
                 compatibilityScore: recommendation.compatibilityScore,
                 source: .kyraGenerated
             )
-            return try await supabase.from("outfits").insert(outfit).select().single().execute().value
+            let saved: Outfit = try await supabase.from("outfits").insert(outfit).select().single().execute().value
+
+            let itemsByID = Dictionary(uniqueKeysWithValues: closetItems.map { ($0.id, $0) })
+            let outfitItems: [OutfitItem] = recommendation.itemIDs.enumerated().compactMap { index, closetItemID in
+                // `outfit_items.role` reuses the `clothing_category` Postgres
+                // enum verbatim (see 20260728100400_outfits.sql's column
+                // comment), and `OutfitItemRole`'s raw values are a superset
+                // of `ClothingCategory`'s — every real category maps.
+                guard
+                    let category = itemsByID[closetItemID]?.category,
+                    let role = OutfitItemRole(rawValue: category.rawValue)
+                else { return nil }
+                return OutfitItem(outfitID: saved.id, closetItemID: closetItemID, role: role, sortOrder: index)
+            }
+            if !outfitItems.isEmpty {
+                try await supabase.from("outfit_items").insert(outfitItems).execute()
+            }
+
+            return saved
         } catch {
             throw AstraError.server("Couldn't save that outfit.")
         }
