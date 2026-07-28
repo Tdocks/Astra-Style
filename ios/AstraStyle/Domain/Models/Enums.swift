@@ -14,6 +14,14 @@
 
 import Foundation
 
+// NOTE ON RAW VALUES
+// Every raw value below is a member of the corresponding Postgres enum defined
+// in supabase/migrations/20260728100100_core_enums.sql. They are not free-form
+// strings: a mismatch does not fail at compile time, it fails at INSERT time
+// with "invalid input value for enum", which is a slow and confusing way to
+// find a typo. If you add a case here, add it to the migration in the same
+// change — and vice versa.
+
 // MARK: - Spec §26 (given verbatim)
 
 /// The seven top-level garment categories (spec §26, and the Closet
@@ -61,16 +69,19 @@ public enum KyraVerdict: String, Codable, Sendable {
 
 /// Whether an owned item is currently available to be worn (distinct from
 /// `LaundryState`, which tracks the wash cycle specifically).
-public enum AvailabilityState: String, Codable, Sendable {
+public enum AvailabilityState: String, Codable, CaseIterable, Sendable {
     case available
-    case unavailable
+    case inLaundry = "in_laundry"
+    case inAlteration = "in_alteration"
+    case packedForTravel = "packed_for_travel"
     case lentOut = "lent_out"
-    case archived
+    case lost
+    case unavailable
 }
 
 /// Self-reported or inferred physical condition (spec §6.15 item detail).
 public enum ItemCondition: String, Codable, CaseIterable, Sendable {
-    case new
+    case newWithTags = "new_with_tags"
     case likeNew = "like_new"
     case good
     case fair
@@ -111,12 +122,13 @@ public enum Season: String, Codable, CaseIterable, Sendable {
 
 /// `closet_item_images.image_type` (spec §9, driven by scanner capture
 /// modes in §6.16).
-public enum ClosetImageType: String, Codable, Sendable {
+public enum ClosetImageType: String, Codable, CaseIterable, Sendable {
     case front
     case back
     case label
     case detail
-    case wornOutfit = "worn_outfit"
+    case onBody = "on_body"
+    case other
 }
 
 // MARK: - `outfits` / `outfit_items` / `outfit_wears`
@@ -136,24 +148,18 @@ public enum OutfitItemRole: String, Codable, CaseIterable, Sendable {
 
 /// `outfits.source` — how the outfit came to exist.
 ///
-/// Raw values must match the Postgres `outfit_source` enum type exactly
-/// (`supabase/migrations/20260728100100_core_enums.sql`: `ai_generated`,
-/// `user_created`, `kyra_suggested`, `studio_derived`) — an insert with any
-/// other string is rejected by Postgres as an invalid enum value, not
-/// silently coerced. `.kyraGenerated` was previously `"kyra_generated"`,
-/// which does not exist in the DB type at all; fixed here to
-/// `"ai_generated"` (the DB's term for the same concept — outfit
-/// generation, spec §5.4) since this is the case
-/// `LiveOutfitRepository.saveOutfit` actually writes on the vertical
-/// slice's generate -> save path. `.kyraEdited` and `.imported` are left
-/// as-is: they don't cleanly map to `kyra_suggested`/`studio_derived`
-/// without a product decision this fix doesn't make unilaterally, and
-/// neither is written by any code path yet.
-public enum OutfitSource: String, Codable, Sendable {
-    case kyraGenerated = "ai_generated"
+/// These four cases mirror the Postgres `outfit_source` type exactly.
+///
+/// - `aiGenerated`: produced by `POST /outfits/generate` (spec §5.4). This is
+///   the case `LiveOutfitRepository.saveOutfit` writes.
+/// - `userCreated`: assembled by hand in the outfit builder (spec §6.13).
+/// - `kyraSuggested`: proposed by Kyra inside a conversation (spec §6.20).
+/// - `studioDerived`: originated from a Style Studio generation (spec §6.17).
+public enum OutfitSource: String, Codable, CaseIterable, Sendable {
+    case aiGenerated = "ai_generated"
     case userCreated = "user_created"
-    case kyraEdited = "kyra_edited"
-    case imported
+    case kyraSuggested = "kyra_suggested"
+    case studioDerived = "studio_derived"
 }
 
 // MARK: - `style_feedback`

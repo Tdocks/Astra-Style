@@ -67,7 +67,7 @@ public actor MockOutfitRepository: OutfitRepository {
             name: name ?? recommendation.name,
             description: recommendation.reason,
             compatibilityScore: recommendation.compatibilityScore,
-            source: .kyraGenerated
+            source: .aiGenerated
         )
         outfits[outfit.id] = outfit
 

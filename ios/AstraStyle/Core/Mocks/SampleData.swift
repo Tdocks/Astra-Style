@@ -108,7 +108,7 @@ public enum SampleData {
         weatherMax: 75,
         formalityScore: 58,
         compatibilityScore: 92,
-        source: .kyraGenerated,
+        source: .aiGenerated,
         isFavorite: false
     )
 
@@ -123,7 +123,7 @@ public enum SampleData {
             weatherMax: 78,
             formalityScore: 42,
             compatibilityScore: 87,
-            source: .kyraGenerated
+            source: .aiGenerated
         ),
         Outfit(
             id: UUID(uuidString: "00000000-0000-4000-8000-000000000103") ?? UUID(),
@@ -135,7 +135,7 @@ public enum SampleData {
             weatherMax: 70,
             formalityScore: 68,
             compatibilityScore: 89,
-            source: .kyraGenerated
+            source: .aiGenerated
         ),
     ]
 

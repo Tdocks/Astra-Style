@@ -118,7 +118,7 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
                 name: name ?? recommendation.name,
                 description: recommendation.reason,
                 compatibilityScore: recommendation.compatibilityScore,
-                source: .kyraGenerated
+                source: .aiGenerated
             )
             let saved: Outfit = try await supabase.from("outfits").insert(outfit).select().single().execute().value
 

@@ -35,7 +35,7 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         weatherMax: Double? = nil,
         formalityScore: Int? = nil,
         compatibilityScore: Int? = nil,
-        source: OutfitSource = .kyraGenerated,
+        source: OutfitSource = .aiGenerated,
         heroImageURL: URL? = nil,
         generatedPreviewURL: URL? = nil,
         isFavorite: Bool = false,
@@ -67,8 +67,8 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         case name
         case description
         case occasionTags = "occasion_tags"
-        case weatherMin = "weather_min"
-        case weatherMax = "weather_max"
+        case weatherMin = "weather_min_celsius"
+        case weatherMax = "weather_max_celsius"
         case formalityScore = "formality_score"
         case compatibilityScore = "compatibility_score"
         case source

@@ -95,7 +95,7 @@ public enum PersistenceMapping {
             occasionTags: persisted.occasionTags,
             formalityScore: persisted.formalityScore,
             compatibilityScore: persisted.compatibilityScore,
-            source: OutfitSource(rawValue: persisted.sourceRaw) ?? .kyraGenerated,
+            source: OutfitSource(rawValue: persisted.sourceRaw) ?? .aiGenerated,
             heroImageURL: persisted.heroImageURLString.flatMap(URL.init(string:)),
             isFavorite: persisted.isFavorite,
             createdAt: persisted.createdAt,

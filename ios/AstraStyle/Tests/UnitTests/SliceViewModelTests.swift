@@ -170,7 +170,7 @@ private actor StubOutfitRepository: OutfitRepository {
             name: name ?? recommendation.name,
             description: recommendation.reason,
             compatibilityScore: recommendation.compatibilityScore,
-            source: .kyraGenerated
+            source: .aiGenerated
         )
     }
 

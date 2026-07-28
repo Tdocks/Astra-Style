@@ -15,7 +15,7 @@
 //     with snake_case keys.
 //   - The `outfit_wears` insert shape `OutfitRepository.recordWear` sends
 //     for "Mark Worn".
-//   - `OutfitSource.kyraGenerated`'s wire value, which the
+//   - `OutfitSource.aiGenerated`'s wire value, which the
 //     `LiveOutfitRepository.saveOutfit` fix in this same change now
 //     actually writes to the database — regression coverage for a real
 //     bug found while wiring the slice up: its raw value used to be
@@ -199,15 +199,15 @@ struct SliceCodableRoundTripTests {
         #expect(wear.rating == nil)
     }
 
-    // MARK: - `OutfitSource.kyraGenerated` regression (see header comment)
+    // MARK: - `OutfitSource.aiGenerated` regression (see header comment)
 
-    @Test("OutfitSource.kyraGenerated encodes as the DB's ai_generated enum value, not kyra_generated")
-    func outfitSourceKyraGeneratedEncodesAsAiGenerated() throws {
+    @Test("OutfitSource.aiGenerated encodes as the DB's ai_generated enum value, not kyra_generated")
+    func outfitSourceEncodesAsAiGenerated() throws {
         let outfit = Outfit(
             id: UUID(),
             userID: UUID(),
             name: "Smart Casual Weekday",
-            source: .kyraGenerated
+            source: .aiGenerated
         )
 
         let data = try encoder.encode(outfit)
@@ -218,23 +218,49 @@ struct SliceCodableRoundTripTests {
     }
 
     @Test(
-        "OutfitSource decodes the two raw values that are actually load-bearing on the slice's save path",
+        "Every OutfitSource case decodes from its Postgres outfit_source raw value",
         arguments: [
-            ("ai_generated", OutfitSource.kyraGenerated),
-            ("user_created", OutfitSource.userCreated)
+            ("ai_generated", OutfitSource.aiGenerated),
+            ("user_created", OutfitSource.userCreated),
+            ("kyra_suggested", OutfitSource.kyraSuggested),
+            ("studio_derived", OutfitSource.studioDerived)
         ]
     )
-    func outfitSourceDecodesSliceRelevantValues(rawValue: String, expected: OutfitSource) throws {
-        // Only `ai_generated` (saveOutfit's default) and `user_created` are
-        // both real Postgres `outfit_source` values *and* exercised by this
-        // slice today. `.kyraEdited` ("kyra_edited") and `.imported`
-        // ("imported") are pre-existing mismatches against the DB's actual
-        // remaining values (`kyra_suggested`, `studio_derived`) that predate
-        // this change and aren't touched by any slice code path — see the
-        // file-header comment and `Domain/Models/Enums.swift`'s doc comment
-        // on `OutfitSource` for why those are left alone here.
+    func outfitSourceDecodesEveryDatabaseValue(rawValue: String, expected: OutfitSource) throws {
         let json = "\"\(rawValue)\""
         let source = try decoder.decode(OutfitSource.self, from: Data(json.utf8))
         #expect(source == expected)
+    }
+
+    /// Guards the whole enum rather than a sampled subset: if someone adds a
+    /// Swift case without adding it to the Postgres `outfit_source` type (or
+    /// renames one), this fails immediately instead of surfacing later as an
+    /// "invalid input value for enum" error on a live INSERT.
+    @Test("OutfitSource's cases match the Postgres outfit_source type exactly")
+    func outfitSourceMatchesDatabaseEnumExactly() {
+        // Source of truth: supabase/migrations/20260728100100_core_enums.sql
+        let databaseValues: Set<String> = [
+            "ai_generated", "user_created", "kyra_suggested", "studio_derived"
+        ]
+        let swiftValues = Set(OutfitSource.allCases.map(\.rawValue))
+        #expect(swiftValues == databaseValues)
+    }
+
+    /// Same guard for the three enums whose raw values were previously wrong:
+    /// `ItemCondition.new` vs the DB's `new_with_tags`, `ClosetImageType`'s
+    /// `worn_outfit` vs `on_body`, and `AvailabilityState.archived`, which was
+    /// not a member of the DB type at all while four real members were absent.
+    @Test("Closet enums match their Postgres types exactly")
+    func closetEnumsMatchDatabaseEnumsExactly() {
+        #expect(Set(ItemCondition.allCases.map(\.rawValue)) == [
+            "new_with_tags", "like_new", "good", "fair", "worn"
+        ])
+        #expect(Set(ClosetImageType.allCases.map(\.rawValue)) == [
+            "front", "back", "label", "detail", "on_body", "other"
+        ])
+        #expect(Set(AvailabilityState.allCases.map(\.rawValue)) == [
+            "available", "in_laundry", "in_alteration", "packed_for_travel",
+            "lent_out", "lost", "unavailable"
+        ])
     }
 }
