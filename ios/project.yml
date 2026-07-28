@@ -1,0 +1,209 @@
+# project.yml
+#
+# XcodeGen project definition for Astra Style.
+#
+# Usage:
+#   brew install xcodegen
+#   cd ios
+#   cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig   # then fill in real values
+#   xcodegen generate
+#   open AstraStyle.xcodeproj
+#
+# See /tmp/astra/ios/README.md for full setup instructions.
+
+name: AstraStyle
+options:
+  bundleIdPrefix: com.astrastyle
+  deploymentTarget:
+    iOS: "18.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+  usesTabs: false
+  indentWidth: 4
+  tabWidth: 4
+
+# Shared build settings applied to every target unless overridden below.
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_BITCODE: NO
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    GENERATE_INFOPLIST_FILE: NO
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+configs:
+  Debug: debug
+  Release: release
+
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: 2.20.0
+
+targets:
+  AstraStyle:
+    type: application
+    platform: iOS
+    sources:
+      - path: AstraStyle
+        excludes:
+          - "Tests/**"
+    resources:
+      - path: AstraStyle/Resources
+    dependencies:
+      - package: Supabase
+        product: Supabase
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.astrastyle.app
+        PRODUCT_NAME: "Astra Style"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad: >-
+          UIInterfaceOrientationPortrait
+          UIInterfaceOrientationPortraitUpsideDown
+          UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_EMIT_LOC_STRINGS: YES
+        DEVELOPMENT_ASSET_PATHS: ""
+    info:
+      path: AstraStyle/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: "Astra Style"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIUserInterfaceStyle: Dark
+
+        # Bridges the xcconfig-only values (Config/Secrets.xcconfig) into
+        # the app bundle so AstraEnvironment can read them at runtime via
+        # Bundle.main.infoDictionary. Per spec §25, these are the ONLY two
+        # values the client ever receives.
+        SUPABASE_URL: $(SUPABASE_URL)
+        SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
+
+        # --- Usage descriptions ------------------------------------------------
+        # Real, user-facing copy per spec §7 "Permissions" (request only in
+        # context, explain why). Do not ship the Apple-template placeholder text.
+        NSCameraUsageDescription: >-
+          Astra Style uses your camera to scan garments so Kyra can catalog
+          them in your closet and recommend outfits that use what you
+          already own.
+        NSPhotoLibraryUsageDescription: >-
+          Astra Style can import photos of your clothes and reference photos
+          of yourself so Kyra can build your wardrobe and generate styling
+          previews. We only access the photos you choose to add.
+        NSPhotoLibraryAddUsageDescription: >-
+          Astra Style can save outfit visuals and Style Studio generations
+          to your photo library when you choose to save them.
+        NSLocationWhenInUseUsageDescription: >-
+          Astra Style uses your approximate location to check the day's
+          weather so Kyra's outfit recommendations suit the conditions
+          outside.
+        NSCalendarsUsageDescription: >-
+          Astra Style can read your upcoming events so Kyra can tailor
+          outfit recommendations to what's actually on your schedule, like
+          a client meeting or dinner reservation.
+        NSCalendarsFullAccessUsageDescription: >-
+          Astra Style can read your upcoming events so Kyra can tailor
+          outfit recommendations to what's actually on your schedule, like
+          a client meeting or dinner reservation.
+        NSMicrophoneUsageDescription: >-
+          Astra Style uses your microphone so you can talk to Kyra instead
+          of typing when asking style questions.
+        NSSpeechRecognitionUsageDescription: >-
+          Astra Style converts your spoken questions to text so Kyra can
+          understand and respond to voice requests.
+        NSUserTrackingUsageDescription: >-
+          Astra Style does not track you across other companies' apps or
+          websites. This permission is not used to serve targeted
+          advertising.
+
+        # --- URL scheme for Sign in with Apple / OAuth-style callbacks --------
+        CFBundleURLTypes:
+          - CFBundleURLName: com.astrastyle.app.auth
+            CFBundleURLSchemes:
+              - astrastyle
+            CFBundleTypeRole: Editor
+
+        # --- Associated domains would also be configured here for the
+        # universal-link based Sign in with Apple / magic-link flow; add via
+        # the entitlements file below once the real domain is known.
+
+        LSApplicationQueriesSchemes:
+          - itms-apps
+
+        UIBackgroundModes:
+          - remote-notification
+
+        UIRequiredDeviceCapabilities:
+          - arm64
+
+    entitlements:
+      path: AstraStyle/Resources/AstraStyle.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+        aps-environment: development
+        com.apple.security.application-groups:
+          - group.com.astrastyle.app
+
+  AstraStyleTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: AstraStyle/Tests/UnitTests
+    dependencies:
+      - target: AstraStyle
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.astrastyle.app.unittests
+        GENERATE_INFOPLIST_FILE: YES
+
+  AstraStyleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: AstraStyle/Tests/UITests
+    dependencies:
+      - target: AstraStyle
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.astrastyle.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: AstraStyle
+
+schemes:
+  AstraStyle:
+    build:
+      targets:
+        AstraStyle: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - AstraStyleTests
+        - AstraStyleUITests
+      gatherCoverageData: true
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

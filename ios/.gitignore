@@ -1,0 +1,17 @@
+# Xcode / XcodeGen generated project — regenerate with `xcodegen generate`
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+.build/
+.swiftpm/
+
+# Local secrets — copy Config/Secrets.example.xcconfig to create this file
+Config/Secrets.xcconfig
+
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint

@@ -1,0 +1,12 @@
+// Release.xcconfig
+// Release-configuration overrides. Included by AstraStyle target's Release config.
+
+#include "Base.xcconfig"
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited)
+ASTRA_ENVIRONMENT_NAME = Release
+ONLY_ACTIVE_ARCH = NO
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
+VALIDATE_PRODUCT = YES
+ENABLE_TESTABILITY = NO
+SWIFT_COMPILATION_MODE = wholemodule

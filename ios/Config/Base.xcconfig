@@ -1,0 +1,46 @@
+// Base.xcconfig
+//
+// Settings shared by every build configuration. Debug.xcconfig and
+// Release.xcconfig both #include this file and layer environment-specific
+// overrides on top. Secrets.xcconfig (gitignored, see Secrets.example.xcconfig)
+// is included last so it can supply SUPABASE_URL / SUPABASE_ANON_KEY without
+// those values ever being committed.
+
+// ---------------------------------------------------------------------------
+// KNOWN FOOTGUN: "//" inside an .xcconfig value starts a line comment.
+//
+// xcconfig's parser treats an unescaped "//" as "everything after this is a
+// comment", the same as in C. Because every Supabase URL is of the form
+// "https://xyzcompany.supabase.co", writing it naively truncates the value:
+//
+//     SUPABASE_URL = https://xyzcompany.supabase.co
+//     // ^ parses as SUPABASE_URL = https:  (rest is a comment!)
+//
+// Workaround: break up the "//" with an empty build-setting reference
+// "$()", which expands to nothing at build time but prevents the parser
+// from seeing two consecutive slashes while scanning for a comment:
+//
+//     SUPABASE_URL = https:/$()/xyzcompany.supabase.co
+//
+// This resolves at build time to exactly "https://xyzcompany.supabase.co".
+// Apply the same trick to any other URL-valued xcconfig entry (affiliate
+// base URLs, webhook callback URLs, etc). Do not "fix" this by removing the
+// $() — it will silently truncate the value again.
+// ---------------------------------------------------------------------------
+
+// Swift / language mode
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+
+// Deployment
+IPHONEOS_DEPLOYMENT_TARGET = 18.0
+
+// Bundle identifier root. Overridden per-target in project.yml; exposed here
+// so xcconfig-only tooling (fastlane, CI) can read a single source of truth.
+ASTRA_BUNDLE_ID_PREFIX = com.astrastyle
+
+// Pull in the environment-specific secrets file. This file is intentionally
+// NOT committed — see Secrets.example.xcconfig and the ios/README.md setup
+// instructions. Xcode will fail to resolve this include until the developer
+// copies Secrets.example.xcconfig to Secrets.xcconfig.
+#include "Secrets.xcconfig"

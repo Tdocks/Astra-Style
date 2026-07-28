@@ -1,0 +1,10 @@
+// Debug.xcconfig
+// Debug-configuration overrides. Included by AstraStyle target's Debug config.
+
+#include "Base.xcconfig"
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) DEBUG
+ASTRA_ENVIRONMENT_NAME = Debug
+ONLY_ACTIVE_ARCH = YES
+DEBUG_INFORMATION_FORMAT = dwarf
+ENABLE_TESTABILITY = YES
