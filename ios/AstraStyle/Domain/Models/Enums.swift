@@ -133,17 +133,23 @@ public enum ClosetImageType: String, Codable, CaseIterable, Sendable {
 
 // MARK: - `outfits` / `outfit_items` / `outfit_wears`
 
-/// `outfit_items.role` — which wardrobe slot a garment fills within an
-/// outfit. A superset of `ClothingCategory` to allow layering pieces.
+/// `outfit_items.role` — which wardrobe slot a garment fills within an outfit.
+///
+/// This column is typed `clothing_category` in Postgres, so the cases must
+/// mirror that type exactly. A previous version added a `layeringPiece` case
+/// for the t-shirt-under-a-sweater situation; it was removed because
+/// `clothing_category` has no such member and every insert using it would have
+/// failed. Supporting layering properly means giving `outfit_items.role` its
+/// own `outfit_item_role` enum in a new migration rather than borrowing
+/// `clothing_category` — a product decision, not a rename.
 public enum OutfitItemRole: String, Codable, CaseIterable, Sendable {
     case top
     case bottom
     case outerwear
     case shoes
-    case watch
     case accessory
+    case watch
     case fragrance
-    case layeringPiece = "layering_piece"
 }
 
 /// `outfits.source` — how the outfit came to exist.
@@ -168,8 +174,10 @@ public enum OutfitSource: String, Codable, CaseIterable, Sendable {
 public enum StyleFeedbackTargetType: String, Codable, Sendable {
     case closetItem = "closet_item"
     case outfit
+    /// Feedback on one garment's role *within* an outfit, as opposed to the
+    /// item in isolation — "the shoes were wrong here" (spec §9 signals).
+    case outfitItem = "outfit_item"
     case productCandidate = "product_candidate"
-    case studioGeneration = "studio_generation"
 }
 
 /// `style_feedback.signal` (spec §9 "Signals" list, verbatim).
@@ -190,17 +198,22 @@ public enum StyleFeedbackSignal: String, Codable, CaseIterable, Sendable {
 // MARK: - `occasions`
 
 public enum OccasionSource: String, Codable, Sendable {
-    case calendarSynced = "calendar_synced"
     case manual
-    case kyraSuggested = "kyra_suggested"
+    case calendarSync = "calendar_sync"
+    case aiSuggested = "ai_suggested"
 }
 
 // MARK: - `kyra_threads` / `kyra_messages`
 
 public enum KyraMessageRole: String, Codable, Sendable {
-    case user
-    case kyra
     case system
+    case user
+    /// Kyra's own turns. The raw value is `assistant` because that is what the
+    /// Postgres `kyra_message_role` type and every model provider's chat
+    /// format call it; `kyra` is the product name, not the wire value.
+    case assistant
+    /// A tool-call result turn (spec §11 lists 11 server tools Kyra can call).
+    case tool
 }
 
 /// The `intent` field of Kyra's structured response schema (spec §11).
@@ -220,9 +233,9 @@ public enum StyleMemoryType: String, Codable, CaseIterable, Sendable {
     case dislike
     case fitNote = "fit_note"
     case brandAffinity = "brand_affinity"
-    case lifestyleFact = "lifestyle_fact"
     case budgetNote = "budget_note"
-    case other
+    case sizingNote = "sizing_note"
+    case general
 }
 
 // MARK: - `studio_generations`
@@ -237,12 +250,13 @@ public enum StudioGenerationStatus: String, Codable, Sendable {
 // MARK: - `subscriptions`
 
 public enum SubscriptionStatus: String, Codable, Sendable {
+    case trialing
     case active
     case inGracePeriod = "in_grace_period"
     case inBillingRetry = "in_billing_retry"
     case expired
     case revoked
-    case none
+    case cancelled
 }
 
 public enum SubscriptionEnvironment: String, Codable, Sendable {
@@ -308,24 +322,19 @@ public enum StyleIdentity: String, Codable, CaseIterable, Sendable {
 public enum FormalityLevel: String, Codable, CaseIterable, Sendable, Comparable {
     case veryCasual = "very_casual"
     case casual
-    case smartCasual = "smart_casual"
-    case businessCasual = "business_casual"
+    case balanced
     case formal
-    case blackTie = "black_tie"
+    case veryFormal = "very_formal"
 
-    private var rank: Int {
+    /// Position on the five-point scale, for comparisons and slider binding.
+    public var ordinal: Int {
         switch self {
         case .veryCasual: 0
         case .casual: 1
-        case .smartCasual: 2
-        case .businessCasual: 3
-        case .formal: 4
-        case .blackTie: 5
+        case .balanced: 2
+        case .formal: 3
+        case .veryFormal: 4
         }
-    }
-
-    public static func < (lhs: FormalityLevel, rhs: FormalityLevel) -> Bool {
-        lhs.rank < rhs.rank
     }
 }
 
@@ -341,7 +350,7 @@ public enum ToleranceLevel: String, Codable, CaseIterable, Sendable {
 public enum AccessoryPreference: String, Codable, CaseIterable, Sendable {
     case minimal
     case moderate
-    case expressive
+    case bold
 }
 
 // MARK: - `body_profiles`
@@ -381,13 +390,14 @@ public enum OccupationCategory: String, Codable, CaseIterable, Sendable {
 }
 
 public enum DressCode: String, Codable, CaseIterable, Sendable {
+    case ultraCasual = "ultra_casual"
     case casual
+    case smartCasual = "smart_casual"
     case businessCasual = "business_casual"
-    case business
-    case formal
+    case businessFormal = "business_formal"
     case blackTie = "black_tie"
-    case uniform
-    case mixed
+    case formal
+    case athletic
 }
 
 public enum LaundryCadence: String, Codable, CaseIterable, Sendable {

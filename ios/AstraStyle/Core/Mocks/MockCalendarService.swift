@@ -22,7 +22,7 @@ public struct MockCalendarService: CalendarService {
                 endsAt: Calendar.current.date(bySettingHour: 11, minute: 30, second: 0, of: .now),
                 location: "Downtown office",
                 dressCode: .businessCasual,
-                source: .calendarSynced
+                source: .calendarSync
             ),
             Occasion(
                 id: UUID(),
@@ -32,7 +32,7 @@ public struct MockCalendarService: CalendarService {
                 endsAt: Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: .now),
                 location: "Lilia, Williamsburg",
                 dressCode: .casual,
-                source: .calendarSynced
+                source: .calendarSync
             ),
         ]
     }

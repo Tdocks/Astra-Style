@@ -1,0 +1,65 @@
+# ==============================================================================
+# CI: Swift/Postgres enum schema drift
+# ==============================================================================
+# The single highest-value check in this repo's CI, because it's the one
+# that would have caught the five raw-value mismatches fixed while building
+# the vertical slice (see `git log` on Enums.swift: "Vertical slice: auth to
+# outfit round trip, plus five schema mismatches fixed"). Those bugs did not
+# fail at compile time — Swift enum raw values are just strings, so a typo'd
+# one compiles fine and only fails at INSERT time with "invalid input value
+# for enum ...". This workflow runs scripts/check_schema_drift.py, which
+# parses both ios/AstraStyle/Domain/Models/Enums.swift and
+# supabase/migrations/20260728100100_core_enums.sql and fails the build if
+# any mapped pair has diverged — see that script's own header comment for
+# exactly how enums are matched and how "no DB counterpart" exemptions work.
+# ==============================================================================
+name: Schema Drift
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/AstraStyle/Domain/Models/Enums.swift"
+      - "supabase/migrations/20260728100100_core_enums.sql"
+      - "scripts/check_schema_drift.py"
+      - ".github/workflows/schema-drift.yml"
+  pull_request:
+    paths:
+      - "ios/AstraStyle/Domain/Models/Enums.swift"
+      - "supabase/migrations/20260728100100_core_enums.sql"
+      - "scripts/check_schema_drift.py"
+      - ".github/workflows/schema-drift.yml"
+
+concurrency:
+  group: schema-drift-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Swift enum <-> Postgres enum drift check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # No third-party dependencies by design (stdlib argparse/re/pathlib
+      # only — see the script's own header) — nothing to install here.
+      - name: Run schema drift check
+        run: python3 scripts/check_schema_drift.py
+
+      - name: On failure
+        if: failure()
+        run: |
+          echo "### Schema drift detected" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "A Swift enum in ios/AstraStyle/Domain/Models/Enums.swift no longer matches its Postgres enum type in supabase/migrations/20260728100100_core_enums.sql. See the job log above for exactly which value diverged and in which direction." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reproduce locally: \`python3 scripts/check_schema_drift.py\`" >> "$GITHUB_STEP_SUMMARY"

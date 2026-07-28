@@ -1,0 +1,85 @@
+# ==============================================================================
+# CI: Edge Functions (supabase/functions/**)
+# ==============================================================================
+# Runs the same four checks documented in supabase/functions/README.md
+# ("Type checking, tests, formatting, linting") on every push/PR that
+# touches supabase/**, using the exact Deno version this project was built
+# and verified against (2.9.4). A failure here means the exact same failure
+# a developer would see running these commands locally — no CI-only
+# environment differences to debug.
+# ==============================================================================
+name: Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/edge-functions.yml"
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/edge-functions.yml"
+
+# Cancel superseded runs on the same branch/PR so pushing twice in a row
+# doesn't burn CI minutes running the older commit's checks to completion.
+concurrency:
+  group: edge-functions-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DENO_VERSION: "2.9.4"
+
+jobs:
+  check-test-fmt-lint:
+    name: deno check / test / fmt / lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/functions
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Deno ${{ env.DENO_VERSION }}
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: "${{ env.DENO_VERSION }}"
+
+      # Each step runs even if an earlier one failed (fail-fast: false at the
+      # step level, via `if: always()`), so one `deno fmt` nit doesn't hide a
+      # separate `deno lint` failure in the same PR — you get the full
+      # picture in one CI run instead of fixing issues one push at a time.
+      - name: deno check (type check)
+        id: check
+        run: deno check _shared/**/*.ts outfits-generate/**/*.ts
+
+      - name: deno test
+        id: test
+        if: always() && steps.check.outcome != 'cancelled'
+        run: deno test --allow-env _shared/ outfits-generate/
+
+      - name: deno fmt --check
+        id: fmt
+        if: always() && steps.check.outcome != 'cancelled'
+        run: deno fmt --check _shared/ outfits-generate/
+
+      - name: deno lint
+        id: lint
+        if: always() && steps.check.outcome != 'cancelled'
+        run: deno lint _shared/ outfits-generate/
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Edge Functions CI" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Step | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| deno check | ${{ steps.check.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| deno test | ${{ steps.test.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| deno fmt --check | ${{ steps.fmt.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| deno lint | ${{ steps.lint.outcome }} |" >> "$GITHUB_STEP_SUMMARY"

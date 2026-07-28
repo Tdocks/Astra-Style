@@ -1,0 +1,154 @@
+# ==============================================================================
+# CI: iOS app (ios/**)
+# ==============================================================================
+# *** READ THIS BEFORE TREATING THE FIRST RUN(S) OF THIS WORKFLOW AS BROKEN ***
+#
+# Nothing in ios/AstraStyle has ever been compiled. It was written in an
+# environment with no Swift toolchain available, verified by reading (types,
+# protocol conformances, CLAUDE.md's Swift-6-strict-concurrency rules,
+# force-unwrap-free style) but never by `xcodebuild`. It is therefore very
+# likely that the first run(s) of this workflow FAIL — real compiler errors,
+# not CI misconfiguration. That is expected and is the whole point of adding
+# this workflow now rather than later: it turns "we assume this compiles"
+# into "here is the exact list of errors," as fast as possible, instead of
+# discovering the same errors by hand in Xcode weeks from now.
+#
+# This workflow's job on its first few runs is therefore NOT "be green" — it
+# is "produce a build log a human can act on in one read." Every step below
+# is written for that: full, untruncated `xcodebuild` output is always saved
+# as a downloadable artifact (even on failure, even on cancellation), step
+# names say exactly which phase failed, and nothing is piped through a
+# prettifier (xcbeautify etc.) that could drop or reorder the one line that
+# has the actual error. Once real compile errors surface, fix them, and this
+# comment block can be deleted — this workflow is not meant to carry a
+# permanent "expected to fail" caveat.
+# ==============================================================================
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: XcodeGen -> build -> test (iOS 18 simulator)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # macos-15 runners ship several Xcode versions; pin the newest
+          # stable 16.x explicitly rather than trusting the image's default,
+          # so a future runner-image update can't silently change which
+          # compiler/SDK this project builds against. Bump deliberately, not
+          # by surprise. See ios/project.yml's IPHONEOS_DEPLOYMENT_TARGET
+          # (18.0) for why this needs an Xcode 16+ toolchain (first Xcode
+          # with an iOS 18 SDK).
+          xcode-version: "16.2"
+
+      - name: Show toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Provide placeholder secrets config
+        working-directory: ios
+        run: |
+          # Config/Secrets.xcconfig is gitignored by design (CLAUDE.md:
+          # "Service-role keys exist only in Edge Functions" / real
+          # SUPABASE_URL+ANON_KEY are developer-local). Base.xcconfig
+          # `#include?`s it optionally so a real device build/run degrades
+          # gracefully without it, but populate the example file anyway so
+          # this is never the reason a CI build fails for a reason unrelated
+          # to the app's own code.
+          cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
+
+      - name: xcodegen generate
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: List available iOS simulators
+        run: xcrun simctl list devices available
+        # Always runs, even if a later step fails — the first thing you want
+        # when diagnosing "no destination found" is the actual list of what
+        # this runner image has installed, not a guess.
+        if: always()
+
+      - name: Build (Debug, iOS Simulator)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          # Device name only, no explicit `OS=` pin: an Xcode 16.2 toolchain
+          # ships the iOS 18.x simulator runtime(s) it was released with, and
+          # pinning an exact patch version (18.0 vs 18.1 vs 18.2) here is
+          # more likely to break on a runner-image bump than to catch a real
+          # regression. ios/project.yml's own IPHONEOS_DEPLOYMENT_TARGET
+          # (18.0) is the thing that actually enforces "iOS 18+".
+          xcodebuild build \
+            -project AstraStyle.xcodeproj \
+            -scheme AstraStyle \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -skipMacroValidation \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild-build.log"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-build-log
+          path: ${{ runner.temp }}/xcodebuild-build.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Test (AstraStyleTests + AstraStyleUITests, iOS Simulator)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project AstraStyle.xcodeproj \
+            -scheme AstraStyle \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -skipMacroValidation \
+            -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
+
+      - name: Upload test log and result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-test-results
+          path: |
+            ${{ runner.temp }}/xcodebuild-test.log
+            ${{ runner.temp }}/AstraStyle.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### iOS CI" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full build/test logs are attached as workflow artifacts (xcodebuild-build-log, xcodebuild-test-results) — download them for the untruncated output; the inline log above may be trimmed by the Actions UI." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "If this is one of the first runs of this workflow: a failure here is expected (see the comment at the top of ios.yml) — read the build log artifact for the actual compiler errors." >> "$GITHUB_STEP_SUMMARY"

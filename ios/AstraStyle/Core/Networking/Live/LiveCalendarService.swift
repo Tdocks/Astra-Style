@@ -48,7 +48,7 @@ public final class LiveCalendarService: CalendarService, @unchecked Sendable {
                 endsAt: event.endDate,
                 location: event.location,
                 dressCode: nil,
-                source: .calendarSynced,
+                source: .calendarSync,
                 calendarEventIdentifier: event.eventIdentifier
             )
         }

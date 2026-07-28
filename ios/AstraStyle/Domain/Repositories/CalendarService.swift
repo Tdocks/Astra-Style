@@ -16,7 +16,7 @@ public protocol CalendarService: Sendable {
     func requestAccessIfNeeded() async -> Bool
 
     /// Upcoming events in the given range, mapped to `Occasion` with
-    /// `source == .calendarSynced`. `userID` is stamped onto each mapped
+    /// `source == .calendarSync`. `userID` is stamped onto each mapped
     /// `Occasion` since EventKit itself has no concept of our account
     /// system. If permission was denied, returns an empty array rather
     /// than throwing — spec §21 "Calendar denied: You can still create
