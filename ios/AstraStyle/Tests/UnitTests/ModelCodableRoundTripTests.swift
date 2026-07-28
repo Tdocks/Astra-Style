@@ -130,7 +130,7 @@ struct ModelCodableRoundTripTests {
           },
           "schedule_snapshot": {
             "event_count": 3,
-            "earliest_formality_level": "business_casual",
+            "earliest_formality_level": "balanced",
             "headline": "Client meeting at 10:30 AM"
           },
           "kyra_message": "I'd wear the olive knit polo today."
@@ -141,7 +141,7 @@ struct ModelCodableRoundTripTests {
         #expect(brief.weatherSnapshot?.condition == .partlyCloudy)
         #expect(brief.weatherSnapshot?.temperatureHigh == 74)
         #expect(brief.scheduleSnapshot?.eventCount == 3)
-        #expect(brief.scheduleSnapshot?.earliestFormalityLevel == .businessCasual)
+        #expect(brief.scheduleSnapshot?.earliestFormalityLevel == .balanced)
         #expect(brief.hasPrimaryOutfit)
     }
 

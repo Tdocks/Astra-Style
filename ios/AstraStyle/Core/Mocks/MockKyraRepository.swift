@@ -35,7 +35,7 @@ public actor MockKyraRepository: KyraRepository {
         let reply = KyraMessage(
             id: UUID(),
             threadID: resolvedThreadID,
-            role: .kyra,
+            role: .assistant,
             content: "I'd wear the olive knit polo with stone trousers and the suede chukkas — it reads put-together without looking like you tried too hard.",
             structuredPayload: KyraStructuredResponse(
                 message: "I'd wear the olive knit polo with stone trousers and the suede chukkas.",

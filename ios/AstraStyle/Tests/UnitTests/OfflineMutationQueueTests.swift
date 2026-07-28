@@ -39,12 +39,12 @@ struct OfflineMutationQueueTests {
         await queue.enqueue(first)
         await queue.enqueue(second)
 
-        var appliedOrder: [UUID] = []
+        let recorder = AppliedOrderRecorder()
         await queue.drain { mutation in
-            appliedOrder.append(mutation.id)
+            await recorder.record(mutation.id)
         }
 
-        #expect(appliedOrder == [first.id, second.id])
+        #expect(await recorder.ids == [first.id, second.id])
         let remaining = await queue.pendingMutations()
         #expect(remaining.isEmpty)
     }
@@ -60,9 +60,9 @@ struct OfflineMutationQueueTests {
         await queue.enqueue(third)
 
         struct SimulatedFailure: Error {}
-        var appliedOrder: [UUID] = []
+        let recorder = AppliedOrderRecorder()
         await queue.drain { mutation in
-            appliedOrder.append(mutation.id)
+            await recorder.record(mutation.id)
             if mutation.id == second.id {
                 throw SimulatedFailure()
             }
@@ -71,7 +71,7 @@ struct OfflineMutationQueueTests {
         // First succeeded and was removed; second failed and stayed
         // queued; third was never attempted (ordering would otherwise be
         // violated if it applied ahead of the still-pending second).
-        #expect(appliedOrder == [first.id, second.id])
+        #expect(await recorder.ids == [first.id, second.id])
         let remaining = await queue.pendingMutations()
         #expect(remaining.map(\.id) == [second.id, third.id])
     }
@@ -99,5 +99,18 @@ struct OfflineMutationQueueTests {
         await queue.clear()
 
         #expect(await queue.pendingMutations().isEmpty)
+    }
+}
+
+/// `drain(apply:)` takes a `@Sendable` closure, so the applied order cannot be
+/// collected into a captured `var` — that is a data race the Swift 6 compiler
+/// correctly rejects. An actor is the right recorder here: it serialises the
+/// appends without weakening the queue's concurrency contract just to make a
+/// test compile.
+private actor AppliedOrderRecorder {
+    private(set) var ids: [UUID] = []
+
+    func record(_ id: UUID) {
+        ids.append(id)
     }
 }

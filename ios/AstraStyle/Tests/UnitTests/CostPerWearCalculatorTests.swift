@@ -5,6 +5,7 @@
 //  Spec §22 "Unit tests: Cost-per-wear calculation".
 //
 
+import Foundation
 import Testing
 @testable import AstraStyle
 

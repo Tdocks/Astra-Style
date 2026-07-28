@@ -33,7 +33,7 @@ public enum SampleData {
         preferredColors: ["navy", "olive", "stone", "charcoal", "white"],
         avoidedColors: ["neon green", "bright orange"],
         preferredFit: .tailored,
-        formalityPreference: .businessCasual,
+        formalityPreference: .balanced,
         logoTolerance: .low,
         trendTolerance: .medium,
         accessoryPreference: .moderate,
@@ -161,7 +161,7 @@ public enum SampleData {
 
     public static let scheduleSnapshot = ScheduleSnapshot(
         eventCount: 3,
-        earliestFormalityLevel: .businessCasual,
+        earliestFormalityLevel: .balanced,
         headline: "Client meeting at 10:30 AM"
     )
 

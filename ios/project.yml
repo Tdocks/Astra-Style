@@ -30,7 +30,13 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     SWIFT_APPROACHABLE_CONCURRENCY: YES
-    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    # NOTE: SWIFT_DEFAULT_ACTOR_ISOLATION is deliberately NOT set to MainActor.
+    # This codebase is built the other way around: Domain models are plain
+    # Sendable value types, repositories are Sendable and run off the main
+    # actor, and only view models are explicitly @MainActor. Defaulting every
+    # type to MainActor contradicts that and made ~25 call sites fail with
+    # "main actor-isolated initializer cannot be called from outside of the
+    # actor". The default (nonisolated) is correct here.
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
     TARGETED_DEVICE_FAMILY: "1"
     ENABLE_BITCODE: NO
@@ -85,7 +91,18 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.astrastyle.app
-        PRODUCT_NAME: "Astra Style"
+        # PRODUCT_NAME is the BUILD artifact name, not what the user sees.
+        # It was "Astra Style", and the space caused two separate failures:
+        #   1. The Swift module name became `Astra_Style` (non-alphanumerics are
+        #      substituted), so code saying `AstraStyle.WeatherCondition` to
+        #      disambiguate from WeatherKit's could not resolve.
+        #   2. The product became "Astra Style.app", but the test targets derive
+        #      TEST_HOST from the TARGET name — they looked for AstraStyle.app
+        #      and the whole test action failed to launch.
+        # The user-facing name lives in CFBundleDisplayName below, which is the
+        # correct place for it and is already set to "Astra Style".
+        PRODUCT_NAME: AstraStyle
+        PRODUCT_MODULE_NAME: AstraStyle
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad: >-

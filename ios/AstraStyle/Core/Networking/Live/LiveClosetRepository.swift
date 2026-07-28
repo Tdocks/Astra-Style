@@ -180,7 +180,7 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         do {
             let session = try await supabase.auth.session
             let path = "users/\(session.user.id.uuidString)/closet/\(UUID().uuidString).jpg"
-            _ = try await supabase.storage.from("closet").upload(path: path, file: imageData, options: FileOptions(contentType: "image/jpeg"))
+            _ = try await supabase.storage.from("closet").upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
             return path
         } catch {
             throw AstraError.network("Couldn't upload that photo. Check your connection and try again.")

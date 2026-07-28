@@ -392,7 +392,14 @@ struct SliceViewModelTests {
             return
         }
         #expect(outfit.name == "Smart Casual")
-        #expect(outfit.items.map(\.id).sorted { $0.uuidString < $1.uuidString } == [top.id, bottom.id].sorted { $0.uuidString < $1.uuidString })
+        // Split out of a single #expect: chaining map + two sorted(by:) with
+        // trailing closures inside the macro made the type checker give up
+        // ("unable to type-check in reasonable time"). Comparing Sets is both
+        // faster to check and a truer statement of intent — the assertion is
+        // about membership, not ordering.
+        let actualItemIDs = Set(outfit.items.map(\.id))
+        let expectedItemIDs: Set<UUID> = [top.id, bottom.id]
+        #expect(actualItemIDs == expectedItemIDs)
     }
 
     @Test("Generate outfit failure surfaces as OutfitState.failed")

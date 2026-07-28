@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Astra Style</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.astrastyle.app.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>astrastyle</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>itms-apps</string>
+	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Astra Style can read your upcoming events so Kyra can tailor outfit recommendations to what's actually on your schedule, like a client meeting or dinner reservation.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Astra Style can read your upcoming events so Kyra can tailor outfit recommendations to what's actually on your schedule, like a client meeting or dinner reservation.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Astra Style uses your camera to scan garments so Kyra can catalog them in your closet and recommend outfits that use what you already own.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Astra Style uses your approximate location to check the day's weather so Kyra's outfit recommendations suit the conditions outside.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Astra Style uses your microphone so you can talk to Kyra instead of typing when asking style questions.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Astra Style can save outfit visuals and Style Studio generations to your photo library when you choose to save them.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Astra Style can import photos of your clothes and reference photos of yourself so Kyra can build your wardrobe and generate styling previews. We only access the photos you choose to add.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Astra Style converts your spoken questions to text so Kyra can understand and respond to voice requests.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Astra Style does not track you across other companies' apps or websites. This permission is not used to serve targeted advertising.</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>SUPABASE_URL</key>
+	<string>$(SUPABASE_URL)</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+</dict>
+</plist>

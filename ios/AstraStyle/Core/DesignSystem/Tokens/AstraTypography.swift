@@ -130,6 +130,10 @@ public extension Text {
     /// ```swift
     /// Text.astra("Visual Estimate", style: .micro)
     /// ```
+    /// `@MainActor` because `astraText(_:)` is a `View` modifier and `View` is
+    /// main-actor isolated; without it this factory is nonisolated and calling
+    /// the modifier from it is a concurrency violation.
+    @MainActor
     static func astra(_ content: String, style: AstraTypography) -> some View {
         Text(content).astraText(style)
     }

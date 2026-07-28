@@ -23,7 +23,7 @@ public struct Subscription: Codable, Hashable, Sendable {
         userID: UUID,
         appStoreOriginalTransactionID: String? = nil,
         productID: String? = nil,
-        status: SubscriptionStatus = .none,
+        status: SubscriptionStatus = .expired,
         expiresAt: Date? = nil,
         environment: SubscriptionEnvironment = .production
     ) {
@@ -49,8 +49,8 @@ public struct Subscription: Codable, Hashable, Sendable {
     /// a billing hiccup doesn't immediately lock the user out.
     public var isEntitledToPremium: Bool {
         switch status {
-        case .active, .inGracePeriod: true
-        case .inBillingRetry, .expired, .revoked, .none: false
+        case .trialing, .active, .inGracePeriod: true
+        case .inBillingRetry, .expired, .revoked, .cancelled: false
         }
     }
 }

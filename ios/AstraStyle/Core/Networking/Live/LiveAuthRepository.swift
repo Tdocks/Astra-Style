@@ -52,19 +52,33 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
     }
 
     public func verifyEmailOTP(email: String, code: String) async throws -> AuthSession {
+        let response: AuthResponse
         do {
-            let response = try await supabase.auth.verifyOTP(email: email, token: code, type: .email)
-            let session = AuthSession(
-                userID: response.user.id,
-                accessToken: response.accessToken,
-                refreshToken: response.refreshToken,
-                expiresAt: Date(timeIntervalSince1970: response.expiresAt)
-            )
-            try await sessionStore.adopt(session)
-            return session
+            response = try await supabase.auth.verifyOTP(email: email, token: code, type: .email)
         } catch {
             throw AstraError.auth("That code didn't match. Please check and try again.")
         }
+
+        // `AuthResponse` is an enum, not a struct with a session on it. The
+        // `.user` case means the code verified but email confirmation is still
+        // outstanding, so there is no session to adopt — a distinct situation
+        // from a wrong code, and one the user can actually act on. Catching it
+        // here rather than inside the `do` keeps the generic "didn't match"
+        // message from swallowing it.
+        guard case .session(let supabaseSession) = response else {
+            throw AstraError.auth(
+                "Your email address isn't confirmed yet. Check your inbox for the confirmation link, then try again."
+            )
+        }
+
+        let session = AuthSession(
+            userID: supabaseSession.user.id,
+            accessToken: supabaseSession.accessToken,
+            refreshToken: supabaseSession.refreshToken,
+            expiresAt: Date(timeIntervalSince1970: supabaseSession.expiresAt)
+        )
+        try await sessionStore.adopt(session)
+        return session
     }
 
     public func continueAsGuest() async throws -> AuthSession {

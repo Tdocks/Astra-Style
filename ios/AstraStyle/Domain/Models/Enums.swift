@@ -336,6 +336,13 @@ public enum FormalityLevel: String, Codable, CaseIterable, Sendable, Comparable 
         case .veryFormal: 4
         }
     }
+
+    /// Ordered by formality, not by declaration or raw value — `Comparable` is
+    /// what lets outfit and product scoring ask "is this dressier than the
+    /// occasion calls for?" directly.
+    public static func < (lhs: FormalityLevel, rhs: FormalityLevel) -> Bool {
+        lhs.ordinal < rhs.ordinal
+    }
 }
 
 /// Generic low/medium/high tolerance scale, reused for

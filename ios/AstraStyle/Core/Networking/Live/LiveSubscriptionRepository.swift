@@ -27,7 +27,7 @@ public final class LiveSubscriptionRepository: SubscriptionRepository, @unchecke
             // No row yet means the user has never subscribed — treat as
             // free tier rather than surfacing an error.
             let session = try? await supabase.auth.session
-            return Subscription(userID: session?.user.id ?? UUID(), status: .none)
+            return Subscription(userID: session?.user.id ?? UUID(), status: .expired)
         }
     }
 

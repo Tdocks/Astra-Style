@@ -40,6 +40,11 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func tabRoot(for tab: AppTab) -> some View {
+        // `@Bindable` must be re-established here: the one in `body` is a local
+        // binding and does not carry into other methods, so `$router` was out
+        // of scope. @Observable types need this to project bindings at all.
+        @Bindable var router = router
+
         switch tab {
         case .home:
             NavigationStack(path: $router.homePath) {
