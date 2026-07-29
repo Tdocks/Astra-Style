@@ -161,6 +161,10 @@ public enum AppModalRoute: Identifiable, Sendable {
     case studioGeneration(outfitID: UUID?)
     case askKyra(KyraRoute)
     case addOccasion
+    /// Guest -> account creation (spec §7 "Guest migration to account";
+    /// ADR 0011) — distinct from `.paywall`, which is a subscription
+    /// upsell for an existing account, not account creation itself.
+    case createAccount(reason: CreateAccountReason)
 
     public var id: String {
         switch self {
@@ -170,6 +174,7 @@ public enum AppModalRoute: Identifiable, Sendable {
         case .studioGeneration: "studioGeneration"
         case .askKyra: "askKyra"
         case .addOccasion: "addOccasion"
+        case .createAccount: "createAccount"
         }
     }
 }
@@ -181,7 +186,20 @@ public enum AppModalRoute: Identifiable, Sendable {
 @Observable
 public final class AppRouter {
 
-    public var routeState: AppRouteState = .launching
+    /// Resets navigation automatically on any transition to `.signedOut`.
+    ///
+    /// Doing this in a `didSet` rather than at each sign-out call site is
+    /// deliberate. There are several ways to become signed out — the user taps
+    /// sign out, a refresh token is revoked server-side, account deletion
+    /// completes — and only the first is a place anyone remembers to add
+    /// clean-up code. Tying it to the state transition means every path is
+    /// covered, including ones not written yet.
+    public var routeState: AppRouteState = .launching {
+        didSet {
+            guard oldValue != routeState, routeState == .signedOut else { return }
+            resetForSignOut()
+        }
+    }
 
     /// The currently selected tab. Persists across app relaunch via
     /// `AppStorage`-backed restoration performed by `MainTabView`.
@@ -235,6 +253,25 @@ public final class AppRouter {
     }
 
     public func dismissModal() {
+        presentedModal = nil
+    }
+
+    /// Clears every per-tab stack and any presented modal.
+    ///
+    /// Call this on sign-out. Without it, the five path arrays outlive the
+    /// session that produced them: sign out with the Closet tab three screens
+    /// deep on an item detail, sign in as someone else, and the router would
+    /// happily restore that stack — pointing at the previous account's item
+    /// ids. The tab stacks are deliberately durable across tab switches
+    /// (that is the Phase 1 exit criterion), which is exactly why they need an
+    /// explicit tear-down at the one point where durability is wrong.
+    public func resetForSignOut() {
+        selectedTab = .home
+        homePath.removeAll()
+        closetPath.removeAll()
+        studioPath.removeAll()
+        discoverPath.removeAll()
+        profilePath.removeAll()
         presentedModal = nil
     }
 

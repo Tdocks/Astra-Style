@@ -115,11 +115,22 @@ struct MainTabView: View {
 
         case .profile:
             NavigationStack(path: $router.profilePath) {
-                FeaturePlaceholderView(
-                    title: String(localized: "Profile"),
-                    message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
-                    systemImage: "person.crop.circle"
-                )
+                Group {
+                    // A guest has no real Profile content to browse yet
+                    // (Style DNA, wardrobe progress — Phase 2+), but does
+                    // need a real, reachable "create an account" surface
+                    // (spec §6.2; ADR 0011) — shown here instead of the
+                    // generic placeholder below.
+                    if container.sessionStore.isGuest {
+                        GuestProfileView()
+                    } else {
+                        FeaturePlaceholderView(
+                            title: String(localized: "Profile"),
+                            message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
+                            systemImage: "person.crop.circle"
+                        )
+                    }
+                }
                 .navigationDestination(for: ProfileRoute.self) { _ in
                     FeaturePlaceholderView(
                         title: String(localized: "Profile"),
@@ -170,6 +181,8 @@ struct MainTabView: View {
                 message: String(localized: "Tell Kyra what's coming up and she'll dress you for it."),
                 systemImage: "calendar.badge.plus"
             )
+        case .createAccount(let reason):
+            CreateAccountSheet(reason: reason)
         }
     }
 }

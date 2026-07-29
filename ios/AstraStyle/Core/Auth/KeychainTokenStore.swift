@@ -22,6 +22,28 @@ public struct KeychainTokenStore: Sendable {
         let payload = try JSONEncoder.astraKeychain.encode(PersistedSession(session: session))
         var query = baseQuery
         query[kSecValueData as String] = payload
+        // Accessibility: `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+        //
+        // The default when this attribute is omitted is
+        // `kSecAttrAccessibleWhenUnlocked`, which makes the item unreadable
+        // whenever the device is locked — including the exact "kill and
+        // relaunch" case this store exists for: a background app refresh,
+        // a notification tap, or any other cold launch that can happen
+        // before the user has unlocked the device this boot. Under the
+        // default, `restoreSession()` would see `errSecItemNotFound`-like
+        // failure and incorrectly route to `.signedOut` even though a
+        // valid session exists.
+        // - "AfterFirstUnlock" fixes that: the item becomes readable once
+        //   the device has been unlocked at least once since boot, and
+        //   *stays* readable even if the device is locked again — correct
+        //   for a token that background work and early launches need.
+        // - "ThisDeviceOnly" additionally excludes the item from an
+        //   unencrypted local backup being restored onto a *different*
+        //   physical device. A session/refresh token silently carrying
+        //   over to a new device via backup restore is a session-hijack
+        //   vector the app doesn't need to support — a genuinely new
+        //   device should re-authenticate, not inherit a live session.
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 
         let deleteStatus = SecItemDelete(baseQuery as CFDictionary)
         guard deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound else {

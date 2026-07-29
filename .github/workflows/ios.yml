@@ -52,6 +52,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ------------------------------------------------------------------
+      # Cheap checks first. Each of these is seconds, not minutes, and
+      # doesn't need Xcode/XcodeGen at all — running them before
+      # provisioning the toolchain and building means a PR with a lint
+      # violation or a schema-drifted enum fails in well under a minute
+      # instead of after the ~10+ minute build/test steps below have
+      # already run. Order among these three doesn't matter to each other;
+      # what matters is that all three run before "Build".
+      # ------------------------------------------------------------------
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: SwiftLint (strict — every warning fails the build)
+        run: |
+          swiftlint lint --config .swiftlint.yml --strict --reporter github-actions-logging
+
+      - name: UI conventions check (no AI sparkle, no internal ticket ids)
+        run: python3 scripts/check_ui_conventions.py
+
+      - name: Schema drift check (Swift enum <-> Postgres enum)
+        run: python3 scripts/check_schema_drift.py
+
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -105,11 +133,19 @@ jobs:
           # more likely to break on a runner-image bump than to catch a real
           # regression. ios/project.yml's own IPHONEOS_DEPLOYMENT_TARGET
           # (18.0) is the thing that actually enforces "iOS 18+".
+          #
+          # SWIFT_TREAT_WARNINGS_AS_ERRORS=YES is a command-line build
+          # setting override, not something project.yml/the generated
+          # .xcodeproj sets — see project.yml's own comment next to
+          # IPHONEOS_DEPLOYMENT_TARGET for why: CI is where "fails the build
+          # on a compiler warning" (Phase 1 exit criteria) is enforced,
+          # local development stays unblocked by an in-progress warning.
           xcodebuild build \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -skipMacroValidation \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-build.log"
 
       - name: Upload build log
@@ -125,12 +161,16 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          # Same SWIFT_TREAT_WARNINGS_AS_ERRORS=YES override as the build
+          # step above, applied here too since `xcodebuild test` compiles
+          # the test targets fresh and should be held to the same standard.
           xcodebuild test \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -skipMacroValidation \
             -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
 
       - name: Upload test log and result bundle

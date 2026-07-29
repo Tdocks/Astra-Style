@@ -47,6 +47,14 @@ public final class AppContainer {
     public let shoppingRepository: ShoppingRepository
     public let subscriptionRepository: SubscriptionRepository
 
+    // MARK: - Guest mode (spec §6.2; ADR 0011)
+
+    /// Transfers a guest's local closet items to a newly-authenticated
+    /// account. `closetRepository` above already routes guest calls to
+    /// local-only storage; this is the separate, explicit step that moves
+    /// that local data onto the real account once one exists.
+    public let guestMigrationService: GuestMigrationService
+
     // MARK: - Platform services
 
     public let weatherService: WeatherService
@@ -69,6 +77,7 @@ public final class AppContainer {
         studioRepository: StudioRepository,
         shoppingRepository: ShoppingRepository,
         subscriptionRepository: SubscriptionRepository,
+        guestMigrationService: GuestMigrationService,
         weatherService: WeatherService,
         calendarService: CalendarService,
         apiClient: AstraAPIClient,
@@ -85,6 +94,7 @@ public final class AppContainer {
         self.studioRepository = studioRepository
         self.shoppingRepository = shoppingRepository
         self.subscriptionRepository = subscriptionRepository
+        self.guestMigrationService = guestMigrationService
         self.weatherService = weatherService
         self.calendarService = calendarService
         self.apiClient = apiClient
@@ -113,16 +123,38 @@ extension AppContainer {
         let modelContainer = (try? AstraModelContainer.live()) ?? AstraModelContainer.preview()
         let offlineMutationQueue = SwiftDataOfflineMutationQueue(modelContainer: modelContainer)
 
+        // Guest mode (spec §6.2; ADR 0011): `liveClosetRepository` is kept
+        // as its own reference — not just reachable through
+        // `guestAwareClosetRepository` below — because migration must
+        // always write through the real, network-backed repository even
+        // while the session mid-migration is still technically a guest.
+        let guestClosetStore = SwiftDataGuestClosetStore(modelContainer: modelContainer)
+        let liveClosetRepository = LiveClosetRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue)
+        let guestClosetRepository = GuestClosetRepository(
+            store: guestClosetStore,
+            currentGuestUserID: { await sessionStore.currentGuestUserID() }
+        )
+        let guestAwareClosetRepository = GuestAwareClosetRepository(
+            isGuest: { await sessionStore.currentIsGuest() },
+            guestRepository: guestClosetRepository,
+            liveRepository: liveClosetRepository
+        )
+        let guestMigrationService = LiveGuestMigrationService(
+            closetRepository: liveClosetRepository,
+            guestClosetStore: guestClosetStore
+        )
+
         return AppContainer(
             sessionStore: sessionStore,
             authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
             profileRepository: LiveProfileRepository(apiClient: apiClient),
-            closetRepository: LiveClosetRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue),
+            closetRepository: guestAwareClosetRepository,
             outfitRepository: LiveOutfitRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue),
             kyraRepository: LiveKyraRepository(apiClient: apiClient),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
             shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
             subscriptionRepository: LiveSubscriptionRepository(apiClient: apiClient),
+            guestMigrationService: guestMigrationService,
             weatherService: LiveWeatherService(),
             calendarService: LiveCalendarService(),
             apiClient: apiClient,
@@ -142,16 +174,33 @@ extension AppContainer {
         // preview/test process that has no configured Info.plist secrets.
         let sessionStore = SessionStore(apiClient: .previewClient, supabase: AstraSupabaseClientFactory.previewClient)
 
+        let mockClosetRepository = MockClosetRepository()
+        let guestClosetStore = InMemoryGuestClosetStore()
+        let guestClosetRepository = GuestClosetRepository(
+            store: guestClosetStore,
+            currentGuestUserID: { await sessionStore.currentGuestUserID() }
+        )
+        let guestAwareClosetRepository = GuestAwareClosetRepository(
+            isGuest: { await sessionStore.currentIsGuest() },
+            guestRepository: guestClosetRepository,
+            liveRepository: mockClosetRepository
+        )
+        let guestMigrationService = LiveGuestMigrationService(
+            closetRepository: mockClosetRepository,
+            guestClosetStore: guestClosetStore
+        )
+
         return AppContainer(
             sessionStore: sessionStore,
-            authRepository: MockAuthRepository(),
+            authRepository: MockAuthRepository(sessionStore: sessionStore),
             profileRepository: MockProfileRepository(),
-            closetRepository: MockClosetRepository(),
+            closetRepository: guestAwareClosetRepository,
             outfitRepository: MockOutfitRepository(),
             kyraRepository: MockKyraRepository(),
             studioRepository: MockStudioRepository(),
             shoppingRepository: MockShoppingRepository(),
             subscriptionRepository: MockSubscriptionRepository(),
+            guestMigrationService: guestMigrationService,
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),
             apiClient: .previewClient,

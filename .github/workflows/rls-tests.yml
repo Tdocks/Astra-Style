@@ -1,0 +1,108 @@
+# ==============================================================================
+# CI: Automated RLS isolation tests
+# ==============================================================================
+# Runs supabase/tests/20_rls_isolation_tests.sql — one SELECT/INSERT/UPDATE/
+# DELETE/anonymous-access check per user-owned table (all 20 tables; see that
+# file's own header for the full list and methodology) — against a real
+# Postgres 16 + pgvector service container on every PR that touches
+# supabase/**.
+#
+# This is the automated mitigation docs/01-build-roadmap.md's Phase 1 risk
+# register calls for explicitly:
+#
+#   "RLS policies that 'work' in manual testing but have a gap (e.g., missing
+#   policy on an INSERT) — this is a security bug that won't surface until
+#   Phase 3+ when real user data exists. Mitigate with an automated RLS test
+#   per table, not manual QA."
+#
+# A failure here means a real cross-user data-isolation gap was found against
+# a real database — not a lint warning, not a style nit. Treat it as a
+# security bug, not something to bypass.
+# ==============================================================================
+name: RLS Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - "scripts/run-rls-tests.sh"
+      - ".github/workflows/rls-tests.yml"
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "scripts/run-rls-tests.sh"
+      - ".github/workflows/rls-tests.yml"
+
+concurrency:
+  group: rls-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rls-isolation:
+    name: RLS isolation suite (20 tables, real Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        # Plain `postgres:16` does not ship pgvector, which
+        # 20260728100000_enable_extensions.sql requires (every migration
+        # after it runs in the same database). `pgvector/pgvector:pg16` is
+        # the official pgvector-maintained image: postgres:16 plus the
+        # vector extension precompiled — see
+        # supabase/tests/20_rls_isolation_tests.sql's header for why this
+        # suite intentionally does NOT also require a pgTAP-flavored image.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Wait for Postgres to accept connections
+        run: |
+          for _ in $(seq 1 30); do
+            if pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" >/dev/null 2>&1; then
+              echo "Postgres is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in time." >&2
+          exit 1
+
+      - name: Run RLS isolation test suite
+        run: scripts/run-rls-tests.sh
+
+      - name: On failure
+        if: failure()
+        run: |
+          echo "### RLS isolation tests FAILED" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "See the job log above for the exact table and assertion that failed (rows with \`result = FAIL\` in the printed summary table, and the \`[RLS FAIL]\` warning lines above it)." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Per docs/01-build-roadmap.md's Phase 1 risk register, this means a real Row Level Security gap — a policy that looks correct in manual testing but actually lets one user read, insert, update, or delete another user's data. Fix the policy in a new migration (migrations are append-only, see CLAUDE.md) before merging; do not bypass this check." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reproduce locally: \`PGHOST=localhost PGUSER=postgres PGPASSWORD=postgres scripts/run-rls-tests.sh --keep-db\` against any local Postgres 16 + pgvector instance, then \`psql astra_rls_test\` to inspect state after the failing run." >> "$GITHUB_STEP_SUMMARY"

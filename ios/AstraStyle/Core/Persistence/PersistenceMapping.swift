@@ -84,6 +84,43 @@ public enum PersistenceMapping {
         )
     }
 
+    /// Mutates an existing `PersistedClosetItem` in place to match `item`,
+    /// for update-in-place call sites (`SwiftDataGuestClosetStore.update`)
+    /// rather than delete+reinsert, which would needlessly churn the
+    /// SwiftData row's identity. Mirrors `persistedModel(from:pendingSync:)`
+    /// field-for-field, minus `id`/`createdAt` (identity/history, never
+    /// updated) and `primaryImageStoragePath` (not sourced from `ClosetItem`
+    /// in either mapping direction today).
+    public static func update(_ persisted: PersistedClosetItem, with item: ClosetItem) {
+        persisted.userID = item.userID
+        persisted.name = item.name
+        persisted.brand = item.brand
+        persisted.categoryRaw = item.category.rawValue
+        persisted.subcategory = item.subcategory
+        persisted.primaryColor = item.primaryColor
+        persisted.secondaryColors = item.secondaryColors
+        persisted.patternRaw = item.pattern?.rawValue
+        persisted.material = item.material
+        persisted.size = item.size
+        persisted.fitRaw = item.fit?.rawValue
+        persisted.conditionRaw = item.condition?.rawValue
+        persisted.seasonalityRaw = item.seasonality.map(\.rawValue)
+        persisted.formalityScore = item.formalityScore
+        persisted.warmthScore = item.warmthScore
+        persisted.waterResistanceScore = item.waterResistanceScore
+        persisted.purchaseDate = item.purchaseDate
+        persisted.pricePaidMinorUnits = item.pricePaid.map { Int(truncating: ($0 * 100) as NSDecimalNumber) }
+        persisted.currency = item.currency
+        persisted.retailer = item.retailer
+        persisted.productURLString = item.productURL?.absoluteString
+        persisted.wearCount = item.wearCount
+        persisted.lastWornAt = item.lastWornAt
+        persisted.laundryStateRaw = item.laundryState.rawValue
+        persisted.availabilityStateRaw = item.availabilityState.rawValue
+        persisted.archivedAt = item.archivedAt
+        persisted.updatedAt = item.updatedAt
+    }
+
     // MARK: - Outfit
 
     public static func domainModel(from persisted: PersistedOutfit) -> Outfit {
