@@ -22,22 +22,38 @@ import Foundation
 /// half-finished side effect would be harmful.
 ///
 /// - Returns: The operation's value, or `nil` on timeout.
+/// What happened to a deadline-bounded operation.
+///
+/// Three outcomes, not two. Collapsing `timedOut` and `failed` into a single
+/// `nil` loses the distinction between "the network is slow" and "the server
+/// rejected us", and those want opposite handling: the first should let the
+/// user proceed, the second should send them back to sign in.
+enum DeadlineOutcome<T: Sendable>: Sendable {
+    case success(T)
+    case timedOut
+    case failed(any Error)
+}
+
 func withDeadline<T: Sendable>(
     _ duration: Duration,
     operation: @escaping @Sendable () async throws -> T
-) async -> T? {
-    await withTaskGroup(of: T?.self) { group in
+) async -> DeadlineOutcome<T> {
+    await withTaskGroup(of: DeadlineOutcome<T>.self) { group in
         group.addTask {
-            try? await operation()
+            do {
+                return .success(try await operation())
+            } catch {
+                return .failed(error)
+            }
         }
         group.addTask {
             try? await Task.sleep(for: duration)
-            return nil
+            return .timedOut
         }
 
         // The first result wins — whether that is the operation finishing or
         // the sleep elapsing. Cancelling the group takes the loser down with it.
-        let first = await group.next() ?? nil
+        let first = await group.next() ?? .timedOut
         group.cancelAll()
         return first
     }

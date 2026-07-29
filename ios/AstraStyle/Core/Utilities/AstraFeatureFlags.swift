@@ -28,4 +28,18 @@ public enum AstraFeatureFlags {
         false
         #endif
     }
+
+    /// When `true`, the app clears any persisted session and local guest data
+    /// during launch, before routing.
+    ///
+    /// UI tests need a known starting state. Without this, the QA sweep
+    /// inherited whatever session the last manual run left in the Keychain and
+    /// opened on Home instead of Welcome — which made every assertion fail for
+    /// a reason that had nothing to do with the screens under test.
+    ///
+    /// Set via a launch argument (`-astra-reset-state`), so it is reachable
+    /// from XCUITest but not from a shipped build's normal startup path.
+    public static var resetsStateOnLaunch: Bool {
+        ProcessInfo.processInfo.arguments.contains("-astra-reset-state")
+    }
 }

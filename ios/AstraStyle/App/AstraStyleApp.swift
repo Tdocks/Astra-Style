@@ -54,20 +54,33 @@ struct AstraStyleApp: App {
     }
 
     private func resolveLaunchRoute() async -> AppRouteState {
+        if AstraFeatureFlags.resetsStateOnLaunch {
+            // UI-test entry point only (see AstraFeatureFlags). Clears the
+            // Keychain session so the sweep starts from Welcome regardless of
+            // what a previous run left behind.
+            try? await appContainer.sessionStore.signOut()
+            return .signedOut
+        }
+
+        // Reading the Keychain is instant; `restoreSession()` only touches the
+        // network when the stored token has actually expired. Bounded anyway,
+        // because "only sometimes hangs" is still hangs.
+        let restored = await withDeadline(Self.splashDeadline) {
+            try await appContainer.sessionStore.restoreSession()
+        }
+
         let session: AuthSession?
-        do {
-            // Reading the Keychain is instant; `restoreSession()` only touches
-            // the network when the stored token has actually expired. Bounded
-            // anyway, because "only sometimes hangs" is still hangs.
-            session = await withDeadline(Self.splashDeadline) {
-                try await appContainer.sessionStore.restoreSession()
-            } ?? nil
+        switch restored {
+        case .success(let value):
+            session = value
+        case .timedOut, .failed:
+            session = nil
         }
 
         guard let session else {
-            // Either there is no stored session, or restoring it timed out.
-            // Both resolve to Welcome: without credentials there is nothing
-            // else we could show.
+            // No stored session, or restoring it failed or timed out. All
+            // resolve to Welcome: without credentials there is nothing else to
+            // show.
             return .signedOut
         }
 
@@ -85,21 +98,35 @@ struct AstraStyleApp: App {
             return .main
         }
 
-        let profile = await withDeadline(Self.splashDeadline) {
+        let profileOutcome = await withDeadline(Self.splashDeadline) {
             try await appContainer.profileRepository.fetchCurrentProfile()
         }
 
-        guard let profile else {
-            // The session is valid — we hold real credentials — but the
-            // profile fetch was slow or failed. Sending an authenticated user
-            // back to Welcome over a slow network would be the wrong call:
-            // they would sign in again to reach the same place. Let them into
-            // the app; Home already handles an absent brief with its own
-            // loading and offline states.
+        switch profileOutcome {
+        case .success(let profile):
+            return profile.onboardingCompletedAt != nil ? .main : .onboarding
+
+        case .timedOut:
+            // We hold real credentials; the network was just slow. Sending an
+            // authenticated user back to Welcome would make them sign in again
+            // to reach the same place. Let them in — Home has its own loading
+            // and offline states.
+            return .main
+
+        case .failed(let error):
+            // A rejected session is NOT a slow one. If the server says the
+            // credentials are no good, dropping the user on Home leaves them
+            // staring at "Couldn't load your profile" with no route back to
+            // sign-in — a dead end, and one this QA sweep actually caught.
+            // Clear the bad session and send them somewhere they can act.
+            if (error as? AstraError)?.category == .auth {
+                try? await appContainer.sessionStore.signOut()
+                return .signedOut
+            }
+            // Any other failure (5xx, offline, decode) is plausibly transient,
+            // so keep the session and let Home offer a retry.
             return .main
         }
-
-        return profile.onboardingCompletedAt != nil ? .main : .onboarding
     }
 }
 
