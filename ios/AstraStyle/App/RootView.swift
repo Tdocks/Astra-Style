@@ -62,6 +62,7 @@ private struct LaunchingView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("Astra Style. Your style. Your journey. Your best self."))
         }
+        .astraOnMarble()
     }
 }
 
@@ -180,6 +181,7 @@ private struct SignedOutGateView: View {
                 .scrollBounceBehavior(.basedOnSize)
             }
         }
+        .astraOnMarble()
         .sheet(isPresented: $isShowingEmailSheet) {
             EmailAuthSheet { _ in
                 router.routeState = .onboarding
@@ -219,7 +221,13 @@ private struct SignedOutGateView: View {
                 }
             }
             .astraText(.caption)
-            .tint(AstraColor.accentChampagne)
+            // `accentChampagneAccessible`, not `accentChampagne`. These are
+            // text links, and the plain token is #B8914E in light mode —
+            // 2.68:1 against the light background, which fails WCAG AA and is
+            // barely legible in practice (confirmed on the simulator once
+            // light mode became reachable). The accessible variant is #8A6A2E
+            // at 4.62:1. Both resolve to the same value in dark mode.
+            .tint(AstraColor.accentChampagneAccessible)
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)

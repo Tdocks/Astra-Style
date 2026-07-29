@@ -144,10 +144,17 @@ public extension View {
             ZStack {
                 AstraMarble()
                 if scrimmed {
+                    // Deliberately a fixed near-black, NOT `backgroundPrimary`.
+                    // The marble is black stone in both schemes — it is a brand
+                    // texture, not a background that flips. Scrimming it with
+                    // the light-mode background washed the stone out to a pale
+                    // grey and dragged every label on top of it down with it,
+                    // which is exactly how the welcome screen looked the first
+                    // time light mode was actually reachable.
                     LinearGradient(
                         colors: [
-                            AstraColor.backgroundPrimary.opacity(0.10),
-                            AstraColor.backgroundPrimary.opacity(0.78)
+                            Color(hex: "#0A0A0A").opacity(0.10),
+                            Color(hex: "#0A0A0A").opacity(0.78)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -156,6 +163,24 @@ public extension View {
             }
             .ignoresSafeArea()
         }
+    }
+}
+
+public extension View {
+    /// Marks this view as sitting on top of the marble texture.
+    ///
+    /// Marble is black stone in BOTH colour schemes — it is a brand texture,
+    /// not a background that flips with the theme. Anything drawn over it is
+    /// therefore on a dark surface regardless of the user's setting, so every
+    /// adaptive token must resolve to its dark-mode value. Without this, light
+    /// mode renders `textPrimary` (#111111) on near-black stone.
+    ///
+    /// Apply to the CONTAINER holding both the marble and its content —
+    /// `astraMarbleBackground()` is usually attached to a sibling `Color.clear`
+    /// inside a `ZStack`, so putting the environment there would never reach
+    /// the labels.
+    func astraOnMarble() -> some View {
+        environment(\.colorScheme, .dark)
     }
 }
 
