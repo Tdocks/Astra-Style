@@ -154,7 +154,7 @@ public enum AstraColor {
 
     /// Dark `#77736C` / Light `#8C867D`.
     public static var textMuted: Color {
-        AstraColorToken(dark: 0x77736C, light: 0x8C867D).color
+        AstraColorToken(dark: 0x88847C, light: 0x746E66).color
     }
 
     /// Fixed near-black `#14110A`, used as text/icon color *on top of* a champagne fill
@@ -175,7 +175,7 @@ public enum AstraColor {
     /// tints paired with a text label, thin rules/dividers, and dark-mode text — never as a
     /// light-mode text or border color. See `docs/07-design-system.md §Accessibility`.
     public static var accentChampagne: Color {
-        AstraColorToken(dark: 0xD7B46A, light: 0xB8914E).color
+        AstraColorToken(dark: 0xD7B46A, light: 0xAB8545).color
     }
 
     /// Dark `#B8944D` (per spec). Light mode pressed value (`#9C7B42`) is not specified by the

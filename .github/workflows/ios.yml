@@ -77,6 +77,9 @@ jobs:
       - name: UI conventions check (no AI sparkle, no internal ticket ids)
         run: python3 scripts/check_ui_conventions.py
 
+      - name: Design token contrast (WCAG)
+        run: python3 scripts/check_contrast.py
+
       - name: Schema drift check (Swift enum <-> Postgres enum)
         run: python3 scripts/check_schema_drift.py
 

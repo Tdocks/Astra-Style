@@ -84,3 +84,4 @@ __snapshots__/**/*.actual.png
 # sources of truth for the same values, and they'd churn on every regen.
 ios/AstraStyle/Resources/Info.plist
 ios/AstraStyle/Resources/AstraStyle.entitlements
+__pycache__/

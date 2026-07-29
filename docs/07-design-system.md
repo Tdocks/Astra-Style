@@ -21,8 +21,8 @@ non-obvious API choices made to keep things compiling under Swift 6 strict concu
 | `surfaceMarble` | `AstraColor.surfaceMarble` | asset-based (placeholder: `backgroundPrimary`) | same |
 | `textPrimary` | `AstraColor.textPrimary` | `#F7F3EA` | `#111111` |
 | `textSecondary` | `AstraColor.textSecondary` | `#B9B3A8` | `#56514B` |
-| `textMuted` | `AstraColor.textMuted` | `#77736C` | `#8C867D` |
-| `accentChampagne` | `AstraColor.accentChampagne` | `#D7B46A` | `#B8914E` |
+| `textMuted` | `AstraColor.textMuted` | `#88847C`† | `#746E66`† |
+| `accentChampagne` | `AstraColor.accentChampagne` | `#D7B46A` | `#AB8545`† |
 | `accentChampagnePressed` | `AstraColor.accentChampagnePressed` | `#B8944D` | `#9C7B42`* |
 | — (new, not in spec) | `AstraColor.accentChampagneAccessible` | `#D7B46A` | `#8A6A2E`* |
 | — (new, not in spec) | `AstraColor.textOnAccent` | `#14110A` (fixed) | `#14110A` (fixed) |
@@ -34,6 +34,10 @@ non-obvious API choices made to keep things compiling under Swift 6 strict concu
 `*` = value not given by spec §3 (light mode only lists `backgroundPrimary`, `backgroundSecondary`,
 `surfaceElevated`, `textPrimary`, `textSecondary`, `textMuted`, `accentChampagne`, `divider`).
 These are design decisions made to fill the gap — see §4 below.
+
+`†` = **deliberately differs from the hex spec §3 gives.** The spec value failed WCAG AA and was
+darkened/lightened until it passed. Ratios before and after are in §3; the reasoning is in §4
+item 7. `scripts/check_contrast.py` enforces all of it on every CI run.
 
 Every token is backed by `AstraColorToken`, a light/dark hex pair resolved to a single `Color`
 via a `UIColor` dynamic provider keyed off `UITraitCollection.userInterfaceStyle`. This means
@@ -149,6 +153,22 @@ ratio (`(L1 + 0.05) / (L2 + 0.05)`), not estimated.
 WCAG 2.x AA thresholds: **4.5:1** for normal text, **3:1** for large text (≥18pt regular or
 ≥14pt bold) and for non-text UI component contrast (borders, icons that carry meaning).
 
+> **This analysis is enforced, not just recorded.** `scripts/check_contrast.py` parses the hex
+> values straight out of `AstraColor.swift` — no duplicated table to go stale — and checks 32
+> real pairings (16 pairs × both appearances) on every CI run. It exists because the first
+> version of this document correctly identified the light-mode champagne failure, that finding
+> was written down, `accentChampagneAccessible` was added to fix it, and then the Welcome
+> screen's legal links used the failing token anyway. Nobody noticed, because light mode was
+> unreachable at the time so nobody ever *looked* at it. Documentation did not prevent that bug.
+>
+> Running the script for the first time found **seven** further failures, marked † in the token
+> tables above and detailed below. Every one of them had been sitting in a palette that this
+> document already described as audited.
+
+Where a shipped value deviates from spec §3, the reason is given in the relevant subsection
+below. Deviations were preferred over per-call-site workarounds: a token that fails is a trap
+for every future screen, and the alternative is remembering the exception forever.
+
 ### `accentChampagne` — dark mode (`#D7B46A`)
 
 | Background | Ratio | AA text (4.5:1) | AA large/UI (3:1) | AAA text (7:1) |
@@ -161,17 +181,21 @@ WCAG 2.x AA thresholds: **4.5:1** for normal text, **3:1** for large text (≥18
 against every dark surface in the palette. This is why `accentChampagneAccessible` simply reuses
 `accentChampagne` in dark mode.
 
-### `accentChampagne` — light mode (`#B8914E`)
+### `accentChampagne` — light mode (`#AB8545`, revised from spec's `#B8914E`)
 
-| Background | Ratio | AA text (4.5:1) | AA large/UI (3:1) |
+Spec §3's light-mode champagne (`#B8914E`) failed **every** threshold, including the 3:1 floor
+that applies to non-text UI — so it was unusable even as a border or an icon, not just as text:
+
+| Background | `#B8914E` (spec) | `#AB8545` (shipped) | AA large/UI (3:1) |
 |---|---|---|---|
-| `backgroundPrimary` `#F8F5EF` | **2.68:1** | **Fail** | **Fail** |
-| `surfaceElevated` `#FFFFFF` | **2.92:1** | **Fail** | **Fail** |
+| `backgroundPrimary` `#F8F5EF` | 2.68:1 **Fail** | **3.13:1** | Pass |
+| `surfaceElevated` `#FFFFFF` | 2.92:1 **Fail** | **3.40:1** | Pass |
 
-**This fails outright — spec §19's own callout ("High-contrast alternative for champagne text")
-is not optional in light mode.** Light-mode champagne is too pale to pass AA even as large text
-or as a non-text UI border/icon (both need 3:1; it tops out at 2.92:1 on white). It must not be
-used as a light-mode text or border color.
+The value was darkened until it cleared the component floor with a little headroom. It is
+deliberately *not* darkened all the way to 4.5:1 — that is `accentChampagneAccessible`'s job,
+and collapsing the two would leave no token for fills and decorative rules, where a 4.5:1 gold
+reads as brown rather than champagne. **`accentChampagne` still must not be used for light-mode
+text**; it now passes only the non-text bar.
 
 ### The high-contrast alternative: `accentChampagneAccessible` — light mode (`#8A6A2E`)
 
@@ -187,6 +211,38 @@ This is the token every light-mode text/border use of "champagne" routes through
 (`AstraSecondaryButtonStyle`, `AstraTertiaryButtonStyle`, `AstraSectionHeader`'s eyebrow, the
 "Strong" score tier). Dark-mode text keeps the brand's true `#D7B46A` since it already passes
 comfortably.
+
+### `textMuted` — revised in both schemes
+
+The original values (dark `#77736C`, light `#8C867D`) failed AA in **both** appearances against
+**both** surfaces. This is the token used for captions, timestamps, and metadata — real text,
+carrying real information, at small sizes where legibility matters most:
+
+| Surface | Old | New | AA text (4.5:1) |
+|---|---|---|---|
+| dark `backgroundPrimary` `#0D0D0D` | 4.12:1 Fail | `#88847C` → **5.22:1** | Pass |
+| dark `surfaceElevated` `#1B1B1B` | 3.65:1 Fail | `#88847C` → **4.62:1** | Pass |
+| light `backgroundPrimary` `#F8F5EF` | 3.32:1 Fail | `#746E66` → **4.63:1** | Pass |
+| light `surfaceElevated` `#FFFFFF` | 3.61:1 Fail | `#746E66` → **5.04:1** | Pass |
+
+The binding constraint in dark mode is the elevated card, not the app background — a value tuned
+against `#0D0D0D` alone would still fail on every card in the app. Both values were solved
+against the *worst* surface they appear on.
+
+### Primary button labels
+
+`AstraPrimaryButtonStyle` draws `textOnAccent` (`#14110A`, fixed in both schemes) on a champagne
+fill. Verified because it is the single highest-traffic text pairing in the app:
+
+| Fill | Ratio | AA text (4.5:1) |
+|---|---|---|
+| dark `accentChampagne` `#D7B46A` | **9.54:1** | Pass |
+| light `accentChampagne` `#AB8545` | **5.54:1** | Pass |
+| dark `accentChampagnePressed` `#B8944D` | **6.62:1** | Pass |
+| light `accentChampagnePressed` `#9C7B42` | **4.78:1** | Pass |
+
+The pressed state is checked too. A button that passes at rest and fails while your thumb is on
+it is still a button that fails.
 
 ### Other semantic tokens — dark mode, on `backgroundPrimary` (`#0D0D0D`)
 
@@ -233,6 +289,15 @@ The spec (§3) leaves several things unstated. Decisions made, so they can be re
    but not display tiers/bands. Chosen to give four legible, evenly-spaced bands.
 6. **Marble asset** — not yet in the asset catalog (spec references it as "asset-based"; no file
    was supplied to the design system layer). `surfaceMarble` is a documented placeholder.
+7. **Three token values deviate from spec §3** — `textMuted` (both schemes) and light-mode
+   `accentChampagne`. The spec's values fail WCAG AA; see §3 for the measured ratios. The spec
+   also mandates full accessibility support (§19), so the two requirements conflict and
+   accessibility wins. If the brand ever supplies corrected hexes, change them in
+   `AstraColor.swift` and `scripts/check_contrast.py` will confirm or reject them on the spot.
+8. **Divider tokens are exempted from the contrast check** — with a written justification in the
+   script, not silently. Dividers are decorative hairlines; spec §3 explicitly asks for "subtle
+   1px borders in dark mode," and nothing in the UI is conveyed by a divider alone. Exemptions
+   without a stated guard are how a checker becomes decorative.
 
 ---
 
