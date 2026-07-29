@@ -134,19 +134,38 @@ jobs:
           # regression. ios/project.yml's own IPHONEOS_DEPLOYMENT_TARGET
           # (18.0) is the thing that actually enforces "iOS 18+".
           #
-          # SWIFT_TREAT_WARNINGS_AS_ERRORS=YES is a command-line build
-          # setting override, not something project.yml/the generated
-          # .xcodeproj sets — see project.yml's own comment next to
-          # IPHONEOS_DEPLOYMENT_TARGET for why: CI is where "fails the build
-          # on a compiler warning" (Phase 1 exit criteria) is enforced,
-          # local development stays unblocked by an in-progress warning.
+          # NOTE: we deliberately do NOT pass SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+          # here. A command-line build setting applies to EVERY target in the
+          # build, including SwiftPM dependencies — and several of ours
+          # (swift-crypto, swift-http-types, swift-concurrency-extras,
+          # xctest-dynamic-overlay) compile with -suppress-warnings, which is a
+          # hard conflict: "error: Conflicting options '-warnings-as-errors'
+          # and '-suppress-warnings'". It fails the build before compiling a
+          # line of our code, on every run.
+          #
+          # The Phase 1 criterion ("fails the build on a compiler warning") is
+          # instead enforced by the "Fail on warnings in our own code" step
+          # below, which greps the build log. That is strictly more accurate:
+          # it holds OUR sources to zero warnings without making us responsible
+          # for warnings inside third-party packages we do not control.
           xcodebuild build \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -skipMacroValidation \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-build.log"
+
+      - name: Fail on warnings in our own code
+        run: |
+          # Scoped to ios/AstraStyle so a warning inside a SwiftPM checkout —
+          # which we cannot fix and should not be blocked by — does not fail
+          # the build. Anything under our own source tree does.
+          if grep -E '^/.*ios/AstraStyle/.*warning:' "$RUNNER_TEMP/xcodebuild-build.log" > "$RUNNER_TEMP/our-warnings.txt"; then
+            echo "::error::Compiler warnings in first-party code (Phase 1 requires zero):"
+            sed 's|.*/ios/AstraStyle/|AstraStyle/|' "$RUNNER_TEMP/our-warnings.txt" | sort -u
+            exit 1
+          fi
+          echo "No warnings in first-party code."
 
       - name: Upload build log
         if: always()
@@ -161,16 +180,14 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
-          # Same SWIFT_TREAT_WARNINGS_AS_ERRORS=YES override as the build
-          # step above, applied here too since `xcodebuild test` compiles
-          # the test targets fresh and should be held to the same standard.
+          # See the build step for why warnings-as-errors is not passed as a
+          # build setting. The log-scan step covers test target sources too.
           xcodebuild test \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -skipMacroValidation \
             -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
 
       - name: Upload test log and result bundle

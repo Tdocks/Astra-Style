@@ -40,31 +40,22 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "18.0"
     TARGETED_DEVICE_FAMILY: "1"
     ENABLE_BITCODE: NO
-    # NOTE: SWIFT_TREAT_WARNINGS_AS_ERRORS is deliberately NOT set here.
-    # Phase 1 exit criteria (docs/01-build-roadmap.md) require "CI ... fails
-    # the build on a compiler warning", but setting this globally would make
-    # local development fragile: an unused variable mid-refactor, a
-    # first-draft unused parameter, or a deprecation warning from a newer
-    # SDK would all hard-block a local `xcodebuild`/Xcode build instead of
-    # just being visible while iterating — exactly the "makes iterating
-    # painful" failure mode the roadmap warns against. Warnings-as-errors is
-    # instead enforced ONLY in CI, via an xcodebuild command-line build
-    # setting override (`SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`) added to the
-    # `xcodebuild build`/`xcodebuild test` invocations in
-    # .github/workflows/ios.yml. That override:
-    #   - touches nothing in this file or the generated .xcodeproj, so
-    #     `xcodegen generate` output is identical whether run locally or in
-    #     CI;
-    #   - applies to every target built in that invocation (app + test
-    #     targets), matching "fails the build on a compiler warning" at the
-    #     point that actually gates a PR;
-    #   - is trivial to reproduce locally on demand for a pre-push check:
-    #     `xcodebuild build -project AstraStyle.xcodeproj -scheme AstraStyle
-    #     -destination 'platform=iOS Simulator,name=iPhone 16'
-    #     SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`.
-    # As of this change the project builds with zero warnings (see
-    # ios.yml's own header comment on the state of the build), so turning
-    # this on in CI does not create a backlog of newly-failing PRs.
+    # NOTE: SWIFT_TREAT_WARNINGS_AS_ERRORS is deliberately NOT set here, and
+    # is NOT passed as an xcodebuild command-line override in CI either.
+    #
+    # Setting it globally would make local iteration fragile — an unused
+    # variable mid-refactor would hard-block a build. Passing it on the
+    # command line is worse: build settings apply to EVERY target including
+    # SwiftPM dependencies, and several of ours compile with
+    # -suppress-warnings, so xcodebuild fails with "Conflicting options
+    # '-warnings-as-errors' and '-suppress-warnings'" before reaching our
+    # code. That was tried and it broke every CI run.
+    #
+    # The Phase 1 criterion ("CI fails the build on a compiler warning") is
+    # enforced instead by the "Fail on warnings in our own code" step in
+    # .github/workflows/ios.yml, which scans the build log for warnings under
+    # ios/AstraStyle/. That holds our sources to zero without making us
+    # responsible for third-party package warnings.
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
     GENERATE_INFOPLIST_FILE: NO
     MARKETING_VERSION: "1.0.0"
