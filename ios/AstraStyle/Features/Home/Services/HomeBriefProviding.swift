@@ -151,7 +151,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         let brief = DailyBrief(id: UUID(), userID: UUID(), briefDate: .now)
 
         return HomeBriefData(
-            greetingName: String(localized: "there", comment: "Home header greeting for a guest session, which has no display name to greet by"),
+            // Empty, not "there" — see DailyBriefHeaderView for why.
+            greetingName: "",
             weather: nil,
             schedule: nil,
             brief: brief,

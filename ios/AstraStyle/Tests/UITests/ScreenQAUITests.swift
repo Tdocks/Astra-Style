@@ -23,6 +23,11 @@
 
 import XCTest
 
+/// `@MainActor` because every `XCUIApplication`/`XCUIElement` member is
+/// main-actor isolated in the iOS 26 SDK. Without it this file produced 85
+/// concurrency warnings — and CI builds with warnings-as-errors, so they are
+/// build failures, not noise.
+@MainActor
 final class ScreenQAUITests: XCTestCase {
     private var app: XCUIApplication!
 
@@ -30,7 +35,11 @@ final class ScreenQAUITests: XCTestCase {
     /// routing (spec §6.1) and a cold launch on CI is slower than on a laptop.
     private let timeout: TimeInterval = 20
 
-    override func setUpWithError() throws {
+    // `setUp() async throws` rather than `setUpWithError()`: the throwing
+    // synchronous override is nonisolated even on a @MainActor class, so
+    // touching `app` from it warns under strict concurrency. The async variant
+    // inherits the class's isolation.
+    override func setUp() async throws {
         continueAfterFailure = true
         app = XCUIApplication()
         app.launchArguments += [
@@ -192,7 +201,11 @@ final class ScreenQAUITests: XCTestCase {
     /// docs/07-design-system.md found a real failure there — so light mode
     /// needs eyes on it, not just a token table.
     func testLightAppearance() {
-        app.launchArguments += ["-UIUserInterfaceStyle", "Light"]
+        // `-UIUserInterfaceStyle` alone is not enough: the app applies its own
+        // `.preferredColorScheme(...)`, which correctly overrides the system
+        // setting. `-astra-theme` drives the app's preference itself, which is
+        // the only way to actually reach the light palette.
+        app.launchArguments += ["-astra-theme", "light"]
         app.launch()
 
         awaitElement(app.buttons["Continue with Apple"], "Welcome in light mode")

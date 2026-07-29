@@ -17,16 +17,21 @@
 
 import XCTest
 
+/// `@MainActor` for the same reason as `ScreenQAUITests`: XCUITest's element
+/// APIs are main-actor isolated in the iOS 26 SDK.
+@MainActor
 final class AstraStyleUITests: XCTestCase {
     private var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    // Async overrides inherit the class's @MainActor isolation; the throwing
+    // synchronous ones do not (see ScreenQAUITests for the full note).
+    override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments += ["-UITestMode", "1"]
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         app = nil
     }
 

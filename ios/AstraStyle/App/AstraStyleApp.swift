@@ -20,7 +20,7 @@ struct AstraStyleApp: App {
                 .environment(appContainer)
                 .environment(router)
                 .environment(appContainer.sessionStore)
-                .preferredColorScheme(appContainer.settings.preferredColorScheme.resolvedColorScheme)
+                .preferredColorScheme((AstraFeatureFlags.forcedTheme ?? appContainer.settings.preferredColorScheme).resolvedColorScheme)
                 .task {
                     await bootstrap()
                 }

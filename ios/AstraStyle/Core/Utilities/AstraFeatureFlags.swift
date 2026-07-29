@@ -42,4 +42,22 @@ public enum AstraFeatureFlags {
     public static var resetsStateOnLaunch: Bool {
         ProcessInfo.processInfo.arguments.contains("-astra-reset-state")
     }
+
+    /// Forces a theme at launch, overriding the stored preference.
+    ///
+    /// Needed because the app applies its OWN `.preferredColorScheme(...)`,
+    /// which correctly wins over the simulator's `-UIUserInterfaceStyle`
+    /// argument — so there was no way to exercise the light palette from a UI
+    /// test. Spec §3 defines a full light palette and
+    /// `docs/07-design-system.md` records a WCAG audit of it; without this the
+    /// whole thing stays unverifiable, which is how a contrast bug survives.
+    ///
+    /// Usage: `-astra-theme light` (or `dark`, or `system`).
+    public static var forcedTheme: ThemePreference? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-astra-theme"), i + 1 < args.count else {
+            return nil
+        }
+        return ThemePreference(rawValue: args[i + 1])
+    }
 }
