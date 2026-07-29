@@ -47,6 +47,12 @@ struct MainTabView: View {
 
         switch tab {
         case .home:
+            // Captured as a local `let` (matching `AppContainer.live()`'s own
+            // `{ await sessionStore.currentIsGuest() }` closures) rather than
+            // referencing `container.sessionStore` from inside the closure
+            // body, so the `@Sendable` closure captures the already-Sendable
+            // `SessionStore` reference directly.
+            let sessionStore = container.sessionStore
             NavigationStack(path: $router.homePath) {
                 HomeView(
                     viewModel: HomeViewModel(
@@ -55,7 +61,8 @@ struct MainTabView: View {
                             profileRepository: container.profileRepository,
                             closetRepository: container.closetRepository,
                             weatherService: container.weatherService,
-                            calendarService: container.calendarService
+                            calendarService: container.calendarService,
+                            isGuest: { await sessionStore.currentIsGuest() }
                         ),
                         analyticsClient: container.analyticsClient
                     )

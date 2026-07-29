@@ -88,71 +88,96 @@ private struct SignedOutGateView: View {
             // marble belongs on. Scrimmed so the buttons below stay legible.
             Color.clear.astraMarbleBackground()
 
-            VStack(spacing: AstraSpacing.lg) {
-                Spacer()
+            // Spec §19 requires full Dynamic Type support. At the largest
+            // accessibility sizes this screen's content is taller than the
+            // fixed layout below can show without truncating text — a plain
+            // `VStack` in a `ZStack` clips/squeezes instead of growing. The
+            // `GeometryReader` + `ScrollView` pairing keeps the original
+            // spacer-driven layout (content fills the screen, top and bottom
+            // groups pushed apart) at ordinary text sizes via `minHeight`,
+            // while letting the screen scroll instead of truncating once
+            // content genuinely doesn't fit.
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: AstraSpacing.lg) {
+                        Spacer(minLength: AstraSpacing.xl)
 
-                VStack(spacing: AstraSpacing.lg) {
-                    AstraMonogram(size: 88)
-                    AstraWordmark()
-                    Text("Meet Kyra, your personal stylist.")
-                        .astraText(.body)
-                        .foregroundStyle(AstraColor.textSecondary)
-                }
-
-                Spacer()
-
-                VStack(spacing: AstraSpacing.sm) {
-                    SignInWithAppleButton(.continue) { request in
-                        request.requestedScopes = [.fullName, .email]
-                        // Nonce must be generated fresh per attempt and its
-                        // SHA-256 hash attached here; the raw value is
-                        // stashed for the Supabase exchange below. See
-                        // `AppleSignInNonce`'s doc comment — sending the
-                        // token without this makes Supabase's replay check
-                        // meaningless, not just incomplete.
-                        do {
-                            let rawNonce = try AppleSignInNonce.random()
-                            currentNonce = rawNonce
-                            request.nonce = AppleSignInNonce.sha256(rawNonce)
-                        } catch {
-                            currentNonce = nil
-                            authError = String(localized: "Couldn't start a secure sign-in. Please try again.")
+                        VStack(spacing: AstraSpacing.lg) {
+                            AstraMonogram(size: 88)
+                            AstraWordmark()
+                            Text("Meet Kyra, your personal stylist.")
+                                .astraText(.body)
+                                .foregroundStyle(AstraColor.textSecondary)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                    } onCompletion: { result in
-                        handleSignInWithApple(result)
-                    }
-                    .signInWithAppleButtonStyle(.white)
-                    .frame(height: 50)
-                    .clipShape(RoundedRectangle(cornerRadius: AstraSpacing.buttonRadius))
-                    .disabled(isAuthenticating)
-                    .accessibilityLabel(Text("Continue with Apple"))
+                        .padding(.horizontal, AstraSpacing.pagePadding)
 
-                    AstraButton(title: String(localized: "Continue with Email", comment: "Auth entry action")) {
-                        isShowingEmailSheet = true
-                    }
-                    .disabled(isAuthenticating)
+                        Spacer(minLength: AstraSpacing.xl)
 
-                    Button {
-                        Task { await continueAsGuest() }
-                    } label: {
-                        Text("Explore in guest mode")
-                            .astraText(.callout)
-                            .foregroundStyle(AstraColor.textSecondary)
-                    }
-                    .disabled(isAuthenticating)
-                    .accessibilityHint(Text("Browse a limited demo without an account"))
+                        VStack(spacing: AstraSpacing.sm) {
+                            SignInWithAppleButton(.continue) { request in
+                                request.requestedScopes = [.fullName, .email]
+                                // Nonce must be generated fresh per attempt and its
+                                // SHA-256 hash attached here; the raw value is
+                                // stashed for the Supabase exchange below. See
+                                // `AppleSignInNonce`'s doc comment — sending the
+                                // token without this makes Supabase's replay check
+                                // meaningless, not just incomplete.
+                                do {
+                                    let rawNonce = try AppleSignInNonce.random()
+                                    currentNonce = rawNonce
+                                    request.nonce = AppleSignInNonce.sha256(rawNonce)
+                                } catch {
+                                    currentNonce = nil
+                                    authError = String(localized: "Couldn't start a secure sign-in. Please try again.")
+                                }
+                            } onCompletion: { result in
+                                handleSignInWithApple(result)
+                            }
+                            .signInWithAppleButtonStyle(.white)
+                            .frame(height: 50)
+                            .clipShape(RoundedRectangle(cornerRadius: AstraSpacing.buttonRadius))
+                            .disabled(isAuthenticating)
+                            .accessibilityLabel(Text("Continue with Apple"))
 
-                    if let authError {
-                        Text(authError)
-                            .astraText(.caption)
-                            .foregroundStyle(AstraColor.destructive)
-                            .accessibilityLabel(Text("Sign-in error: \(authError)"))
-                    }
+                            AstraButton(title: String(localized: "Continue with Email", comment: "Auth entry action")) {
+                                isShowingEmailSheet = true
+                            }
+                            .disabled(isAuthenticating)
 
-                    legalFootnote
+                            Button {
+                                Task { await continueAsGuest() }
+                            } label: {
+                                Text("Explore in guest mode")
+                                    .astraText(.callout)
+                                    .foregroundStyle(AstraColor.textSecondary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .disabled(isAuthenticating)
+                            .accessibilityHint(Text("Browse a limited demo without an account"))
+
+                            if let authError {
+                                Text(authError)
+                                    .astraText(.caption)
+                                    .foregroundStyle(AstraColor.destructive)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(nil)
+                                    .accessibilityLabel(Text("Sign-in error: \(authError)"))
+                            }
+
+                            legalFootnote
+                        }
+                        .padding(.horizontal, AstraSpacing.pagePadding)
+                        .padding(.bottom, AstraSpacing.lg)
+                    }
+                    .frame(minHeight: proxy.size.height)
+                    .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, AstraSpacing.pagePadding)
-                .padding(.bottom, AstraSpacing.lg)
+                .scrollBounceBehavior(.basedOnSize)
             }
         }
         .sheet(isPresented: $isShowingEmailSheet) {
@@ -165,18 +190,33 @@ private struct SignedOutGateView: View {
     /// Spec §6.2 lists "Terms and Privacy links" as required on this screen,
     /// and App Store review expects them reachable before an account is
     /// created — not buried in Settings afterwards.
+    ///
+    /// `ViewThatFits` reflows the row: a single horizontal line ("Terms of
+    /// Service · Privacy Policy") whenever that fits, and a vertical stack
+    /// of the two links once the Dynamic Type size makes the horizontal row
+    /// wider than the screen — spec §19's full Dynamic Type support applied
+    /// to a row that previously just truncated ("Terms of S… · Privacy…")
+    /// instead of reflowing.
     private var legalFootnote: some View {
         VStack(spacing: AstraSpacing.xxs) {
             Text("By continuing you agree to our")
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
+                .multilineTextAlignment(.center)
 
-            HStack(spacing: AstraSpacing.xs) {
-                Link(String(localized: "Terms of Service"), destination: AstraLegal.termsURL)
-                Text("·")
-                    .astraText(.caption)
-                    .foregroundStyle(AstraColor.textMuted)
-                Link(String(localized: "Privacy Policy"), destination: AstraLegal.privacyURL)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AstraSpacing.xs) {
+                    termsLink
+                    Text("·")
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textMuted)
+                    privacyLink
+                }
+
+                VStack(spacing: AstraSpacing.xxs) {
+                    termsLink
+                    privacyLink
+                }
             }
             .astraText(.caption)
             .tint(AstraColor.accentChampagne)
@@ -184,6 +224,20 @@ private struct SignedOutGateView: View {
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
         .padding(.top, AstraSpacing.xs)
+    }
+
+    /// Stable identifier so UI tests can target this link unambiguously —
+    /// `Link` surfaces as a `.button` in the accessibility tree, not a
+    /// `.link`, so `app.links["Terms of Service"]` never matched it (see
+    /// `Tests/UITests/ScreenQAUITests.swift`).
+    private var termsLink: some View {
+        Link(String(localized: "Terms of Service"), destination: AstraLegal.termsURL)
+            .accessibilityIdentifier("welcome.termsLink")
+    }
+
+    private var privacyLink: some View {
+        Link(String(localized: "Privacy Policy"), destination: AstraLegal.privacyURL)
+            .accessibilityIdentifier("welcome.privacyLink")
     }
 
     private func handleSignInWithApple(_ result: Result<ASAuthorization, Error>) {

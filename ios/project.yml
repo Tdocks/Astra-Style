@@ -147,7 +147,20 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
-        UIUserInterfaceStyle: Dark
+        # Deliberately NOT set to `Dark`. This is a UIKit-level hard
+        # override that wins over SwiftUI's `.preferredColorScheme(...)` —
+        # `App/AstraStyleApp.swift` already applies
+        # `appContainer.settings.preferredColorScheme.resolvedColorScheme`,
+        # which is how the app is meant to govern its own appearance,
+        # including the light palette spec §3 defines, the WCAG contrast
+        # audit `docs/07-design-system.md` records for it, and the theme
+        # control spec §6.22 requires in Profile (`profiles.theme`). With
+        # the hard override in place none of that was ever reachable —
+        # `-UIUserInterfaceStyle Light` at launch still rendered dark.
+        # `AppSettings.preferredColorScheme` defaults to `.dark` (spec §3
+        # "Dark mode — default"), so removing this changes nothing for a
+        # user who has never touched the theme setting; it only unblocks
+        # the ones who have.
 
         # Bridges the xcconfig-only values (Config/Secrets.xcconfig) into
         # the app bundle so AstraEnvironment can read them at runtime via

@@ -81,8 +81,13 @@ final class ScreenQAUITests: XCTestCase {
 
         // Spec §6.2 requires Terms and Privacy reachable before account
         // creation; App Store review checks for this too.
-        XCTAssertTrue(app.links["Terms of Service"].exists, "Terms link missing from Welcome")
-        XCTAssertTrue(app.links["Privacy Policy"].exists, "Privacy link missing from Welcome")
+        //
+        // SwiftUI's `Link` surfaces as a `.button` in the accessibility
+        // tree, not a `.link` — `app.links[...]` never matched it even
+        // though the links are genuinely present and visible. Target the
+        // stable `accessibilityIdentifier`s `RootView.swift` sets instead.
+        XCTAssertTrue(app.buttons["welcome.termsLink"].exists, "Terms link missing from Welcome")
+        XCTAssertTrue(app.buttons["welcome.privacyLink"].exists, "Privacy link missing from Welcome")
         XCTAssertTrue(app.buttons["Continue with Email"].exists)
         XCTAssertTrue(app.staticTexts["Explore in guest mode"].exists
                       || app.buttons["Explore in guest mode"].exists)
