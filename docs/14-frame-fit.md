@@ -1,7 +1,7 @@
 # 14 — Frame-aware fit
 
-**Status:** design, not built. Targets Phase 2 (Identity), because it consumes the measurements
-§6.6 collects and feeds the Style DNA that §6.10 produces.
+**Status:** built and verified. Domain layer, scoring split, Postgres trigger, and CI guards are
+in; wiring into the onboarding screens and the Style DNA prompt lands with Phase 2 (Identity).
 
 Spec §6.6 collects height, chest, waist, inseam, neck, shoe/shirt/trouser size, preferred fit,
 and free-text fit issues. Spec §9's `body_profiles` table stores all of it. Then nothing reads
@@ -223,3 +223,49 @@ Tests that matter more than the others:
    measurement is achievable but inaccurate enough that a wrong number is worse than a missing
    one — a confident bad inseam poisons every rule downstream, and the user has no way to know.
    Recommend deferring past Phase 2.
+
+---
+
+## 7. What building it turned up
+
+Two bugs that predate this feature and were only visible because something finally tried to
+*read* the measurements.
+
+### `BodyProfile` named five columns that do not exist
+
+The Swift model declared coding keys `height_value`, `chest`, `waist`, `inseam` and `neck`. The
+columns are `height_value_cm`, `chest_cm`, `waist_cm`, `inseam_cm` and `neck_cm`.
+
+Nothing failed. Every measurement property is `Optional`, so Swift's synthesised decoder calls
+`decodeIfPresent`, finds nothing under the wrong key, and returns `nil` — silently, for every
+user, on every read. A body profile round-tripped through the API came back empty and looked
+exactly like a user who had skipped the step.
+
+**That is the dangerous shape of this bug.** A wrong key on a non-optional property throws on
+the first decode and gets fixed in minutes. A wrong key on an optional one is invisible, and
+here it was invisible twice over: the "all nil" result is indistinguishable from the legitimate
+"I don't know" answer that spec §6.6 is explicitly built to support.
+
+`scripts/check_column_drift.py` now checks every registered model's coding keys against the
+columns the migrations actually create, and runs in CI. Self-tested by reintroducing the exact
+bug: it reports `coding key "chest" has no column on body_profiles. Did you mean chest_cm?`
+
+### Storage is metric; `profiles.units` is display-only
+
+The creating migration says so plainly, and the original `BodyProfile` header comment claimed
+the opposite — that values were stored in whatever unit `Profile.units` named. The first draft
+of `FrameDerivation` was built on that false premise and took a `units:` parameter.
+
+That parameter is now gone rather than corrected. Storage is unambiguous, so a `units:`
+argument would have been a live footgun: every caller would have had to pass `.metric`
+regardless of the user's actual setting, and the one who dutifully passed the user's preference
+would have got a confident, entirely wrong frame with no error raised anywhere.
+
+The sample fixture had the same defect — `heightValue: 71, weightValue: 178`, meaning 5'11" and
+178lb, which the model read as a man 71cm tall weighing 178kg. Preview-only data, but it is the
+data every SwiftUI preview and mock-backed test runs against.
+
+**The general lesson**, worth carrying into the rest of Phase 2: a column that carries a unit
+should say so in its name, in both the schema and the model. `chest_cm` cannot be misread.
+`chest` needs a comment on another table to interpret, and comments do not survive contact with
+a second developer.

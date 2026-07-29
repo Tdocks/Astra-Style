@@ -62,6 +62,22 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SWIFT_FILE = REPO_ROOT / "ios/AstraStyle/Domain/Models/Enums.swift"
 DEFAULT_SQL_FILE = REPO_ROOT / "supabase/migrations/20260728100100_core_enums.sql"
 
+# Enums that legitimately live outside the two files above.
+#
+# Originally this script read exactly one Swift file and one migration, which
+# was true when it was written and quietly stopped being true the moment a
+# feature declared its enums next to its model instead of in the shared file.
+# A drift checker that silently covers less than it appears to is worse than
+# none: it reports "OK: every mapped Swift enum matches" while the pair that
+# actually drifted was never in scope. These lists are the fix, and the
+# coverage assertion at the end of main() is the guard that keeps them honest.
+EXTRA_SWIFT_FILES = [
+    REPO_ROOT / "ios/AstraStyle/Domain/Models/FrameProfile.swift",
+]
+EXTRA_SQL_FILES = [
+    REPO_ROOT / "supabase/migrations/20260729120000_frame_profile.sql",
+]
+
 # ============================================================================
 # The explicit classification table.
 #
@@ -77,6 +93,11 @@ ENUM_MAPPING: dict[str, str] = {
     "AvailabilityState": "availability_state",
     "ItemCondition": "condition",
     "ItemFit": "fit_preference",
+    # Frame-aware fit (docs/14-frame-fit.md). Declared in FrameProfile.swift and
+    # 20260729120000_frame_profile.sql -- both reached via the EXTRA_* tables above.
+    "FrameTaper": "frame_taper",
+    "FrameProportion": "frame_proportion",
+    "FrameScale": "frame_scale",
     "ClosetImageType": "image_type",
     "OutfitSource": "outfit_source",
     "StyleFeedbackTargetType": "feedback_target_type",
@@ -283,8 +304,22 @@ def main() -> int:
         print(f"error: SQL file not found: {args.sql_file}", file=sys.stderr)
         return 2
 
-    swift_text = args.swift_file.read_text(encoding="utf-8")
-    sql_text = args.sql_file.read_text(encoding="utf-8")
+    def read_all(primary: Path, extras: list[Path], label: str) -> str:
+        chunks = [primary.read_text(encoding="utf-8")]
+        for extra in extras:
+            if not extra.is_file():
+                print(
+                    f"error: {label} file listed in the EXTRA_* table is missing: {extra}\n"
+                    f"       Remove the entry or restore the file -- a silently skipped\n"
+                    f"       source is how this checker starts passing vacuously.",
+                    file=sys.stderr,
+                )
+                raise SystemExit(2)
+            chunks.append(extra.read_text(encoding="utf-8"))
+        return "\n".join(chunks)
+
+    swift_text = read_all(args.swift_file, EXTRA_SWIFT_FILES, "Swift")
+    sql_text = read_all(args.sql_file, EXTRA_SQL_FILES, "SQL")
 
     swift_enums = {e.name: e for e in parse_swift_enums(swift_text)}
     pg_enums = {e.name: e for e in parse_pg_enums(sql_text)}

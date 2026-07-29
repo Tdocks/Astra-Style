@@ -31,17 +31,55 @@ import Foundation
 public struct CompatibilityBreakdown: Codable, Hashable, Sendable {
     public var colorCompatibility: Double
     public var formalityAlignment: Double
-    public var silhouetteCompatibility: Double
+
+    /// Do these garments work *with each other* — the original meaning of the
+    /// silhouette dimension, and still the majority of it.
+    public var silhouetteInternal: Double
+
+    /// Does this silhouette work *on this wearer* (`docs/14-frame-fit.md`).
+    ///
+    /// `nil` whenever the frame was too thin to support a conclusion, which is
+    /// the normal case rather than the exception: spec §6.6 requires "I don't
+    /// know" on every measurement field, so most users will have partial data
+    /// and many will have none. When `nil`, `silhouetteCompatibility` collapses
+    /// to `silhouetteInternal` and the composite is bit-for-bit what it was
+    /// before frame fit existed.
+    public var frameHarmony: Double?
+
     public var seasonWeatherSuitability: Double
     public var userPreference: Double
     public var historicalCoWear: Double
     public var occasionRelevance: Double
     public var availabilityLaundry: Double
 
+    /// The silhouette dimension spec §10 weights at 0.15.
+    ///
+    /// Frame fit deliberately splits this EXISTING dimension rather than adding
+    /// a ninth one. §10's weight table is a published contract summing to 1.0;
+    /// adding a dimension forces a rebalance of all eight and silently changes
+    /// every score in the app. Splitting one leaves the contract intact.
+    public var silhouetteCompatibility: Double {
+        silhouetteCompatibility(weights: Weights())
+    }
+
+    /// The blended silhouette score under a specific weight set.
+    ///
+    /// Takes `weights` rather than reading the default, because `score(weights:)`
+    /// below accepts a server-driven override and a computed property that
+    /// quietly ignored it would make the composite disagree with its own
+    /// breakdown — the kind of bug that shows up as a number being "a bit off"
+    /// and takes a day to find.
+    public func silhouetteCompatibility(weights: Weights) -> Double {
+        guard let frameHarmony else { return silhouetteInternal }
+        let share = max(0, min(1, weights.frameHarmonyShare))
+        return silhouetteInternal * (1 - share) + frameHarmony * share
+    }
+
     public init(
         colorCompatibility: Double,
         formalityAlignment: Double,
         silhouetteCompatibility: Double,
+        frameHarmony: Double? = nil,
         seasonWeatherSuitability: Double,
         userPreference: Double,
         historicalCoWear: Double,
@@ -50,7 +88,11 @@ public struct CompatibilityBreakdown: Codable, Hashable, Sendable {
     ) {
         self.colorCompatibility = colorCompatibility
         self.formalityAlignment = formalityAlignment
-        self.silhouetteCompatibility = silhouetteCompatibility
+        // The label stays `silhouetteCompatibility` so the ~dozen existing call
+        // sites keep compiling and keep meaning what they meant. What they were
+        // always passing is the internal, garment-to-garment score.
+        self.silhouetteInternal = silhouetteCompatibility
+        self.frameHarmony = frameHarmony
         self.seasonWeatherSuitability = seasonWeatherSuitability
         self.userPreference = userPreference
         self.historicalCoWear = historicalCoWear
@@ -71,6 +113,18 @@ public struct CompatibilityBreakdown: Codable, Hashable, Sendable {
         public var occasionRelevance = 0.05
         public var availabilityLaundry = 0.05
 
+        /// How much of the silhouette dimension frame harmony takes when the
+        /// frame is known. Server-configurable alongside the weights above.
+        ///
+        /// At 0.45 of 0.15, frame fit is worth about 7 points of 100 at full
+        /// confidence — enough to break a tie between two otherwise equal
+        /// outfits, and nowhere near enough to overrule colour, occasion, or
+        /// what the user has actually told us he likes. That ceiling is the
+        /// design, not a tuning accident: a man who owns four pairs of wide-leg
+        /// trousers and wears them constantly has told us something more
+        /// reliable than his inseam did.
+        public var frameHarmonyShare = 0.45
+
         public init() {}
     }
 
@@ -79,7 +133,7 @@ public struct CompatibilityBreakdown: Codable, Hashable, Sendable {
         let weighted =
             colorCompatibility * weights.color
             + formalityAlignment * weights.formality
-            + silhouetteCompatibility * weights.silhouette
+            + silhouetteCompatibility(weights: weights) * weights.silhouette
             + seasonWeatherSuitability * weights.seasonWeather
             + userPreference * weights.userPreference
             + historicalCoWear * weights.historicalCoWear

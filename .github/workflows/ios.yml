@@ -74,11 +74,18 @@ jobs:
         run: |
           swiftlint lint --config .swiftlint.yml --strict --reporter github-actions-logging
 
-      - name: UI conventions check (no AI sparkle, no internal ticket ids)
+      - name: UI conventions check (sparkle, ticket ids, body-subject copy)
         run: python3 scripts/check_ui_conventions.py
 
       - name: Design token contrast (WCAG)
         run: python3 scripts/check_contrast.py
+
+      # Coding keys against real columns. Separate from the enum check below
+      # because it catches a quieter failure: a wrong key on an Optional
+      # property does not throw — it decodes as nil forever, and "all nil" is
+      # indistinguishable from a user who skipped the step.
+      - name: Column drift check (Swift CodingKeys <-> Postgres columns)
+        run: python3 scripts/check_column_drift.py
 
       - name: Schema drift check (Swift enum <-> Postgres enum)
         run: python3 scripts/check_schema_drift.py

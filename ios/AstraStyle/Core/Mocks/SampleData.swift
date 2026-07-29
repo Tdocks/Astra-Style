@@ -40,14 +40,21 @@ public enum SampleData {
         styleSummary: "Marcus gravitates toward heritage American workwear filtered through a tailored, quiet-luxury lens — think Buck Mason meets Aimé Leon Dore, with Alden boots doing a lot of the heavy lifting."
     )
 
+    // Centimetres and kilograms, because that is what `body_profiles` stores —
+    // see the header of BodyProfile.swift. This fixture previously held 71 and
+    // 178, meaning 5'11" and 178lb, which the model reads as a man 71cm tall
+    // weighing 178kg. Preview-only data, but it is the data every SwiftUI
+    // preview and every mock-backed test runs against, so a nonsense frame here
+    // becomes nonsense fit advice everywhere the feature is exercised by hand.
+    // 5'11" / 178lb / 40" chest / 33" waist / 32" inseam / 15.5" neck:
     public static let bodyProfile = BodyProfile(
         userID: userID,
-        heightValue: 71,
-        weightValue: 178,
-        chest: 40,
-        waist: 33,
-        inseam: 32,
-        neck: 15.5,
+        heightCm: 180.3,
+        weightKg: 80.7,
+        chestCm: 101.6,
+        waistCm: 83.8,
+        inseamCm: 81.3,
+        neckCm: 39.4,
         shoeSize: "10.5 US",
         shirtSize: "M",
         trouserSize: "33x32",
