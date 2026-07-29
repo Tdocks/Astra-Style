@@ -54,7 +54,7 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     /// "Iconography").
     public var symbolName: String {
         switch self {
-        case .home: "sparkles"
+        case .home: "house"
         case .closet: "square.grid.2x2"
         case .studio: "camera.viewfinder"
         case .discover: "safari"

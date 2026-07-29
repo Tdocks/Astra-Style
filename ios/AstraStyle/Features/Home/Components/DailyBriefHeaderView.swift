@@ -54,9 +54,11 @@ struct DailyBriefHeaderView: View {
             Spacer(minLength: AstraSpacing.sm)
 
             Button(action: onTapKyra) {
-                Image(systemName: "sparkles")
-                    .astraIcon(.control, weight: .medium)
-                    .foregroundStyle(AstraColor.accentChampagne)
+                // The Astra mark, not a generic glyph. Kyra is the product's
+                // voice, so the brand mark is the honest button for reaching
+                // her — and it is ours rather than a symbol every other app
+                // also uses.
+                AstraMonogram(size: 20)
                     .frame(width: 44, height: 44)
                     .background(AstraColor.surfaceElevated, in: Circle())
             }

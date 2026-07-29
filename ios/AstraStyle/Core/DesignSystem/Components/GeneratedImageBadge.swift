@@ -23,8 +23,12 @@ public struct GeneratedImageBadge: View {
             Text("Visual Estimate")
                 .astraText(.micro)
         } icon: {
-            Image(systemName: "sparkles")
-                .imageScale(.small)
+            // A plain dot, matching the badge in the design language. This
+            // label states a limitation — that the image is an approximation —
+            // and dressing that up with a "magic" glyph undercuts it.
+            Circle()
+                .fill(AstraColor.accentChampagne)
+                .frame(width: 5, height: 5)
         }
         .foregroundStyle(AstraColor.textPrimary)
         .padding(.horizontal, AstraSpacing.sm)

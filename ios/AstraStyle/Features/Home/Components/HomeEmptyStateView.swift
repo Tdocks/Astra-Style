@@ -16,7 +16,7 @@ struct HomeEmptyStateView: View {
         VStack(spacing: AstraSpacing.md) {
             Spacer(minLength: AstraSpacing.xl)
 
-            Image(systemName: "sparkles.rectangle.stack")
+            Image(systemName: "hanger")
                 .astraIcon(.display)
                 .foregroundStyle(AstraColor.accentChampagne)
                 .accessibilityHidden(true)

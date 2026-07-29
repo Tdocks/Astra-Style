@@ -15,8 +15,7 @@ struct KyraInsightModuleView: View {
     var body: some View {
         AstraCard {
             HStack(alignment: .top, spacing: AstraSpacing.sm) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(AstraColor.accentChampagne)
+                AstraMonogram(size: 14)
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: AstraSpacing.xxs) {

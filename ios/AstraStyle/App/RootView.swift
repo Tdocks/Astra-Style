@@ -241,7 +241,7 @@ private struct OnboardingPlaceholderView: View {
                 Text("Let's build your Style DNA")
                     .astraText(.title1)
                     .foregroundStyle(AstraColor.textPrimary)
-                Text("This is where Kyra learns your style, fit, and lifestyle. The full onboarding flow is delivered under the P2-ONBOARD tickets.")
+                Text("A few questions about how you live and what you already own, so Kyra's first recommendation is worth reading.")
                     .astraText(.body)
                     .foregroundStyle(AstraColor.textSecondary)
                     .multilineTextAlignment(.center)

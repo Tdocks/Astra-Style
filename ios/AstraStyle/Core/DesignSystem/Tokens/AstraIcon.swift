@@ -80,7 +80,7 @@ public extension View {
     /// Applies an Astra glyph size to an SF Symbol, scaling with Dynamic Type.
     ///
     /// ```swift
-    /// Image(systemName: "sparkles").astraIcon(.control)
+    /// Image(systemName: "house").astraIcon(.control)
     /// ```
     ///
     /// - Parameters:

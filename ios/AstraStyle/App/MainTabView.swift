@@ -69,7 +69,7 @@ struct MainTabView: View {
             NavigationStack(path: $router.closetPath) {
                 FeaturePlaceholderView(
                     title: String(localized: "Closet"),
-                    message: String(localized: "Your wardrobe grid, filters, and item detail land here under the P3-CLOSET tickets."),
+                    message: String(localized: "Everything you own, in one place. Scan your first few pieces and Kyra can start building real outfits."),
                     systemImage: "square.grid.2x2"
                 )
                 .navigationDestination(for: ClosetRoute.self) { _ in
@@ -85,7 +85,7 @@ struct MainTabView: View {
             NavigationStack(path: $router.studioPath) {
                 FeaturePlaceholderView(
                     title: String(localized: "Style Studio"),
-                    message: String(localized: "Visual try-on and outfit visualization land here under the P6-STUDIO tickets."),
+                    message: String(localized: "See a look on yourself before you wear it — or before you buy it."),
                     systemImage: "camera.viewfinder"
                 )
                 .navigationDestination(for: StudioRoute.self) { _ in
@@ -101,7 +101,7 @@ struct MainTabView: View {
             NavigationStack(path: $router.discoverPath) {
                 FeaturePlaceholderView(
                     title: String(localized: "Discover"),
-                    message: String(localized: "Kyra-curated lookbooks and style education land here under the P6-SHOP tickets."),
+                    message: String(localized: "Lookbooks, fit guides, and the reasoning behind them."),
                     systemImage: "safari"
                 )
                 .navigationDestination(for: DiscoverRoute.self) { _ in
@@ -117,7 +117,7 @@ struct MainTabView: View {
             NavigationStack(path: $router.profilePath) {
                 FeaturePlaceholderView(
                     title: String(localized: "Profile"),
-                    message: String(localized: "Style DNA, Wardrobe Score, and account controls land here under the P7-SUB tickets."),
+                    message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
                     systemImage: "person.crop.circle"
                 )
                 .navigationDestination(for: ProfileRoute.self) { _ in
@@ -137,37 +137,37 @@ struct MainTabView: View {
         case .scanner:
             FeaturePlaceholderView(
                 title: String(localized: "Scan an Item"),
-                message: String(localized: "Camera capture and analysis review land here under the P3-SCAN tickets."),
+                message: String(localized: "Point your camera at a garment and Kyra will catalog it for you."),
                 systemImage: "viewfinder"
             )
         case .paywall:
             FeaturePlaceholderView(
                 title: String(localized: "Astra Style Premium"),
-                message: String(localized: "The paywall lands here under the P7-SUB tickets."),
-                systemImage: "sparkles"
+                message: String(localized: "An unlimited closet, the full Daily Brief, and a verdict before you buy."),
+                systemImage: "checkmark.seal"
             )
         case .outfitBuilder:
             FeaturePlaceholderView(
                 title: String(localized: "Outfit Builder"),
-                message: String(localized: "The flat-lay outfit canvas lands here under the P4-OUTFIT tickets."),
+                message: String(localized: "Build a look piece by piece, with Kyra checking your work as you go."),
                 systemImage: "tshirt"
             )
         case .studioGeneration:
             FeaturePlaceholderView(
                 title: String(localized: "Style Studio"),
-                message: String(localized: "Visualization generation lands here under the P6-STUDIO tickets."),
-                systemImage: "wand.and.stars"
+                message: String(localized: "Kyra is putting this look together on you."),
+                systemImage: "person.crop.rectangle"
             )
         case .askKyra:
             FeaturePlaceholderView(
                 title: String(localized: "Ask Kyra"),
-                message: String(localized: "Kyra's conversation UI lands here under the P5-KYRA tickets."),
-                systemImage: "sparkles"
+                message: String(localized: "Ask about an outfit, a purchase, or what to pack."),
+                systemImage: "bubble.left.and.text.bubble.right"
             )
         case .addOccasion:
             FeaturePlaceholderView(
                 title: String(localized: "Add an Occasion"),
-                message: String(localized: "Manual occasion entry lands here under the P4-OUTFIT tickets."),
+                message: String(localized: "Tell Kyra what's coming up and she'll dress you for it."),
                 systemImage: "calendar.badge.plus"
             )
         }

@@ -24,37 +24,37 @@ struct HomeDestinationView: View {
         case .outfitDetail:
             FeaturePlaceholderView(
                 title: String(localized: "Outfit Detail"),
-                message: String(localized: "Full outfit detail lands here under the P4-OUTFIT tickets."),
+                message: String(localized: "The whole look, why it works, and what it's made of."),
                 systemImage: "tshirt"
             )
         case .alternativeLooks:
             FeaturePlaceholderView(
                 title: String(localized: "Alternative Looks"),
-                message: String(localized: "The full alternatives list lands here under the P4-OUTFIT tickets."),
+                message: String(localized: "Other ways Kyra would put today together."),
                 systemImage: "square.stack"
             )
         case .kyraThread:
             FeaturePlaceholderView(
                 title: String(localized: "Ask Kyra"),
-                message: String(localized: "Kyra's conversation UI lands here under the P5-KYRA tickets."),
-                systemImage: "sparkles"
+                message: String(localized: "Ask about an outfit, a purchase, or what to pack."),
+                systemImage: "bubble.left.and.text.bubble.right"
             )
         case .occasionDetail:
             FeaturePlaceholderView(
                 title: String(localized: "Occasion"),
-                message: String(localized: "Occasion detail lands here under the P4-OUTFIT tickets."),
+                message: String(localized: "What's coming up, and what Kyra suggests wearing to it."),
                 systemImage: "calendar"
             )
         case .monthlyReview:
             FeaturePlaceholderView(
                 title: String(localized: "Monthly Review"),
-                message: String(localized: "Kyra's monthly review lands here under the P7-SUB tickets."),
+                message: String(localized: "What you wore, what you bought, and what's worth changing."),
                 systemImage: "chart.line.uptrend.xyaxis"
             )
         case .productDecision:
             FeaturePlaceholderView(
                 title: String(localized: "Product Decision"),
-                message: String(localized: "The Buy / Consider / Wait / Skip verdict page lands here under the P6-SHOP tickets."),
+                message: String(localized: "Whether this is worth buying, and what it would actually add."),
                 systemImage: "cart"
             )
         }
