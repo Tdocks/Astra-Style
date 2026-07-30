@@ -40,23 +40,23 @@ struct OnboardingAppearanceView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
-            colouringSection
+            coloringSection
             featuresSection
         }
     }
 
-    // MARK: - Colouring
+    // MARK: - Coloring
 
-    private var colouringSection: some View {
+    private var coloringSection: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.md) {
             AstraSectionHeader(
-                title: String(localized: "Your colouring", comment: "Onboarding section title"),
-                eyebrow: String(localized: "COLOUR", comment: "Onboarding section eyebrow")
+                title: String(localized: "Your coloring", comment: "Onboarding section title"),
+                eyebrow: String(localized: "COLOR", comment: "Onboarding section eyebrow")
             )
 
             ChoiceGroup(
                 title: String(localized: "Skin undertone", comment: "Appearance question"),
-                reason: String(localized: "Decides which neutrals Kyra suggests. It's the one answer here that changes advice on its own.",
+                reason: String(localized: "Decides which neutrals Kyra suggests — warm and cool skin flatter different shades of grey, navy and brown.",
                                comment: "Why skin undertone is asked"),
                 options: AppearanceOptions.skinUndertones,
                 selection: $draft.skinUndertone,
@@ -69,18 +69,18 @@ struct OnboardingAppearanceView: View {
             )
 
             ChoiceGroup(
-                title: String(localized: "Hair colour", comment: "Appearance question"),
+                title: String(localized: "Hair color", comment: "Appearance question"),
                 reason: String(localized: "Sets how much contrast an outfit should carry between its lightest and darkest pieces.",
-                               comment: "Why hair colour is asked"),
+                               comment: "Why hair color is asked"),
                 options: AppearanceOptions.hairColors,
                 selection: $draft.hairColor,
                 identifier: "hairColor"
             )
 
             ChoiceGroup(
-                title: String(localized: "Eye colour", comment: "Appearance question"),
-                reason: String(localized: "Used sparingly — mostly to pick an accent that isn't fighting your colouring.",
-                               comment: "Why eye colour is asked"),
+                title: String(localized: "Eye color", comment: "Appearance question"),
+                reason: String(localized: "Narrows the accent colors — a knit or a tie that picks up your eyes reads as deliberate.",
+                               comment: "Why eye color is asked"),
                 options: AppearanceOptions.eyeColors,
                 selection: $draft.eyeColor,
                 identifier: "eyeColor"

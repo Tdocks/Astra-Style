@@ -19,7 +19,7 @@
 //    • Skin undertone drives which palette Kyra recommends against — warm and
 //      cool undertones flatter different neutrals. This is the only field here
 //      that changes advice on its own.
-//    • Hair and eye colour refine contrast level, which decides how far apart a
+//    • Hair and eye color refine contrast level, which decides how far apart a
 //      recommended outfit's light and dark values should sit.
 //    • Facial hair and glasses affect neckline and collar suggestions, and
 //      matter for Style Studio reference images (§13) — a generated image
@@ -28,7 +28,7 @@
 //      says it should. It is never used to suggest covering anything up.
 //
 //  Every field is a plain String rather than an enum. The vocabulary here is
-//  genuinely open — "auburn", "salt and pepper" and "greying at the temples"
+//  genuinely open — "auburn", "salt and pepper" and "graying at the temples"
 //  are all real answers — and the screen offers a controlled list only as a
 //  shortcut, not as a constraint. Values written by the picker come from
 //  `AppearanceOptions` so the common cases stay consistent.
@@ -108,7 +108,7 @@ public struct AppearanceProfile: Codable, Hashable, Sendable {
 
 /// The shortcut vocabulary the §6.7 screen offers.
 ///
-/// Deliberately short. A long list of hair colours reads as a form to be
+/// Deliberately short. A long list of hair colors reads as a form to be
 /// completed; six reads as a suggestion. Anything not listed is still valid —
 /// these values are only what the picker writes.
 public enum AppearanceOptions {
@@ -116,10 +116,10 @@ public enum AppearanceOptions {
     public static let skinUndertones = ["Warm", "Neutral", "Cool", "Olive"]
 
     public static let hairColors = [
-        "Black", "Dark brown", "Light brown", "Blonde", "Red", "Grey", "Salt and pepper", "None"
+        "Black", "Dark brown", "Light brown", "Blonde", "Red", "Gray", "Salt and pepper", "None"
     ]
 
-    public static let eyeColors = ["Brown", "Hazel", "Green", "Blue", "Grey"]
+    public static let eyeColors = ["Brown", "Hazel", "Green", "Blue", "Gray"]
 
     public static let facialHairStyles = [
         "Clean shaven", "Stubble", "Moustache", "Short beard", "Full beard"

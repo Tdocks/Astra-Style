@@ -132,12 +132,26 @@ final class OnboardingFlowUITests: XCTestCase {
         capture("27-Onboarding-Measurements-Filled")
         app.buttons["onboarding.advance"].tap()
 
-        // §6.7, §6.8, §6.9 are stubs — walk through them so the sequence and the
+        // §6.7 — Appearance. Captured WITH selections and in two scroll
+        // positions. A screenshot of an untouched screen cannot show whether the
+        // selected state is distinguishable from the unselected one, and a
+        // single top-of-page shot leaves the questions below the fold unaudited
+        // — both were real gaps found when these captures were reviewed.
+        awaitElement(app.buttons["onboarding.appearance.skinUndertone.warm"], "Appearance: chips")
+        app.buttons["onboarding.appearance.skinUndertone.warm"].tap()
+        app.buttons["onboarding.appearance.hairColor.dark_brown"].tap()
+        usleep(400_000)
+        capture("28-Onboarding-Appearance")
+        app.swipeUp(velocity: .slow)
+        usleep(500_000)
+        capture("28b-Onboarding-Appearance-Lower")
+        app.buttons["onboarding.advance"].tap()
+
+        // §6.8 and §6.9 are stubs — walk through them so the sequence and the
         // back/forward controls are exercised end to end.
-        for (index, name) in ["28-Onboarding-Appearance",
-                              "29-Onboarding-Lifestyle",
+        for (index, name) in ["29-Onboarding-Lifestyle",
                               "30-Onboarding-Quiz"].enumerated() {
-            awaitElement(app.buttons["onboarding.advance"], "Step after measurements #\(index)")
+            awaitElement(app.buttons["onboarding.advance"], "Step after appearance #\(index)")
             usleep(400_000)
             capture(name)
             app.buttons["onboarding.advance"].tap()
@@ -252,6 +266,16 @@ final class OnboardingFlowUITests: XCTestCase {
             // catches a half-laid-out screen and the audit reads it as a defect.
             usleep(700_000)
             capture(name)
+
+            // A second shot further down. At AX5 a step is several screens tall,
+            // so a top-of-page capture audits maybe a third of it — the first
+            // audit of this flow could not verify half the required questions
+            // even existed.
+            app.swipeUp(velocity: .slow)
+            usleep(500_000)
+            capture("\(name)-Lower")
+            app.swipeDown(velocity: .slow)
+            usleep(400_000)
         }
     }
 

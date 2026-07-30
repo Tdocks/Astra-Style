@@ -52,6 +52,15 @@ struct OnboardingStepScaffold<Content: View>: View {
                 }
                 .padding(.horizontal, AstraSpacing.pagePadding)
             }
+            // Keyed by step, so each one gets a FRESH scroll view starting at the
+            // top. Without this the scaffold is one long-lived ScrollView whose
+            // content is swapped underneath it, and the offset survives the swap:
+            // scroll to the bottom of the long measurements step, tap Continue,
+            // and the next step opens already scrolled past its own title and
+            // first question. It looks like the app dropped you into the middle
+            // of a form. Caught by an audit of the step screenshots — every
+            // capture was mid-scroll, which is the tell.
+            .id(step)
             .scrollDismissesKeyboard(.interactively)
             // `safeAreaInset` rather than a VStack sibling plus a guessed bottom
             // padding. The footer's height is not knowable in advance: at
