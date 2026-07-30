@@ -69,7 +69,14 @@ public struct OnboardingCompletionPayload: Encodable, Sendable {
 }
 
 /// One paired-image comparison answer from spec §6.9's preference quiz.
-public struct StylePreferenceQuizAnswer: Encodable, Sendable {
+///
+/// `Codable` and `Hashable`, not merely `Encodable`. It began as an
+/// encode-only submission payload, but the onboarding draft holds these while
+/// the user works through the quiz and has to persist locally between launches
+/// — which needs decoding — and be `Hashable` so the draft itself can be. A
+/// mirror type was written to work around that and then deleted: two shapes for
+/// one concept is how they drift.
+public struct StylePreferenceQuizAnswer: Codable, Hashable, Sendable {
     public var pairID: String
     public var chosenOptionID: String
 

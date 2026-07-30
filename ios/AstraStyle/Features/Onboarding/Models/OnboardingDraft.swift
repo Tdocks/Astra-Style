@@ -150,16 +150,6 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
 
     public init() {}
 
-    // `StylePreferenceQuizAnswer` is `Encodable` only — it is a submission
-    // payload, not a stored model. The draft has to round-trip through local
-    // storage, so the answers are persisted as a decodable mirror rather than
-    // by widening the payload type, which would let a submission-only shape
-    // leak into persistence.
-    private struct StoredQuizAnswer: Codable, Hashable, Sendable {
-        var pairID: String
-        var chosenOptionID: String
-    }
-
     enum CodingKeys: String, CodingKey {
         case goals, selectedIdentities, primaryIdentity, units
         case height, weight, chest, waist, inseam, neck
@@ -209,8 +199,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         monthlyBudget = try c.decodeIfPresent(Decimal.self, forKey: .monthlyBudget)
         currency = try c.decodeIfPresent(String.self, forKey: .currency)
             ?? Locale.current.currency?.identifier ?? "USD"
-        let stored = try c.decodeIfPresent([StoredQuizAnswer].self, forKey: .quizAnswers) ?? []
-        quizAnswers = stored.map { StylePreferenceQuizAnswer(pairID: $0.pairID, chosenOptionID: $0.chosenOptionID) }
+        quizAnswers = try c.decodeIfPresent([StylePreferenceQuizAnswer].self, forKey: .quizAnswers) ?? []
         furthestStepReached = try c.decodeIfPresent(
             OnboardingStep.self, forKey: .furthestStepReached
         ) ?? .intro
@@ -251,10 +240,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         try c.encode(avoidedBrands, forKey: .avoidedBrands)
         try c.encodeIfPresent(monthlyBudget, forKey: .monthlyBudget)
         try c.encode(currency, forKey: .currency)
-        try c.encode(
-            quizAnswers.map { StoredQuizAnswer(pairID: $0.pairID, chosenOptionID: $0.chosenOptionID) },
-            forKey: .quizAnswers
-        )
+        try c.encode(quizAnswers, forKey: .quizAnswers)
         try c.encode(furthestStepReached, forKey: .furthestStepReached)
     }
 }
