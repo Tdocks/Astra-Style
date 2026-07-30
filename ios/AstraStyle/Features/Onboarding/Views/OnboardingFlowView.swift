@@ -78,6 +78,12 @@ public struct OnboardingFlowView: View {
                 detail: String(localized: "Skin tone, hair and glasses land here. Every field is optional and only affects colour suggestions.",
                                comment: "Onboarding stub detail")
             )
+        case .lifestyle:
+            OnboardingStubStep(
+                headline: String(localized: "Not built yet", comment: "Onboarding stub headline"),
+                detail: String(localized: "Occupation, dress code, budget and travel land here. They decide what Kyra bothers recommending.",
+                               comment: "Onboarding stub detail")
+            )
         case .quiz:
             OnboardingStubStep(
                 headline: String(localized: "Not built yet", comment: "Onboarding stub headline"),
