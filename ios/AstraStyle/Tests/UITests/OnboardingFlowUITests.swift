@@ -235,6 +235,24 @@ final class OnboardingFlowUITests: XCTestCase {
 
         awaitElement(app.textFields["onboarding.measurement.chest"], "Measurements at AX5")
         capture("34-Onboarding-Measurements-AX5")
+
+        // Carry on to the end at AX5, capturing each step. Every screen after
+        // this one is skippable, so the walk needs no input — and the largest
+        // text size is where these screens break first, so a shot of each one is
+        // worth more than a shot of the two densest.
+        for name in ["37-Onboarding-Appearance-AX5",
+                     "38-Onboarding-Lifestyle-AX5",
+                     "39-Onboarding-Quiz-AX5",
+                     "40-Onboarding-Result-AX5"] {
+            let forward = app.buttons["onboarding.advance"]
+            guard awaitElement(forward, "Forward button before \(name)") else { return }
+            forward.waitForStableFrame()
+            forward.tap()
+            // Let the step render and settle before the shot, or the capture
+            // catches a half-laid-out screen and the audit reads it as a defect.
+            usleep(700_000)
+            capture(name)
+        }
     }
 
     // MARK: - Selecting a card at accessibility sizes
