@@ -45,13 +45,18 @@ struct OnboardingStepScaffold<Content: View>: View {
                     content()
                 }
                 .padding(.horizontal, AstraSpacing.pagePadding)
-                // Clears the pinned footer. Without it the last option in a long
-                // list sits underneath the Continue button and cannot be tapped.
-                .padding(.bottom, AstraSpacing.xxxl)
             }
             .scrollDismissesKeyboard(.interactively)
-
-            footer
+            // `safeAreaInset` rather than a VStack sibling plus a guessed bottom
+            // padding. The footer's height is not knowable in advance: at
+            // accessibility sizes the two buttons stack and it grows past 190pt,
+            // which is taller than any fixed padding constant here — so the last
+            // row of a long step would sit under an opaque footer, existing and
+            // visible but not tappable. `safeAreaInset` makes the scroll view
+            // inset itself by the footer's ACTUAL height, so the clearance is
+            // correct at every text size instead of correct at the one it was
+            // measured against.
+            .safeAreaInset(edge: .bottom, spacing: 0) { footer }
         }
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
     }
