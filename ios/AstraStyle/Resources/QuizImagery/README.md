@@ -74,9 +74,27 @@ already-shipped frames happens to show the same light-skinned model, which reads
 standard — it was luck, not control. A different person inside a pair is a worse confound than
 the backdrop drift this file already warns about: the user may be answering the model rather
 than the clothes, and nothing downstream can tell. **This is the single biggest obstacle to
-finishing the quiz**, and prompt wording does not fix it. The fix is reference-conditioned
-generation — a trained Soul ID, or the same reference frame passed to both sides — so both
-options are the same man in different clothes. That is a change of technique, not of wording.
+finishing the quiz**, and prompt wording does not fix it — it needs reference-conditioned
+generation, so both options are the same man in different clothes. That is a change of
+technique, not of phrasing.
+
+**Which vendor, and one route that is already ruled out.** `docs/15` §5 keeps Higgsfield
+`soul_2` for quiz imagery, and that holds for everything shipped here: text-to-image with no
+reference avoids the prompt-rewriting that disqualified it for Style Studio. But the moment a
+reference frame is attached, that rewriting is exactly what bites — §15 measured all 18
+reference-conditioned generations coming back as head-and-shoulders portraits with the garment
+list discarded. So the remaining axes cannot simply be `soul_2` with a reference bolted on.
+
+The same table already answers it: **reference / figure generation is OpenAI**, recorded as the
+only vendor that keeps a whole body in frame. That matches what this batch saw — `soul_2` put
+the hands out of frame on one candidate and drifted framing between others.
+
+**Do not reach for a trained Soul ID.** `docs/15` rejects it on three grounds, the decisive one
+being that a trained Soul is a persistent derived biometric model held on a third party's
+infrastructure — the worst available option for §29 and right-to-erasure. A case can be made
+that those grounds are all about *per-user* identity in Style Studio and none apply to static
+assets of one fictional model who is not a real person. That case may well be right, but it has
+not been made in §15, and it is not this file's to decide. Raise it there first.
 
 **Soul 2.0 rejects a `seed` parameter.** This file's known-issue #1 offers two fixes for
 backdrop drift, "pin the backdrop seed, or normalise the background channel in post". The
