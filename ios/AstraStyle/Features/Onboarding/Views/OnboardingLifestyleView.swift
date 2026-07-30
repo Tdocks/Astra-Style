@@ -70,9 +70,40 @@ struct OnboardingLifestyleView: View {
                 identifier: "dressCode"
             )
 
+            // §6.8's "typical week", which is a different question from dress
+            // code and was missing entirely. Dress code says what he wears when
+            // he is dressed for work; this says how many days that is. Five days
+            // in an office and one need different QUANTITIES of the same
+            // wardrobe, and nothing else on the profile tells them apart.
+            SingleChoiceGroup(
+                title: String(localized: "And what does a normal week look like?", comment: "Lifestyle question"),
+                reason: String(localized: "Decides how much of your wardrobe has to work hard versus sit in reserve.",
+                               comment: "Why typical week is asked"),
+                options: LifestyleOptions.typicalWeeks,
+                label: { $0 },
+                identity: { $0 },
+                selection: $draft.typicalWeek,
+                identifier: "typicalWeek"
+            )
+
+            SingleChoiceGroup(
+                title: String(localized: "What line of work are you in?", comment: "Lifestyle question"),
+                reason: String(localized: "Sets the baseline for how hard your clothes have to work.",
+                               comment: "Why occupation is asked"),
+                options: OccupationCategory.allCases,
+                label: { $0.displayName },
+                identity: { $0.rawValue },
+                selection: $draft.occupationCategory,
+                identifier: "occupation"
+            )
+
             MultiChoiceGroup(
                 title: String(localized: "What else comes up?", comment: "Lifestyle question"),
-                reason: String(localized: "Pick as many as apply. These are the outfits men get caught short on.",
+                // Was "the outfits men get caught out by", then "caught short
+                // on" — the first a British idiom, the second a British idiom
+                // with an unfortunate second meaning. Both also generalised
+                // about men rather than addressing the user.
+                reason: String(localized: "Pick as many as apply. These are the ones people scramble for the night before.",
                                comment: "Why occasions are asked"),
                 options: LifestyleOptions.occasions,
                 selection: $draft.commonOccasions,
@@ -91,17 +122,6 @@ struct OnboardingLifestyleView: View {
                 selection: $draft.laundryCadence,
                 identifier: "laundryCadence"
             )
-
-            SingleChoiceGroup(
-                title: String(localized: "What line of work are you in?", comment: "Lifestyle question"),
-                reason: String(localized: "Sets the baseline for how hard your clothes have to work.",
-                               comment: "Why occupation is asked"),
-                options: OccupationCategory.allCases,
-                label: { $0.displayName },
-                identity: { $0.rawValue },
-                selection: $draft.occupationCategory,
-                identifier: "occupation"
-            )
         }
     }
 
@@ -117,7 +137,7 @@ struct OnboardingLifestyleView: View {
             // Says plainly that the rest can be left alone. On an eleven-field
             // screen the honest thing is to mark where the required-feeling part
             // ends, rather than letting the length imply it is all needed.
-            Text("You can leave the rest blank. It sharpens things later rather than changing what Kyra suggests now.")
+            Text("Leave any of these blank if you'd rather. Each one narrows what Kyra puts in front of you.")
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -168,7 +188,7 @@ struct OnboardingLifestyleView: View {
 
     private var budgetRow: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xs) {
-            Text("Rough monthly clothing budget")
+            Text("Roughly what do you spend on clothes?")
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -222,12 +242,12 @@ struct OnboardingLifestyleView: View {
 
     private var brandsRow: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xs) {
-            Text("Brands you already like")
+            Text("Any brands or stores you already like?")
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Separate with commas. Kyra uses these as a starting point, not a limit.")
+            Text("Brands or shops, separated by commas. Kyra uses them as a starting point, not a limit.")
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -278,6 +298,13 @@ enum LifestyleOptions {
     static let occasions = [
         "Date nights", "Weddings", "Client meetings", "Weekend travel",
         "Gym", "Nights out", "Family events", "Funerals", "Interviews"
+    ]
+
+    /// Ordered by how much of the week is "dressed for work", because that is
+    /// the axis the answer actually feeds.
+    static let typicalWeeks = [
+        "Mostly in an office", "Split between home and office",
+        "Mostly working from home", "On site or on the move", "Different every week"
     ]
 
     static let travelFrequencies = [

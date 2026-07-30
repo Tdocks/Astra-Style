@@ -177,7 +177,7 @@ final class OnboardingFlowUITests: XCTestCase {
         // possibly missing. Walk the whole page instead.
         awaitElement(app.buttons["onboarding.advance"], "Lifestyle")
         usleep(400_000)
-        captureWholePage(prefix: "29-Onboarding-Lifestyle", screens: 4)
+        captureWholePage(prefix: "29-Onboarding-Lifestyle", screens: 6)
         app.buttons["onboarding.advance"].tap()
 
         // §6.9 is still a stub.
@@ -298,8 +298,15 @@ final class OnboardingFlowUITests: XCTestCase {
 
             // At AX5 a step runs several screens tall, so a top-of-page capture
             // audits maybe a third of it. Walk down and back.
-            captureWholePage(prefix: name, screens: 5, includeFirst: false)
-            for _ in 0..<5 { app.swipeDown(velocity: .slow) }
+            // 12, not 5. At AX5 the lifestyle step runs far longer than five
+            // screenfuls, and a cap that stops halfway produces an audit of the
+            // capture rather than of the app — the first reviewer reasonably
+            // read the last shot as the bottom of the page and reported
+            // everything below it as unreachable. The loop exits early on a
+            // repeated frame, so the cap only costs time on genuinely long
+            // steps.
+            captureWholePage(prefix: name, screens: 12, includeFirst: false)
+            for _ in 0..<12 { app.swipeDown(velocity: .slow) }
             usleep(400_000)
         }
     }

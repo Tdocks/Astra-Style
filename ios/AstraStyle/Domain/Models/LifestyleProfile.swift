@@ -26,6 +26,13 @@ public struct LifestyleProfile: Codable, Hashable, Sendable {
     public var occupationCategory: OccupationCategory?
     public var dressCode: DressCode?
     public var commonOccasions: [String]
+    /// Shape of the user's week (§6.8 "Typical week").
+    ///
+    /// Distinct from `dressCode`, which says what he wears WHEN dressed for
+    /// work. This says how many days that is — five days in an office and one
+    /// need different quantities of the same wardrobe, and nothing else on the
+    /// profile distinguishes them.
+    public var typicalWeek: String?
     public var climatePreferences: [String]
     public var monthlyBudget: Decimal?
 
@@ -59,6 +66,7 @@ public struct LifestyleProfile: Codable, Hashable, Sendable {
         occupationCategory: OccupationCategory? = nil,
         dressCode: DressCode? = nil,
         commonOccasions: [String] = [],
+        typicalWeek: String? = nil,
         climatePreferences: [String] = [],
         monthlyBudget: Decimal? = nil,
         currency: String = "USD",
@@ -75,6 +83,7 @@ public struct LifestyleProfile: Codable, Hashable, Sendable {
         self.occupationCategory = occupationCategory
         self.dressCode = dressCode
         self.commonOccasions = commonOccasions
+        self.typicalWeek = typicalWeek
         self.climatePreferences = climatePreferences
         self.monthlyBudget = monthlyBudget
         self.currency = currency
@@ -93,6 +102,7 @@ public struct LifestyleProfile: Codable, Hashable, Sendable {
         case occupationCategory = "occupation_category"
         case dressCode = "dress_code"
         case commonOccasions = "common_occasions"
+        case typicalWeek = "typical_week"
         case climatePreferences = "climate_preferences"
         case monthlyBudget = "monthly_budget"
         case currency

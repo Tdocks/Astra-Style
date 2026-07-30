@@ -127,6 +127,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
     // §6.8 — Lifestyle.
     public var occupationCategory: OccupationCategory?
     public var dressCode: DressCode?
+    public var typicalWeek: String?
     public var commonOccasions: [String] = []
     public var climatePreferences: [String] = []
     public var laundryCadence: LaundryCadence?
@@ -155,7 +156,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         case height, weight, chest, waist, inseam, neck
         case shoeSize, shirtSize, trouserSize, preferredFit, fitIssues
         case skinUndertone, hairColor, eyeColor, facialHair, wearsGlasses, tattoosVisible
-        case occupationCategory, dressCode, commonOccasions, climatePreferences
+        case occupationCategory, dressCode, typicalWeek, commonOccasions, climatePreferences
         case laundryCadence, travelFrequency, religiousServiceAttireNeeds
         case sustainabilityPreference, preferredBrands, avoidedBrands
         case monthlyBudget, currency, quizAnswers, furthestStepReached
@@ -186,6 +187,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         tattoosVisible = try c.decodeIfPresent(Bool.self, forKey: .tattoosVisible)
         occupationCategory = try c.decodeIfPresent(OccupationCategory.self, forKey: .occupationCategory)
         dressCode = try c.decodeIfPresent(DressCode.self, forKey: .dressCode)
+        typicalWeek = try c.decodeIfPresent(String.self, forKey: .typicalWeek)
         commonOccasions = try c.decodeIfPresent([String].self, forKey: .commonOccasions) ?? []
         climatePreferences = try c.decodeIfPresent([String].self, forKey: .climatePreferences) ?? []
         laundryCadence = try c.decodeIfPresent(LaundryCadence.self, forKey: .laundryCadence)
@@ -230,6 +232,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         try c.encodeIfPresent(tattoosVisible, forKey: .tattoosVisible)
         try c.encodeIfPresent(occupationCategory, forKey: .occupationCategory)
         try c.encodeIfPresent(dressCode, forKey: .dressCode)
+        try c.encodeIfPresent(typicalWeek, forKey: .typicalWeek)
         try c.encode(commonOccasions, forKey: .commonOccasions)
         try c.encode(climatePreferences, forKey: .climatePreferences)
         try c.encodeIfPresent(laundryCadence, forKey: .laundryCadence)
@@ -310,6 +313,7 @@ public extension OnboardingDraft {
             userID: userID,
             occupationCategory: occupationCategory,
             dressCode: dressCode,
+            typicalWeek: typicalWeek,
             commonOccasions: commonOccasions,
             climatePreferences: climatePreferences,
             monthlyBudget: monthlyBudget,

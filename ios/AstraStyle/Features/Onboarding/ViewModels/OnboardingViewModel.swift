@@ -126,6 +126,7 @@ public final class OnboardingViewModel {
                 || draft.facialHair != nil || draft.wearsGlasses != nil || draft.tattoosVisible != nil
         case .lifestyle:
             draft.occupationCategory != nil || draft.dressCode != nil
+                || draft.typicalWeek != nil
                 || !draft.commonOccasions.isEmpty || draft.laundryCadence != nil
                 || draft.monthlyBudget != nil || !draft.preferredBrands.isEmpty
                 || draft.travelFrequency != nil || draft.religiousServiceAttireNeeds != nil

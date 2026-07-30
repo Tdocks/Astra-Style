@@ -82,6 +82,7 @@ struct OnboardingDraftTests {
         d.monthlyBudget = 250
         d.currency = "GBP"
         d.travelFrequency = "Monthly"
+        d.typicalWeek = "Split between home and office"
         d.sustainabilityPreference = "Prefer natural fibres"
         d.quizAnswers = [StylePreferenceQuizAnswer(pairID: "p1", chosenOptionID: "a")]
         return d
@@ -155,6 +156,10 @@ struct OnboardingDraftTests {
         #expect(style.styleGoals.count == 2)
         #expect(lifestyle.currency == "GBP")
         #expect(lifestyle.travelFrequency == "Monthly")
+        // §6.8 lists "typical week" as its own field. It had no column and no
+        // model property, so the question could not have been asked without
+        // dropping the answer.
+        #expect(lifestyle.typicalWeek == "Split between home and office")
         #expect(lifestyle.sustainabilityPreference == "Prefer natural fibres")
     }
 
