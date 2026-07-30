@@ -439,12 +439,54 @@ If provider generation itself is trending to exceed its 20s allocation under loa
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║ DECISION: Higgsfield (Soul 2.0 / `soul_2`).                       ║
-║ Resolved 2026-07-28. Owner: Tyler.                                ║
+║ DECISION: OpenAI `gpt-image-1.5`.                                 ║
+║ Resolved 2026-07-30 by measurement. Owner: Tyler.                 ║
+║ SUPERSEDES the 2026-07-28 Higgsfield decision, which assumed a    ║
+║ capability `soul_2` does not have. See docs/15.                   ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-**What was chosen.** Higgsfield's Soul 2.0 model (`soul_2`) backs `ImageGenerationProvider` in production, satisfying the core requirement from §3.1: reference-image-conditioned generation that preserves identity (face, body proportions, skin tone, hair) while changing clothing, driven by the structured multi-garment prompt in §8.2 above.
+**What was chosen.** OpenAI's `gpt-image-1.5` via the `images/edits` endpoint backs
+`ImageGenerationProvider` in production.
+
+**Why the previous decision was wrong.** Higgsfield `soul_2` was selected on 2026-07-28 for
+exactly the §3.1 requirement — reference-conditioned generation preserving identity while changing
+clothing. It does not do that. `soul_2` silently rewrites the prompt when a reference image is
+attached, discarding the garment list and often the identity; the rewriting cannot be disabled.
+The failure was invisible until something tried to *use* the capability, which is the general
+lesson: **§3.1's capability list was never verified against any vendor before one was chosen.**
+
+**What replaced it, and on what evidence.** Six controlled synthetic references × three outfits ×
+three vendors, identical prompts, identity measured with ArcFace rather than judged by eye, then
+replicated at n=3. Full record and its weaknesses in `docs/15-image-provider-evaluation.md`.
+
+| | identity retention | garment accuracy | per-cell spread |
+|---|---|---|---|
+| `gpt-image-1.5` | **78.5% ±1.6** | 96% → ~100% with colour guard | ±2.9% |
+| `gpt-image-2` | 74.8% ±2.2 | — | ±4.7% |
+| `gemini-2.5-flash-image` | 72.7% ±2.3 | 100% | ±2.0% |
+
+Chosen on identity (the criterion nominated as decisive) and on **consistency** — it is 1.6× more
+stable per cell than `gpt-image-2`, which matters more than the mean for a feature a user runs
+repeatedly.
+
+**Two prompt rules are part of this decision, not optional polish.** Both fix measured failures:
+a **colour-saturation guard** (this model desaturates navy toward black; naming the trap fixes it
+at no cost to identity), and **cut stated as the sentence subject rather than one adjective among
+many** (buried, "wide-leg" was honoured in 2 of 18 images; foregrounded, in all of them — and
+`docs/14`'s entire `FitRules` axis is cut).
+
+**Tier selection is part of the decision too.** Newer is not better here: `gpt-image-1.5` beats
+`gpt-image-2`, `gemini-2.5-flash-image` beats every newer Gemini image model by 11–14 points, and
+`grok-imagine-image` beats the variant named `-quality` by 17. Higher-"quality" image models
+regenerate more aggressively; faithfulness to an input face rewards conservatism. Pin the model
+string explicitly and re-measure before ever moving to a newer one.
+
+**Accepted risk.** No blinded human rating was run. 78.5% retention clears automated same-person
+verification comfortably (threshold 0.32; measured median 0.774), but whether it reads as
+*"that's me"* rather than *"me, but airbrushed"* is unverified, and shipping proceeds without that
+check. If Style Studio's realism is later judged inadequate, this is the untested assumption to
+revisit first — not the vendor.
 
 **Rationale, in brief.** Soul 2.0 was selected against the criteria in the original decision table above — identity preservation quality across diverse subjects, multi-garment prompt steerability for the typical 3–5-piece outfit, async job API maturity (needed for the queueing architecture in §3.3 regardless of vendor), content moderation configurability (feeds §9.3's consent-validation gate), and data retention terms compatible with §29's hardest legal gate in this document, since reference photos are faces — the single most sensitive input class in the whole system.
 

@@ -1,8 +1,10 @@
 # 15 — Image provider evaluation
 
-**Status:** measured. Supersedes the vendor decision in `docs/08` §3.5 and the Higgsfield-specific
-mechanics in `docs/10`, both of which were written around a capability the chosen vendor does not
-have. Those documents are now wrong and must be updated to match this one.
+**Status:** DECIDED — **OpenAI `gpt-image-1.5`**, resolved 2026-07-30. `docs/08` §3.5 and
+`docs/10` have both been updated to match; `docs/10` is superseded in part (its architecture
+survives, its vendor and prompt sections do not).
+
+Evaluation closed deliberately, not exhaustively. §7 records what was consciously left unrun.
 
 Scope: which provider generates Style Studio's images (spec §6.17 / §13), and separately which
 generates the §6.9 quiz imagery. Kyra's text/reasoning tier is **not** in scope and remains
@@ -74,13 +76,17 @@ OpenAI wins every row. `gpt-image-2` for the main run; see §3 on tiers.
 navy blazer rendered black, forest-green corduroy rendered near-black. That is a characterisable
 bias, and plausibly the same conservatism that wins it the identity comparison. It changes less.
 
-### Cut fidelity — the finding that matters most
+### Cut fidelity — first read, later overturned (see §3b)
 
 The high-contrast outfit specified **wide-leg** trousers. Of 18 images, **two** honoured it, both
 OpenAI. Gemini 0/6, xAI 0/6.
 
-Colour and garment presence are followed reliably by all three. **Cut is largely ignored by all
-three.** This is not a vendor problem; it is the same result across three independent vendors.
+The conclusion drawn at the time — that the models cannot render cut — was **wrong**. §3b retested
+it as a single-variable experiment and both models separate slim / regular / wide cleanly. The
+2-of-18 was prompt *attention*, not capability: buried among four garments the adjective was
+dropped, foregrounded it was always honoured. **Read §3b before acting on this paragraph.**
+
+What remains true is the consequence, which is why it was worth chasing:
 
 **Consequence for `docs/14` (frame-aware fit):** `ClosetItem.fit` stores slim / tailored / regular
 / relaxed / oversized, and the entire `FitRules` table reasons on that axis — the skinny-jeans case
@@ -174,13 +180,65 @@ whole person from one photograph. The routes that would close it are multi-refer
 
 | Use case | Provider | Confidence |
 |---|---|---|
-| Style Studio (§6.17) | **OpenAI**, `gpt-image-1.5` or `gpt-image-2` | High on vendor, low on tier — 77 vs 73 at n=6 is inside noise |
+| Style Studio (§6.17) | **OpenAI `gpt-image-1.5`** | High — resolved by replication at n=3, see §3a |
 | Quiz imagery (§6.9) | **Higgsfield** `soul_2`, text-to-image | High |
 | Reference / figure generation | **OpenAI** | High — only vendor that keeps a body in frame |
 | Kyra reasoning (§11) | **untested** | — |
 
 Style Studio's prompt must carry an explicit colour-saturation guard ("navy, not black") to
 counter OpenAI's one measured weakness.
+
+---
+
+## 3a. Replication (n=3) and the tier resolution
+
+Run on the tailored outfit with the colour guard, three draws per cell across all six references.
+
+| model | mean retention | per-cell spread |
+|---|---|---|
+| `gpt-image-1.5` | **78.5% ± 1.6** | ±2.9% |
+| `gpt-image-2` | 74.8% ± 2.2 | ±4.7% |
+| `gemini-2.5-flash-image` | 72.7% ± 2.3 | ±2.0% |
+
+`gpt-image-1.5` leads by 3.7 points over `gpt-image-2` — about 1.4 standard errors, suggestive
+rather than conclusive on the mean alone. **The consistency argument is the stronger one:** it is
+1.6× more stable per cell, and `gpt-image-2` owns the worst cells in the whole study (one
+reference at 62% ±8%). For a feature a user runs repeatedly, a model that is occasionally poor is
+worse than one that is uniformly good.
+
+The colour guard cost nothing: 78.5% with it, against 76% for ungraded `gpt-image-2` earlier.
+
+**A correction to an earlier claim in this evaluation.** Per-cell variance was first reported as
+±13 points. That was wrong — it was computed from four *deltas between two different prompt
+conditions*, which carries the variance of both conditions plus the effect of the prompt change
+itself, not the variance of a single cell. Measured properly within one condition it is **±2–5%**.
+Consequence: the tier gap that was called "inside noise" is in fact readable, and the vendor gaps
+are on firmer ground than originally claimed.
+
+---
+
+## 3b. Cut fidelity — the earlier finding was a prompt problem, not a capability limit
+
+The original signal was indirect: "wide-leg" honoured in 2 of 18 images. Retested as a
+single-variable experiment — identical reference, identical garment, plain tee and trousers so
+nothing overlaps the leg, only the cut adjective varying across slim / regular / wide.
+
+**Both models separate all three levels cleanly.** The earlier result was prompt *attention*: with
+cut as one adjective among four garments and a paragraph of framing, it was dropped; with cut as
+the sentence's subject, every image honoured it.
+
+**This un-breaks `docs/14`.** Style Studio can render the axis `FitRules` reasons about. The
+requirement is that the Studio prompt foreground cut rather than bury it — a prompt rule, now
+recorded in `docs/08` §3.5 as part of the vendor decision.
+
+Quality difference worth carrying: **Gemini overshoots.** Its "wide" renders as costume-scale
+volume rather than trousers a man owns. `gpt-image-1.5` stays plausible across the full range,
+which matters more for a wardrobe app than dynamic range does.
+
+*Measurement note:* the silhouette-width metric written for this test was unreliable — it reported
+ankle widths 2–3× shoulder width, impossible, because fixed-fraction row sampling assumes every
+output shares one framing and they do not. The aggregate direction happened to be correct. The
+conclusion above rests on direct visual inspection of 18 single-variable images, not on that metric.
 
 ---
 
@@ -220,3 +278,25 @@ Stated plainly, because the conclusions above are only as good as these admit.
     updated.
 11. **Evaluation API keys were live in an ephemeral container** and should be rotated regardless of
     outcome.
+
+---
+
+## 7. What was consciously not run
+
+The evaluation was closed by decision rather than exhausted. These were on the plan and dropped
+deliberately, so that a later reader knows they were skipped rather than forgotten:
+
+- **Blinded human rating.** The criterion nominated as decisive. Never run. This is the accepted
+  risk recorded in `docs/08` §3.5: 78.5% retention clears automated same-person verification, but
+  whether it reads as *"that's me"* is unverified. **If Studio's realism is later judged
+  inadequate, this is the first assumption to revisit — not the vendor.**
+- **Per-vendor prompt tuning.** Every vendor competed on one phrasing. Gemini in particular was
+  probably under-measured; its cut overshoot looks like calibration rather than a model limit.
+- **A working body-fidelity metric.** Two attempts failed — pose landmarks track the skeletal hip
+  joint and cannot see soft tissue; silhouette width is confounded by clothing. Body-type
+  preservation therefore remains **unmeasured**, not verified.
+- **xAI on its better tier.** The main comparison ran on `grok-imagine-image-quality`, the worse
+  of its two models, understating xAI by roughly 17 points. It would not have changed the outcome
+  but the number on record is wrong.
+- **Cost modelling at scale**, including the cacheability point: xAI exposes no seed control, so
+  no deterministic cache key.

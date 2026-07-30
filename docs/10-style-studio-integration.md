@@ -1,10 +1,60 @@
-# 10. Style Studio Integration — Higgsfield Soul 2.0
+# 10. Style Studio Integration — SUPERSEDED IN PART
+
+> ## ⚠️ VENDOR SUPERSEDED — read this before anything below
+>
+> **The vendor named in this document is wrong and the capability it assumes does not exist.**
+> `docs/15-image-provider-evaluation.md` measured it: `soul_2` **silently rewrites the prompt**
+> whenever a reference image is attached, discarding the garment list entirely and frequently the
+> identity along with it. All 18 test generations returned a head-and-shoulders portrait in a grey
+> t-shirt instead of the requested outfit. It is not configurable —
+> `enhance_prompt` is rejected as unsupported on that model.
+>
+> **Style Studio now uses OpenAI `gpt-image-1.5`.** Decision recorded in `docs/15` §5.
+>
+> ### What in this document is DEAD
+>
+> - **§0** — the "two paths" premise. The one-off reference path does not work at all.
+> - **§3.1–3.3** — Higgsfield client setup, error mapping, `submitGeneration`/`pollStatus`.
+> - **§3.4 Soul ID training** — rejected outright, and not only on quality. Souls are
+>   account-scoped rather than user-scoped, so thousands of end users' models would share one
+>   seat with no isolation; and a trained Soul **is a persistent derived biometric model** of the
+>   user held indefinitely by a third party, making it the *worst* option for §29 and for
+>   right-to-erasure. See `docs/15` §2.
+> - **§4** — all `soul_2` prompt construction and the worked examples.
+>
+> ### What in this document SURVIVES, because it was never vendor-specific
+>
+> - **§1** the tiered product design and Kyra's framing of the upgrade.
+> - **§2** the architecture: call site, job lifecycle, the queue, the polling contract,
+>   results-land-in-Storage-never-hotlinked, disclaimer attachment.
+> - **§5** the body-proportion gap — and `docs/15` adds to it: text-to-image models regress
+>   hard toward an average male build, so a generated *figure* will not carry a user's frame.
+>
+> ### Two prompt rules that MUST carry into the replacement
+>
+> Both were measured, and both fix a real observed failure:
+>
+> 1. **Colour saturation guard.** `gpt-image-1.5` desaturates toward black — navy renders as
+>    black, forest green as near-black. Naming the trap explicitly fixes it, at no cost to
+>    identity (`docs/15` §3).
+> 2. **Cut must be weighted, not buried.** With "wide-leg" as one adjective among four garments,
+>    2 of 18 images honoured it. With cut as the sentence's subject, every image honoured it.
+>    This one is load-bearing for `docs/14` — `FitRules` reasons entirely on the cut axis, and if
+>    Studio cannot render slim versus wide then Kyra's advice sits beside a picture that
+>    contradicts it.
+>
+> Nothing below this box has been edited. It is kept for the architecture and product design,
+> which remain correct, and as the record of a decision that measurement overturned.
+
+---
+
+# 10 (original). Style Studio Integration — Higgsfield Soul 2.0
 
 **Depends on:** `00-master-spec.md` §5.6, §6.7, §6.17, §9, §11, §13, §14, §15, §16, §20, §21, §29;
 `08-provider-abstraction.md` §3 (`ImageGenerationProvider`), §8 (Style Studio pipeline mapping);
 `04-data-model.md`; `adr/0010-image-storage-and-retention.md`.
 
-**Status:** Vendor decided. This document resolves `08-provider-abstraction.md` §3.5's
+**Status:** SUPERSEDED IN PART — see the box above. Originally: vendor decided, resolving `08-provider-abstraction.md` §3.5's
 `DECISION PENDING` block: **Higgsfield, model `soul_2` ("Soul 2.0")**. It does not replace
 `08`'s protocol definition — `ImageGenerationProvider` stays the interface every Edge Function
 codes against — it's the concrete implementation and the product design built on top of it.
