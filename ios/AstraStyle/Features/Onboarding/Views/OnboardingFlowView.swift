@@ -74,11 +74,7 @@ public struct OnboardingFlowView: View {
         case .measurements:
             OnboardingMeasurementsView(draft: $model.draft)
         case .appearance:
-            OnboardingStubStep(
-                headline: String(localized: "Not built yet", comment: "Onboarding stub headline"),
-                detail: String(localized: "Skin tone, hair and glasses land here. Every field is optional and only affects colour suggestions.",
-                               comment: "Onboarding stub detail")
-            )
+            OnboardingAppearanceView(draft: $model.draft)
         case .lifestyle:
             OnboardingStubStep(
                 headline: String(localized: "Not built yet", comment: "Onboarding stub headline"),

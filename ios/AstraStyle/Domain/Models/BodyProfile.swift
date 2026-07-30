@@ -49,6 +49,14 @@ public struct BodyProfile: Codable, Hashable, Sendable {
     public var shirtSize: String?
     public var trouserSize: String?
     public var fitNotes: [FitIssue]
+    /// Spec §6.7's optional appearance attributes, stored in the `appearance`
+    /// jsonb column.
+    ///
+    /// Non-optional with an empty default, because the column is
+    /// `not null default '{}'` — modelling it as `AppearanceProfile?` would let
+    /// a caller write nil into a NOT NULL column and only find out at the
+    /// server.
+    public var appearance: AppearanceProfile
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -64,6 +72,7 @@ public struct BodyProfile: Codable, Hashable, Sendable {
         shirtSize: String? = nil,
         trouserSize: String? = nil,
         fitNotes: [FitIssue] = [],
+        appearance: AppearanceProfile = AppearanceProfile(),
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -78,6 +87,7 @@ public struct BodyProfile: Codable, Hashable, Sendable {
         self.shirtSize = shirtSize
         self.trouserSize = trouserSize
         self.fitNotes = fitNotes
+        self.appearance = appearance
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -94,6 +104,7 @@ public struct BodyProfile: Codable, Hashable, Sendable {
         case shirtSize = "shirt_size"
         case trouserSize = "trouser_size"
         case fitNotes = "fit_notes"
+        case appearance
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }

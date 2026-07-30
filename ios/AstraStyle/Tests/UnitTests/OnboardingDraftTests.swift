@@ -158,6 +158,54 @@ struct OnboardingDraftTests {
         #expect(lifestyle.sustainabilityPreference == "Prefer natural fibres")
     }
 
+    /// The §6.7 answers had no route to the database at all: the six properties
+    /// existed on the draft, the screen would have written them, and
+    /// `bodyProfile(userID:)` dropped every one. Same shape as the coding-key
+    /// drift in BodyProfile's header — collected, plausible, never stored.
+    @Test("Every appearance answer reaches BodyProfile.appearance")
+    func appearanceIsPersisted() {
+        var d = filledDraft()
+        d.skinUndertone = "Cool"
+        d.hairColor = "Salt and pepper"
+        d.eyeColor = "Green"
+        d.facialHair = "Short beard"
+        d.wearsGlasses = true
+        d.tattoosVisible = false
+
+        let appearance = d.bodyProfile(userID: UUID()).appearance
+        #expect(appearance.skinUndertone == "Cool")
+        #expect(appearance.hairColor == "Salt and pepper")
+        #expect(appearance.eyeColor == "Green")
+        #expect(appearance.facialHair == "Short beard")
+        #expect(appearance.wearsGlasses == true)
+        // false, not nil — "no visible tattoos" is an answer, and collapsing it
+        // to nil would make it indistinguishable from a skipped question.
+        #expect(appearance.tattoosVisible == false)
+    }
+
+    /// jsonb has no columns, so `check_column_drift.py` cannot police these key
+    /// names. Renaming one would silently orphan every value already written.
+    @Test("Appearance encodes to the snake_case keys the jsonb column expects")
+    func appearanceUsesStorageKeys() throws {
+        let appearance = AppearanceProfile(
+            skinUndertone: "Warm", wearsGlasses: true, referenceSelfiePaths: ["a/b.jpg"]
+        )
+        let json = try JSONSerialization.jsonObject(
+            with: try JSONEncoder().encode(appearance)
+        ) as? [String: Any]
+        #expect(json?["skin_undertone"] as? String == "Warm")
+        #expect(json?["wears_glasses"] as? Bool == true)
+        #expect(json?["reference_selfie_paths"] as? [String] == ["a/b.jpg"])
+    }
+
+    @Test("A skipped appearance step is empty rather than a blob of nulls")
+    func untouchedAppearanceIsEmpty() {
+        #expect(OnboardingDraft().appearanceProfile.isEmpty)
+        var d = OnboardingDraft()
+        d.wearsGlasses = false
+        #expect(!d.appearanceProfile.isEmpty, "answering 'no' is answering")
+    }
+
     @Test("Currency is never lost, so a budget is never ambiguous")
     func budgetCarriesCurrency() {
         let lifestyle = filledDraft().lifestyleProfile(userID: UUID())

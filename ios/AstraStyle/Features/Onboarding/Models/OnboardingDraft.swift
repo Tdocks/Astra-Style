@@ -270,6 +270,24 @@ public extension OnboardingDraft {
         )
     }
 
+    /// The §6.7 answers, as they are stored.
+    ///
+    /// Split out so it is obvious that every appearance field reaches
+    /// `BodyProfile.appearance`. Before this existed the six §6.7 properties
+    /// lived on the draft, were written by the screen, and were then dropped on
+    /// the floor by `bodyProfile(userID:)` — collected and never persisted,
+    /// the same shape of bug as the coding-key drift in BodyProfile's header.
+    var appearanceProfile: AppearanceProfile {
+        AppearanceProfile(
+            skinUndertone: skinUndertone,
+            hairColor: hairColor,
+            eyeColor: eyeColor,
+            facialHair: facialHair,
+            wearsGlasses: wearsGlasses,
+            tattoosVisible: tattoosVisible
+        )
+    }
+
     func bodyProfile(userID: UUID) -> BodyProfile {
         BodyProfile(
             userID: userID,
@@ -282,7 +300,8 @@ public extension OnboardingDraft {
             shoeSize: shoeSize,
             shirtSize: shirtSize,
             trouserSize: trouserSize,
-            fitNotes: fitIssues.sorted { $0.rawValue < $1.rawValue }
+            fitNotes: fitIssues.sorted { $0.rawValue < $1.rawValue },
+            appearance: appearanceProfile
         )
     }
 
