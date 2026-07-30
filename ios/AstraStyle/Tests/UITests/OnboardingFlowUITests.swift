@@ -190,6 +190,14 @@ final class OnboardingFlowUITests: XCTestCase {
         // below the fold. XCUITest cannot tap a non-visible element, so each one
         // is scrolled to first — which is also what a real user has to do, and
         // therefore worth exercising.
+        // Diagnostic: capture the identity screen at AX5 before touching it, so a
+        // failure here is inspectable rather than just a timeout.
+        usleep(600_000)
+        capture("35-Onboarding-Identity-AX5-top")
+        app.swipeUp()
+        usleep(400_000)
+        capture("36-Onboarding-Identity-AX5-scrolled")
+
         for identity in ["executive", "minimalist", "creative"] {
             let card = app.buttons["onboarding.identity.\(identity)"]
             // Scroll BEFORE asserting existence. The grid is a `LazyVGrid`, so
