@@ -203,7 +203,48 @@ final class OnboardingFlowUITests: XCTestCase {
         // scrolling back UP — which a real user at AX5 does constantly, and which
         // a one-directional scroll helper silently cannot do.
         for identity in ["executive", "minimalist", "creative"] {
-            let card = app.buttons["onboarding.identity.\(identity)"]
+            selectIdentityCard(identity)
+        }
+
+        // Assert the gate is satisfied BEFORE tapping forward. Without this, a
+        // tap that silently failed to select shows up as a timeout on the NEXT
+        // screen, which reads like the next screen is broken — that is exactly
+        // how one lost tap here cost a debugging session. The gate itself was
+        // behaving correctly the whole time: it refused to advance on two
+        // selections, which is what it is for.
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Three identities were tapped but the gate is still closed at AX5"
+        )
+        app.buttons["onboarding.advance"].tap()
+
+        awaitElement(app.textFields["onboarding.measurement.chest"], "Measurements at AX5")
+        capture("34-Onboarding-Measurements-AX5")
+    }
+
+    // MARK: - Selecting a card at accessibility sizes
+
+    /// Scrolls a card into view and taps it, then verifies it actually became
+    /// selected — retrying once if it did not.
+    ///
+    /// The retry is not defensive padding. iOS deliberately consumes the first
+    /// tap on a scroll view that is still decelerating: that touch stops the
+    /// scroll and is NOT forwarded to the subview underneath. `swipeUp()` is a
+    /// flick with real velocity, and XCUITest's "wait for app to idle" returns
+    /// while a SwiftUI ScrollView is still gliding — so a tap issued right after
+    /// a swipe is silently eaten. It happened to exactly one of three cards, the
+    /// selection count stopped at 2/3, the gate correctly refused to advance, and
+    /// the failure surfaced 20 seconds later as "the measurements screen never
+    /// appeared."
+    ///
+    /// So: scroll gently, wait for the frame to stop moving, tap, and confirm.
+    private func selectIdentityCard(
+        _ identity: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let card = app.buttons["onboarding.identity.\(identity)"]
+        for _ in 1...2 {
             // Scroll BEFORE asserting existence. The grid is a `LazyVGrid`, so
             // cards outside the viewport are never instantiated (or are torn down
             // once scrolled far off) and are absent from the accessibility tree
@@ -212,13 +253,16 @@ final class OnboardingFlowUITests: XCTestCase {
             // scrolled. (Not an app defect: VoiceOver scrolls the grid too, and
             // the cards materialise for it the same way.)
             card.scrollIntoView(in: app)
-            XCTAssertTrue(card.exists, "Identity card never appeared at AX5: \(identity)")
+            guard card.exists else { continue }
+            card.waitForStableFrame()
+            guard card.isHittable else { continue }
             card.tap()
+            if card.isSelected { return }
         }
-        app.buttons["onboarding.advance"].tap()
-
-        awaitElement(app.textFields["onboarding.measurement.chest"], "Measurements at AX5")
-        capture("34-Onboarding-Measurements-AX5")
+        XCTFail(
+            "Identity card never became selected at AX5: \(identity)",
+            file: file, line: line
+        )
     }
 }
 
@@ -241,16 +285,40 @@ private extension XCUIElement {
     /// further down. The failure-time hierarchy dump showed the scroll bar at
     /// 100% with the sought card absent — ten swipes spent rubber-banding at the
     /// bottom while the target sat one screen up.
+    ///
+    /// Swipes at `.slow` velocity rather than the default flick. A fast swipe
+    /// leaves the scroll view decelerating for well over a second after
+    /// XCUITest considers the app idle, and iOS spends the next tap on stopping
+    /// that deceleration instead of on the button underneath it.
     func scrollIntoView(in app: XCUIApplication, maxSwipes: Int = 10) {
         var swipes = 0
         while !(exists && isHittable) && swipes < maxSwipes {
-            app.swipeUp()
+            app.swipeUp(velocity: .slow)
             swipes += 1
         }
         swipes = 0
         while !(exists && isHittable) && swipes < maxSwipes {
-            app.swipeDown()
+            app.swipeDown(velocity: .slow)
             swipes += 1
+        }
+    }
+
+    /// Blocks until this element's frame stops changing between samples, so a tap
+    /// is aimed at where the element will still be when the event lands.
+    ///
+    /// Returns as soon as two consecutive reads agree; gives up quietly at the
+    /// timeout and lets the caller's own assertion report the problem, because a
+    /// "frame never settled" failure would be less informative than the
+    /// selection check that follows it.
+    func waitForStableFrame(timeout: TimeInterval = 3) {
+        var previous = CGRect.null
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            guard exists else { return }
+            let current = frame
+            if current == previous { return }
+            previous = current
+            usleep(150_000)
         }
     }
 }
