@@ -194,7 +194,7 @@ struct StylePreferenceInferenceEdgeCaseTests {
         let catalog = StyleQuizCatalog(pairs: [
             pair("f", .formality),
             pair("c", .colourTolerance),
-            pair("s", .silhouette),
+            pair("s", .silhouette)
         ])
         let vector = StylePreferenceInference.vector(
             from: answers([("f", "a")]),
@@ -219,7 +219,7 @@ struct StylePreferenceInferenceEdgeCaseTests {
         // for why — but the arithmetic has to be right before one does.
         let catalog = StyleQuizCatalog(pairs: [
             pair("f-1", .formality, extraOnA: [.contrastPreference: 0.5]),
-            pair("f-2", .formality, extraOnA: [.contrastPreference: 0.5]),
+            pair("f-2", .formality, extraOnA: [.contrastPreference: 0.5])
         ])
         let vector = StylePreferenceInference.vector(
             from: answers([("f-1", "a"), ("f-2", "a")]),

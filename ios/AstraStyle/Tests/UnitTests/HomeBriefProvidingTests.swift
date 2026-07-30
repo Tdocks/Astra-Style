@@ -55,7 +55,7 @@ struct HomeBriefProvidingTests {
         let closetRepository = ThrowingWardrobeScoreClosetRepository(
             items: [
                 ClosetItem(id: UUID(), userID: UUID(), name: "Item 1", category: .top, laundryState: .laundry),
-                ClosetItem(id: UUID(), userID: UUID(), name: "Item 2", category: .bottom, laundryState: .clean),
+                ClosetItem(id: UUID(), userID: UUID(), name: "Item 2", category: .bottom, laundryState: .clean)
             ]
         )
 
@@ -171,9 +171,9 @@ private actor FailIfCalledProfileRepository: ProfileRepository {
         return SampleData.profile
     }
 
-    func generateStyleDNA() async throws -> StyleProfile {
+    func generateStyleDNA() async throws -> StyleDNA {
         recordCall()
-        return SampleData.styleProfile
+        return SampleData.styleDNA
     }
 
     func exportPersonalData() async throws -> URL {
@@ -231,7 +231,7 @@ private struct AlwaysFailingProfileRepository: ProfileRepository {
     func fetchLifestyleProfile() async throws -> LifestyleProfile? { throw AstraError.server("boom") }
     func updateLifestyleProfile(_ lifestyleProfile: LifestyleProfile) async throws -> LifestyleProfile { throw AstraError.server("boom") }
     func completeOnboarding(_ payload: OnboardingCompletionPayload) async throws -> Profile { throw AstraError.server("boom") }
-    func generateStyleDNA() async throws -> StyleProfile { throw AstraError.server("boom") }
+    func generateStyleDNA() async throws -> StyleDNA { throw AstraError.server("boom") }
     func exportPersonalData() async throws -> URL { throw AstraError.server("boom") }
 }
 

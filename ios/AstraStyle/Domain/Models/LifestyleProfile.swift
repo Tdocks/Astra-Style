@@ -121,23 +121,23 @@ public struct LifestyleProfile: Codable, Hashable, Sendable {
     // without it. Decoding to "USD" rather than throwing keeps a legacy row
     // readable; the alternative is a profile the app cannot open at all.
     public init(from decoder: any Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        userID = try c.decode(UUID.self, forKey: .userID)
-        occupationCategory = try c.decodeIfPresent(OccupationCategory.self, forKey: .occupationCategory)
-        dressCode = try c.decodeIfPresent(DressCode.self, forKey: .dressCode)
-        commonOccasions = try c.decodeIfPresent([String].self, forKey: .commonOccasions) ?? []
-        climatePreferences = try c.decodeIfPresent([String].self, forKey: .climatePreferences) ?? []
-        monthlyBudget = try c.decodeIfPresent(Decimal.self, forKey: .monthlyBudget)
-        currency = try c.decodeIfPresent(String.self, forKey: .currency) ?? "USD"
-        preferredBrands = try c.decodeIfPresent([String].self, forKey: .preferredBrands) ?? []
-        avoidedBrands = try c.decodeIfPresent([String].self, forKey: .avoidedBrands) ?? []
-        laundryCadence = try c.decodeIfPresent(LaundryCadence.self, forKey: .laundryCadence)
-        travelFrequency = try c.decodeIfPresent(String.self, forKey: .travelFrequency)
-        religiousServiceAttireNeeds = try c.decodeIfPresent(
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userID = try container.decode(UUID.self, forKey: .userID)
+        occupationCategory = try container.decodeIfPresent(OccupationCategory.self, forKey: .occupationCategory)
+        dressCode = try container.decodeIfPresent(DressCode.self, forKey: .dressCode)
+        commonOccasions = try container.decodeIfPresent([String].self, forKey: .commonOccasions) ?? []
+        climatePreferences = try container.decodeIfPresent([String].self, forKey: .climatePreferences) ?? []
+        monthlyBudget = try container.decodeIfPresent(Decimal.self, forKey: .monthlyBudget)
+        currency = try container.decodeIfPresent(String.self, forKey: .currency) ?? "USD"
+        preferredBrands = try container.decodeIfPresent([String].self, forKey: .preferredBrands) ?? []
+        avoidedBrands = try container.decodeIfPresent([String].self, forKey: .avoidedBrands) ?? []
+        laundryCadence = try container.decodeIfPresent(LaundryCadence.self, forKey: .laundryCadence)
+        travelFrequency = try container.decodeIfPresent(String.self, forKey: .travelFrequency)
+        religiousServiceAttireNeeds = try container.decodeIfPresent(
             String.self, forKey: .religiousServiceAttireNeeds
         )
-        sustainabilityPreference = try c.decodeIfPresent(String.self, forKey: .sustainabilityPreference)
-        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
-        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .now
+        sustainabilityPreference = try container.decodeIfPresent(String.self, forKey: .sustainabilityPreference)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .now
     }
 }

@@ -58,6 +58,26 @@ public struct OfflineMutation: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+/// Thrown by a `drain(apply:)` handler that does not own the mutation it was
+/// handed.
+///
+/// One queue holds mutations for four entity types (`LiveClosetRepository`
+/// enqueues `.closetItem`; `LiveOutfitRepository` enqueues `.outfit` and
+/// `.outfitWear`), but each repository can only replay its own. Without this
+/// signal a closet drain meeting a queued outfit mutation has two bad options:
+/// treat it as a failure — which stops the drain forever and burns a retry
+/// count on something that will never succeed — or apply/remove it, which
+/// silently destroys a write whose owner will never know it vanished.
+///
+/// Skipping is the third option, and the correct one: the mutation stays
+/// queued, unmodified and uncounted, for whoever does own it. Ordering across
+/// entity types was never something this queue could promise once two owners
+/// shared it; ordering *within* an entity is unaffected, because skipping
+/// never reorders anything.
+public struct OfflineMutationNotHandled: Error, Sendable {
+    public init() {}
+}
+
 public protocol OfflineMutationQueue: Sendable {
     /// Adds a mutation to the end of the queue. Mutations are always
     /// replayed in FIFO order, so an `update` enqueued after a `create` for
@@ -70,6 +90,17 @@ public protocol OfflineMutationQueue: Sendable {
     /// Attempts to replay every pending mutation via `apply`, in order,
     /// stopping at the first failure (to preserve ordering) and leaving
     /// the remainder queued. Successfully-applied mutations are removed.
+    ///
+    /// A handler that throws `OfflineMutationNotHandled` is saying "not
+    /// mine": that mutation is skipped — left in place, attempt count
+    /// untouched — and the drain continues with the next one.
+    ///
+    /// The mutation that failed stays at the head of the queue with its
+    /// `attemptCount` incremented. That counter is the only evidence a
+    /// reader has that a queue which never shrinks is stuck rather than
+    /// simply idle — a conformance that leaves it at zero makes a
+    /// permanently-failing mutation indistinguishable from one that has
+    /// never been tried.
     func drain(apply: @Sendable (OfflineMutation) async throws -> Void) async
 
     /// Removes a single mutation, e.g. after it fails validation

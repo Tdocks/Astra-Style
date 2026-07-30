@@ -13,7 +13,7 @@ public actor MockKyraRepository: KyraRepository {
     private var memories: [StyleMemory] = [
         StyleMemory(id: UUID(), userID: SampleData.userID, memoryType: .preference, content: "Prefers tapered trousers over slim-straight.", confidence: 0.86),
         StyleMemory(id: UUID(), userID: SampleData.userID, memoryType: .dislike, content: "Dislikes busy logo branding.", confidence: 0.91),
-        StyleMemory(id: UUID(), userID: SampleData.userID, memoryType: .fitNote, content: "Runs slightly long in the torso; prefers cropped jacket lengths.", confidence: 0.74),
+        StyleMemory(id: UUID(), userID: SampleData.userID, memoryType: .fitNote, content: "Runs slightly long in the torso; prefers cropped jacket lengths.", confidence: 0.74)
     ]
 
     public init() {}
@@ -43,7 +43,7 @@ public actor MockKyraRepository: KyraRepository {
                 cards: [.outfit(outfitID: SampleData.heroOutfit.id)],
                 suggestedActions: [
                     KyraSuggestedAction(id: "wear", label: "Wear This", kind: .wearOutfit),
-                    KyraSuggestedAction(id: "alts", label: "See Alternatives", kind: .viewAlternatives),
+                    KyraSuggestedAction(id: "alts", label: "See Alternatives", kind: .viewAlternatives)
                 ],
                 confidence: 0.88
             )

@@ -152,7 +152,7 @@ struct ModelCodableRoundTripTests {
             .product(productCandidateID: UUID()),
             .closetItem(closetItemID: UUID()),
             .comparisonTable(ComparisonTable(title: "Compare", columnHeaders: ["A", "B"], rows: [["1", "2"]])),
-            .action(KyraSuggestedAction(id: "wear", label: "Wear This", kind: .wearOutfit)),
+            .action(KyraSuggestedAction(id: "wear", label: "Wear This", kind: .wearOutfit))
         ]
 
         for card in cards {

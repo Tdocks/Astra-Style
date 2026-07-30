@@ -17,12 +17,18 @@ import XCTest
 /// the iOS 26 SDK.
 @MainActor
 final class OnboardingFlowUITests: XCTestCase {
-    private var app: XCUIApplication!
+    // `lazy` rather than an implicitly-unwrapped `XCUIApplication!`: the IUO
+    // form is only there to bridge "declared in the class, assigned in setUp",
+    // and it trades a compile-time guarantee for a runtime trap (CLAUDE.md:
+    // no force unwraps). `lazy` gives the same "created once per test instance"
+    // behaviour with no optionality at all, and defers construction to first
+    // use — which happens from a @MainActor context, matching XCUIApplication's
+    // own isolation in the iOS 26 SDK.
+    private lazy var app = XCUIApplication()
     private let timeout: TimeInterval = 20
 
     override func setUp() async throws {
         continueAfterFailure = true
-        app = XCUIApplication()
         app.launchArguments += [
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
@@ -110,156 +116,19 @@ final class OnboardingFlowUITests: XCTestCase {
 
     // MARK: - The walk
 
+    /// The whole §6.3–§6.10 walk, in order. Each step is its own method so a
+    /// failure names the screen it happened on, and so this reads as the
+    /// sequence the spec describes rather than one 90-line script.
     func testWalkTheWholeFlow() {
         enterOnboarding()
-
-        // §6.3 — Kyra introduction.
-        awaitElement(app.buttons["onboarding.begin"], "Intro: begin button")
-        XCTAssertTrue(app.staticTexts["I'm Kyra."].exists, "Kyra's introduction is missing")
-        capture("20-Onboarding-Intro")
-        app.buttons["onboarding.begin"].tap()
-
-        // §6.4 — Goals. Skippable, so Continue must already be enabled.
-        awaitElement(app.buttons["onboarding.advance"], "Goals: advance button")
-        XCTAssertTrue(
-            app.buttons["onboarding.advance"].isEnabled,
-            "Goals is skippable, so the forward button must be enabled with nothing selected"
-        )
-        capture("21-Onboarding-Goals")
-        app.buttons["onboarding.goal.shop_more_intelligently"].tap()
-        capture("22-Onboarding-Goals-Selected")
-        app.buttons["onboarding.advance"].tap()
-
-        // §6.5 — Identity. The ONLY required step: three picks plus a primary.
-        awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity: cards")
-        XCTAssertFalse(
-            app.buttons["onboarding.advance"].isEnabled,
-            "Identity must gate Continue until three are chosen and one is primary"
-        )
-        capture("23-Onboarding-Identity-Empty")
-
-        app.buttons["onboarding.identity.quiet_luxury"].tap()
-        app.buttons["onboarding.identity.modern_heritage"].tap()
-        XCTAssertFalse(
-            app.buttons["onboarding.advance"].isEnabled,
-            "Two selections is not three — Continue must still be disabled"
-        )
-
-        app.buttons["onboarding.identity.minimalist"].tap()
-        capture("24-Onboarding-Identity-Three")
-        XCTAssertTrue(
-            app.buttons["onboarding.advance"].isEnabled,
-            "Three chosen with a defaulted primary should satisfy the gate"
-        )
-
-        // Re-nominate the primary explicitly, exercising the second stage.
-        app.buttons["onboarding.primary.minimalist"].tap()
-        capture("25-Onboarding-Identity-Primary")
-        app.buttons["onboarding.advance"].tap()
-
-        // §6.6 — Measurements.
-        // A segmented `Picker` surfaces as a segmented control, not a button — the
-        // first version of this query looked in `app.buttons` and never matched
-        // even though the control was plainly on screen.
-        awaitElement(
-            app.textFields["onboarding.measurement.chest"],
-            "Measurements: chest field"
-        )
-        capture("26-Onboarding-Measurements")
-
-        let chest = app.textFields["onboarding.measurement.chest"]
-        if chest.waitForExistence(timeout: 5) {
-            chest.tap()
-            chest.typeText("44")
-        }
-        // "Not sure" is a first-class answer (spec §6.6), not an empty field.
-        app.buttons["onboarding.notSure.weight"].tap()
-        capture("27-Onboarding-Measurements-Filled")
-        app.buttons["onboarding.advance"].tap()
-
-        // §6.7 — Appearance. Captured WITH selections and in two scroll
-        // positions. A screenshot of an untouched screen cannot show whether the
-        // selected state is distinguishable from the unselected one, and a
-        // single top-of-page shot leaves the questions below the fold unaudited
-        // — both were real gaps found when these captures were reviewed.
-        awaitElement(app.buttons["onboarding.appearance.skinUndertone.warm"], "Appearance: chips")
-        app.buttons["onboarding.appearance.skinUndertone.warm"].tap()
-        app.buttons["onboarding.appearance.hairColor.dark_brown"].tap()
-        usleep(400_000)
-        capture("28-Onboarding-Appearance")
-        app.swipeUp(velocity: .slow)
-        usleep(500_000)
-        capture("28b-Onboarding-Appearance-Lower")
-        app.buttons["onboarding.advance"].tap()
-
-        // §6.8 — Lifestyle. Eleven fields, so one top-of-page shot audits a
-        // fraction of the screen: the first review of it could not find seven of
-        // the eleven required questions in any capture, and had to report them as
-        // possibly missing. Walk the whole page instead.
-        awaitElement(app.buttons["onboarding.advance"], "Lifestyle")
-        usleep(400_000)
-        captureWholePage(prefix: "29-Onboarding-Lifestyle", screens: 6)
-        app.buttons["onboarding.advance"].tap()
-
-        // §6.9 — the paired-image quiz.
-        awaitElement(app.staticTexts["onboarding.quiz.progress"], "Quiz: progress line")
-        usleep(400_000)
-        capture("30-Onboarding-Quiz")
-
-        // The forward button must NOT read "Continue" while comparisons are
-        // waiting. Choosing an outfit is what advances the quiz, so a footer
-        // button that looks like the control the user has been tapping and
-        // instead leaves the step is the specific trap this asserts against.
-        XCTAssertNotEqual(
-            app.buttons["onboarding.advance"].label, "Continue",
-            "The forward button claims to continue while comparisons are unanswered"
-        )
-
-        // Queried by identifier prefix rather than by pair id. The comparison set
-        // is content — a test naming "formality-01" would fail the day someone
-        // adds the texture pairs, which is exactly the change this feature was
-        // shaped to make painless.
-        XCTAssertEqual(quizOptions.count, 2, "A comparison must offer exactly two outfits")
-        quizOptions.element(boundBy: 0).tap()
-
-        awaitElement(app.buttons["onboarding.quiz.undo"], "Quiz: undo after a choice")
-        capture("30b-Onboarding-Quiz-Answered")
-
-        // Undo must take the choice back rather than being decorative.
-        app.buttons["onboarding.quiz.undo"].tap()
-        usleep(400_000)
-        XCTAssertFalse(
-            app.buttons["onboarding.quiz.undo"].exists,
-            "Undo did not remove the only answer"
-        )
-
-        // Answer every comparison. Content-agnostic: keep choosing while a
-        // comparison is on screen. "No preference" is exercised on the second one
-        // — it is a first-class answer, not an escape hatch, and it has to advance
-        // the quiz like any other.
-        var answered = 0
-        while quizOptions.count == 2, answered < 40 {
-            if answered == 1 {
-                app.buttons["onboarding.quiz.noPreference"].tap()
-            } else {
-                quizOptions.element(boundBy: 0).tap()
-            }
-            answered += 1
-            usleep(300_000)
-        }
-        XCTAssertGreaterThan(answered, 0, "The quiz never presented a comparison")
-
-        awaitElement(app.staticTexts["onboarding.quiz.complete"], "Quiz: completion card")
-        capture("30c-Onboarding-Quiz-Complete")
-        XCTAssertEqual(
-            app.buttons["onboarding.advance"].label, "Continue",
-            "With every comparison answered the forward button should offer to continue"
-        )
-        app.buttons["onboarding.advance"].tap()
-
-        // §6.10 — Result.
-        awaitElement(app.buttons["onboarding.advance"], "Result: finish button")
-        capture("31-Onboarding-Result")
+        walkIntro()
+        walkGoals()
+        walkIdentity()
+        walkMeasurements()
+        walkAppearance()
+        walkLifestyle()
+        walkPreferenceQuiz()
+        walkResult()
     }
 
     /// Back must preserve what was entered. A flow that loses an answer when the
@@ -298,7 +167,6 @@ final class OnboardingFlowUITests: XCTestCase {
         awaitElement(app.buttons["onboarding.advance"], "Goals at AX5")
         capture("33-Onboarding-Goals-AX5")
         app.buttons["onboarding.advance"].tap()
-
 
         // At AX5 each card is several times taller, so most of the grid starts
         // below the fold. XCUITest cannot tap a non-visible element, so each one
@@ -544,5 +412,176 @@ private extension XCUIElement {
             previous = current
             usleep(150_000)
         }
+    }
+}
+
+// MARK: - The walk, step by step
+
+/// The per-screen halves of `testWalkTheWholeFlow`. In an extension purely so
+/// the test class itself stays a readable list of what is being tested rather
+/// than 300 lines of tapping.
+private extension OnboardingFlowUITests {
+    private func walkIntro() {
+        // §6.3 — Kyra introduction.
+        awaitElement(app.buttons["onboarding.begin"], "Intro: begin button")
+        XCTAssertTrue(app.staticTexts["I'm Kyra."].exists, "Kyra's introduction is missing")
+        capture("20-Onboarding-Intro")
+        app.buttons["onboarding.begin"].tap()
+    }
+
+    private func walkGoals() {
+        // §6.4 — Goals. Skippable, so Continue must already be enabled.
+        awaitElement(app.buttons["onboarding.advance"], "Goals: advance button")
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Goals is skippable, so the forward button must be enabled with nothing selected"
+        )
+        capture("21-Onboarding-Goals")
+        app.buttons["onboarding.goal.shop_more_intelligently"].tap()
+        capture("22-Onboarding-Goals-Selected")
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    private func walkIdentity() {
+        // §6.5 — Identity. The ONLY required step: three picks plus a primary.
+        awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity: cards")
+        XCTAssertFalse(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Identity must gate Continue until three are chosen and one is primary"
+        )
+        capture("23-Onboarding-Identity-Empty")
+
+        app.buttons["onboarding.identity.quiet_luxury"].tap()
+        app.buttons["onboarding.identity.modern_heritage"].tap()
+        XCTAssertFalse(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Two selections is not three — Continue must still be disabled"
+        )
+
+        app.buttons["onboarding.identity.minimalist"].tap()
+        capture("24-Onboarding-Identity-Three")
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Three chosen with a defaulted primary should satisfy the gate"
+        )
+
+        // Re-nominate the primary explicitly, exercising the second stage.
+        app.buttons["onboarding.primary.minimalist"].tap()
+        capture("25-Onboarding-Identity-Primary")
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    private func walkMeasurements() {
+        // §6.6 — Measurements.
+        // A segmented `Picker` surfaces as a segmented control, not a button — the
+        // first version of this query looked in `app.buttons` and never matched
+        // even though the control was plainly on screen.
+        awaitElement(
+            app.textFields["onboarding.measurement.chest"],
+            "Measurements: chest field"
+        )
+        capture("26-Onboarding-Measurements")
+
+        let chest = app.textFields["onboarding.measurement.chest"]
+        if chest.waitForExistence(timeout: 5) {
+            chest.tap()
+            chest.typeText("44")
+        }
+        // "Not sure" is a first-class answer (spec §6.6), not an empty field.
+        app.buttons["onboarding.notSure.weight"].tap()
+        capture("27-Onboarding-Measurements-Filled")
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    private func walkAppearance() {
+        // §6.7 — Appearance. Captured WITH selections and in two scroll
+        // positions. A screenshot of an untouched screen cannot show whether the
+        // selected state is distinguishable from the unselected one, and a
+        // single top-of-page shot leaves the questions below the fold unaudited
+        // — both were real gaps found when these captures were reviewed.
+        awaitElement(app.buttons["onboarding.appearance.skinUndertone.warm"], "Appearance: chips")
+        app.buttons["onboarding.appearance.skinUndertone.warm"].tap()
+        app.buttons["onboarding.appearance.hairColor.dark_brown"].tap()
+        usleep(400_000)
+        capture("28-Onboarding-Appearance")
+        app.swipeUp(velocity: .slow)
+        usleep(500_000)
+        capture("28b-Onboarding-Appearance-Lower")
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    private func walkLifestyle() {
+        // §6.8 — Lifestyle. Eleven fields, so one top-of-page shot audits a
+        // fraction of the screen: the first review of it could not find seven of
+        // the eleven required questions in any capture, and had to report them as
+        // possibly missing. Walk the whole page instead.
+        awaitElement(app.buttons["onboarding.advance"], "Lifestyle")
+        usleep(400_000)
+        captureWholePage(prefix: "29-Onboarding-Lifestyle", screens: 6)
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    private func walkPreferenceQuiz() {
+        // §6.9 — the paired-image quiz.
+        awaitElement(app.staticTexts["onboarding.quiz.progress"], "Quiz: progress line")
+        usleep(400_000)
+        capture("30-Onboarding-Quiz")
+
+        // The forward button must NOT read "Continue" while comparisons are
+        // waiting. Choosing an outfit is what advances the quiz, so a footer
+        // button that looks like the control the user has been tapping and
+        // instead leaves the step is the specific trap this asserts against.
+        XCTAssertNotEqual(
+            app.buttons["onboarding.advance"].label, "Continue",
+            "The forward button claims to continue while comparisons are unanswered"
+        )
+
+        // Queried by identifier prefix rather than by pair id. The comparison set
+        // is content — a test naming "formality-01" would fail the day someone
+        // adds the texture pairs, which is exactly the change this feature was
+        // shaped to make painless.
+        XCTAssertEqual(quizOptions.count, 2, "A comparison must offer exactly two outfits")
+        quizOptions.element(boundBy: 0).tap()
+
+        awaitElement(app.buttons["onboarding.quiz.undo"], "Quiz: undo after a choice")
+        capture("30b-Onboarding-Quiz-Answered")
+
+        // Undo must take the choice back rather than being decorative.
+        app.buttons["onboarding.quiz.undo"].tap()
+        usleep(400_000)
+        XCTAssertFalse(
+            app.buttons["onboarding.quiz.undo"].exists,
+            "Undo did not remove the only answer"
+        )
+
+        // Answer every comparison. Content-agnostic: keep choosing while a
+        // comparison is on screen. "No preference" is exercised on the second one
+        // — it is a first-class answer, not an escape hatch, and it has to advance
+        // the quiz like any other.
+        var answered = 0
+        while quizOptions.count == 2, answered < 40 {
+            if answered == 1 {
+                app.buttons["onboarding.quiz.noPreference"].tap()
+            } else {
+                quizOptions.element(boundBy: 0).tap()
+            }
+            answered += 1
+            usleep(300_000)
+        }
+        XCTAssertGreaterThan(answered, 0, "The quiz never presented a comparison")
+
+        awaitElement(app.staticTexts["onboarding.quiz.complete"], "Quiz: completion card")
+        capture("30c-Onboarding-Quiz-Complete")
+        XCTAssertEqual(
+            app.buttons["onboarding.advance"].label, "Continue",
+            "With every comparison answered the forward button should offer to continue"
+        )
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    private func walkResult() {
+        // §6.10 — Result.
+        awaitElement(app.buttons["onboarding.advance"], "Result: finish button")
+        capture("31-Onboarding-Result")
     }
 }

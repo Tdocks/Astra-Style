@@ -105,43 +105,52 @@ public struct HomeView: View {
                 .padding(.horizontal, AstraSpacing.pagePadding)
             }
 
-            if !data.alternativeOutfits.isEmpty {
-                AlternativeLooksCarouselView(outfits: data.alternativeOutfits) { outfit in
-                    router.push(HomeRoute.outfitDetail(outfitID: outfit.id))
-                }
+            modules(data)
+        }
+    }
+
+    /// Everything below the hero card: the optional Home modules, in the order
+    /// spec §5 lists them. Separate from `loadedContent` so the screen's spine
+    /// (greeting, then hero outfit, then modules) stays readable at a glance
+    /// and each module's presence condition is not buried in a long body.
+    @ViewBuilder
+    private func modules(_ data: HomeBriefData) -> some View {
+        if !data.alternativeOutfits.isEmpty {
+            AlternativeLooksCarouselView(outfits: data.alternativeOutfits) { outfit in
+                router.push(HomeRoute.outfitDetail(outfitID: outfit.id))
+            }
+            .padding(.horizontal, AstraSpacing.pagePadding)
+        }
+
+        if let wardrobeScore = data.wardrobeScore {
+            WardrobeScoreModuleView(score: wardrobeScore)
                 .padding(.horizontal, AstraSpacing.pagePadding)
-            }
+        }
 
-            if let wardrobeScore = data.wardrobeScore {
-                WardrobeScoreModuleView(score: wardrobeScore)
-                    .padding(.horizontal, AstraSpacing.pagePadding)
-            }
-
-            if let kyraMessage = data.brief.kyraMessage {
-                KyraInsightModuleView(message: kyraMessage)
-                    .padding(.horizontal, AstraSpacing.pagePadding)
-            }
-
-            if let opportunity = data.purchaseOpportunity {
-                PurchaseOpportunityModuleView(opportunity: opportunity) {
-                    router.push(HomeRoute.productDecision(candidateID: opportunity.productCandidate.id))
-                }
+        if let kyraMessage = data.brief.kyraMessage {
+            KyraInsightModuleView(message: kyraMessage)
                 .padding(.horizontal, AstraSpacing.pagePadding)
-            }
+        }
 
-            if !data.upcomingOccasions.isEmpty {
-                UpcomingOccasionsModuleView(occasions: data.upcomingOccasions) { occasion in
-                    router.push(HomeRoute.occasionDetail(occasionID: occasion.id))
-                }
-                .padding(.horizontal, AstraSpacing.pagePadding)
+        if let opportunity = data.purchaseOpportunity {
+            PurchaseOpportunityModuleView(opportunity: opportunity) {
+                router.push(HomeRoute.productDecision(candidateID: opportunity.productCandidate.id))
             }
+            .padding(.horizontal, AstraSpacing.pagePadding)
+        }
 
-            if data.laundryAlertItemCount > 0 {
-                LaundryAlertModuleView(itemCount: data.laundryAlertItemCount) {
-                    router.select(.closet)
-                }
-                .padding(.horizontal, AstraSpacing.pagePadding)
+        if !data.upcomingOccasions.isEmpty {
+            UpcomingOccasionsModuleView(occasions: data.upcomingOccasions) { occasion in
+                router.push(HomeRoute.occasionDetail(occasionID: occasion.id))
             }
+            .padding(.horizontal, AstraSpacing.pagePadding)
+        }
+
+        if data.laundryAlertItemCount > 0 {
+            LaundryAlertModuleView(itemCount: data.laundryAlertItemCount) {
+                router.select(.closet)
+            }
+            .padding(.horizontal, AstraSpacing.pagePadding)
         }
     }
 }

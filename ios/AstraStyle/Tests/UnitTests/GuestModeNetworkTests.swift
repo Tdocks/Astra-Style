@@ -94,8 +94,8 @@ final class NetworkTrapURLProtocol: URLProtocol, @unchecked Sendable {
         lock.withLock { _interceptedRequests = [] }
     }
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         Self.lock.withLock { Self._interceptedRequests.append(request) }

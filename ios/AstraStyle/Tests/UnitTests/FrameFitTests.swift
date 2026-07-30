@@ -166,14 +166,16 @@ struct FrameDerivationTests {
     }
 
     @Test("Confidence drops near a band edge rather than flipping crisply")
-    func confidenceFallsOffAtBandEdges() {
+    func confidenceFallsOffAtBandEdges() throws {
         let borderline = FrameDerivation.derive(
             from: body(chestIn: 44, waistIn: 37.1)   // drop 6.9
         )
         let clear = FrameDerivation.derive(
             from: body(chestIn: 46, waistIn: 32)     // drop 14
         )
-        #expect(borderline.taper!.confidence < clear.taper!.confidence)
+        let borderlineTaper = try #require(borderline.taper)
+        let clearTaper = try #require(clear.taper)
+        #expect(borderlineTaper.confidence < clearTaper.confidence)
     }
 
     /// `body_profiles` stores centimetres canonically, so the derivation is
@@ -215,14 +217,15 @@ struct FrameDerivationTests {
     }
 
     @Test("Sizes alone give a coarse taper at deliberately low confidence")
-    func sizeFallback() {
+    func sizeFallback() throws {
         let frame = FrameDerivation.derive(
             from: body(shirtSize: "L", trouserSize: "32")
         )
         #expect(frame.taper?.value == .strong)
         // Lettered sizing varies enormously by brand; this must never speak
         // with a tape measure's authority.
-        #expect(frame.taper!.confidence < FrameHarmonyScorer.assertionThreshold)
+        let taper = try #require(frame.taper)
+        #expect(taper.confidence < FrameHarmonyScorer.assertionThreshold)
     }
 
     @Test("An unrecognised shirt size yields nothing rather than a guess")
@@ -390,8 +393,13 @@ struct FrameFitPhrasingTests {
 @Suite("Frame fit — convention rules expire, optical rules do not")
 struct FitRuleBasisTests {
 
+    /// Non-optional by construction: `DateComponents.date` is only nil for
+    /// components that cannot resolve against their calendar, which a literal
+    /// y/m/d always can. `?? .distantFuture` keeps that guarantee without a
+    /// force unwrap — and .distantFuture would satisfy the same assertions
+    /// anyway, so a hypothetical nil could not make a test pass spuriously.
     private var farFuture: Date {
-        DateComponents(calendar: .current, year: 2099, month: 1, day: 1).date!
+        DateComponents(calendar: .current, year: 2099, month: 1, day: 1).date ?? .distantFuture
     }
 
     @Test("Optical rules still fire in the far future")

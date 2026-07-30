@@ -29,7 +29,14 @@ import XCTest
 /// build failures, not noise.
 @MainActor
 final class ScreenQAUITests: XCTestCase {
-    private var app: XCUIApplication!
+    // `lazy` rather than an implicitly-unwrapped `XCUIApplication!`: the IUO
+    // form is only there to bridge "declared in the class, assigned in setUp",
+    // and it trades a compile-time guarantee for a runtime trap (CLAUDE.md:
+    // no force unwraps). `lazy` gives the same "created once per test instance"
+    // behaviour with no optionality at all, and defers construction to first
+    // use — which happens from a @MainActor context, matching XCUIApplication's
+    // own isolation in the iOS 26 SDK.
+    private lazy var app = XCUIApplication()
 
     /// Generous, because the splash deliberately holds a 450ms floor before
     /// routing (spec §6.1) and a cold launch on CI is slower than on a laptop.
@@ -41,7 +48,6 @@ final class ScreenQAUITests: XCTestCase {
     // inherits the class's isolation.
     override func setUp() async throws {
         continueAfterFailure = true
-        app = XCUIApplication()
         app.launchArguments += [
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",

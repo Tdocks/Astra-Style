@@ -34,6 +34,17 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
         case rateLimited
         /// Request was cancelled (e.g. view disappeared mid-flight).
         case cancelled
+        /// The feature exists as a protocol requirement but its backing
+        /// schema, table or Edge Function has not been built yet.
+        ///
+        /// Distinct from `.server` on purpose. A `.server` failure is a runtime
+        /// problem that might not happen next time; this one is a fact about
+        /// the build — retrying will never help, and the UI should degrade
+        /// (hide the module, disable the control) rather than offer a retry
+        /// button that cannot succeed. Making it its own category is what stops
+        /// a not-yet-built feature from being indistinguishable, at the call
+        /// site, from a backend outage.
+        case unimplemented
         case unknown
     }
 
@@ -58,7 +69,7 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
     public var isRetryable: Bool {
         switch category {
         case .network, .server, .provider, .rateLimited: true
-        case .auth, .validation, .cancelled, .unknown: false
+        case .auth, .validation, .cancelled, .unimplemented, .unknown: false
         }
     }
 
@@ -96,4 +107,13 @@ extension AstraError {
     }
 
     public static let cancelled = AstraError(category: .cancelled, message: "Request cancelled.")
+
+    /// A feature whose backing schema/endpoint does not exist yet.
+    ///
+    /// `message` is user-facing like every other case, so it says what the user
+    /// can expect rather than naming a missing table. The developer-facing
+    /// detail belongs in a comment at the throw site.
+    public static func unimplemented(_ message: String) -> AstraError {
+        AstraError(category: .unimplemented, message: message)
+    }
 }

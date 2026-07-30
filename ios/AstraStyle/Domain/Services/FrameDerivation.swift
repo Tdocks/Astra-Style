@@ -33,13 +33,13 @@ public enum FrameDerivation {
     /// who passed the user's actual preference would get a confident, entirely
     /// wrong frame with no error anywhere.
     public static func derive(from body: BodyProfile) -> FrameProfile {
-        let m = Normalised(body: body)
+        let measurements = Normalised(body: body)
 
         var profile = FrameProfile(
-            taper: taper(from: m, body: body),
-            proportion: proportion(from: m),
-            scale: scale(from: m),
-            muscularityHint: muscularityHint(from: m)
+            taper: taper(from: measurements, body: body),
+            proportion: proportion(from: measurements),
+            scale: scale(from: measurements),
+            muscularityHint: muscularityHint(from: measurements)
         )
 
         applyStatedFitIssues(body.fitNotes, to: &profile)
@@ -103,10 +103,10 @@ public enum FrameDerivation {
     /// Chest minus waist. This is the number tailors actually grade suits by —
     /// 6" regular, 7–8" athletic, ≤4" straight — not an invented metric.
     private static func taper(
-        from m: Normalised,
+        from measurements: Normalised,
         body: BodyProfile
     ) -> FrameAxis<FrameTaper>? {
-        if let chest = m.chest, let waist = m.waist {
+        if let chest = measurements.chest, let waist = measurements.waist {
             let drop = chest - waist
 
             // A waist larger than the chest is a legitimate measurement, not an
@@ -130,7 +130,7 @@ public enum FrameDerivation {
         // how most men discover they need an athletic cut in the first place —
         // a large shirt over a 32 waist is a real signal, and refusing to use
         // it because we lack a tape measure serves nobody.
-        if let shirt = shirtChestEstimate(m.shirtSize), let trouser = m.trouserWaist {
+        if let shirt = shirtChestEstimate(measurements.shirtSize), let trouser = measurements.trouserWaist {
             let drop = shirt - trouser
             let value: FrameTaper = switch drop {
             case 7...: .strong
@@ -167,8 +167,8 @@ public enum FrameDerivation {
 
     // MARK: - Proportion (leg length against height)
 
-    private static func proportion(from m: Normalised) -> FrameAxis<FrameProportion>? {
-        guard let height = m.height, let inseam = m.inseam else { return nil }
+    private static func proportion(from measurements: Normalised) -> FrameAxis<FrameProportion>? {
+        guard let height = measurements.height, let inseam = measurements.inseam else { return nil }
 
         // Guard the relationship as well as each value: an inseam longer than
         // 60% of height is anatomically impossible and means the two fields
@@ -189,8 +189,8 @@ public enum FrameDerivation {
 
     // MARK: - Scale
 
-    private static func scale(from m: Normalised) -> FrameAxis<FrameScale>? {
-        guard let height = m.height else { return nil }
+    private static func scale(from measurements: Normalised) -> FrameAxis<FrameScale>? {
+        guard let height = measurements.height else { return nil }
 
         let value: FrameScale = switch height {
         case 73...: .tall        // 6'1" and over
@@ -213,8 +213,8 @@ public enum FrameDerivation {
     /// — see `docs/14-frame-fit.md` §2. Neck is the least intrusive proxy we
     /// already collect, and unlike weight it says something specific about how
     /// a garment will sit.
-    private static func muscularityHint(from m: Normalised) -> Double? {
-        guard let neck = m.neck, let chest = m.chest, chest > 0 else { return nil }
+    private static func muscularityHint(from measurements: Normalised) -> Double? {
+        guard let neck = measurements.neck, let chest = measurements.chest, chest > 0 else { return nil }
         // Typical ratio runs about 0.33–0.38. Map that span onto 0...1 and clamp.
         let ratio = neck / chest
         return max(0, min(1, (ratio - 0.33) / 0.05))

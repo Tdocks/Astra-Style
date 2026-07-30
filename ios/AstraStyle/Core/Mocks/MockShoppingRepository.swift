@@ -48,7 +48,7 @@ public actor MockShoppingRepository: ShoppingRepository {
                 price: 668,
                 currency: "USD",
                 lastCheckedAt: .now
-            ),
+            )
         ]
     }
 

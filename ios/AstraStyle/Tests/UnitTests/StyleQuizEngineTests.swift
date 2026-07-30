@@ -21,7 +21,22 @@ import Testing
 /// Builds a manifest in memory so these tests never depend on which imagery
 /// happens to be in the bundle this week — the comparison set is content, and a
 /// test that asserts against today's content fails the day content is added.
-private func manifest(_ pairs: [(id: String, priority: Int?, loadings: [(String, Double)])]) -> Data {
+/// One row of an in-memory manifest. A named type rather than a three-member
+/// tuple: these literals appear in a dozen tests, and `("colour-01", nil, [...])`
+/// gives a reader no way to tell what the middle element is.
+struct QuizPairSpec {
+    let id: String
+    let priority: Int?
+    let loadings: [(String, Double)]
+
+    init(_ id: String, _ priority: Int?, _ loadings: [(String, Double)]) {
+        self.id = id
+        self.priority = priority
+        self.loadings = loadings
+    }
+}
+
+private func manifest(_ pairs: [QuizPairSpec]) -> Data {
     func option(_ suffix: String, _ pairID: String, _ loadings: [(String, Double)], sign: Double) -> [String: Any] {
         var map: [String: Double] = [:]
         for (dimension, weight) in loadings { map[dimension] = weight * sign }
@@ -29,7 +44,7 @@ private func manifest(_ pairs: [(id: String, priority: Int?, loadings: [(String,
             "id": suffix,
             "image": "img-\(pairID)-\(suffix)",
             "accessibility_description": "A described outfit for \(pairID) \(suffix).",
-            "loadings": map,
+            "loadings": map
         ]
     }
 
@@ -38,7 +53,7 @@ private func manifest(_ pairs: [(id: String, priority: Int?, loadings: [(String,
         var entry: [String: Any] = [
             "id": pair.id,
             "option_a": option("a", pair.id, pair.loadings, sign: 1),
-            "option_b": option("b", pair.id, pair.loadings, sign: -1),
+            "option_b": option("b", pair.id, pair.loadings, sign: -1)
         ]
         if let priority = pair.priority { entry["priority"] = priority }
         entries.append(entry)
@@ -52,7 +67,7 @@ private func manifest(_ pairs: [(id: String, priority: Int?, loadings: [(String,
 }
 
 private func catalog(
-    _ pairs: [(id: String, priority: Int?, loadings: [(String, Double)])],
+    _ pairs: [QuizPairSpec],
     available: Set<String>? = nil
 ) throws -> StyleQuizCatalog {
     let data = manifest(pairs)
@@ -78,8 +93,8 @@ struct StyleQuizCatalogTests {
         // real photograph and the answer is recorded as a real preference.
         let loaded = try catalog(
             [
-                ("formality-01", nil, [("formality", 1.0)]),
-                ("texture-01", nil, [("texture", 1.0)]),
+                QuizPairSpec("formality-01", nil, [("formality", 1.0)]),
+                QuizPairSpec("texture-01", nil, [("texture", 1.0)])
             ],
             available: ["img-formality-01-a", "img-formality-01-b"]
         )
@@ -145,8 +160,8 @@ struct StyleQuizCatalogTests {
     @Test("Duplicate pair ids are refused; answers are keyed on them")
     func duplicatePairIDsAreRefused() throws {
         let loaded = try catalog([
-            ("colour-01", nil, [("colour_tolerance", 1.0)]),
-            ("colour-01", nil, [("texture", 1.0)]),
+            QuizPairSpec("colour-01", nil, [("colour_tolerance", 1.0)]),
+            QuizPairSpec("colour-01", nil, [("texture", 1.0)])
         ])
         #expect(loaded.pairs.count == 1)
         #expect(loaded.excluded.count == 1)
@@ -164,7 +179,7 @@ struct StyleQuizCatalogTests {
 
     @Test("Axes no comparison touches are reported as unprobed")
     func unprobedAxesAreNamed() throws {
-        let loaded = try catalog([("formality-01", nil, [("formality", 1.0)])])
+        let loaded = try catalog([QuizPairSpec("formality-01", nil, [("formality", 1.0)])])
         #expect(loaded.probedDimensions == [.formality])
         #expect(loaded.unprobedDimensions.count == StyleDimension.allCases.count - 1)
         #expect(!loaded.unprobedDimensions.contains(.formality))
@@ -180,12 +195,12 @@ struct StyleQuizEngineSequencingTests {
     /// order a content editor naturally produces by adding pairs axis by axis.
     private func lopsidedCatalog() throws -> StyleQuizCatalog {
         try catalog([
-            ("colour-01", nil, [("colour_tolerance", 1.0)]),
-            ("colour-02", nil, [("colour_tolerance", 1.0)]),
-            ("colour-03", nil, [("colour_tolerance", 1.0)]),
-            ("colour-04", nil, [("colour_tolerance", 1.0)]),
-            ("formality-01", nil, [("formality", 1.0)]),
-            ("silhouette-01", nil, [("silhouette", 1.0)]),
+            QuizPairSpec("colour-01", nil, [("colour_tolerance", 1.0)]),
+            QuizPairSpec("colour-02", nil, [("colour_tolerance", 1.0)]),
+            QuizPairSpec("colour-03", nil, [("colour_tolerance", 1.0)]),
+            QuizPairSpec("colour-04", nil, [("colour_tolerance", 1.0)]),
+            QuizPairSpec("formality-01", nil, [("formality", 1.0)]),
+            QuizPairSpec("silhouette-01", nil, [("silhouette", 1.0)])
         ])
     }
 
@@ -205,9 +220,9 @@ struct StyleQuizEngineSequencingTests {
     @Test("Priority decides the opener among equally useful comparisons")
     func priorityChoosesTheOpener() throws {
         let engine = StyleQuizEngine(catalog: try catalog([
-            ("colour-01", 50, [("colour_tolerance", 1.0)]),
-            ("formality-01", 5, [("formality", 1.0)]),
-            ("silhouette-01", 90, [("silhouette", 1.0)]),
+            QuizPairSpec("colour-01", 50, [("colour_tolerance", 1.0)]),
+            QuizPairSpec("formality-01", 5, [("formality", 1.0)]),
+            QuizPairSpec("silhouette-01", 90, [("silhouette", 1.0)])
         ]))
         #expect(engine.comparisons.first?.id == "formality-01")
     }
@@ -227,7 +242,7 @@ struct StyleQuizEngineSequencingTests {
     @Test("A run is capped at the twenty comparisons spec §6.9 allows")
     func runIsCappedAtTwenty() throws {
         let many = (1...30).map {
-            (id: "pair-\($0)", priority: Optional<Int>.none, loadings: [("formality", 1.0)])
+            QuizPairSpec("pair-\($0)", nil, [("formality", 1.0)])
         }
         let engine = StyleQuizEngine(catalog: try catalog(many))
         #expect(engine.catalog.pairs.count == 30)
@@ -300,7 +315,7 @@ struct StyleQuizEngineSequencingTests {
         let engine = StyleQuizEngine(catalog: try lopsidedCatalog())
         let answers = [
             StylePreferenceQuizAnswer(pairID: "retired-pair", chosenOptionID: "a"),
-            StylePreferenceQuizAnswer(pairID: "another-retired", chosenOptionID: "b"),
+            StylePreferenceQuizAnswer(pairID: "another-retired", chosenOptionID: "b")
         ]
         // Counting them would put the progress line at "3 of 6" on an untouched
         // step, and at worst past its own denominator.
@@ -326,9 +341,9 @@ struct StyleQuizEngineSequencingTests {
         // because there is nothing to stop short of and, more to the point,
         // because three is under the floor the spec sets.
         let engine = StyleQuizEngine(catalog: try catalog([
-            ("f-01", nil, [("formality", 1.0)]),
-            ("f-02", nil, [("formality", 1.0)]),
-            ("f-03", nil, [("formality", 1.0)]),
+            QuizPairSpec("f-01", nil, [("formality", 1.0)]),
+            QuizPairSpec("f-02", nil, [("formality", 1.0)]),
+            QuizPairSpec("f-03", nil, [("formality", 1.0)])
         ]))
         var answers: [StylePreferenceQuizAnswer] = []
         answers = try #require(engine.recording(pairID: "f-01", optionID: "a", into: answers))
@@ -343,7 +358,7 @@ struct StyleQuizEngineSequencingTests {
         // axis is `.high`, nothing the remaining two could say would change it,
         // and asking them is asking for nothing.
         let pairs = (1...14).map {
-            (id: "f-\($0)", priority: Optional<Int>.none, loadings: [("formality", 1.0)])
+            QuizPairSpec("f-\($0)", nil, [("formality", 1.0)])
         }
         let engine = StyleQuizEngine(catalog: try catalog(pairs))
         var answers: [StylePreferenceQuizAnswer] = []

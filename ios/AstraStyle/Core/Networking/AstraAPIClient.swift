@@ -113,6 +113,36 @@ public final class AstraAPIClient: @unchecked Sendable {
         requestID: String,
         as payloadType: Payload.Type
     ) async throws -> Payload {
+        let request = try await makeRequest(endpoint, body: body, requestID: requestID)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw AstraError.cancelled
+        } catch {
+            throw AstraError.network(error.localizedDescription, requestID: requestID)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AstraError.network("No HTTP response received.", requestID: requestID)
+        }
+        try throwIfUnsuccessful(httpResponse, data: data, requestID: requestID)
+
+        return try decodePayload(Payload.self, from: data, statusCode: httpResponse.statusCode, requestID: requestID)
+    }
+
+    /// Builds the signed, enveloped `URLRequest` for an endpoint.
+    ///
+    /// Split out of `performOnce` so that "how a request is addressed and
+    /// authorised" and "what the server said back" are two things you can read
+    /// (and get wrong) independently.
+    private func makeRequest<Body: Encodable & Sendable>(
+        _ endpoint: AstraEndpoint,
+        body: Body,
+        requestID: String
+    ) async throws -> URLRequest {
         let url = environment.edgeFunctionsBaseURL.appendingPathComponent(endpoint.path)
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method.rawValue
@@ -137,44 +167,60 @@ public final class AstraAPIClient: @unchecked Sendable {
                 throw AstraError.validation("Failed to encode request.", requestID: requestID)
             }
         }
+        return request
+    }
 
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch let urlError as URLError where urlError.code == .cancelled {
-            throw AstraError.cancelled
-        } catch {
-            throw AstraError.network(error.localizedDescription, requestID: requestID)
+    /// Maps a non-2xx status onto the `AstraError` case the UI knows how to
+    /// present, preferring the server's own error envelope when it sent one.
+    private func throwIfUnsuccessful(
+        _ response: HTTPURLResponse,
+        data: Data,
+        requestID: String
+    ) throws {
+        let statusCode = response.statusCode
+        func serverEnvelopeError() -> AstraError? {
+            try? decoder.decode(AstraResponseEnvelope<AstraEmptyPayload>.self, from: data)
+                .error?.asAstraError(statusCode: statusCode, requestID: requestID)
         }
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw AstraError.network("No HTTP response received.", requestID: requestID)
-        }
-
-        switch httpResponse.statusCode {
+        switch statusCode {
         case 200..<300:
-            break
+            return
         case 401, 403:
             throw AstraError.auth("Your session has expired.", requestID: requestID)
         case 422, 400:
-            let envelope = try? decoder.decode(AstraResponseEnvelope<AstraEmptyPayload>.self, from: data)
-            throw envelope?.error?.asAstraError(statusCode: httpResponse.statusCode, requestID: requestID)
+            throw serverEnvelopeError()
                 ?? AstraError.validation("The request was invalid.", requestID: requestID)
         case 429:
             throw AstraError.rateLimited(requestID: requestID)
         case 500..<600:
-            let envelope = try? decoder.decode(AstraResponseEnvelope<AstraEmptyPayload>.self, from: data)
-            throw envelope?.error?.asAstraError(statusCode: httpResponse.statusCode, requestID: requestID)
-                ?? AstraError.server("The server encountered an error.", statusCode: httpResponse.statusCode, requestID: requestID)
+            throw serverEnvelopeError()
+                ?? AstraError.server(
+                    "The server encountered an error.",
+                    statusCode: statusCode,
+                    requestID: requestID
+                )
         default:
-            throw AstraError.server("Unexpected response (\(httpResponse.statusCode)).", statusCode: httpResponse.statusCode, requestID: requestID)
+            throw AstraError.server(
+                "Unexpected response (\(statusCode)).",
+                statusCode: statusCode,
+                requestID: requestID
+            )
         }
+    }
 
+    /// Unwraps the success envelope. A 2xx that carries an `error` or no `data`
+    /// is still a failure, and is reported as one rather than as an empty model.
+    private func decodePayload<Payload: Decodable & Sendable>(
+        _ payloadType: Payload.Type,
+        from data: Data,
+        statusCode: Int,
+        requestID: String
+    ) throws -> Payload {
         do {
             let envelope = try decoder.decode(AstraResponseEnvelope<Payload>.self, from: data)
             if let error = envelope.error {
-                throw error.asAstraError(statusCode: httpResponse.statusCode, requestID: requestID)
+                throw error.asAstraError(statusCode: statusCode, requestID: requestID)
             }
             guard let payload = envelope.data else {
                 throw AstraError.server("The server returned an empty payload.", requestID: requestID)

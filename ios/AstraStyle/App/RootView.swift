@@ -93,6 +93,8 @@ private struct SignedOutGateView: View {
     /// comment for why both the raw and hashed forms matter.
     @State private var currentNonce: String?
     @State private var isShowingEmailSheet = false
+    /// Shown in place of a legal document that has not been published yet.
+    @State private var legalNotice: String?
 
     var body: some View {
         ZStack {
@@ -239,6 +241,14 @@ private struct SignedOutGateView: View {
             // light mode became reachable). The accessible variant is #8A6A2E
             // at 4.62:1. Both resolve to the same value in dark mode.
             .tint(AstraColor.accentChampagneAccessible)
+
+            if let legalNotice {
+                Text(legalNotice)
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("welcome.legalNotice")
+            }
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
@@ -248,15 +258,57 @@ private struct SignedOutGateView: View {
     /// Stable identifier so UI tests can target this link unambiguously —
     /// `Link` surfaces as a `.button` in the accessibility tree, not a
     /// `.link`, so `app.links["Terms of Service"]` never matched it (see
-    /// `Tests/UITests/ScreenQAUITests.swift`).
+    /// `Tests/UITests/ScreenQAUITests.swift`). The unpublished branch below is
+    /// a `Button` for the same reason: same accessibility role, so the control
+    /// keeps its identity whichever state it is in.
     private var termsLink: some View {
-        Link(String(localized: "Terms of Service"), destination: AstraLegal.termsURL)
-            .accessibilityIdentifier("welcome.termsLink")
+        legalLink(
+            title: String(localized: "Terms of Service"),
+            url: AstraLegal.termsURL,
+            identifier: "welcome.termsLink",
+            unavailableNotice: String(
+                localized: "Our Terms of Service will be published before Astra Style is released."
+            )
+        )
     }
 
     private var privacyLink: some View {
-        Link(String(localized: "Privacy Policy"), destination: AstraLegal.privacyURL)
-            .accessibilityIdentifier("welcome.privacyLink")
+        legalLink(
+            title: String(localized: "Privacy Policy"),
+            url: AstraLegal.privacyURL,
+            identifier: "welcome.privacyLink",
+            unavailableNotice: String(
+                localized: "Our Privacy Policy will be published before Astra Style is released."
+            )
+        )
+    }
+
+    /// A legal document link that tells the truth about a document that does
+    /// not exist yet.
+    ///
+    /// `AstraLegal.termsURL` and `privacyURL` are `nil` until the domain is
+    /// registered and the documents are published (see AstraLegal.swift). The
+    /// old shape linked to `astrastyle.app`, which is NXDOMAIN, so tapping
+    /// either one opened Safari on a DNS error — a dead control that looked
+    /// alive, and an App Store review blocker. This keeps the control present
+    /// and doing something visible (§22: "no dead buttons") while being honest
+    /// that there is nothing to read yet. It becomes a real `Link` the moment
+    /// `AstraLegal.isPublished` flips, with no other change anywhere.
+    @ViewBuilder
+    private func legalLink(
+        title: String,
+        url: URL?,
+        identifier: String,
+        unavailableNotice: String
+    ) -> some View {
+        if let url {
+            Link(title, destination: url)
+                .accessibilityIdentifier(identifier)
+        } else {
+            Button(title) { legalNotice = unavailableNotice }
+                .accessibilityIdentifier(identifier)
+                .accessibilityHint(Text("Not published yet"))
+        }
     }
 
     private func handleSignInWithApple(_ result: Result<ASAuthorization, Error>) {
@@ -299,4 +351,3 @@ private struct SignedOutGateView: View {
         }
     }
 }
-

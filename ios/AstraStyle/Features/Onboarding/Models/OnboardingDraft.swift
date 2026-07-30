@@ -163,88 +163,88 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
     }
 
     public init(from decoder: any Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        goals = try c.decodeIfPresent(Set<StyleGoal>.self, forKey: .goals) ?? []
-        selectedIdentities = try c.decodeIfPresent([StyleIdentity].self, forKey: .selectedIdentities) ?? []
-        primaryIdentity = try c.decodeIfPresent(StyleIdentity.self, forKey: .primaryIdentity)
-        units = try c.decodeIfPresent(UnitsPreference.self, forKey: .units) ?? .imperial
-        height = try c.decodeIfPresent(MeasurementEntry.self, forKey: .height) ?? MeasurementEntry()
-        weight = try c.decodeIfPresent(MeasurementEntry.self, forKey: .weight) ?? MeasurementEntry()
-        chest = try c.decodeIfPresent(MeasurementEntry.self, forKey: .chest) ?? MeasurementEntry()
-        waist = try c.decodeIfPresent(MeasurementEntry.self, forKey: .waist) ?? MeasurementEntry()
-        inseam = try c.decodeIfPresent(MeasurementEntry.self, forKey: .inseam) ?? MeasurementEntry()
-        neck = try c.decodeIfPresent(MeasurementEntry.self, forKey: .neck) ?? MeasurementEntry()
-        shoeSize = try c.decodeIfPresent(String.self, forKey: .shoeSize)
-        shirtSize = try c.decodeIfPresent(String.self, forKey: .shirtSize)
-        trouserSize = try c.decodeIfPresent(String.self, forKey: .trouserSize)
-        preferredFit = try c.decodeIfPresent(ItemFit.self, forKey: .preferredFit)
-        fitIssues = try c.decodeIfPresent(Set<FitIssue>.self, forKey: .fitIssues) ?? []
-        skinUndertone = try c.decodeIfPresent(String.self, forKey: .skinUndertone)
-        hairColor = try c.decodeIfPresent(String.self, forKey: .hairColor)
-        eyeColor = try c.decodeIfPresent(String.self, forKey: .eyeColor)
-        facialHair = try c.decodeIfPresent(String.self, forKey: .facialHair)
-        wearsGlasses = try c.decodeIfPresent(Bool.self, forKey: .wearsGlasses)
-        tattoosVisible = try c.decodeIfPresent(Bool.self, forKey: .tattoosVisible)
-        occupationCategory = try c.decodeIfPresent(OccupationCategory.self, forKey: .occupationCategory)
-        dressCode = try c.decodeIfPresent(DressCode.self, forKey: .dressCode)
-        typicalWeek = try c.decodeIfPresent(String.self, forKey: .typicalWeek)
-        commonOccasions = try c.decodeIfPresent([String].self, forKey: .commonOccasions) ?? []
-        climatePreferences = try c.decodeIfPresent([String].self, forKey: .climatePreferences) ?? []
-        laundryCadence = try c.decodeIfPresent(LaundryCadence.self, forKey: .laundryCadence)
-        travelFrequency = try c.decodeIfPresent(String.self, forKey: .travelFrequency)
-        religiousServiceAttireNeeds = try c.decodeIfPresent(
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        goals = try container.decodeIfPresent(Set<StyleGoal>.self, forKey: .goals) ?? []
+        selectedIdentities = try container.decodeIfPresent([StyleIdentity].self, forKey: .selectedIdentities) ?? []
+        primaryIdentity = try container.decodeIfPresent(StyleIdentity.self, forKey: .primaryIdentity)
+        units = try container.decodeIfPresent(UnitsPreference.self, forKey: .units) ?? .imperial
+        height = try container.decodeIfPresent(MeasurementEntry.self, forKey: .height) ?? MeasurementEntry()
+        weight = try container.decodeIfPresent(MeasurementEntry.self, forKey: .weight) ?? MeasurementEntry()
+        chest = try container.decodeIfPresent(MeasurementEntry.self, forKey: .chest) ?? MeasurementEntry()
+        waist = try container.decodeIfPresent(MeasurementEntry.self, forKey: .waist) ?? MeasurementEntry()
+        inseam = try container.decodeIfPresent(MeasurementEntry.self, forKey: .inseam) ?? MeasurementEntry()
+        neck = try container.decodeIfPresent(MeasurementEntry.self, forKey: .neck) ?? MeasurementEntry()
+        shoeSize = try container.decodeIfPresent(String.self, forKey: .shoeSize)
+        shirtSize = try container.decodeIfPresent(String.self, forKey: .shirtSize)
+        trouserSize = try container.decodeIfPresent(String.self, forKey: .trouserSize)
+        preferredFit = try container.decodeIfPresent(ItemFit.self, forKey: .preferredFit)
+        fitIssues = try container.decodeIfPresent(Set<FitIssue>.self, forKey: .fitIssues) ?? []
+        skinUndertone = try container.decodeIfPresent(String.self, forKey: .skinUndertone)
+        hairColor = try container.decodeIfPresent(String.self, forKey: .hairColor)
+        eyeColor = try container.decodeIfPresent(String.self, forKey: .eyeColor)
+        facialHair = try container.decodeIfPresent(String.self, forKey: .facialHair)
+        wearsGlasses = try container.decodeIfPresent(Bool.self, forKey: .wearsGlasses)
+        tattoosVisible = try container.decodeIfPresent(Bool.self, forKey: .tattoosVisible)
+        occupationCategory = try container.decodeIfPresent(OccupationCategory.self, forKey: .occupationCategory)
+        dressCode = try container.decodeIfPresent(DressCode.self, forKey: .dressCode)
+        typicalWeek = try container.decodeIfPresent(String.self, forKey: .typicalWeek)
+        commonOccasions = try container.decodeIfPresent([String].self, forKey: .commonOccasions) ?? []
+        climatePreferences = try container.decodeIfPresent([String].self, forKey: .climatePreferences) ?? []
+        laundryCadence = try container.decodeIfPresent(LaundryCadence.self, forKey: .laundryCadence)
+        travelFrequency = try container.decodeIfPresent(String.self, forKey: .travelFrequency)
+        religiousServiceAttireNeeds = try container.decodeIfPresent(
             String.self, forKey: .religiousServiceAttireNeeds
         )
-        sustainabilityPreference = try c.decodeIfPresent(String.self, forKey: .sustainabilityPreference)
-        preferredBrands = try c.decodeIfPresent([String].self, forKey: .preferredBrands) ?? []
-        avoidedBrands = try c.decodeIfPresent([String].self, forKey: .avoidedBrands) ?? []
-        monthlyBudget = try c.decodeIfPresent(Decimal.self, forKey: .monthlyBudget)
-        currency = try c.decodeIfPresent(String.self, forKey: .currency)
+        sustainabilityPreference = try container.decodeIfPresent(String.self, forKey: .sustainabilityPreference)
+        preferredBrands = try container.decodeIfPresent([String].self, forKey: .preferredBrands) ?? []
+        avoidedBrands = try container.decodeIfPresent([String].self, forKey: .avoidedBrands) ?? []
+        monthlyBudget = try container.decodeIfPresent(Decimal.self, forKey: .monthlyBudget)
+        currency = try container.decodeIfPresent(String.self, forKey: .currency)
             ?? Locale.current.currency?.identifier ?? "USD"
-        quizAnswers = try c.decodeIfPresent([StylePreferenceQuizAnswer].self, forKey: .quizAnswers) ?? []
-        furthestStepReached = try c.decodeIfPresent(
+        quizAnswers = try container.decodeIfPresent([StylePreferenceQuizAnswer].self, forKey: .quizAnswers) ?? []
+        furthestStepReached = try container.decodeIfPresent(
             OnboardingStep.self, forKey: .furthestStepReached
         ) ?? .intro
     }
 
     public func encode(to encoder: any Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(goals, forKey: .goals)
-        try c.encode(selectedIdentities, forKey: .selectedIdentities)
-        try c.encodeIfPresent(primaryIdentity, forKey: .primaryIdentity)
-        try c.encode(units, forKey: .units)
-        try c.encode(height, forKey: .height)
-        try c.encode(weight, forKey: .weight)
-        try c.encode(chest, forKey: .chest)
-        try c.encode(waist, forKey: .waist)
-        try c.encode(inseam, forKey: .inseam)
-        try c.encode(neck, forKey: .neck)
-        try c.encodeIfPresent(shoeSize, forKey: .shoeSize)
-        try c.encodeIfPresent(shirtSize, forKey: .shirtSize)
-        try c.encodeIfPresent(trouserSize, forKey: .trouserSize)
-        try c.encodeIfPresent(preferredFit, forKey: .preferredFit)
-        try c.encode(fitIssues, forKey: .fitIssues)
-        try c.encodeIfPresent(skinUndertone, forKey: .skinUndertone)
-        try c.encodeIfPresent(hairColor, forKey: .hairColor)
-        try c.encodeIfPresent(eyeColor, forKey: .eyeColor)
-        try c.encodeIfPresent(facialHair, forKey: .facialHair)
-        try c.encodeIfPresent(wearsGlasses, forKey: .wearsGlasses)
-        try c.encodeIfPresent(tattoosVisible, forKey: .tattoosVisible)
-        try c.encodeIfPresent(occupationCategory, forKey: .occupationCategory)
-        try c.encodeIfPresent(dressCode, forKey: .dressCode)
-        try c.encodeIfPresent(typicalWeek, forKey: .typicalWeek)
-        try c.encode(commonOccasions, forKey: .commonOccasions)
-        try c.encode(climatePreferences, forKey: .climatePreferences)
-        try c.encodeIfPresent(laundryCadence, forKey: .laundryCadence)
-        try c.encodeIfPresent(travelFrequency, forKey: .travelFrequency)
-        try c.encodeIfPresent(religiousServiceAttireNeeds, forKey: .religiousServiceAttireNeeds)
-        try c.encodeIfPresent(sustainabilityPreference, forKey: .sustainabilityPreference)
-        try c.encode(preferredBrands, forKey: .preferredBrands)
-        try c.encode(avoidedBrands, forKey: .avoidedBrands)
-        try c.encodeIfPresent(monthlyBudget, forKey: .monthlyBudget)
-        try c.encode(currency, forKey: .currency)
-        try c.encode(quizAnswers, forKey: .quizAnswers)
-        try c.encode(furthestStepReached, forKey: .furthestStepReached)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(goals, forKey: .goals)
+        try container.encode(selectedIdentities, forKey: .selectedIdentities)
+        try container.encodeIfPresent(primaryIdentity, forKey: .primaryIdentity)
+        try container.encode(units, forKey: .units)
+        try container.encode(height, forKey: .height)
+        try container.encode(weight, forKey: .weight)
+        try container.encode(chest, forKey: .chest)
+        try container.encode(waist, forKey: .waist)
+        try container.encode(inseam, forKey: .inseam)
+        try container.encode(neck, forKey: .neck)
+        try container.encodeIfPresent(shoeSize, forKey: .shoeSize)
+        try container.encodeIfPresent(shirtSize, forKey: .shirtSize)
+        try container.encodeIfPresent(trouserSize, forKey: .trouserSize)
+        try container.encodeIfPresent(preferredFit, forKey: .preferredFit)
+        try container.encode(fitIssues, forKey: .fitIssues)
+        try container.encodeIfPresent(skinUndertone, forKey: .skinUndertone)
+        try container.encodeIfPresent(hairColor, forKey: .hairColor)
+        try container.encodeIfPresent(eyeColor, forKey: .eyeColor)
+        try container.encodeIfPresent(facialHair, forKey: .facialHair)
+        try container.encodeIfPresent(wearsGlasses, forKey: .wearsGlasses)
+        try container.encodeIfPresent(tattoosVisible, forKey: .tattoosVisible)
+        try container.encodeIfPresent(occupationCategory, forKey: .occupationCategory)
+        try container.encodeIfPresent(dressCode, forKey: .dressCode)
+        try container.encodeIfPresent(typicalWeek, forKey: .typicalWeek)
+        try container.encode(commonOccasions, forKey: .commonOccasions)
+        try container.encode(climatePreferences, forKey: .climatePreferences)
+        try container.encodeIfPresent(laundryCadence, forKey: .laundryCadence)
+        try container.encodeIfPresent(travelFrequency, forKey: .travelFrequency)
+        try container.encodeIfPresent(religiousServiceAttireNeeds, forKey: .religiousServiceAttireNeeds)
+        try container.encodeIfPresent(sustainabilityPreference, forKey: .sustainabilityPreference)
+        try container.encode(preferredBrands, forKey: .preferredBrands)
+        try container.encode(avoidedBrands, forKey: .avoidedBrands)
+        try container.encodeIfPresent(monthlyBudget, forKey: .monthlyBudget)
+        try container.encode(currency, forKey: .currency)
+        try container.encode(quizAnswers, forKey: .quizAnswers)
+        try container.encode(furthestStepReached, forKey: .furthestStepReached)
     }
 }
 
@@ -256,9 +256,9 @@ public extension OnboardingDraft {
     /// halves are done. Used to gate that step's Continue button, and nothing
     /// else — no other step has a hard requirement.
     var hasCompleteIdentitySelection: Bool {
-        selectedIdentities.count == StyleIdentityRules.requiredSelectionCount
-            && primaryIdentity != nil
-            && selectedIdentities.contains(primaryIdentity!)
+        guard let primaryIdentity else { return false }
+        return selectedIdentities.count == StyleIdentityRules.requiredSelectionCount
+            && selectedIdentities.contains(primaryIdentity)
     }
 
     /// - Parameter quizCatalog: The comparison set the answers were given

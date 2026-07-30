@@ -14,11 +14,12 @@
 import Foundation
 
 /// Losslessly round-trips arbitrary JSON through `Codable`.
-// Hashable, not just Equatable: `KyraMessage` holds an optional
-// `AstraJSONValue` (modelMetadata) and declares Hashable conformance, which
-// every stored property must support. Every associated value here is already
-// Hashable — String, Double, Bool, and Array/Dictionary of Hashable elements —
-// so the compiler synthesises it; nothing needs to be written by hand.
+///
+/// Hashable, not just Equatable: `KyraMessage` holds an optional
+/// `AstraJSONValue` (modelMetadata) and declares Hashable conformance, which
+/// every stored property must support. Every associated value here is already
+/// Hashable — String, Double, Bool, and Array/Dictionary of Hashable elements —
+/// so the compiler synthesises it; nothing needs to be written by hand.
 public indirect enum AstraJSONValue: Codable, Sendable, Hashable {
     case null
     case bool(Bool)

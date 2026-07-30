@@ -3,15 +3,25 @@
 //  AstraStyle
 //
 //  `closet_items` / `closet_item_images` reads and simple writes go
-//  through Postgrest; image bytes go to Supabase Storage under
-//  `users/{user_id}/closet/...` (spec §15) before the analysis
+//  through Postgrest; image bytes go to the `user-content` Storage bucket
+//  under `users/{user_id}/closet/...` (spec §15) before the analysis
 //  Edge Functions are called with the resulting storage path, rather than
 //  shipping raw image bytes through the JSON envelope.
 //
-//  Every mutation is written through `OfflineMutationQueue` first
-//  (spec §7 "Local edits queue for sync"); `drain(apply:)` is invoked
-//  opportunistically whenever a call succeeds, so connectivity coming back
-//  mid-session flushes the backlog without a separate background task.
+//  Offline behaviour (spec §7 "Local edits queue for sync"), stated
+//  precisely, because the previous version of this comment was not true:
+//
+//  * `createItem` and `updateItem` fall back to `OfflineMutationQueue` when
+//    the write fails, and return the local value so the UI stays consistent.
+//  * `archiveItem`, `markWorn` and `updateLaundryState` do NOT queue yet —
+//    the queue's payload is an encoded `ClosetItem`, and those three only
+//    have an id (or need a read-modify-write) at the point of failure.
+//    They surface the error instead of pretending to have succeeded.
+//  * `drainPendingMutations()` replays the backlog and IS actually called:
+//    after every successful `fetchItems`, `createItem`, `updateItem` and
+//    `archiveItem`. That is what makes "connectivity coming back mid-session
+//    flushes the backlog" true rather than aspirational — before this, the
+//    header claimed it and nothing in the app called `drain(` at all.
 //
 
 import Foundation
@@ -21,25 +31,57 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     private let apiClient: AstraAPIClient
     private let supabase: SupabaseClient
     private let offlineQueue: OfflineMutationQueue
+    private let writer: any ClosetWriting
 
-    public init(
+    /// Guards against two concurrent drains replaying the same mutation
+    /// twice. `drain(apply:)` suspends inside the queue actor while `apply`
+    /// runs, which lets a second drain observe a mutation that the first has
+    /// applied but not yet removed. A lock here is enough because a drain
+    /// never triggers another drain — replay goes straight to `writer`.
+    private let drainLock = NSLock()
+    private var isDraining = false
+
+    public convenience init(
         apiClient: AstraAPIClient,
         offlineQueue: OfflineMutationQueue,
         supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)
     ) {
+        self.init(
+            apiClient: apiClient,
+            offlineQueue: offlineQueue,
+            supabase: supabase,
+            writer: SupabaseClosetWriter(supabase: supabase)
+        )
+    }
+
+    /// Internal so tests can substitute the writer and drive the offline
+    /// queueing/replay behaviour without a live Supabase project.
+    init(
+        apiClient: AstraAPIClient,
+        offlineQueue: OfflineMutationQueue,
+        supabase: SupabaseClient,
+        writer: any ClosetWriting
+    ) {
         self.apiClient = apiClient
         self.offlineQueue = offlineQueue
         self.supabase = supabase
+        self.writer = writer
     }
 
     public func fetchItems() async throws -> [ClosetItem] {
         do {
-            return try await supabase.from("closet_items")
+            let items: [ClosetItem] = try await supabase.from("closet_items")
                 .select()
                 .is("archived_at", value: nil)
                 .order("created_at", ascending: false)
                 .execute()
                 .value
+            // A successful read is the cheapest reliable signal that the
+            // network is back, and the closet list is the screen a returning
+            // user lands on — so it is the natural moment to flush anything
+            // that was written while offline.
+            await drainPendingMutations()
+            return items
         } catch {
             throw AstraError.network("Couldn't load your closet. Showing your last saved copy if available.")
         }
@@ -98,15 +140,8 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
 
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         do {
-            let created: ClosetItem = try await supabase.from("closet_items")
-                .insert(item)
-                .select()
-                .single()
-                .execute()
-                .value
-            if !images.isEmpty {
-                try await supabase.from("closet_item_images").insert(images).execute()
-            }
+            let created = try await writer.create(item, images: images)
+            await drainPendingMutations()
             return created
         } catch {
             try await queueMutation(.create, item: item)
@@ -116,25 +151,21 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
 
     public func updateItem(_ item: ClosetItem) async throws -> ClosetItem {
         do {
-            return try await supabase.from("closet_items")
-                .update(item)
-                .eq("id", value: item.id)
-                .select()
-                .single()
-                .execute()
-                .value
+            let updated = try await writer.update(item)
+            await drainPendingMutations()
+            return updated
         } catch {
             try await queueMutation(.update, item: item)
             return item
         }
     }
 
+    /// - Note: Does not queue. See this file's header for why archive, wear
+    ///   and laundry writes surface their error instead.
     public func archiveItem(id: UUID) async throws {
         do {
-            try await supabase.from("closet_items")
-                .update(["archived_at": Date.now])
-                .eq("id", value: id)
-                .execute()
+            try await writer.archive(id: id)
+            await drainPendingMutations()
         } catch {
             throw AstraError.network("Couldn't archive that item while offline. It will sync when you're back online.")
         }
@@ -166,25 +197,105 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         }
     }
 
+    /// - Note: **Not implemented.** This used to `select()` from a
+    ///   `wardrobe_scores` table that no migration in supabase/migrations
+    ///   creates, so it failed on every call in production — invisibly,
+    ///   because `HomeBriefProviding.fetchWardrobeScoreSafely()` does
+    ///   `try?` and Home simply hides the module. The result was a screen
+    ///   that has never once shown a real score and never reported why.
+    ///
+    ///   The table is not the missing piece. `WardrobeScoring` (Domain/
+    ///   Services) is a protocol plus the §10 weights with **no conforming
+    ///   scorer anywhere**, so nothing in this repo can compute a score to
+    ///   put in such a table; adding the migration would produce a table
+    ///   that is permanently empty and a call that returns "no rows" instead
+    ///   of "relation does not exist" — the same blank module, with more
+    ///   schema to maintain. Implement the scorer (P4-OUTFIT-10) and then
+    ///   the table, in that order.
     public func fetchWardrobeScore() async throws -> WardrobeScore {
-        do {
-            return try await supabase.from("wardrobe_scores").select().single().execute().value
-        } catch {
-            throw AstraError.server("Couldn't load your Wardrobe Score.")
-        }
+        throw AstraError.unimplemented(
+            String(localized: "Your Wardrobe Score isn't ready yet.")
+        )
     }
 
     // MARK: - Helpers
 
+    /// Uploads one captured image and returns its storage path.
+    ///
+    /// Two things here are load-bearing and were both wrong before:
+    ///
+    /// 1. The bucket is `user-content`. There is exactly one bucket
+    ///    (`20260728101000_storage_buckets.sql`) and it is not called
+    ///    "closet" — `closet` is a folder *inside* it, which is the whole
+    ///    point of the shared `users/{user_id}/...` prefix that migration
+    ///    documents. Uploading to a nonexistent bucket fails outright.
+    /// 2. The user id is lowercased. The four storage policies compare
+    ///    `(storage.foldername(name))[2]` against `auth.uid()::text`, and
+    ///    Postgres renders a uuid lowercase while Swift's
+    ///    `UUID.uuidString` is UPPERCASE. Without `.lowercased()` the path
+    ///    is well-formed, the bucket is right, and the insert is still
+    ///    rejected by RLS — the most expensive kind of wrong, because it
+    ///    looks correct in the debugger.
+    ///
+    /// The path has no `{closet_item_id}` segment (the migration's comment
+    /// illustrates `users/{uid}/closet/{closet_item_id}/{image_id}.jpg`)
+    /// because this runs during a scan, BEFORE the user has confirmed the
+    /// analysis and a `ClosetItem` exists. Only segments [1] and [2] are
+    /// policy-relevant, so this is a valid path under the same convention.
     private func uploadCaptured(imageData: Data) async throws -> String {
         do {
             let session = try await supabase.auth.session
-            let path = "users/\(session.user.id.uuidString)/closet/\(UUID().uuidString).jpg"
-            _ = try await supabase.storage.from("closet").upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
+            let userID = session.user.id.uuidString.lowercased()
+            let path = "users/\(userID)/closet/\(UUID().uuidString.lowercased()).jpg"
+            _ = try await supabase.storage
+                .from("user-content")
+                .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
             return path
         } catch {
             throw AstraError.network("Couldn't upload that photo. Check your connection and try again.")
         }
+    }
+
+    /// Replays everything the offline queue is holding, oldest first.
+    ///
+    /// Called after every successful network call in this type. The queue
+    /// stops at the first failure and counts an attempt against it, so a
+    /// mutation that cannot apply blocks the ones behind it rather than
+    /// letting a later write for the same item land first.
+    func drainPendingMutations() async {
+        guard beginDraining() else { return }
+        defer { endDraining() }
+
+        await offlineQueue.drain { [writer] mutation in
+            // The queue is shared: `LiveOutfitRepository` enqueues `.outfit`
+            // and `.outfitWear` into the same one. Those are not this type's
+            // to replay, and neither failing on them (which would stop the
+            // drain forever) nor applying them (which would corrupt data
+            // through the wrong writer) is acceptable — so say "not mine" and
+            // let them stay queued for their owner. NOTE: nothing drains
+            // outfit mutations yet; see P1-CORE-06 in docs/03-progress.md.
+            guard mutation.entity == .closetItem else { throw OfflineMutationNotHandled() }
+            let item = try JSONDecoder.astraDefault.decode(ClosetItem.self, from: mutation.payloadData)
+            switch mutation.operation {
+            case .create: _ = try await writer.create(item, images: [])
+            case .update: _ = try await writer.update(item)
+            case .delete: try await writer.archive(id: item.id)
+            }
+        }
+    }
+
+    private func beginDraining() -> Bool {
+        drainLock.lock()
+        defer { drainLock.unlock() }
+        if isDraining { return false }
+        isDraining = true
+        return true
+    }
+
+    private func endDraining() {
+        drainLock.lock()
+        isDraining = false
+        drainLock.unlock()
     }
 
     private func queueMutation(_ operation: OfflineMutation.Operation, item: ClosetItem) async throws {

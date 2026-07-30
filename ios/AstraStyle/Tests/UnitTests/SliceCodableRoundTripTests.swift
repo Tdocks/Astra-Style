@@ -177,7 +177,7 @@ struct SliceCodableRoundTripTests {
         #expect(object["rating"] == nil)
         #expect(object["feedback"] == nil)
         #expect(object["weather_snapshot"] == nil)
-        #expect(object["worn_at"] as? String != nil)
+        #expect(object["worn_at"] is String)
     }
 
     @Test("OutfitWear decodes a realistic outfit_wears row")

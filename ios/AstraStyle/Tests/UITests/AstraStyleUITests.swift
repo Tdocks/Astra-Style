@@ -21,25 +21,31 @@ import XCTest
 /// APIs are main-actor isolated in the iOS 26 SDK.
 @MainActor
 final class AstraStyleUITests: XCTestCase {
-    private var app: XCUIApplication!
+    // `lazy` rather than an implicitly-unwrapped `XCUIApplication!`: the IUO
+    // form is only there to bridge "declared in the class, assigned in setUp",
+    // and it trades a compile-time guarantee for a runtime trap (CLAUDE.md:
+    // no force unwraps). `lazy` gives the same "created once per test instance"
+    // behaviour with no optionality at all, and defers construction to first
+    // use — which happens from a @MainActor context, matching XCUIApplication's
+    // own isolation in the iOS 26 SDK.
+    private lazy var app = XCUIApplication()
 
     // Async overrides inherit the class's @MainActor isolation; the throwing
     // synchronous ones do not (see ScreenQAUITests for the full note).
     override func setUp() async throws {
         continueAfterFailure = false
-        app = XCUIApplication()
         app.launchArguments += ["-UITestMode", "1"]
-    }
-
-    override func tearDown() async throws {
-        app = nil
     }
 
     /// Spec §22 "Complete onboarding". Owner: P2-ONBOARD.
     func testCompleteOnboarding() throws {
         app.launch()
         XCTFail(
-            "Not implemented: drive Welcome -> Sign in with Apple (or guest) -> style goals -> style identity -> measurements -> lifestyle -> preference quiz -> Style DNA result -> Home, then assert the Daily Brief is visible. Owner: P2-ONBOARD."
+            """
+            Not implemented: drive Welcome -> Sign in with Apple (or guest) -> style goals -> style \
+            identity -> measurements -> lifestyle -> preference quiz -> Style DNA result -> Home, \
+            then assert the Daily Brief is visible. Owner: P2-ONBOARD.
+            """
         )
     }
 
@@ -47,7 +53,11 @@ final class AstraStyleUITests: XCTestCase {
     func testAddGarment() throws {
         app.launch()
         XCTFail(
-            "Not implemented: drive the scan flow (or manual entry) to completion and assert the new item appears in the Closet grid with a non-empty wear count of 0 and an editable, non-placeholder name. Owner: P3-CLOSET / P3-SCAN."
+            """
+            Not implemented: drive the scan flow (or manual entry) to completion and assert the new \
+            item appears in the Closet grid with a non-empty wear count of 0 and an editable, \
+            non-placeholder name. Owner: P3-CLOSET / P3-SCAN.
+            """
         )
     }
 
@@ -63,7 +73,11 @@ final class AstraStyleUITests: XCTestCase {
     func testMarkOutfitWorn() throws {
         app.launch()
         XCTFail(
-            "Not implemented: tap 'Wear This' on the Home hero card and assert the outfit's wear count increments and a success haptic/confirmation is shown (spec §3 Motion: 'success for saved closet scan' pattern applies analogously here). Owner: P4-OUTFIT."
+            """
+            Not implemented: tap 'Wear This' on the Home hero card and assert the outfit's wear \
+            count increments and a success haptic/confirmation is shown (spec §3 Motion: 'success \
+            for saved closet scan' pattern applies analogously here). Owner: P4-OUTFIT.
+            """
         )
     }
 
@@ -79,7 +93,11 @@ final class AstraStyleUITests: XCTestCase {
     func testOpenPaywallAndRestorePurchases() throws {
         app.launch()
         XCTFail(
-            "Not implemented: trigger a paywall context (e.g. closet limit), assert monthly/annual plans and Restore Purchases are visible, then assert Restore Purchases completes without error against a StoreKit sandbox configuration. Owner: P7-SUB."
+            """
+            Not implemented: trigger a paywall context (e.g. closet limit), assert monthly/annual \
+            plans and Restore Purchases are visible, then assert Restore Purchases completes without \
+            error against a StoreKit sandbox configuration. Owner: P7-SUB.
+            """
         )
     }
 
