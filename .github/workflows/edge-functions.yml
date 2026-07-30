@@ -42,7 +42,7 @@ jobs:
         working-directory: supabase/functions
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Deno ${{ env.DENO_VERSION }}
         uses: denoland/setup-deno@v2
@@ -55,22 +55,22 @@ jobs:
       # picture in one CI run instead of fixing issues one push at a time.
       - name: deno check (type check)
         id: check
-        run: deno check _shared/**/*.ts outfits-generate/**/*.ts
+        run: deno check _shared/**/*.ts outfits/**/*.ts
 
       - name: deno test
         id: test
         if: always() && steps.check.outcome != 'cancelled'
-        run: deno test --allow-env _shared/ outfits-generate/
+        run: deno test --allow-env _shared/ outfits/
 
       - name: deno fmt --check
         id: fmt
         if: always() && steps.check.outcome != 'cancelled'
-        run: deno fmt --check _shared/ outfits-generate/
+        run: deno fmt --check _shared/ outfits/
 
       - name: deno lint
         id: lint
         if: always() && steps.check.outcome != 'cancelled'
-        run: deno lint _shared/ outfits-generate/
+        run: deno lint _shared/ outfits/
 
       - name: Summary
         if: always()

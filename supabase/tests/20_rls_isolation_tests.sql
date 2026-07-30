@@ -623,7 +623,214 @@ end
 $$;
 
 -- ============================================================================
--- SECTION 7 — Summary. Non-zero exit (via RAISE EXCEPTION) if anything failed.
+-- SECTION 7 — archive_closet_item() / restore_closet_item() RPCs.
+-- ============================================================================
+-- As of 20260730170000_narrow_security_definer_scope.sql these two run
+-- SECURITY INVOKER (previously DEFINER), relying on closet_items' own RLS
+-- UPDATE policy (`user_id = auth.uid()`) instead of bypassing it. This
+-- section proves that narrowing didn't quietly break the RPCs' own
+-- ownership/idempotency checks, and that both remain unreachable for a
+-- caller who doesn't own the row, or isn't authenticated at all.
+do $$
+declare
+  v_archived_at  timestamptz;
+  v_availability text;
+  v_blocked      boolean;
+  v_detail       text;
+begin
+  raise notice '--- archive_closet_item() / restore_closet_item() ---';
+
+  execute 'set role authenticated';
+  perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_a(), 'role', 'authenticated')::text, false);
+
+  -- 1. A can archive their own item.
+  begin
+    perform public.archive_closet_item(pg_temp.fx('closet_items.a'));
+    v_blocked := false;
+    v_detail := null;
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('archive_closet_item', 'A can archive own closet item', not v_blocked, v_detail);
+
+  select archived_at, availability_state::text into v_archived_at, v_availability
+    from closet_items where id = pg_temp.fx('closet_items.a');
+  perform pg_temp.record_result('archive_closet_item', 'archived_at set and availability_state = unavailable',
+    v_archived_at is not null and v_availability = 'unavailable',
+    format('archived_at=%s availability_state=%s', v_archived_at, v_availability));
+
+  -- 2. Archiving an already-archived item raises (idempotency guard), not a silent no-op.
+  begin
+    perform public.archive_closet_item(pg_temp.fx('closet_items.a'));
+    v_blocked := false;
+    v_detail := 'archiving an already-archived item SUCCEEDED — idempotency guard is gone';
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('archive_closet_item', 'A cannot re-archive an already-archived item', v_blocked, v_detail);
+
+  -- 3. A cannot archive B's item. This is the assertion that actually
+  -- exercises the SECURITY INVOKER change: under DEFINER this was enforced
+  -- solely by the function's own WHERE clause; under INVOKER it's now
+  -- enforced by both that WHERE clause AND closet_items' RLS update policy.
+  begin
+    perform public.archive_closet_item(pg_temp.fx('closet_items.b'));
+    v_blocked := false;
+    v_detail := 'archiving B''s item SUCCEEDED — this is a cross-user write bug';
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('archive_closet_item', 'A cannot archive B''s closet item', v_blocked, v_detail);
+
+  -- 4. A can restore their own (now-archived) item.
+  begin
+    perform public.restore_closet_item(pg_temp.fx('closet_items.a'));
+    v_blocked := false;
+    v_detail := null;
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('restore_closet_item', 'A can restore own closet item', not v_blocked, v_detail);
+
+  select archived_at, availability_state::text into v_archived_at, v_availability
+    from closet_items where id = pg_temp.fx('closet_items.a');
+  perform pg_temp.record_result('restore_closet_item', 'archived_at cleared and availability_state = available',
+    v_archived_at is null and v_availability = 'available',
+    format('archived_at=%s availability_state=%s', v_archived_at, v_availability));
+
+  -- 5. A cannot restore B's item.
+  begin
+    perform public.restore_closet_item(pg_temp.fx('closet_items.b'));
+    v_blocked := false;
+    v_detail := 'restoring B''s item SUCCEEDED — this is a cross-user write bug';
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('restore_closet_item', 'A cannot restore B''s closet item', v_blocked, v_detail);
+
+  execute 'reset role';
+
+  -- 6. Neither RPC is reachable by the anonymous role at all (no EXECUTE grant).
+  execute 'set role anon';
+  perform set_config('request.jwt.claims', '', false);
+
+  begin
+    perform public.archive_closet_item(pg_temp.fx('closet_items.a'));
+    v_blocked := false;
+    v_detail := 'anon call SUCCEEDED — EXECUTE grant is missing its restriction to authenticated';
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('archive_closet_item', 'anonymous role cannot call archive_closet_item at all', v_blocked, v_detail);
+
+  begin
+    perform public.restore_closet_item(pg_temp.fx('closet_items.a'));
+    v_blocked := false;
+    v_detail := 'anon call SUCCEEDED — EXECUTE grant is missing its restriction to authenticated';
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('restore_closet_item', 'anonymous role cannot call restore_closet_item at all', v_blocked, v_detail);
+
+  execute 'reset role';
+end
+$$;
+
+-- ============================================================================
+-- SECTION 8 — request_account_deletion() RPC (deliberately still SECURITY
+-- DEFINER — see 20260730170000_narrow_security_definer_scope.sql).
+-- ============================================================================
+-- SECTION 6 above already proves account_deletions has no direct client
+-- INSERT path. This section proves the other half: the one sanctioned write
+-- path — this RPC — still works, is still confined to the caller's own
+-- user_id, and still enforces "one in-flight deletion per user". User C is
+-- used for the success path (not A/B) because both already have a seeded
+-- 'pending' account_deletions fixture row from SECTION 2, which would
+-- otherwise make every call here hit the "already in progress" branch
+-- instead of exercising the plain success path.
+do $$
+declare
+  v_new_id       uuid;
+  v_row_user_id  uuid;
+  v_row_status   text;
+  v_blocked      boolean;
+  v_detail       text;
+begin
+  raise notice '--- request_account_deletion() ---';
+
+  -- 1. User A, who already has a pending fixture row (SECTION 2), gets the
+  -- "already in progress" guard rather than a second row.
+  execute 'set role authenticated';
+  perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_a(), 'role', 'authenticated')::text, false);
+  begin
+    perform public.request_account_deletion();
+    v_blocked := false;
+    v_detail := 'second call for A SUCCEEDED — "one deletion in progress per user" guard is gone';
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('request_account_deletion', 'A cannot request a second deletion while one is pending', v_blocked, v_detail);
+  execute 'reset role';
+
+  -- 2. User C (no pre-existing account_deletions row) succeeds, and the
+  -- resulting row is attributed to C — auth.uid(), not a client-supplied id.
+  execute 'set role authenticated';
+  perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_c(), 'role', 'authenticated')::text, false);
+  begin
+    select public.request_account_deletion() into v_new_id;
+    v_blocked := false;
+    v_detail := null;
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('request_account_deletion', 'C (no pending deletion) can request one', not v_blocked, v_detail);
+
+  if v_new_id is not null then
+    select user_id, status::text into v_row_user_id, v_row_status
+      from account_deletions where id = v_new_id;
+    perform pg_temp.record_result('request_account_deletion', 'resulting row is attributed to the caller (C), status pending',
+      v_row_user_id = pg_temp.user_c() and v_row_status = 'pending',
+      format('user_id=%s status=%s', v_row_user_id, v_row_status));
+
+    -- 3. C can immediately see that row via the select-own policy (SECTION
+    -- 6's generic check already covers this shape, but confirming it here
+    -- ties the RPC's own output directly to the read path a client would
+    -- actually use after calling it).
+    perform pg_temp.record_result('request_account_deletion', 'C can SELECT the row the RPC just created',
+      exists(select 1 from account_deletions where id = v_new_id));
+  else
+    perform pg_temp.record_result('request_account_deletion', 'resulting row is attributed to the caller (C), status pending', false, 'RPC did not return an id');
+  end if;
+  execute 'reset role';
+
+  -- 4. The anonymous role cannot call this RPC at all (no EXECUTE grant, and
+  -- auth.uid() would be null for it regardless).
+  execute 'set role anon';
+  perform set_config('request.jwt.claims', '', false);
+  begin
+    perform public.request_account_deletion();
+    v_blocked := false;
+    v_detail := 'anon call SUCCEEDED — EXECUTE grant is missing its restriction to authenticated';
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('request_account_deletion', 'anonymous role cannot call request_account_deletion at all', v_blocked, v_detail);
+  execute 'reset role';
+end
+$$;
+
+-- ============================================================================
+-- SECTION 9 — Summary. Non-zero exit (via RAISE EXCEPTION) if anything failed.
 -- ============================================================================
 
 -- Defensive: every section above already resets its own role, but make sure
