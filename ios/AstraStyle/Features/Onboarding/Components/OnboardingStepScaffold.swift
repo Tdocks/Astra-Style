@@ -26,17 +26,28 @@ struct OnboardingStepScaffold<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            // Only the progress bar is pinned. The title and rationale scroll
+            // WITH the content, and that is load-bearing rather than cosmetic:
+            // when they were part of a fixed header, an accessibility-size run
+            // left roughly a 60pt sliver of usable content between a 450pt
+            // header and a 150pt footer — the first identity card rendered as
+            // "Moder…" and nothing below it could be reached at all. A fixed
+            // header is only safe when its height is bounded, and text that
+            // scales with Dynamic Type is not.
+            progressBar
+                .padding(.horizontal, AstraSpacing.pagePadding)
+                .padding(.top, AstraSpacing.md)
+                .padding(.bottom, AstraSpacing.sm)
 
             ScrollView {
-                content()
-                    .padding(.horizontal, AstraSpacing.pagePadding)
-                    .padding(.top, AstraSpacing.lg)
-                    // Bottom padding clears the pinned footer. Without it the
-                    // last option in a long list sits underneath the Continue
-                    // button and cannot be tapped — which at the largest
-                    // Dynamic Type sizes is most of them.
-                    .padding(.bottom, AstraSpacing.xxxl)
+                VStack(alignment: .leading, spacing: AstraSpacing.lg) {
+                    titleBlock
+                    content()
+                }
+                .padding(.horizontal, AstraSpacing.pagePadding)
+                // Clears the pinned footer. Without it the last option in a long
+                // list sits underneath the Continue button and cannot be tapped.
+                .padding(.bottom, AstraSpacing.xxxl)
             }
             .scrollDismissesKeyboard(.interactively)
 
@@ -45,8 +56,8 @@ struct OnboardingStepScaffold<Content: View>: View {
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+    private var progressBar: some View {
+        Group {
             if let position = step.answerablePosition {
                 HStack(spacing: AstraSpacing.sm) {
                     ProgressView(
@@ -66,12 +77,16 @@ struct OnboardingStepScaffold<Content: View>: View {
                         .astraText(.caption)
                         .foregroundStyle(AstraColor.textMuted)
                         .monospacedDigit()
-                        // The bar already conveys this to VoiceOver; repeating
-                        // it would read the position out twice.
+                        // The bar already conveys this to VoiceOver; repeating it
+                        // would read the position out twice.
                         .accessibilityHidden(true)
                 }
             }
+        }
+    }
 
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             Text(step.title)
                 .astraText(.title1)
                 .foregroundStyle(AstraColor.textPrimary)
@@ -82,8 +97,7 @@ struct OnboardingStepScaffold<Content: View>: View {
                 .foregroundStyle(AstraColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, AstraSpacing.pagePadding)
-        .padding(.top, AstraSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var footer: some View {

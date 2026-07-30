@@ -28,6 +28,7 @@ struct OnboardingIdentityView: View {
     @Binding var primary: StyleIdentity?
 
     @State private var refusedExtraPick = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var required: Int { StyleIdentityRules.requiredSelectionCount }
     private var isSelectionComplete: Bool { selected.count == required }
@@ -56,8 +57,13 @@ struct OnboardingIdentityView: View {
                     .monospacedDigit()
             }
 
+            // One column at accessibility sizes. A 150pt adaptive column
+            // truncated "Modern Heritage" to "Moder…" at AX5 — a card whose
+            // label is unreadable is not a choice the user can make.
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 150), spacing: AstraSpacing.sm)],
+                columns: typeSize >= .accessibility1
+                    ? [GridItem(.flexible())]
+                    : [GridItem(.adaptive(minimum: 150), spacing: AstraSpacing.sm)],
                 spacing: AstraSpacing.sm
             ) {
                 ForEach(StyleIdentity.allCases, id: \.self) { identity in
@@ -181,6 +187,9 @@ private struct IdentityCard: View {
                     .astraText(.headline)
                     .foregroundStyle(AstraColor.textPrimary)
                     .multilineTextAlignment(.leading)
+                    // Wrap to as many lines as needed rather than truncating.
+                    // The default single-line behaviour is what produced "Moder…".
+                    .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(AstraSpacing.md)
