@@ -17,12 +17,20 @@ Each phase lists, in order: goal, ordered workstreams, hard dependencies, exit c
 **Ordered workstreams**
 
 1. Xcode project + feature-first folder structure (spec §8).
-2. Supabase project provisioning, base schema migration (`profiles`, `style_profiles`, `body_profiles`, `lifestyle_profiles`), RLS on every table.
-3. Design tokens: color, type, spacing, motion, haptics (spec §3).
-4. Core networking (`APIClient` → Edge Functions), `AppContainer` DI, repository protocols (spec §8).
-5. SwiftData persistence container + offline write queue primitive.
-6. Root routing (`AppRouteState`), per-tab `NavigationStack` shell, modal coordinator (spec §27).
-7. Authentication: Sign in with Apple, email OTP, session restore, guest mode + migration (spec §7, §6.2).
+2. Environment configuration and CI secret injection (Debug/Staging/Release `.xcconfig`, spec §25), and a CI pipeline that builds, lints, and tests every PR, failing on any warning or violation (spec §31).
+3. Supabase project provisioning, base schema migration (`profiles`, `style_profiles`, `body_profiles`, `lifestyle_profiles`) with RLS on every table, and private Storage buckets with a signed-URL policy scoped to the owning user.
+4. Design tokens: color, type, spacing, motion, haptics (spec §3).
+5. Core networking (`APIClient` → Edge Functions), `AppContainer` DI, repository protocols (spec §8).
+6. SwiftData persistence container + offline write queue primitive.
+7. Root routing (`AppRouteState`), per-tab `NavigationStack` shell, modal coordinator (spec §27).
+8. Authentication: Sign in with Apple, email OTP, session restore, guest mode + migration (spec §7, §6.2).
+
+*Amended 2026-07-30: this list previously had 7 items and never named Storage buckets, CI, or*
+*secrets hygiene as their own workstreams, even though 3 of the 8 exit criteria below test exactly*
+*those (storage bucket privacy, CI-on-PR, no leaked service-role key) — all three are real, tracked*
+*work (`P1-INFRA-02`, `P1-INFRA-03`, `P1-INFRA-06`), just uncounted here. Reconciled by naming all*
+*8, not by cutting any of the 8 exit criteria; see `docs/03-progress.md`'s "Acceptance criteria*
+*that are wrong, rather than unmet."*
 
 **Hard dependencies**
 

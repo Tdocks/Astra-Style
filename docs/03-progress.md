@@ -38,16 +38,16 @@ lands data layers, protocols, and models long before the screens that use them.
 
 | Phase | Tickets | Done | Partial | Not started |
 |---|---|---|---|---|
-| 1 — Foundation | 25 | 12 | 13 | 0 |
-| 2 — Identity | 17 | 7 | 5 | 5 |
+| 1 — Foundation | 25 | 13 | 12 | 0 |
+| 2 — Identity | 17 | 9 | 5 | 3 |
 | 3 — Closet | 27 | 2 | 6 | 19 |
 | 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **26** | **50** | **102** |
+| **Total** | **178** | **29** | **49** | **100** |
 
-Read that table carefully before drawing a conclusion from it. 26 of 178 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 29 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, and a large amount of
 Phase 3–7 data-layer work is already applied to production. It also *overstates* readiness in one
@@ -59,50 +59,74 @@ specific way — see **Blockers** below.
 
 Ranked by what stops the next user-visible thing from working.
 
-1. **Onboarding cannot complete.** `profile/complete-onboarding` does not exist as an Edge
-   Function, so `LiveProfileRepository.completeOnboarding` 404s. `profiles.onboarding_completed_at`
-   is never set by anything. This is Phase 2's first exit criterion and it fails.
-2. **Migration `20260730180000_style_preference_vector.sql` is in the repo but NOT applied to
-   production.** Live `style_profiles` has no `preference_vector` column, while `StyleProfile`
-   encodes that key unconditionally — so any real upsert to `style_profiles` fails with PGRST204
-   today. This is the newest and sharpest edge in the repo.
-3. **iOS CI is red on `main`, and has never run on a pull request.** SwiftLint `--strict` fails on
-   `trailing_comma`, `redundant_type_annotation`, `function_parameter_count` and ~20 `line_length`
-   violations, and it aborts *before* the build step — which means the zero-compiler-warnings gate
-   the project deliberately designed has never once executed. Every commit has gone straight to
-   `main`; there are no PRs in the repo's history.
-4. **The quiz's missing imagery is a photo shoot, not code.** Three of the required 12–20 pairs
+1. **The Style DNA the server now produces has no screen to appear on.** `P2-ONBOARD-10` is
+   unbuilt: `OnboardingFlowView` renders `OnboardingStubStep` for `.result`, so a user who
+   finishes onboarding never sees the six §6.10 sections `POST /style-dna/generate` returns, and
+   the "edit and regenerate" exit criterion has no control to hang on. This is now the narrowest
+   gap between a working backend and a visible product.
+2. **iOS CI has still never run on a pull request** — but it is no longer red. SwiftLint
+   `--strict` reported 122 violations across 19 rules (not the 4 rules first estimated); all 122
+   are now resolved, 121 in the source and one by a documented `nesting` threshold change in
+   `.swiftlint.yml`. With lint passing, the zero-compiler-warnings gate ran for the first time:
+   reproduced locally with the same scoped build-log grep `.github/workflows/ios.yml` uses, and
+   first-party code is clean (0 warnings under `ios/AstraStyle/`). What remains open is the part
+   no local run can settle — every commit has gone straight to `main`, so no criterion in
+   `P1-INFRA-03` has ever been validated *on a PR*.
+3. **The quiz's missing imagery is a photo shoot, not code.** Three of the required 12–20 pairs
    exist, so five of the eight preference dimensions return *absent*. Anything downstream that
-   assumes eight populated axes — Style DNA, compatibility scoring, Kyra's context packet — will
-   be reasoning from three bits.
-5. **Terms and Privacy are dead links.** `AstraLegal` points at `astrastyle.app`, which is
-   NXDOMAIN. It sits on the pre-auth screen and is an App Store review blocker. One constant.
+   assumes eight populated axes — compatibility scoring, Kyra's context packet — will be
+   reasoning from three bits. `POST /style-dna/generate` is the one consumer that now handles
+   this correctly rather than assuming: an unasked axis contributes nothing and is named in the
+   result's `open_questions`, and an axis asked-and-declined is not asked again.
+4. **Terms and Privacy do not exist.** `astrastyle.app` is still NXDOMAIN (re-verified
+   2026-07-30) and no policy text exists anywhere in the repo — registering the domain and writing
+   the documents are decisions for a human, not code. What changed is that the app no longer
+   *pretends* otherwise: `AstraLegal` now exposes `isPublished` (false) and `URL?` accessors, so
+   the absence is enforced by the compiler at every call site, and the welcome screen shows an
+   honest one-line notice instead of opening Safari on a DNS error. Still an App Store review
+   blocker until the documents are written; now a one-flag change once they are.
 
 ## Acceptance criteria that are wrong, rather than unmet
 
-These tickets can never pass as written, because the shipped behaviour is deliberate and better.
-Amend the ticket (or the spec), don't "fix" the code.
+**Amended 2026-07-30.** These six could never pass as written, because the shipped behaviour was
+deliberate and better than the criterion demanded. A criterion that can never pass quietly trains
+its reader to stop trusting criteria at all, so each has been corrected at its source rather than
+left open. This section stays as the record of *why*.
 
-- **P1-CORE-04** requires "exactly one retry" on 5xx. `AstraRetryPolicy.default` ships
-  `maxAttempts: 3`, which is the better policy.
-- **P1-CORE-03** requires `MockCalendarService` to return zero events by default. It returns two
-  fixtures, which makes it more useful.
-- **P1-DS-01** requires Asset Catalog colour sets matching spec §3 hex values. Three values were
-  deliberately revised for WCAG contrast (`textMuted` in both schemes, light `accentChampagne`) and
-  documented in `docs/07-design-system.md`. **Spec §3 is now the wrong document.**
-- **P2-ONBOARD-06** requires a climate/location permission prompt in §6.8. It was consciously moved
-  to first use of §6.11. Sound call — but no ticket now owns that prompt, so it belongs to nobody.
-- **P7-DS-03** specifies a "High Contrast" toggle gating an accessible champagne.
-  `accentChampagneAccessible` ships as the *default* instead, which is strictly better and makes
-  the toggle criterion unreachable.
-- **Phase 1's roadmap section carries 8 exit-criteria checkboxes, not the 6 its prose implies.**
-  Reconcile before ticking.
+- **P1-CORE-04** required "exactly one retry" on 5xx. `AstraRetryPolicy.default` ships
+  `maxAttempts: 3` with backoff, the better policy for a mobile client on unreliable networks.
+  Amended in `docs/02-task-breakdown.md`. What the wrong criterion was masking is real and stays
+  open: no test asserts retry count or backoff, so the ticket stays `Partial`.
+- **P1-CORE-03** required `MockCalendarService` to return zero events by default. It returns two
+  fixtures, which makes previews and early tests more useful without extra setup. Amended in
+  `docs/02-task-breakdown.md`; the ticket is now `Done`.
+- **P1-DS-01** required Asset Catalog colour sets matching spec §3's hex values. Three values were
+  deliberately revised for WCAG contrast (`textMuted` in both schemes, light-mode
+  `accentChampagne`), already documented in `docs/07-design-system.md`. Spec §3 was the wrong
+  document, so it was corrected — `docs/00-master-spec.md` §3 now carries the shipped hex values,
+  cross-referenced to `docs/07`'s contrast analysis, so nobody "restores" the failing values later.
+  Separately, and genuinely unmet: no Asset Catalog exists in the repo at all (no `.xcassets`, and
+  therefore no app icon) — the ticket stays `Partial` on that basis.
+- **P2-ONBOARD-06** required a climate/location permission prompt in §6.8. It was consciously moved
+  to first use of §6.11, with the reasoning in `OnboardingLifestyleView`'s header comment — a sound
+  call, but no ticket owned the prompt at its new home. The criterion is dropped from
+  `P2-ONBOARD-06` (now `Done`) and added to `P4-HOME-05`, which owns §6.11's first-use path.
+- **P7-DS-03** specified an accessible champagne behind a "High Contrast" toggle.
+  `accentChampagneAccessible` ships as the *default* instead, which is strictly better and made the
+  toggle criterion unreachable. Amended in `docs/02-task-breakdown.md`; the ticket stays `Partial`
+  — the verdict/laundry-state half of its color-independent-meaning audit has no UI yet to audit.
+- **Phase 1's section in `docs/01-build-roadmap.md`** carried 8 exit-criteria checkboxes, but its
+  `Ordered workstreams` list only named 7 items and never mentioned Storage buckets, CI, or secrets
+  hygiene at all, despite 3 of the 8 checkboxes testing exactly those. Reconciled by expanding the
+  workstream list to name all 8 — every one of the 8 criteria is real and independently tracked
+  (`P1-INFRA-02`, `P1-INFRA-03`, `P1-INFRA-06` among others), so the fix adds coverage rather than
+  cutting a criterion.
 
 ---
 
 # PHASE 1 — FOUNDATION
 
-**12 Done · 13 Partial · 0 Not started.** Substantively complete. Every Partial below is a narrow
+**13 Done · 12 Partial · 0 Not started.** Substantively complete. Every Partial below is a narrow
 missing criterion, not missing work — but three of them (CI on PRs, SwiftData schema versioning,
 the dead offline queue) will cost real money later if they stay open.
 
@@ -110,18 +134,18 @@ the dead offline queue) will cost real money later if they stay open.
 |---|---|---|
 | P1-INFRA-01 | Partial | `ios/project.yml` (XcodeGen, Swift 6, iOS 18); all 11 spec §8 features exist under `Features/`. No per-feature `Tests/` subfolder — tests are centralised in `Tests/{UnitTests,UITests}`. Extra `Features/Slice` is outside spec §8. |
 | P1-INFRA-02 | Partial | `ios/Config/{Base,Debug,Release}.xcconfig` + gitignored `Secrets.xcconfig`; no key material found by grep. **No `Staging.xcconfig`** — ticket requires Debug/Staging/Release. |
-| P1-INFRA-03 | Partial | 4 workflows exist and SwiftLint `--strict` demonstrably fails the build. But **zero PRs have ever existed**, so no criterion is validated on a PR, and **iOS CI is currently red on `main`** — the compiler-warning gate has never executed. |
+| P1-INFRA-03 | Partial | 4 workflows exist. SwiftLint `--strict` now **passes** (swiftlint 0.65.0, 122 violations found and fixed; see `.swiftlint.yml`'s header for what the original hand-estimated thresholds got wrong), so the build step is reachable and the "Fail on warnings in our own code" grep was exercised for the first time — 0 warnings under `ios/AstraStyle/`. Still Partial: **zero PRs have ever existed**, so "a PR with a warning/violation fails CI" and "CI run time is visible on the PR" remain unvalidated by construction. |
 | P1-INFRA-04 | Done | 19 migration files; `rls-tests.yml` applies all of them to a fresh `pgvector/pgvector:pg16` on every push and passes. |
 | P1-INFRA-05 | Done | `20260728100200_profiles_and_identity.sql` + `20260728100900_rls_policies.sql`; `supabase/tests/20_rls_isolation_tests.sql` runs all six isolation checks on all four tables. |
 | P1-INFRA-06 | Done | `20260728101000_storage_buckets.sql`; live bucket `user-content`, `public=false`, 25 MiB cap, four path-scoped policies. Caveat: storage policies are not covered by the RLS CI suite (CI Postgres has no `storage` schema). |
 | P1-CORE-01 | Done | `App/AppContainer.swift` — flat `@Observable` protocol bag, `live()` + `preview()` factories, injected via `.environment`. |
 | P1-CORE-02 | Done | 10 protocols in `Domain/Repositories/`, each with a mock. `grep "import Supabase" Domain/` returns nothing — no vendor type leaks into a signature. |
-| P1-CORE-03 | Partial | `MockWeatherService` is deterministic. **`MockCalendarService` returns 2 fixture events, not zero** (`Core/Mocks/MockCalendarService.swift:14-37`) — see "criteria that are wrong" above. |
-| P1-CORE-04 | Partial | Auth precondition and `URLSession` containment both hold. **`AstraRetryPolicy.default` is `maxAttempts: 3`**, not one retry; no test asserts retry count or backoff. |
+| P1-CORE-03 | Done | `MockWeatherService` is deterministic. `MockCalendarService` returns a deterministic 2-event fixture by default and accepts a configurable set (`Core/Mocks/MockCalendarService.swift:14-37`). Criterion amended 2026-07-30 to match — see "Acceptance criteria that are wrong, rather than unmet." |
+| P1-CORE-04 | Partial | Auth precondition and `URLSession` containment both hold. `AstraRetryPolicy.default` retries a 5xx up to `maxAttempts: 3` with backoff (`Core/Networking/AstraAPIClient.swift:220-236`) — criterion amended 2026-07-30 to match this as the better policy. **No test asserts retry count or backoff** — that gap is real and stays open. |
 | P1-CORE-05 | Partial | `Core/Persistence/AstraModelContainer.swift` builds a 4-entity on-disk store. **No `VersionedSchema`/`SchemaMigrationPlan` anywhere**, no pre-migration fixture test — the versioning criterion is entirely unmet. |
-| P1-CORE-06 | Partial | `OfflineMutationQueue` + 5 tests asserting FIFO, ordered drain, stop-at-first-failure. **Nothing in the app ever calls `drain(`** — the queue is dead code, and `LiveClosetRepository`'s comment claiming otherwise is false. **`attemptCount` is never incremented.** |
+| P1-CORE-06 | Partial | Now wired, not dead code. `LiveClosetRepository.drainPendingMutations()` replays the backlog through a `ClosetWriting` seam and is called after every successful `fetchItems`/`createItem`/`updateItem`/`archiveItem`; `attemptCount` is incremented by both queue conformances on a failed replay; `OfflineMutationNotHandled` lets a shared queue be drained by one owner without discarding or wedging on another's mutations. 6 new tests in `Tests/UnitTests/OfflineDrainWiringTests.swift` drive the wiring itself (queue on failure, flush on the next success, attempt counting, skip-not-drop, no double-apply under concurrency) on top of the 5 that already covered the queue. Still Partial for two reasons: replay is triggered by the next successful call, not by a reachability event, so "reconnecting triggers replay" is met only in effect; and **`LiveOutfitRepository`'s `.outfit`/`.outfitWear` mutations are still never replayed by anything** — they are now safely skipped rather than silently dropped, but they still accumulate. |
 | P1-CORE-07 | Done | `App/AppRouter.swift` — 4-case route state, 5 independent path arrays, 7 modal routes; `TabNavigationStateTests` (7 tests) assert cross-tab independence and modal isolation. |
-| P1-DS-01 | Partial | `Tokens/AstraColor.swift` covers every §3 token in both schemes via a `UIColor` trait provider. **No Asset Catalog exists in the repo at all** (no `.xcassets`), and three hex values deliberately deviate from spec for WCAG. `surfaceMarble` returns `backgroundPrimary`. |
+| P1-DS-01 | Partial | `Tokens/AstraColor.swift` covers every §3 token in both schemes via a `UIColor` trait provider, and now matches spec §3 exactly — the three deliberately-revised hex values (`textMuted` both schemes, light `accentChampagne`) were ported into spec §3 itself 2026-07-30, cross-referenced to `docs/07-design-system.md`'s contrast analysis. **No Asset Catalog exists in the repo at all** (no `.xcassets`, and therefore no app icon) — that part is genuinely unmet. `surfaceMarble` returns `backgroundPrimary`. |
 | P1-DS-02 | Done | `Tokens/AstraTypography.swift` — all 9 styles at exact §3 sizes, correct serif/sans split, `micro` uppercase + 1.5 tracking, `@ScaledMetric(relativeTo:)` throughout. |
 | P1-DS-03 | Partial | `AstraSpacing`/`AstraRadius`/`AstraSize` all correct and referenced by name. **No lint rule flags raw point values** — `.swiftlint.yml` has only the sparkle and ticket-id custom rules. |
 | P1-DS-04 | Partial | `AstraButton`/`AstraCard`/`AstraChip` on tokens with 44pt minimum targets. **`AstraTextField` does not exist** (8 raw `TextField` call sites). **No destructive button variant.** No per-component previews — only 4 whole-page gallery previews. |
@@ -132,14 +156,16 @@ the dead offline queue) will cost real money later if they stay open.
 | P1-AUTH-03 | Done | `SessionStore.restoreSession()` + `SessionRefreshing`; `SessionRestoreTests` — 6 tests including transparent refresh, refresh rejection, corrupt Keychain item, and guest session surviving relaunch. |
 | P1-AUTH-04 | Done | `GuestClosetRepository` rejects the 11th item; `GuestClosetRepositoryTests` (7 tests) plus `GuestModeNetworkTests` proving 0 intercepted requests via a `URLProtocol` trap. |
 | P1-AUTH-05 | Done | `LiveGuestMigrationService`; `GuestMigrationServiceTests` (4 tests) including partial-failure retention and ownership re-pointing. |
-| P1-AUTH-06 | Partial | `SignedOutGateView` wires all four actions. **Terms/Privacy are dead links** — `astrastyle.app` is NXDOMAIN, verified by `nslookup` and `curl`. Fails "not a 404". |
+| P1-AUTH-06 | Partial | `SignedOutGateView` wires all four actions. The criterion "Terms/Privacy open real documents, not a 404" is **still unmet — no policy text exists** and `astrastyle.app` is still NXDOMAIN (re-verified 2026-07-30 with `nslookup` and `curl`). What changed is the failure mode: `AstraLegal` now gates every URL behind `isPublished` (false) and vends `URL?`, so the dead link is a compile-time obligation rather than a runtime 404, and the welcome screen renders an honest "will be published before release" notice instead of opening Safari on a DNS error — the control still does something, so §22's "no dead buttons" holds. **Writing the documents and registering the domain are product/legal decisions, not code.** Flip `AstraLegal.isPublished` and update `Tests/UnitTests/LegalDocumentAvailabilityTests.swift` in the same change. |
 
 ---
 
 # PHASE 2 — IDENTITY
 
-**7 Done · 5 Partial · 5 Not started.** In flight. Onboarding §6.3–§6.9 is built and hardened at
-AX5; the flow cannot finish because its two Edge Functions do not exist.
+**9 Done · 5 Partial · 3 Not started.** In flight. Onboarding §6.3–§6.9 is built and hardened at
+AX5, and as of 2026-07-30 it can finish: `profile` and `style-dna` are deployed and were exercised
+end to end against production with a real JWT. What is still missing is the §6.10 result screen
+(`P2-ONBOARD-10`) that would show the Style DNA the server now produces.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -148,15 +174,15 @@ AX5; the flow cannot finish because its two Edge Functions do not exist.
 | P2-ONBOARD-03 | Done | 10 identities; exactly-3 enforced (a 4th tap is refused, not absorbed) plus a primary; `OnboardingDraftTests` covers the complete/incomplete states. |
 | P2-ONBOARD-04 | Done | `OnboardingMeasurementsView` (610 lines) covers all §6.6 fields; `MeasurementEntry.State` distinguishes `.declined` from `.unanswered`; unit conversion proven by tests plus `check_column_drift.py`. |
 | P2-ONBOARD-05 | Done | All 6 appearance fields carry a `reason:` string; each individually skippable; `OnboardingDraftTests` — "A skipped appearance step is empty rather than a blob of nulls". |
-| P2-ONBOARD-06 | Partial | 10 of §6.8's 11 fields present and mapped (`typical_week` added by `20260730160000`). **Climate/location deliberately omitted** and moved to §6.11 first use — see "criteria that are wrong". |
+| P2-ONBOARD-06 | Done | All 10 in-scope §6.8 fields present and mapped (`typical_week` added by `20260730160000`). Climate/location is deliberately not part of this screen's scope — moved to `P4-HOME-05`'s first-use-of-§6.11 prompt; criterion amended 2026-07-30 — see "Acceptance criteria that are wrong, rather than unmet" and `Features/Onboarding/Views/OnboardingLifestyleView.swift`'s header comment. |
 | P2-ONBOARD-07 | Partial | `StyleQuizEngine`/`StyleQuizCatalog`/`StylePreferenceInference` + 35 tests; pairs content-managed in `Resources/QuizImagery/quiz-pairs.json`. **The shipped catalog has 3 pairs, not 12–20**, so only 3 of 8 dimensions get a value. |
 | P2-ONBOARD-08 | Not started | No selfie/reference capture step. `OnboardingStep` has no case; only `AppearanceProfile.swift:46` names the storage path convention. |
 | P2-ONBOARD-09 | Not started | No "add first closet items or skip" step in `OnboardingStep` or `OnboardingFlowView.stepContent`. |
 | P2-ONBOARD-10 | Not started | `OnboardingFlowView.swift:86-91` renders `OnboardingStubStep("Almost there", …)` for `.result`. No result view, none of the 6 §6.10 sections, no regenerate action. |
 | P2-ONBOARD-11 | Done | `restore()` reopens at `draft.furthestStepReached`; `FileOnboardingDraftStore` is user-scoped and written on every mutation; routes to `.main` on success. |
-| P2-ONBOARD-12 | Not started | No `supabase/functions/profile/`; live function list is `["outfits"]` only. The client call 404s in production. |
+| P2-ONBOARD-12 | Done | `supabase/functions/profile/` (`index.ts`/`handler.ts`/`schema.ts` + 40 Deno tests) serving `POST /profile/complete-onboarding` via `_shared/routing.ts`, deployed to `anutsdzbxycaavmmkewo`. All three criteria verified against production with a real JWT: the call returned **200** with `onboarding_completed_at` set and all four tables written, while a payload carrying a different `user_id` in every document still wrote as the JWT's user (the write goes through `supabase/migrations/20260730190000_complete_onboarding_rpc.sql`, which has no user-id parameter — `auth.uid()` is the only identity source); a malformed enum returns 400, not 500 (`profile/schema_test.ts`). The write is atomic: one `SECURITY INVOKER` plpgsql function, so a failure leaves nothing written rather than a half-populated profile. The §6.9 vector round-trips with absent axes absent and `observations: 0` axes intact, confirmed on the live row. Unauthenticated returns 401; an unknown path under the slug returns 404. |
 | P2-CORE-01 | Partial | `LiveProfileRepository` implements read/upsert for all four tables. **No SwiftData caching** and **no `OfflineMutationQueue` dependency** — both acceptance criteria unmet. |
-| P2-CORE-02 | Not started | `StylistReasoningProvider` appears only in `docs/` — zero occurrences in `ios/` or `supabase/`. No protocol, no mock, no live adapter, no deployed function. |
+| P2-CORE-02 | Partial | The protocol, the mock and the endpoint all exist and are deployed; **the "one live adapter" half of the ticket's scope does not.** Built: `supabase/functions/_shared/providers/stylistReasoning.ts` (spec §8's protocol, verbatim), `supabase/functions/style-dna/deterministicStylist.ts` (a genuinely useful mock — ten distinct identity playbooks, palettes modulated by the §6.9 vector, cut advice from the derived frame axes), and `supabase/functions/style-dna/` serving `POST /style-dna/generate`, deployed and returning **200** against production with a real JWT. Criterion 1 (output maps 1:1 onto the six §6.10 sections) and criterion 3 (sparse input) are met with evidence: 74 Deno tests plus `Tests/UnitTests/StyleDNADecodingTests.swift`, including an identity-only profile producing named garments and a non-empty `open_questions`, and a no-identity profile returning a null identity rather than inventing one. Criterion 2 (a provider swap needs no client change) is structurally satisfied — `style-dna/handler_test.ts` runs the same request through two unrelated providers and asserts identical status, envelope and persisted columns — but cannot be *demonstrated* until a real vendor adapter exists, which is why this is Partial. No vendor key, no retry/circuit-breaker baseline (`docs/08` §0.1), no escalation router (`docs/09` §2), and no golden-set eval have been built. |
 | P2-HOME-01 | Done | `HomeView` + `DailyBriefHeaderView`, `HeroOutfitCardView`, and 6 secondary modules; `HomeBriefProvidingTests` cover the zero-item path. Built well past "skeleton". |
 | P2-HOME-02 | Done | `HomeEmptyStateView.swift:28` carries the §21 copy verbatim; CTA calls `router.startScan()`; state recomputed in `.task`. |
 | P2-INFRA-01 | Partial | `vector` extension enabled; live `style_profiles.embedding` is `vector(1536)`; hnsw `vector_cosine_ops` index exists. **No test inserts a fixture embedding or asserts cosine ordering.** |
@@ -175,7 +201,7 @@ calls throwaway and explicitly not a reference implementation.
 | P3-SCAN-02 | Not started | No Vision-based blur/exposure/segmentation code (zero `VNDetect` hits). |
 | P3-SCAN-03 | Not started | No OCR or dominant-colour extraction. |
 | P3-SCAN-04 | Not started | No resize/compress/EXIF-strip pipeline. |
-| P3-SCAN-05 | Partial | `LiveClosetRepository.uploadCaptured()` writes the right path but calls bucket `"closet"` — **that bucket does not exist**; only `user-content` is created. Would fail if invoked; nothing calls it. |
+| P3-SCAN-05 | Partial | `LiveClosetRepository.uploadCaptured()` now targets the bucket that exists (`user-content`) and lowercases the user id in the path — the storage policies compare `(storage.foldername(name))[2]` to `auth.uid()::text`, which Postgres renders lowercase while Swift's `UUID.uuidString` is uppercase, so the original would have been rejected by RLS even after the bucket name was corrected. Still Partial: no signed-URL read path, and nothing calls it yet (no scan UI — see P3-SCAN-01). |
 | P3-SCAN-06 | Not started | Zero `PhotosPicker`/`PhotosUI` hits. |
 | P3-SCAN-07 | Not started | No `supabase/functions/closet/`. Client protocol method targets a nonexistent function. |
 | P3-SCAN-08 | Not started | `batchAnalyzeItems` defined client-side only; no server function. |
@@ -218,7 +244,7 @@ deliberately a placeholder scorer, not the real one.
 | P4-OUTFIT-07 | Partial | `POST /outfits/generate` deployed and JWT-validated, returns `desiredCount` outfits. **Scoring is `LeastRecentlyWornScorer`, whose own header says "NOT the real compatibility scorer"** — every outfit's `reason` is an identical hardcoded string, violating the non-generic-reason criterion. No P95 measurement. |
 | P4-OUTFIT-08 | Not started | `outfits/index.ts` says "`POST /rank` -> not built yet". Client `rankOutfits()` 404s. |
 | P4-OUTFIT-09 | Not started | No unlock-count algorithm; `ProductEvaluation.outfitsUnlocked` is a passive field, never computed. |
-| P4-OUTFIT-10 | Not started | `WardrobeScoring.swift` is protocol + constants only. **`fetchWardrobeScore()` queries a `wardrobe_scores` table that no migration creates** — always fails in production; Home degrades to hidden. |
+| P4-OUTFIT-10 | Not started | `WardrobeScoring.swift` is protocol + constants only — no conforming scorer exists, so nothing in this repo can compute a score. `fetchWardrobeScore()` used to query a `wardrobe_scores` table that no migration creates, failing on every call in production while Home's `try?` hid it; it now throws `AstraError.unimplemented` and says so at the throw site. The migration was deliberately **not** written: an empty table would produce the same blank module with more schema to maintain. Build the scorer first, then the table. |
 | P4-OUTFIT-11 | Not started | `Features/Outfits/` holds only `README.md`; `HomeDestinationView.outfitDetail` resolves to `FeaturePlaceholderView`. |
 | P4-OUTFIT-12 | Not started | No outfit builder UI or view model. |
 | P4-OUTFIT-13 | Partial | `AlternativeLooksCarouselView` is a real reusable paged component, but its required second reuse site (Outfit detail) does not exist. |
@@ -297,10 +323,10 @@ complete and spec-accurate; nothing renders them. The image vendor was decided t
 | P6-SHOP-04 | Not started | No evaluate endpoint. `ProductEvaluation` matches the migration schema but nothing computes it. |
 | P6-SHOP-05 | Not started | No decision-page UI. |
 | P6-SHOP-06 | Not started | No "Shop the look" UI. |
-| P6-SHOP-07 | Not started | No `SFSafariViewController` anywhere. **`LiveShoppingRepository` queries a `wishlist_items` table that no migration creates** — broken plumbing, not just missing UI. |
+| P6-SHOP-07 | Not started | No `SFSafariViewController` anywhere. `LiveShoppingRepository`'s four wishlist methods used to query a `wishlist_items` table that no migration creates; they now throw `AstraError.unimplemented`. The migration was deliberately not written ahead of the Phase 6 UI that has to live with the schema — see the file header for the reasoning. |
 | P6-SHOP-08 | Partial | RLS proves `product_candidates` writes are service-role-only (2nd criterion, tested). No ingestion script or seed path demonstrates the 1st. |
 | P6-SHOP-09 | Not started | No `sponsored` field in the models or the migration. |
-| P6-SHOP-10 | Partial | Protocol shape implemented, but references the nonexistent `wishlist_items` table, and evaluations are explicitly not cached. |
+| P6-SHOP-10 | Partial | `extractProduct`, `evaluateProduct` and `fetchCuratedProducts` are implemented for real. The four wishlist methods are now honestly `AstraError.unimplemented` rather than Postgrest calls against a nonexistent `wishlist_items` table; evaluations are still explicitly not cached. |
 | P6-CORE-01 | Not started | `Features/Discover/` holds only `README.md`; no editorial-content table in any migration. |
 | P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` is a deliberate placeholder. |
 | P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` is a deliberate placeholder. |
@@ -326,12 +352,12 @@ they need a StoreKit sandbox, a physical device, or App Store review.
 | P7-PRIVACY-02 | Not started | No deletion UI. |
 | P7-PRIVACY-03 | Not started | No export feature. |
 | P7-PRIVACY-04 | Not started | No per-image deletion UI (depends on unbuilt P6-STUDIO-11). |
-| P7-PRIVACY-05 | Not started | No Privacy Policy or ToS content anywhere in the repo. See also P1-AUTH-06 — the links are dead. |
+| P7-PRIVACY-05 | Not started | No Privacy Policy or ToS content anywhere in the repo, and none should be invented here — this needs a human and probably a lawyer. `Core/Utilities/AstraLegal.swift` is now the single documented point of change: register the domain, publish the four documents, flip `isPublished`, update `LegalDocumentAvailabilityTests`. Until then every legal URL is `nil` and callers must handle it. See also P1-AUTH-06. |
 | P7-PRIVACY-06 | Not started | No training-opt-out column; no ATT code. |
 | P7-PRIVACY-07 | Not started | No `analytics_events` table in any migration; `LiveAnalyticsClient.log()` is a no-op stub. `AnalyticsEvent` is designed to exclude PII by construction. |
 | P7-DS-01 | Not started | No audit artifact; 2 of the 5 required screens (Kyra conversation, paywall) don't exist to audit. |
 | P7-DS-02 | Not started | No Phase 7 VoiceOver pass; scattered `accessibilityLabel` usage exists from earlier phases. |
-| P7-DS-03 | Partial | `accentChampagneAccessible` ships as the **default** rather than behind a toggle — better than specified, so the criterion as written is unreachable. `AstraScoreMeter` already pairs colour with numeral and text. |
+| P7-DS-03 | Partial | `accentChampagneAccessible` ships as the **default**, unconditionally, rather than behind a toggle — criterion amended 2026-07-30 to match, since applying it unconditionally is strictly better than gating it behind a setting a user has to find. `AstraScoreMeter` already pairs colour with numeral and text for confidence/score, but verdict and laundry-state UI don't exist yet to audit — that half of the ticket stays open. |
 | P7-DS-04 | Not started | `AstraMotion.aware(_:reduceMotion:)` exists, but the Kyra orb and Studio alt-text UI it would audit do not. |
 | P7-HOME-01 | Not started | No `UNUserNotificationCenter` or scheduling code. |
 | P7-HOME-02 | Not started | No permission-timing audit; depends on P7-HOME-01 / P5-KYRA-16. |
@@ -376,10 +402,10 @@ there is one place to look; the roadmap stays a planning document.
 
 | Criterion | Met? | Evidence |
 |---|---|---|
-| New user completes onboarding → Home with `onboarding_completed_at` set | **No** | `profile/complete-onboarding` does not exist; the client call 404s. Nothing sets the column. |
+| New user completes onboarding → Home with `onboarding_completed_at` set | **Yes** | `profile` deployed; `POST /profile/complete-onboarding` returned 200 with a real JWT against production and `profiles.onboarding_completed_at` was set (verified by a subsequent read), with all four tables written in one transaction. `OnboardingViewModel.submit()` clears the draft only on success and routes to `.main`. |
 | Force-quit mid-onboarding resumes at the same step | **Yes** | `restore()` → `furthestStepReached`; `FileOnboardingDraftStore` + `OnboardingDraftTests`. |
-| `POST /style-dna/generate` returns non-placeholder DNA from sparse input | **No** | Endpoint does not exist; no `StylistReasoningProvider` implementation. |
-| User can edit and regenerate Style DNA and see the result change | **No** | `.result` renders `OnboardingStubStep`; no result view, no regenerate action. |
+| `POST /style-dna/generate` returns non-placeholder DNA from sparse input | **Yes** | `style-dna` deployed; returned 200 with a real JWT and produced all six §6.10 sections — named garments, a palette modulated by the two measured axes, cut advice from the derived frame axes — from a profile with 2 of 8 preference dimensions scored. Degradation is asserted, not assumed: an identity-only profile still names concrete pieces and lists what is unknown; a profile with no identity and no dress code returns a null identity rather than inventing one (`style-dna/deterministicStylist_test.ts`). |
+| User can edit and regenerate Style DNA and see the result change | **No** | Server side is ready and idempotent (`updateStyleProfile` then `generateStyleDNA`; regenerating an unchanged profile returns an identical document). **Client side is unbuilt**: `.result` renders `OnboardingStubStep`, so there is no result view and no regenerate control — `P2-ONBOARD-10`. |
 | Skipping "add first closet items" does not block reaching Home | **No** | The step does not exist — `OnboardingStep` has no case for it. |
 | Every §6.7-optional field can be left blank without a validation error | **Yes** | Only `.identity` is non-skippable; per-field skip in appearance; covered by `OnboardingDraftTests`. |
 
@@ -390,16 +416,38 @@ assessing them now would produce a wall of "No" with no information in it.
 
 ## Bugs found during the audit that no ticket covers
 
-These are latent — the code paths are currently unreachable — but each fails outright the moment
-its feature is wired up.
+These were latent — the code paths were unreachable — but each would have failed outright the
+moment its feature was wired up. **1–4 were addressed on 2026-07-30**; the resolutions are
+recorded here rather than deleted, because "why does this method throw instead of querying a
+table?" is the question the next reader will ask.
 
-1. **`LiveClosetRepository.uploadCaptured()` uploads to bucket `"closet"`.** The only bucket that
-   exists is `"user-content"`. Fails the moment a scan UI calls it.
-2. **`LiveShoppingRepository` queries a `wishlist_items` table that no migration creates.**
-3. **`LiveClosetRepository.fetchWardrobeScore()` queries a `wardrobe_scores` table that no
-   migration creates.** Already failing in production; Home degrades to a hidden module, so nothing
-   crashes and nothing shows real data.
-4. **`OfflineMutationQueue.drain()` is never called by anything**, and `attemptCount` is never
-   incremented. The queue accepts writes and never replays them.
+1. ~~**`uploadCaptured()` uploads to bucket `"closet"`.**~~ Fixed: uploads to `user-content`, the
+   only bucket that exists. The audit under-reported this one — the bucket name was not the only
+   defect. The path embedded `UUID.uuidString`, which Swift renders UPPERCASE, while the storage
+   policies compare that segment to `auth.uid()::text`, which Postgres renders lowercase. With the
+   bucket fixed and the case not, the upload would still have been rejected by RLS while looking
+   entirely correct. Both are fixed; see the method's doc comment. (P3-SCAN-05)
+2. ~~**`LiveShoppingRepository` queries a `wishlist_items` table that no migration creates.**~~
+   Resolved by making the four wishlist methods honestly `AstraError.unimplemented` rather than by
+   writing the migration. Wishlist is Phase 6 with no UI, no decision page and no browser
+   integration; a table added now would ship untested, unused, and would freeze a schema shape
+   ahead of the feature that has to live with it. Reasoning is in the file header. (P6-SHOP-07/10)
+3. ~~**`fetchWardrobeScore()` queries a `wardrobe_scores` table that no migration creates.**~~ Same
+   resolution, for a stronger reason: `WardrobeScoring` is a protocol plus the §10 weights with no
+   conforming scorer, so nothing in this repo could populate such a table. The migration would buy
+   a permanently empty table and the same hidden Home module. Now throws `.unimplemented`.
+   (P4-OUTFIT-10)
+4. ~~**`OfflineMutationQueue.drain()` is never called by anything.**~~ Wired. `LiveClosetRepository`
+   drains after every successful call, `attemptCount` is incremented on a failed replay, and the
+   false header comment claiming this already happened is gone. Two things the audit did not
+   surface and that wiring it exposed: the queue is *shared* with `LiveOutfitRepository`, so a
+   single-owner drain needed an explicit "not mine" signal (`OfflineMutationNotHandled`) to avoid
+   either discarding or wedging on another repository's mutations — and **outfit/outfitWear
+   mutations still have no drainer at all**, which remains open under P1-CORE-06.
 5. **`WeatherService.currentSnapshot()` has zero production call sites** — a complete WeatherKit
-   adapter that nothing invokes.
+   adapter that nothing invokes. Still open.
+
+A new `AstraError.Category.unimplemented` backs 2 and 3. It is deliberately distinct from
+`.server`: retrying a missing table can never succeed, so the UI should degrade rather than offer
+a retry button, and a not-yet-built feature should not be indistinguishable from an outage at the
+call site.

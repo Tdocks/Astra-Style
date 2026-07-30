@@ -92,7 +92,7 @@ The app should feel like a luxury stylist’s editorial notebook: dark, restrain
 - `surfaceMarble`: asset-based near-black marble texture
 - `textPrimary`: `#F7F3EA`
 - `textSecondary`: `#B9B3A8`
-- `textMuted`: `#77736C`
+- `textMuted`: `#88847C`
 - `accentChampagne`: `#D7B46A`
 - `accentChampagnePressed`: `#B8944D`
 - `divider`: `#2A2927`
@@ -107,9 +107,20 @@ The app should feel like a luxury stylist’s editorial notebook: dark, restrain
 - `surfaceElevated`: `#FFFFFF`
 - `textPrimary`: `#111111`
 - `textSecondary`: `#56514B`
-- `textMuted`: `#8C867D`
-- `accentChampagne`: `#B8914E`
+- `textMuted`: `#746E66`
+- `accentChampagne`: `#AB8545`
 - `divider`: `#DDD6CB`
+
+> **Revised 2026-07-30.** `textMuted` (both schemes, above) and light-mode `accentChampagne` were
+> corrected from this spec's original values (dark `textMuted` `#77736C`; light `textMuted`
+> `#8C867D`; light `accentChampagne` `#B8914E`) to what the app actually ships. The original values
+> failed WCAG AA against every surface they appear on — full ratios, methodology, and the shipped
+> replacements are in `docs/07-design-system.md` §3 ("Accessibility contrast analysis"). This spec
+> is the source of truth per `CLAUDE.md`, so the correction lives here rather than being left as a
+> permanently-failing acceptance criterion (`P1-DS-01`) pointing at values nobody should restore.
+> `scripts/check_contrast.py` enforces the shipped values against `AstraColor.swift` directly, not
+> against this document, so it was unaffected by this edit and remains the authority on whether a
+> token passes contrast; this note explains *why* the values are what they are.
 
 ### Typography
 
