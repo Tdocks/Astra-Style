@@ -198,14 +198,19 @@ final class OnboardingFlowUITests: XCTestCase {
         usleep(400_000)
         capture("36-Onboarding-Identity-AX5-scrolled")
 
+        // Deliberately not in top-to-bottom order: executive is the 9th card and
+        // minimalist the 4th, so reaching minimalist after executive requires
+        // scrolling back UP — which a real user at AX5 does constantly, and which
+        // a one-directional scroll helper silently cannot do.
         for identity in ["executive", "minimalist", "creative"] {
             let card = app.buttons["onboarding.identity.\(identity)"]
             // Scroll BEFORE asserting existence. The grid is a `LazyVGrid`, so
-            // cards below the fold are never instantiated and are absent from the
-            // accessibility tree entirely — not merely unhittable. Waiting for
-            // existence first therefore times out on a card that would appear the
-            // moment the list scrolled. (Not an app defect: VoiceOver scrolls the
-            // grid too, and the cards materialise for it the same way.)
+            // cards outside the viewport are never instantiated (or are torn down
+            // once scrolled far off) and are absent from the accessibility tree
+            // entirely — not merely unhittable. Waiting for existence first
+            // therefore times out on a card that would appear the moment the list
+            // scrolled. (Not an app defect: VoiceOver scrolls the grid too, and
+            // the cards materialise for it the same way.)
             card.scrollIntoView(in: app)
             XCTAssertTrue(card.exists, "Identity card never appeared at AX5: \(identity)")
             card.tap()
@@ -218,17 +223,33 @@ final class OnboardingFlowUITests: XCTestCase {
 }
 
 private extension XCUIElement {
-    /// Swipes until this element both exists and can be tapped.
+    /// Swipes until this element both exists and can be tapped — searching
+    /// downward first, then back upward.
     ///
     /// Checks `exists` as well as `isHittable` because lazy containers do not
-    /// instantiate off-screen children at all — a `LazyVGrid` card below the fold
-    /// is missing from the tree rather than present-but-hidden, so a helper that
-    /// only polled `isHittable` would spin against an element that never
-    /// materialised.
+    /// instantiate off-screen children at all — a `LazyVGrid` card outside the
+    /// viewport is missing from the tree rather than present-but-hidden, so a
+    /// helper that only polled `isHittable` would spin against an element that
+    /// never materialised.
+    ///
+    /// Searches BOTH directions because "missing from the tree" gives no hint of
+    /// where the element is. The first version only swiped up (scrolling down),
+    /// and failed the moment a test tapped a card, scrolled on, and then needed a
+    /// card above the viewport again: at AX5 the identity grid is one column and
+    /// several screens tall, so after reaching the 9th card the 4th is far above
+    /// the fold, torn down by the `LazyVGrid`, and unreachable by scrolling
+    /// further down. The failure-time hierarchy dump showed the scroll bar at
+    /// 100% with the sought card absent — ten swipes spent rubber-banding at the
+    /// bottom while the target sat one screen up.
     func scrollIntoView(in app: XCUIApplication, maxSwipes: Int = 10) {
         var swipes = 0
         while !(exists && isHittable) && swipes < maxSwipes {
             app.swipeUp()
+            swipes += 1
+        }
+        swipes = 0
+        while !(exists && isHittable) && swipes < maxSwipes {
+            app.swipeDown()
             swipes += 1
         }
     }
