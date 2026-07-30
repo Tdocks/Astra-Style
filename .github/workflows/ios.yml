@@ -135,18 +135,32 @@ jobs:
         # this runner image has installed, not a guess.
         if: always()
 
+      - name: Resolve an iPhone simulator
+        # Picks a device rather than naming one. This step exists because the
+        # previous `name=iPhone 16` broke the moment the runner moved to
+        # macos-26: that image ships the iPhone 17 family, 17e and Air, and no
+        # iPhone 16 — so the build failed with "Unable to find a device
+        # matching the provided destination specifier", which reads like a
+        # broken workflow rather than a retired device model.
+        #
+        # The selection rule and the reasoning behind passing a UDID instead of
+        # a name live in the script's header. Keeping it in scripts/ rather
+        # than inline here means it can be run locally with the same command,
+        # and that a change to it cannot break this file's YAML.
+        run: |
+          set -euo pipefail
+          echo "ASTRA_SIM_ID=$(python3 ../scripts/resolve_ios_simulator.py)" >> "$GITHUB_ENV"
+        working-directory: ios
+
       - name: Build (Debug, iOS Simulator)
         working-directory: ios
         run: |
           set -o pipefail
-          # Device name only, no explicit `OS=` pin: an Xcode 26.6 toolchain
-          # ships the iOS 26.x simulator runtime(s) it was released with, and
-          # pinning an exact patch version here is more likely to break on a
-          # runner-image bump than to catch a real regression. ios/project.yml's
-          # own IPHONEOS_DEPLOYMENT_TARGET (18.0) is the thing that actually
-          # enforces the app's minimum supported iOS version; the simulator
-          # this builds/runs against just has to be new enough to satisfy it,
-          # which any iOS 26.x runtime is.
+          # The destination is the UDID resolved above — not a device name and
+          # not an `OS=` pin. ios/project.yml's own IPHONEOS_DEPLOYMENT_TARGET
+          # (18.0) is what actually enforces the app's minimum supported iOS
+          # version; the simulator this builds and runs against only has to be
+          # new enough to satisfy it, which any iOS 26.x runtime is.
           #
           # NOTE: we deliberately do NOT pass SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
           # here. A command-line build setting applies to EVERY target in the
@@ -165,7 +179,7 @@ jobs:
           xcodebuild build \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "id=$ASTRA_SIM_ID" \
             -skipMacroValidation \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-build.log"
 
@@ -199,7 +213,7 @@ jobs:
           xcodebuild test \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "id=$ASTRA_SIM_ID" \
             -skipMacroValidation \
             -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
