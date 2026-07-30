@@ -99,8 +99,13 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
         try await apiClient.send(.completeOnboarding, body: payload, as: Profile.self)
     }
 
-    public func generateStyleDNA() async throws -> StyleProfile {
-        try await apiClient.send(.generateStyleDNA, body: AstraEmptyPayload(), as: StyleProfile.self)
+    public func generateStyleDNA() async throws -> StyleDNA {
+        // An empty body on purpose: the endpoint reads the profile rows this
+        // repository has already written, so everything it needs is
+        // server-side. Nothing the client could send would be more
+        // trustworthy than what is in the database, and sending the profile
+        // back would create a second source of truth for it.
+        try await apiClient.send(.generateStyleDNA, body: AstraEmptyPayload(), as: StyleDNA.self)
     }
 
     public func exportPersonalData() async throws -> URL {

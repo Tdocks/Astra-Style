@@ -30,7 +30,22 @@ public protocol ProfileRepository: Sendable {
 
     /// Regenerates Style DNA from the current profile state (spec §6.10
     /// "Allow user to edit and regenerate"). Calls `POST /style-dna/generate`.
-    func generateStyleDNA() async throws -> StyleProfile
+    ///
+    /// Returns `StyleDNA`, not `StyleProfile`. Three of §6.10's six sections —
+    /// silhouette direction, signature item opportunities, wardrobe priorities
+    /// — are generated prose with no column on `style_profiles`, so returning
+    /// the row meant the result screen could only ever show half of what the
+    /// spec lists, with nothing to flag it. See `Domain/Models/StyleDNA.swift`.
+    ///
+    /// Editing and regenerating is two calls, deliberately:
+    /// `updateStyleProfile(_:)` writes the user's edit, then this reads it
+    /// back. One write path for the user's own answers, not two.
+    ///
+    /// This is also the client's entire seam onto spec §8's
+    /// `StylistReasoningProvider`. That protocol is server-side only (ADR 0004
+    /// decision 3: the client never constructs a request to a model vendor);
+    /// swapping the provider behind this endpoint changes nothing here.
+    func generateStyleDNA() async throws -> StyleDNA
 
     /// Exports all personal data (spec §29 "Export personal data").
     func exportPersonalData() async throws -> URL

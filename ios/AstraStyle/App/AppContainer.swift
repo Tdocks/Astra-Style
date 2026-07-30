@@ -39,6 +39,28 @@ public final class AppContainer {
     // MARK: - Repositories (Domain/Repositories protocols)
 
     public let authRepository: AuthRepository
+
+    /// Owns the four profile tables plus the two orchestration calls
+    /// onboarding depends on — `POST /profile/complete-onboarding` and
+    /// `POST /style-dna/generate` (spec §14).
+    ///
+    /// NOTE ON SPEC §8's FIVE PROVIDER PROTOCOLS. `StylistReasoningProvider`,
+    /// `VisionAnalysisProvider`, `ImageGenerationProvider`,
+    /// `EmbeddingProvider` and `ProductExtractionProvider` are deliberately
+    /// absent from this container and from `ios/` entirely. They are
+    /// SERVER-side protocols — `StylistReasoningProvider` lives in
+    /// `supabase/functions/_shared/providers/stylistReasoning.ts` — and ADR
+    /// 0004's decision 3 is explicit that the client never holds a provider
+    /// key and never constructs a request to a model vendor. A Swift
+    /// counterpart would be a dependency-injection seam for something the app
+    /// is structurally forbidden from doing, and its existence would invite
+    /// exactly the shortcut the ADR exists to prevent.
+    ///
+    /// The client's seam for every AI-backed capability is the repository
+    /// protocol in front of the Edge Function that calls the provider —
+    /// `profileRepository` for Style DNA, `kyraRepository` for Kyra,
+    /// `studioRepository` for Style Studio. Swapping the vendor behind any of
+    /// them is a server-side change with no app release.
     public let profileRepository: ProfileRepository
     public let closetRepository: ClosetRepository
     public let outfitRepository: OutfitRepository

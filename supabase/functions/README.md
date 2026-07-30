@@ -28,16 +28,63 @@ supabase/functions/
     requestId.ts             Request ID resolution (header -> body -> generated)
     routing.ts               In-function path routing for grouped functions (ADR 0013)
     supabaseClient.ts        Caller-scoped (never service-role) Supabase client factory
+    time.ts                  ISO-8601 normalization for timestamps on the wire
     validation.ts            Small schema-validation helpers (UUID, string, int range, ...)
+    providers/               Spec §8's provider protocols — INTERFACES ONLY, no vendor SDK
+      types.ts                 Shared request envelope, error taxonomy, model tiers
+      stylistReasoning.ts      StylistReasoningProvider (docs/08 §1)
   outfits/                POST /outfits/generate (and, in Phase 4, POST /outfits/rank)
     index.ts                Deployment entrypoint (Deno.serve + createRouter + wiring)
     handler.ts               Testable request handler for /generate (all deps injected)
     schema.ts                Request/response DTOs + body validation
     scorer.ts                 THE DETERMINISTIC SLICE SCORER — see its header comment
     *_test.ts                 Deno.test suites, one per module
+  profile/                POST /profile/complete-onboarding (P2-ONBOARD-12)
+    index.ts                 Wiring; calls the complete_onboarding() RPC
+    handler.ts               Auth, rate limit, validation, logging
+    schema.ts                The §6.9 preference vector's absent-vs-zero round trip
+  style-dna/              POST /style-dna/generate (P2-CORE-02)
+    index.ts                 Wiring — AND THE ONE LINE THAT PICKS THE PROVIDER
+    handler.ts               Builds the StylistCompletionRequest; validates the output
+    context.ts               Retrieval -> context packet (carries nothing identifying)
+    deterministicStylist.ts  The mock StylistReasoningProvider + the composer
+    identityPlaybook.ts      Per-identity palettes, silhouettes, signature pieces
+    schema.ts                Response DTO + the validator every provider must pass
 ```
 
-Every future endpoint (`profile/complete-onboarding`, `closet/analyze-item`,
+## Why `POST /profile/complete-onboarding` writes through a Postgres function
+
+Four `upsert` calls are four transactions, and a failure between the second and
+the third leaves a half-written profile that every downstream consumer reads as
+complete but thin. The client keeps its local draft until the server accepts, so
+a *failed* call costs one retry tap and loses nothing — a *partially succeeded*
+one is silent and permanent. `complete_onboarding()`
+(`supabase/migrations/20260730190000_complete_onboarding_rpc.sql`) does all four
+writes in one plpgsql body, i.e. one transaction, and takes no user-id parameter
+at all: `auth.uid()` is the only identity source, so the ownership requirement
+has no code path to be violated through. It is `SECURITY INVOKER`, so RLS is
+still the boundary.
+
+## The provider seam in `style-dna`
+
+`style-dna/index.ts` constructs a `StylistReasoningProvider` (spec §8,
+`docs/08-provider-abstraction.md` §1) and hands it to the handler. Today that is
+`DeterministicStylistProvider` — no model call, no key, ten distinct identity
+playbooks, and output that gets shorter rather than vaguer as input thins out.
+Replacing it with a live vendor adapter is that one expression; nothing else in
+this repo, and nothing at all in `ios/`, changes. `style-dna/handler_test.ts`
+asserts exactly that by running one request through two unrelated providers and
+comparing everything except the content and the reported model id.
+
+What a live adapter still needs, so nobody assumes it is a small job: a vendor
+account under API-tier terms with training opted out (spec §29 is a hard legal
+gate), its key set via `supabase secrets set`, an adapter that keeps every
+vendor concept inside itself, the shared retry/circuit-breaker baseline
+(`docs/08` §0.1), the escalation router (`docs/09` §2), and the golden-set and
+guardrail evals (`docs/06` §7.1–7.2) run against
+`STYLE_DNA_SYSTEM_PROMPT_VERSION` before it ships.
+
+Every future endpoint (`closet/analyze-item`,
 `kyra/respond`, etc.) should follow the same shape: a function directory
 named after the endpoint path's first segment, a thin `index.ts` that
 builds its route table with `_shared/routing.ts`'s `createRouter` and does
