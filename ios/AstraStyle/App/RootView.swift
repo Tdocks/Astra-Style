@@ -37,7 +37,18 @@ struct RootView: View {
                 case .signedOut:
                     SignedOutGateView()
                 case .onboarding:
-                    OnboardingPlaceholderView()
+                    OnboardingFlowView(
+                        model: OnboardingViewModel(
+                            // Scoped per user so one person's draft is never
+                            // handed to another account on a shared device.
+                            store: FileOnboardingDraftStore(
+                                userScope: container.sessionStore.currentSession?.userID.uuidString
+                                    ?? "anonymous"
+                            ),
+                            profileRepository: container.profileRepository,
+                            sessionStore: container.sessionStore
+                        )
+                    )
                 case .main:
                     MainTabView()
                 }
@@ -289,30 +300,3 @@ private struct SignedOutGateView: View {
     }
 }
 
-/// Placeholder shown while authenticated but `onboarding_completed_at` is
-/// nil. Replaced by the real multi-step flow in Features/Onboarding
-/// (P2-ONBOARD: style goals, style identity, measurements, appearance,
-/// lifestyle, preference quiz, Style DNA result — spec §6.4-§6.10).
-private struct OnboardingPlaceholderView: View {
-    @Environment(AppRouter.self) private var router
-
-    var body: some View {
-        ZStack {
-            AstraColor.backgroundPrimary.ignoresSafeArea()
-            VStack(spacing: AstraSpacing.md) {
-                Text("Let's build your Style DNA")
-                    .astraText(.title1)
-                    .foregroundStyle(AstraColor.textPrimary)
-                Text("A few questions about how you live and what you already own, so Kyra's first recommendation is worth reading.")
-                    .astraText(.body)
-                    .foregroundStyle(AstraColor.textSecondary)
-                    .multilineTextAlignment(.center)
-
-                AstraButton(title: String(localized: "Skip for now", comment: "Temporary onboarding bypass")) {
-                    router.routeState = .main
-                }
-            }
-            .padding(AstraSpacing.pagePadding)
-        }
-    }
-}

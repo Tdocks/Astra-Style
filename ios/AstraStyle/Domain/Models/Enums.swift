@@ -90,12 +90,24 @@ public enum ItemCondition: String, Codable, CaseIterable, Sendable {
 
 /// Garment fit, reused both as a closet item's actual fit and as a user's
 /// stated fit preference (spec §6.6).
-public enum ItemFit: String, Codable, CaseIterable, Sendable {
+public enum ItemFit: String, Codable, CaseIterable, Sendable, Identifiable {
     case slim
     case tailored
     case regular
     case relaxed
     case oversized
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .slim: String(localized: "Slim", comment: "Garment fit")
+        case .tailored: String(localized: "Tailored", comment: "Garment fit")
+        case .regular: String(localized: "Regular", comment: "Garment fit")
+        case .relaxed: String(localized: "Relaxed", comment: "Garment fit")
+        case .oversized: String(localized: "Oversized", comment: "Garment fit")
+        }
+    }
 }
 
 public enum GarmentPattern: String, Codable, CaseIterable, Sendable {
@@ -317,6 +329,70 @@ public enum StyleIdentity: String, Codable, CaseIterable, Sendable {
     }
 }
 
+// MARK: - `style_profiles.style_goals`
+
+/// The eight goals spec §6.4 offers as a multi-select.
+///
+/// Stored as raw strings in the `style_goals` jsonb array rather than as a
+/// Postgres enum. Deliberate: the column stays free-text so Kyra can later
+/// record a goal a user typed in their own words, while the onboarding UI works
+/// from this closed set. A Postgres enum here would make the eight options a
+/// migration to change, and §6.4's list is product copy, not schema.
+public enum StyleGoal: String, Codable, CaseIterable, Sendable, Identifiable {
+    case dressBetterDaily = "dress_better_daily"
+    case buildCompleteWardrobe = "build_complete_wardrobe"
+    case improveProfessionalImage = "improve_professional_image"
+    case prepareForSocialEvents = "prepare_for_social_events"
+    case findSignatureStyle = "find_signature_style"
+    case shopMoreIntelligently = "shop_more_intelligently"
+    case dressForChangingBody = "dress_for_changing_body"
+    case packAndTravelBetter = "pack_and_travel_better"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .dressBetterDaily: String(localized: "Dress better day to day", comment: "Style goal")
+        case .buildCompleteWardrobe: String(localized: "Build a complete wardrobe", comment: "Style goal")
+        case .improveProfessionalImage: String(localized: "Improve my professional image", comment: "Style goal")
+        case .prepareForSocialEvents: String(localized: "Prepare for dates and social events", comment: "Style goal")
+        case .findSignatureStyle: String(localized: "Find a signature style", comment: "Style goal")
+        case .shopMoreIntelligently: String(localized: "Shop more intelligently", comment: "Style goal")
+        // §2 forbids shaming body type. "Dress for a changing body" is the
+        // spec's own wording and is kept verbatim -- it is neutral, it is the
+        // user's own framing, and softening it into a euphemism would be worse.
+        case .dressForChangingBody: String(localized: "Dress for a changing body", comment: "Style goal")
+        case .packAndTravelBetter: String(localized: "Pack and travel better", comment: "Style goal")
+        }
+    }
+
+    /// One line explaining what choosing this changes about Kyra's advice.
+    ///
+    /// Present because a multi-select with eight abstract options invites
+    /// selecting all eight, which carries no information. Saying what each one
+    /// does encourages a real choice.
+    public var effect: String {
+        switch self {
+        case .dressBetterDaily:
+            String(localized: "More everyday outfits from what you already own.", comment: "Style goal effect")
+        case .buildCompleteWardrobe:
+            String(localized: "Kyra flags the gaps worth filling first.", comment: "Style goal effect")
+        case .improveProfessionalImage:
+            String(localized: "Weights work and client-facing occasions higher.", comment: "Style goal effect")
+        case .prepareForSocialEvents:
+            String(localized: "More evening and occasion-led suggestions.", comment: "Style goal effect")
+        case .findSignatureStyle:
+            String(localized: "Fewer, more consistent recommendations over time.", comment: "Style goal effect")
+        case .shopMoreIntelligently:
+            String(localized: "Cost-per-wear and duplicate warnings before you buy.", comment: "Style goal effect")
+        case .dressForChangingBody:
+            String(localized: "Fit guidance leads, and updates as measurements change.", comment: "Style goal effect")
+        case .packAndTravelBetter:
+            String(localized: "Capsule and packing suggestions for trips.", comment: "Style goal effect")
+        }
+    }
+}
+
 /// A coarse formality scale used for `style_profiles.formality_preference`
 /// and for scoring outfits/products against lifestyle fit.
 public enum FormalityLevel: String, Codable, CaseIterable, Sendable, Comparable {
@@ -364,7 +440,7 @@ public enum AccessoryPreference: String, Codable, CaseIterable, Sendable {
 
 /// Common fit issues surfaced during measurement onboarding (spec §6.6,
 /// "broad chest, short torso, long legs, large thighs, etc").
-public enum FitIssue: String, Codable, CaseIterable, Sendable {
+public enum FitIssue: String, Codable, CaseIterable, Sendable, Identifiable {
     case broadChest = "broad_chest"
     case narrowShoulders = "narrow_shoulders"
     case shortTorso = "short_torso"
@@ -377,6 +453,31 @@ public enum FitIssue: String, Codable, CaseIterable, Sendable {
     case tallFrame = "tall_frame"
     case shortFrame = "short_frame"
     case other
+
+    public var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// Phrased as what the wearer notices about how clothes FIT, not as a
+    /// verdict on his body — "sleeves are usually too long" rather than "short
+    /// arms". Same rule as `FitRules` (docs/14 §4): the subject is the garment.
+    /// These strings are checked by `scripts/check_ui_conventions.py`.
+    public var displayName: String {
+        switch self {
+        case .broadChest: String(localized: "Jackets pull across the chest", comment: "Fit issue")
+        case .narrowShoulders: String(localized: "Shoulders sit wide on me", comment: "Fit issue")
+        case .shortTorso: String(localized: "Tops are long on the body", comment: "Fit issue")
+        case .longTorso: String(localized: "Tops come up short", comment: "Fit issue")
+        case .longLegs: String(localized: "Trousers are short in the leg", comment: "Fit issue")
+        case .shortLegs: String(localized: "Trousers need taking up", comment: "Fit issue")
+        case .largeThighs: String(localized: "Trousers are tight through the thigh", comment: "Fit issue")
+        case .longArms: String(localized: "Sleeves come up short", comment: "Fit issue")
+        case .shortArms: String(localized: "Sleeves are long on me", comment: "Fit issue")
+        case .tallFrame: String(localized: "Most things are cut short for me", comment: "Fit issue")
+        case .shortFrame: String(localized: "Most things are cut long for me", comment: "Fit issue")
+        case .other: String(localized: "Something else", comment: "Fit issue")
+        }
+    }
 }
 
 // MARK: - `lifestyle_profiles`

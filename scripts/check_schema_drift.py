@@ -131,6 +131,11 @@ ENUM_MAPPING: dict[str, str] = {
 # re-derive it. Adding an enum here is a deliberate exemption, not a default.
 NO_DB_COUNTERPART: dict[str, str] = {
     "GarmentPattern": "closet_items.pattern is `text`, not an enum column.",
+    "StyleGoal": (
+        "style_profiles.style_goals is `jsonb` (array of goal tags), not an enum column. "
+        "Kept free-text server-side on purpose so a user-typed goal can be stored later; "
+        "the closed §6.4 list exists only to drive the onboarding UI."
+    ),
     "Season": "closet_items.seasonality is `jsonb` (array of season tags), not an enum column.",
     "KyraIntent": "the `intent` field of Kyra's JSON response schema (spec §11) — never a persisted column.",
     "ToleranceLevel": "logo_tolerance/trend_tolerance are `smallint` 0-100 scores, not enum columns.",

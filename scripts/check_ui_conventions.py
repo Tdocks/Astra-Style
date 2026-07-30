@@ -71,8 +71,13 @@ BODY_LANGUAGE = [
      "compares the wearer to other bodies. Describe the garment instead."),
     (r"\bdespite your\b",
      "frames the wearer's body as an obstacle."),
-    (r"\b(?:hide|hides|hiding|conceal|conceals|disguise|disguises)\s+"
-     r"(?:your|the)\s+\w+",
+    # Requires the POSSESSIVE. "hide your stomach" is the failure mode; "hides
+    # the fact that" and "hiding the ranking stage" are ordinary English about
+    # something other than a body. Matching "the" as well produced three false
+    # positives on the first feature written after this rule landed, all of them
+    # in comments explaining the rule itself — and a checker that cries wolf on
+    # its own documentation is one people learn to skip.
+    (r"\b(?:hide|hides|hiding|conceal|conceals|disguise|disguises)\s+your\b",
      "concealment framing. Astra does not tell a man to hide part of himself."),
     (r"\bslimming\b|\bmakes you look (?:taller|slimmer|thinner|bigger)\b",
      "describes an effect on the body rather than on the line of the clothing."),
