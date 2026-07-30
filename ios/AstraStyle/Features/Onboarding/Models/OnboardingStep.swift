@@ -79,7 +79,12 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
             String(localized: "Sizes let Kyra judge cut and fit rather than guessing. Skip anything you don't know — it still works.",
                    comment: "Onboarding step rationale")
         case .appearance:
-            String(localized: "Entirely optional. These only affect colour suggestions, and you can leave every one blank.",
+            // Was "These only affect colour suggestions" — which the screen then
+            // contradicted twice, since facial hair drives collar suggestions
+            // and tattoo visibility drives sleeve length. A user reading
+            // carefully got two different accounts of what his data does, on a
+            // screen collecting appearance data. Says only what is true now.
+            String(localized: "Entirely optional. Every question here says what it's for, and you can leave all of them blank.",
                    comment: "Onboarding step rationale")
         case .lifestyle:
             String(localized: "Where you go and what you spend shapes what's actually useful to recommend.",

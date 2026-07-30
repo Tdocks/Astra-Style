@@ -45,6 +45,13 @@ public struct AstraChip: View {
                 }
                 Text(title)
                     .astraText(.caption)
+                    // Wrap onto a second line rather than truncating or running
+                    // past the chip's edge. At accessibility sizes a label like
+                    // "Good jeans, decent shirt" is wider than the whole screen,
+                    // and without this it rendered as "Good jeans, decent shi"
+                    // with the rest off the right edge.
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
                 if isSelected {
                     Image(systemName: "checkmark")
                         .imageScale(.small)
@@ -52,6 +59,10 @@ public struct AstraChip: View {
             }
             .foregroundStyle(isSelected ? AstraColor.textOnAccent : AstraColor.textSecondary)
             .padding(.horizontal, AstraSpacing.md)
+            // Vertical padding matters once the label can wrap: minHeight alone
+            // holds a single line off the capsule's edge by luck, not by design,
+            // and two lines would touch the stroke top and bottom.
+            .padding(.vertical, AstraSpacing.xs)
             .frame(minHeight: AstraSize.minTapTarget)
             .background(
                 Capsule(style: .continuous)

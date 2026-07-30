@@ -60,12 +60,17 @@ public struct AstraWrappingHStack: Layout {
         cache: inout ()
     ) {
         let rows = arrange(subviews: subviews, maxWidth: bounds.width)
+        let itemProposal = proposal(forWidth: bounds.width)
         var y = bounds.minY
 
         for row in rows {
             var x = bounds.minX
             for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
+                // Measured against the SAME proposal used for row breaking. A
+                // place() that re-measured with a different proposal could hand
+                // back a different width, and the row would no longer add up to
+                // what the break decision assumed.
+                let size = subviews[index].sizeThatFits(itemProposal)
                 subviews[index].place(
                     at: CGPoint(x: x, y: y),
                     anchor: .topLeading,
@@ -85,12 +90,27 @@ public struct AstraWrappingHStack: Layout {
         var height: CGFloat = 0
     }
 
+    /// The proposal each subview is measured and placed against.
+    ///
+    /// Constrained to the container width rather than `.unspecified`. An
+    /// unspecified proposal asks a subview for its IDEAL size, and a chip whose
+    /// label is long enough will happily report a width wider than the screen —
+    /// then get placed at exactly that width and run off the right edge with its
+    /// label cut mid-word. Proposing the available width instead lets a long
+    /// label wrap inside its own chip. Short chips are unaffected: `Text`
+    /// returns the smaller of its ideal width and the proposal, so a wide
+    /// proposal does not stretch them.
+    private func proposal(forWidth maxWidth: CGFloat) -> ProposedViewSize {
+        ProposedViewSize(width: maxWidth, height: nil)
+    }
+
     private func arrange(subviews: Subviews, maxWidth: CGFloat) -> [Row] {
         var rows: [Row] = []
         var current = Row()
+        let itemProposal = proposal(forWidth: maxWidth)
 
         for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
+            let size = subviews[index].sizeThatFits(itemProposal)
             let widthWithItem = current.indices.isEmpty
                 ? size.width
                 : current.width + spacing + size.width

@@ -17,7 +17,7 @@
 //  answer had better be true:
 //
 //    • Skin undertone drives which palette Kyra recommends against — warm and
-//      cool undertones flatter different neutrals. This is the only field here
+//      cool undertones call for different neutrals. This is the only field here
 //      that changes advice on its own.
 //    • Hair and eye color refine contrast level, which decides how far apart a
 //      recommended outfit's light and dark values should sit.
@@ -122,6 +122,6 @@ public enum AppearanceOptions {
     public static let eyeColors = ["Brown", "Hazel", "Green", "Blue", "Gray"]
 
     public static let facialHairStyles = [
-        "Clean shaven", "Stubble", "Moustache", "Short beard", "Full beard"
+        "Clean shaven", "Stubble", "Mustache", "Short beard", "Full beard"
     ]
 }

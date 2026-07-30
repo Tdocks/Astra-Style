@@ -60,7 +60,7 @@ struct OnboardingLifestyleView: View {
             )
 
             SingleChoiceGroup(
-                title: String(localized: "Most days you're dressed for", comment: "Lifestyle question"),
+                title: String(localized: "What are you dressed for most days?", comment: "Lifestyle question"),
                 reason: String(localized: "The single biggest filter on what Kyra suggests.",
                                comment: "Why dress code is asked"),
                 options: DressCode.allCases,
@@ -71,8 +71,8 @@ struct OnboardingLifestyleView: View {
             )
 
             MultiChoiceGroup(
-                title: String(localized: "What else comes up", comment: "Lifestyle question"),
-                reason: String(localized: "Pick as many as apply. These are the outfits people get caught out by.",
+                title: String(localized: "What else comes up?", comment: "Lifestyle question"),
+                reason: String(localized: "Pick as many as apply. These are the outfits men get caught short on.",
                                comment: "Why occasions are asked"),
                 options: LifestyleOptions.occasions,
                 selection: $draft.commonOccasions,
@@ -80,7 +80,7 @@ struct OnboardingLifestyleView: View {
             )
 
             SingleChoiceGroup(
-                title: String(localized: "How often you do laundry", comment: "Lifestyle question"),
+                title: String(localized: "How often do you do laundry?", comment: "Lifestyle question"),
                 // The reason is concrete because the question sounds irrelevant.
                 // Without it this reads as the app being nosy for no return.
                 reason: String(localized: "Decides how many shirts a rotation needs. Kyra won't tell you to buy seven if you wash twice a week.",
@@ -93,7 +93,7 @@ struct OnboardingLifestyleView: View {
             )
 
             SingleChoiceGroup(
-                title: String(localized: "Your line of work", comment: "Lifestyle question"),
+                title: String(localized: "What line of work are you in?", comment: "Lifestyle question"),
                 reason: String(localized: "Sets the baseline for how hard your clothes have to work.",
                                comment: "Why occupation is asked"),
                 options: OccupationCategory.allCases,
@@ -125,7 +125,7 @@ struct OnboardingLifestyleView: View {
             budgetRow
 
             SingleChoiceGroup(
-                title: String(localized: "How often you travel", comment: "Lifestyle question"),
+                title: String(localized: "How often do you travel?", comment: "Lifestyle question"),
                 reason: String(localized: "Changes what's worth owning — creased linen is a different problem on the road.",
                                comment: "Why travel frequency is asked"),
                 options: LifestyleOptions.travelFrequencies,
@@ -136,7 +136,7 @@ struct OnboardingLifestyleView: View {
             )
 
             SingleChoiceGroup(
-                title: String(localized: "Dress requirements for services or ceremonies", comment: "Lifestyle question"),
+                title: String(localized: "Any dress requirements for services or ceremonies?", comment: "Lifestyle question"),
                 // Neutral and opt-in. Naming specific traditions here would
                 // require guessing at the user's, so the question asks about the
                 // requirement rather than about him.
@@ -150,7 +150,7 @@ struct OnboardingLifestyleView: View {
             )
 
             SingleChoiceGroup(
-                title: String(localized: "How much sustainability matters", comment: "Lifestyle question"),
+                title: String(localized: "How much does sustainability matter?", comment: "Lifestyle question"),
                 reason: String(localized: "Affects which brands and fabrics Kyra puts in front of you.",
                                comment: "Why sustainability preference is asked"),
                 options: LifestyleOptions.sustainabilityPreferences,

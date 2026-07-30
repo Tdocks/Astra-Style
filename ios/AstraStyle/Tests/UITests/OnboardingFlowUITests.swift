@@ -40,6 +40,30 @@ final class OnboardingFlowUITests: XCTestCase {
         add(shot)
     }
 
+    /// Captures the current screen, then swipes down through the rest of the
+    /// page capturing each screenful, stopping early once the view stops moving.
+    ///
+    /// Exists because a screenshot audit can only report on what it can see. The
+    /// first review of these steps flagged seven required questions as "not found
+    /// in any screenshot" — they were all present, just below the fold of the one
+    /// capture taken. An audit that cannot see the screen produces findings about
+    /// the capture rather than about the app.
+    private func captureWholePage(prefix: String, screens: Int, includeFirst: Bool = true) {
+        if includeFirst { capture(prefix) }
+
+        var previous = app.screenshot().pngRepresentation
+        for index in 1..<max(1, screens) {
+            app.swipeUp(velocity: .slow)
+            usleep(500_000)
+            let current = app.screenshot().pngRepresentation
+            // Identical frames mean the page has bottomed out and every further
+            // shot would be a duplicate of the last one.
+            if current == previous { return }
+            previous = current
+            capture("\(prefix)-\(index)")
+        }
+    }
+
     @discardableResult
     private func awaitElement(
         _ element: XCUIElement,
@@ -147,15 +171,20 @@ final class OnboardingFlowUITests: XCTestCase {
         capture("28b-Onboarding-Appearance-Lower")
         app.buttons["onboarding.advance"].tap()
 
-        // §6.8 and §6.9 are stubs — walk through them so the sequence and the
-        // back/forward controls are exercised end to end.
-        for (index, name) in ["29-Onboarding-Lifestyle",
-                              "30-Onboarding-Quiz"].enumerated() {
-            awaitElement(app.buttons["onboarding.advance"], "Step after appearance #\(index)")
-            usleep(400_000)
-            capture(name)
-            app.buttons["onboarding.advance"].tap()
-        }
+        // §6.8 — Lifestyle. Eleven fields, so one top-of-page shot audits a
+        // fraction of the screen: the first review of it could not find seven of
+        // the eleven required questions in any capture, and had to report them as
+        // possibly missing. Walk the whole page instead.
+        awaitElement(app.buttons["onboarding.advance"], "Lifestyle")
+        usleep(400_000)
+        captureWholePage(prefix: "29-Onboarding-Lifestyle", screens: 4)
+        app.buttons["onboarding.advance"].tap()
+
+        // §6.9 is still a stub.
+        awaitElement(app.buttons["onboarding.advance"], "Quiz")
+        usleep(400_000)
+        capture("30-Onboarding-Quiz")
+        app.buttons["onboarding.advance"].tap()
 
         // §6.10 — Result.
         awaitElement(app.buttons["onboarding.advance"], "Result: finish button")
@@ -267,14 +296,10 @@ final class OnboardingFlowUITests: XCTestCase {
             usleep(700_000)
             capture(name)
 
-            // A second shot further down. At AX5 a step is several screens tall,
-            // so a top-of-page capture audits maybe a third of it — the first
-            // audit of this flow could not verify half the required questions
-            // even existed.
-            app.swipeUp(velocity: .slow)
-            usleep(500_000)
-            capture("\(name)-Lower")
-            app.swipeDown(velocity: .slow)
+            // At AX5 a step runs several screens tall, so a top-of-page capture
+            // audits maybe a third of it. Walk down and back.
+            captureWholePage(prefix: name, screens: 5, includeFirst: false)
+            for _ in 0..<5 { app.swipeDown(velocity: .slow) }
             usleep(400_000)
         }
     }

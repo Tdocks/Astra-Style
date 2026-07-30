@@ -56,7 +56,7 @@ struct OnboardingAppearanceView: View {
 
             ChoiceGroup(
                 title: String(localized: "Skin undertone", comment: "Appearance question"),
-                reason: String(localized: "Decides which neutrals Kyra suggests — warm and cool skin flatter different shades of grey, navy and brown.",
+                reason: String(localized: "Decides which neutrals Kyra suggests — warm and cool skin call for different shades of gray, navy and brown.",
                                comment: "Why skin undertone is asked"),
                 options: AppearanceOptions.skinUndertones,
                 selection: $draft.skinUndertone,
@@ -93,7 +93,7 @@ struct OnboardingAppearanceView: View {
     private var featuresSection: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.md) {
             AstraSectionHeader(
-                title: String(localized: "A few details", comment: "Onboarding section title"),
+                title: String(localized: "Beard, glasses, ink", comment: "Onboarding section title"),
                 eyebrow: String(localized: "FEATURES", comment: "Onboarding section eyebrow")
             )
 
@@ -108,18 +108,18 @@ struct OnboardingAppearanceView: View {
 
             TriStateRow(
                 title: String(localized: "Do you wear glasses?", comment: "Appearance question"),
-                reason: String(localized: "Frames are an accessory whether you treat them as one or not — Kyra works around them.",
+                reason: String(localized: "Frames sit in the same space as a collar and a lapel, so Kyra factors them into necklines and proportions.",
                                comment: "Why glasses are asked"),
                 value: $draft.wearsGlasses,
                 identifier: "wearsGlasses"
             )
 
             TriStateRow(
-                title: String(localized: "Are your tattoos usually visible?", comment: "Appearance question"),
+                title: String(localized: "Do you have tattoos you like to show?", comment: "Appearance question"),
                 // Says what it is for AND what it is not for. The second half is
                 // the part that matters: the honest worry a man has about this
                 // question is that the app is about to suggest covering up.
-                reason: String(localized: "Only used for sleeve length when you'd rather they show. Kyra won't suggest covering anything.",
+                reason: String(localized: "Answer yes and Kyra will lean toward shorter sleeves. She'll never suggest covering anything up.",
                                comment: "Why tattoo visibility is asked"),
                 value: $draft.tattoosVisible,
                 identifier: "tattoosVisible"
