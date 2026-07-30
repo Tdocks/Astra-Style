@@ -34,8 +34,8 @@ public enum SampleData {
         avoidedColors: ["neon green", "bright orange"],
         preferredFit: .tailored,
         formalityPreference: .balanced,
-        logoTolerance: .low,
-        trendTolerance: .medium,
+        logoTolerance: ToleranceLevel.low.score,
+        trendTolerance: ToleranceLevel.medium.score,
         accessoryPreference: .moderate,
         styleSummary: "Marcus gravitates toward heritage American workwear filtered through a tailored, quiet-luxury lens — think Buck Mason meets Aimé Leon Dore, with Alden boots doing a lot of the heavy lifting."
     )

@@ -96,6 +96,18 @@ final class OnboardingFlowUITests: XCTestCase {
         guest.tap()
     }
 
+    /// Every option tile currently on screen, whichever comparison it belongs to.
+    ///
+    /// Matched on the identifier prefix because the pair id is part of the
+    /// identifier and the pairs are content. `onboarding.quiz.complete` and
+    /// `onboarding.quiz.noPreference` share the `onboarding.quiz.` prefix, hence
+    /// the more specific `.option.`.
+    private var quizOptions: XCUIElementQuery {
+        app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "onboarding.quiz.option.")
+        )
+    }
+
     // MARK: - The walk
 
     func testWalkTheWholeFlow() {
@@ -189,10 +201,60 @@ final class OnboardingFlowUITests: XCTestCase {
         captureWholePage(prefix: "29-Onboarding-Lifestyle", screens: 6)
         app.buttons["onboarding.advance"].tap()
 
-        // §6.9 is still a stub.
-        awaitElement(app.buttons["onboarding.advance"], "Quiz")
+        // §6.9 — the paired-image quiz.
+        awaitElement(app.staticTexts["onboarding.quiz.progress"], "Quiz: progress line")
         usleep(400_000)
         capture("30-Onboarding-Quiz")
+
+        // The forward button must NOT read "Continue" while comparisons are
+        // waiting. Choosing an outfit is what advances the quiz, so a footer
+        // button that looks like the control the user has been tapping and
+        // instead leaves the step is the specific trap this asserts against.
+        XCTAssertNotEqual(
+            app.buttons["onboarding.advance"].label, "Continue",
+            "The forward button claims to continue while comparisons are unanswered"
+        )
+
+        // Queried by identifier prefix rather than by pair id. The comparison set
+        // is content — a test naming "formality-01" would fail the day someone
+        // adds the texture pairs, which is exactly the change this feature was
+        // shaped to make painless.
+        XCTAssertEqual(quizOptions.count, 2, "A comparison must offer exactly two outfits")
+        quizOptions.element(boundBy: 0).tap()
+
+        awaitElement(app.buttons["onboarding.quiz.undo"], "Quiz: undo after a choice")
+        capture("30b-Onboarding-Quiz-Answered")
+
+        // Undo must take the choice back rather than being decorative.
+        app.buttons["onboarding.quiz.undo"].tap()
+        usleep(400_000)
+        XCTAssertFalse(
+            app.buttons["onboarding.quiz.undo"].exists,
+            "Undo did not remove the only answer"
+        )
+
+        // Answer every comparison. Content-agnostic: keep choosing while a
+        // comparison is on screen. "No preference" is exercised on the second one
+        // — it is a first-class answer, not an escape hatch, and it has to advance
+        // the quiz like any other.
+        var answered = 0
+        while quizOptions.count == 2, answered < 40 {
+            if answered == 1 {
+                app.buttons["onboarding.quiz.noPreference"].tap()
+            } else {
+                quizOptions.element(boundBy: 0).tap()
+            }
+            answered += 1
+            usleep(300_000)
+        }
+        XCTAssertGreaterThan(answered, 0, "The quiz never presented a comparison")
+
+        awaitElement(app.staticTexts["onboarding.quiz.complete"], "Quiz: completion card")
+        capture("30c-Onboarding-Quiz-Complete")
+        XCTAssertEqual(
+            app.buttons["onboarding.advance"].label, "Continue",
+            "With every comparison answered the forward button should offer to continue"
+        )
         app.buttons["onboarding.advance"].tap()
 
         // §6.10 — Result.
@@ -305,6 +367,12 @@ final class OnboardingFlowUITests: XCTestCase {
             usleep(700_000)
             capture(name)
 
+            // Keyed on what is on screen rather than on the capture's name, so
+            // this follows §6.9 if the step order ever changes.
+            if app.staticTexts["onboarding.quiz.progress"].exists {
+                auditQuizAtAX5()
+            }
+
             // At AX5 a step runs several screens tall, so a top-of-page capture
             // audits maybe a third of it. Walk down and back.
             // 12, not 5. At AX5 the lifestyle step runs far longer than five
@@ -317,6 +385,44 @@ final class OnboardingFlowUITests: XCTestCase {
             captureWholePage(prefix: name, screens: 20, includeFirst: false)
             for _ in 0..<20 { app.swipeDown(velocity: .slow) }
             usleep(400_000)
+        }
+    }
+
+    // MARK: - §6.9 at the largest text size
+
+    /// The quiz's own AX5 audit, run from inside the walk above.
+    ///
+    /// Two photographs side by side is the layout most likely to fail here — the
+    /// images do not scale with Dynamic Type, so at AX5 they stay small while
+    /// every label around them triples. The view answers that by going to one
+    /// full-width column at `.accessibility1`, and what has to be true either way
+    /// is that both outfits and the pass control can be reached and tapped.
+    private func auditQuizAtAX5() {
+        // Scroll BEFORE asserting. At AX5 a step runs several screens tall, and
+        // an element below the fold of a lazily-populated container is absent
+        // from the accessibility tree rather than present-but-unhittable — so a
+        // bare `exists` check times out on something a swipe would reveal.
+        let firstOption = quizOptions.element(boundBy: 0)
+        firstOption.scrollIntoView(in: app)
+        XCTAssertTrue(firstOption.exists, "The first outfit cannot be reached at AX5")
+
+        let pass = app.buttons["onboarding.quiz.noPreference"]
+        pass.scrollIntoView(in: app)
+        XCTAssertTrue(
+            pass.exists && pass.isHittable,
+            "\"No preference\" is unreachable at AX5, which forces a coin flip"
+        )
+        capture("39b-Onboarding-Quiz-AX5-controls")
+
+        // Answer one so the audit also covers the state after a choice, where the
+        // undo control appears and the footer's label changes.
+        let option = quizOptions.element(boundBy: 0)
+        option.scrollIntoView(in: app)
+        if option.exists, option.isHittable {
+            option.waitForStableFrame()
+            option.tap()
+            usleep(500_000)
+            capture("39c-Onboarding-Quiz-AX5-answered")
         }
     }
 

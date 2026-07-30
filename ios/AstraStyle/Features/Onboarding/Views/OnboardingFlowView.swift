@@ -5,9 +5,8 @@
 //  The §6.3–§6.10 container. Owns the view model, routes each step to its
 //  screen, and persists after every change.
 //
-//  Steps §6.7 (appearance), §6.9 (quiz) and §6.10 (result) are stubs for now,
-//  and say so on screen rather than pretending. §6.9 needs the generated pair
-//  imagery; §6.10 needs `POST /style-dna/generate`, which needs Kyra's provider
+//  Step §6.10 (result) is still a stub, and says so on screen rather than
+//  pretending: it needs `POST /style-dna/generate`, which needs Kyra's provider
 //  decided. A stub that admits what it is beats a screen that looks finished and
 //  silently does nothing.
 //
@@ -78,11 +77,12 @@ public struct OnboardingFlowView: View {
         case .lifestyle:
             OnboardingLifestyleView(draft: $model.draft)
         case .quiz:
-            OnboardingStubStep(
-                headline: String(localized: "Not built yet", comment: "Onboarding stub headline"),
-                detail: String(localized: "Paired outfit comparisons land here once the imagery is generated.",
-                               comment: "Onboarding stub detail")
-            )
+            // The engine comes from the view model rather than being built here,
+            // because the scaffold's forward button already depends on it — its
+            // label has to say how many comparisons are being skipped. Two
+            // engines built from the same bundle would agree today and diverge
+            // the moment either side gained a filter.
+            OnboardingQuizView(draft: $model.draft, engine: model.quizEngine)
         case .result:
             OnboardingStubStep(
                 headline: String(localized: "Almost there", comment: "Onboarding stub headline"),

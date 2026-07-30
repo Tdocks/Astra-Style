@@ -261,15 +261,31 @@ public extension OnboardingDraft {
             && selectedIdentities.contains(primaryIdentity!)
     }
 
-    func styleProfile(userID: UUID) -> StyleProfile {
-        StyleProfile(
+    /// - Parameter quizCatalog: The comparison set the answers were given
+    ///   against. Required rather than defaulted to `.bundled()`, because that
+    ///   default would do file I/O on an innocuous-looking call and, worse,
+    ///   would silently score a restored draft against whatever imagery THIS
+    ///   build happens to have. Passing it makes the dependency visible at every
+    ///   call site — there is only one in production, and it hands over the
+    ///   catalog the user was actually shown.
+    func styleProfile(userID: UUID, quizCatalog: StyleQuizCatalog) -> StyleProfile {
+        let engine = StyleQuizEngine(catalog: quizCatalog)
+        return StyleProfile(
             userID: userID,
             primaryIdentity: primaryIdentity,
             // The primary is excluded from the secondaries rather than
             // duplicated across both columns.
             secondaryIdentities: selectedIdentities.filter { $0 != primaryIdentity },
             styleGoals: goals.map(\.rawValue).sorted(),
-            preferredFit: preferredFit
+            preferredFit: preferredFit,
+            // Derived at submission rather than stored on the draft. The answers
+            // are the source of truth; a cached vector alongside them is a second
+            // one, and the two drift the first time an answer is changed by the
+            // quiz's undo. Deriving also means a draft restored into a build with
+            // different imagery is re-scored against the imagery that build has,
+            // instead of carrying a number computed from comparisons that no
+            // longer exist.
+            preferenceVector: engine.vector(from: quizAnswers)
         )
     }
 
@@ -327,12 +343,16 @@ public extension OnboardingDraft {
         )
     }
 
-    func completionPayload(userID: UUID) -> OnboardingCompletionPayload {
+    func completionPayload(userID: UUID, quizCatalog: StyleQuizCatalog) -> OnboardingCompletionPayload {
         OnboardingCompletionPayload(
             styleGoals: goals.map(\.rawValue).sorted(),
-            styleProfile: styleProfile(userID: userID),
+            styleProfile: styleProfile(userID: userID, quizCatalog: quizCatalog),
             bodyProfile: bodyProfile(userID: userID),
             lifestyleProfile: lifestyleProfile(userID: userID),
+            // Sent as well as the derived vector, not instead of it. The server
+            // owns Style DNA generation (§6.10) and may weigh the raw choices
+            // differently, or re-infer them entirely when the comparison set
+            // grows — which it cannot do from a vector alone.
             quizAnswers: quizAnswers
         )
     }

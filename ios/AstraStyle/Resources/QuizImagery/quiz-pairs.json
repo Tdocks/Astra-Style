@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "pairs": [
+    {
+      "id": "formality-01",
+      "priority": 0,
+      "option_a": {
+        "id": "tailored",
+        "image": "quiz-formality-a",
+        "accessibility_description": "A navy blazer with patch pockets over an open white shirt, charcoal flannel trousers, black leather derbies.",
+        "loadings": { "formality": 1.0 }
+      },
+      "option_b": {
+        "id": "relaxed",
+        "image": "quiz-formality-b",
+        "accessibility_description": "A washed grey sweatshirt, olive cotton trousers turned up at the hem, off-white canvas sneakers.",
+        "loadings": { "formality": -1.0 }
+      }
+    },
+    {
+      "id": "colour-01",
+      "priority": 10,
+      "option_a": {
+        "id": "neutral",
+        "image": "quiz-colour-a",
+        "accessibility_description": "A putty crew-neck knit, stone flat-front trousers, tan suede loafers.",
+        "loadings": { "colour_tolerance": -1.0 }
+      },
+      "option_b": {
+        "id": "saturated",
+        "image": "quiz-colour-b",
+        "accessibility_description": "A burgundy crew-neck knit, forest-green corduroy trousers, tan leather chelsea boots.",
+        "loadings": { "colour_tolerance": 1.0 }
+      }
+    },
+    {
+      "id": "silhouette-01",
+      "priority": 20,
+      "option_a": {
+        "id": "close",
+        "image": "quiz-silhouette-a",
+        "accessibility_description": "A charcoal fine-gauge knit cut close through the sleeve, dark brown trousers narrowing to the ankle, black leather boots.",
+        "loadings": { "silhouette": -1.0 }
+      },
+      "option_b": {
+        "id": "loose",
+        "image": "quiz-silhouette-b",
+        "accessibility_description": "A cream mohair cardigan worn open over a white t-shirt, charcoal wide-leg trousers, off-white sneakers.",
+        "loadings": { "silhouette": 1.0 }
+      }
+    }
+  ]
+}

@@ -36,23 +36,38 @@ public final class OnboardingViewModel {
     public var draft: OnboardingDraft
     public private(set) var submission: SubmissionState = .idle
 
+    /// The §6.9 comparison set and its sequencing, held here rather than in the
+    /// quiz view because the flow's own chrome depends on it: the forward
+    /// button's label has to distinguish "skip the whole thing" from "skip the
+    /// three you have left", and it cannot do that without knowing how many
+    /// comparisons exist.
+    public let quizEngine: StyleQuizEngine
+
     private let store: any OnboardingDraftStoring
     private let profileRepository: any ProfileRepository
     private let sessionStore: SessionStore
     private let logger = Logger(subsystem: "com.astrastyle.app", category: "onboarding")
 
+    /// - Parameter quizCatalog: Defaults to what is in the bundle. Loading it
+    ///   here is a few kilobytes of JSON and six bundle lookups on a screen the
+    ///   user has not reached yet; it is synchronous so that "how many
+    ///   comparisons are there" is answerable the instant the flow is built,
+    ///   which every honest progress label on this step depends on. Injectable
+    ///   so tests can drive the flow with a comparison set they control.
     public init(
         store: any OnboardingDraftStoring,
         profileRepository: any ProfileRepository,
         sessionStore: SessionStore,
         draft: OnboardingDraft = OnboardingDraft(),
-        step: OnboardingStep = .intro
+        step: OnboardingStep = .intro,
+        quizCatalog: StyleQuizCatalog = .bundled()
     ) {
         self.store = store
         self.profileRepository = profileRepository
         self.sessionStore = sessionStore
         self.draft = draft
         self.step = step
+        self.quizEngine = StyleQuizEngine(catalog: quizCatalog)
     }
 
     // MARK: - Lifecycle
@@ -93,6 +108,28 @@ public final class OnboardingViewModel {
         if step == .result {
             return String(localized: "Finish", comment: "Onboarding forward button")
         }
+        // §6.9 is the one step whose content advances INSIDE itself: choosing an
+        // outfit moves to the next comparison, so the footer button never means
+        // "next question". Saying "Continue" while three comparisons are still
+        // waiting would be offering the user a control that looks like the one
+        // he has been tapping and does something entirely different — it leaves
+        // the step. Naming the number he is walking away from is the honest
+        // version, and it is also the version he can decline.
+        if step == .quiz {
+            if quizEngine.isFinished(given: draft.quizAnswers) {
+                return String(localized: "Continue", comment: "Onboarding forward button")
+            }
+            let remaining = quizEngine.comparisonCount
+                - quizEngine.answeredCount(given: draft.quizAnswers)
+            if remaining == quizEngine.comparisonCount {
+                return String(localized: "Skip for now", comment: "Onboarding forward button")
+            }
+            return String(
+                format: String(localized: "Skip the last %d",
+                               comment: "Onboarding forward button; %d is how many comparisons are left"),
+                remaining
+            )
+        }
         if stepHasAnyAnswer {
             return String(localized: "Continue", comment: "Onboarding forward button")
         }
@@ -106,7 +143,8 @@ public final class OnboardingViewModel {
     /// Kept alongside `advanceTitle` so the label and the button's visual weight
     /// are derived from the same condition and cannot disagree.
     public var advanceIsSkip: Bool {
-        step != .result && !stepHasAnyAnswer && step.isSkippable
+        if step == .quiz { return !quizEngine.isFinished(given: draft.quizAnswers) }
+        return step != .result && !stepHasAnyAnswer && step.isSkippable
     }
 
     /// Whether the current step has received any input at all. Drives
@@ -131,7 +169,10 @@ public final class OnboardingViewModel {
                 || draft.monthlyBudget != nil || !draft.preferredBrands.isEmpty
                 || draft.travelFrequency != nil || draft.religiousServiceAttireNeeds != nil
                 || draft.sustainabilityPreference != nil
-        case .quiz: !draft.quizAnswers.isEmpty
+        // Counted through the engine rather than off the array, so an answer
+        // left over from a build whose imagery has since changed does not make
+        // an untouched step look answered.
+        case .quiz: quizEngine.answeredCount(given: draft.quizAnswers) > 0
         }
     }
 
@@ -192,7 +233,9 @@ public final class OnboardingViewModel {
         }
 
         do {
-            _ = try await profileRepository.completeOnboarding(draft.completionPayload(userID: userID))
+            _ = try await profileRepository.completeOnboarding(
+                draft.completionPayload(userID: userID, quizCatalog: quizEngine.catalog)
+            )
             // Only clear the draft AFTER the server has accepted it. Clearing
             // optimistically would lose every answer if the request failed on a
             // flaky connection, which is exactly when it is most likely to.

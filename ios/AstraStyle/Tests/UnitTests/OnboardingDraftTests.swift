@@ -139,7 +139,7 @@ struct OnboardingDraftTests {
 
     @Test("The primary identity is not duplicated into the secondaries")
     func primaryIsNotDuplicated() {
-        let style = filledDraft().styleProfile(userID: UUID())
+        let style = filledDraft().styleProfile(userID: UUID(), quizCatalog: .empty)
         #expect(style.primaryIdentity == .modernHeritage)
         #expect(!style.secondaryIdentities.contains(.modernHeritage))
         #expect(style.secondaryIdentities.count == 2)
@@ -150,7 +150,7 @@ struct OnboardingDraftTests {
     func formerlyDroppedFieldsSurvive() {
         let d = filledDraft()
         let userID = UUID()
-        let style = d.styleProfile(userID: userID)
+        let style = d.styleProfile(userID: userID, quizCatalog: .empty)
         let lifestyle = d.lifestyleProfile(userID: userID)
 
         #expect(style.styleGoals.count == 2)
@@ -222,12 +222,18 @@ struct OnboardingDraftTests {
 
     @Test("The completion payload carries all four profiles and the answers")
     func payloadIsComplete() {
-        let payload = filledDraft().completionPayload(userID: UUID())
+        // An empty catalog, because this fixture's single answer names a pair no
+        // catalog has. That is itself the interesting case: the raw answer is
+        // still submitted (the server re-infers), while the derived vector
+        // correctly reports nothing measured rather than scoring a comparison
+        // this build cannot see.
+        let payload = filledDraft().completionPayload(userID: UUID(), quizCatalog: .empty)
         #expect(payload.styleGoals.count == 2)
         #expect(payload.styleProfile.primaryIdentity == .modernHeritage)
         #expect(payload.bodyProfile.heightCm != nil)
         #expect(payload.lifestyleProfile.currency == "GBP")
         #expect(payload.quizAnswers.count == 1)
+        #expect(payload.styleProfile.preferenceVector.isEmpty)
     }
 }
 

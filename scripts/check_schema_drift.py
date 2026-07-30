@@ -73,6 +73,12 @@ DEFAULT_SQL_FILE = REPO_ROOT / "supabase/migrations/20260728100100_core_enums.sq
 # coverage assertion at the end of main() is the guard that keeps them honest.
 EXTRA_SWIFT_FILES = [
     REPO_ROOT / "ios/AstraStyle/Domain/Models/FrameProfile.swift",
+    # The §6.9 preference vector. Neither of its enums has a Postgres enum type
+    # behind it (the whole vector is one jsonb column), but they are String-backed
+    # and persisted -- the raw values ARE the jsonb keys and the stored confidence
+    # strings. Listing the file means a rename here has to be classified below
+    # rather than sailing past a checker that never opened the file.
+    REPO_ROOT / "ios/AstraStyle/Domain/Models/StylePreferenceVector.swift",
 ]
 EXTRA_SQL_FILES = [
     REPO_ROOT / "supabase/migrations/20260729120000_frame_profile.sql",
@@ -141,6 +147,16 @@ NO_DB_COUNTERPART: dict[str, str] = {
     "ToleranceLevel": "logo_tolerance/trend_tolerance are `smallint` 0-100 scores, not enum columns.",
     "FitIssue": "body_profiles.fit_notes is `jsonb` (open-ended list per spec §6.6), not an enum column.",
     "OccupationCategory": "lifestyle_profiles.occupation_category is `text`, not an enum column.",
+    "StyleDimension": (
+        "keys inside the style_profiles.preference_vector jsonb document (§6.9's eight axes), "
+        "not an enum column -- so Postgres does not constrain the value set and a Swift-side "
+        "rename is a silent data-format change, not an INSERT error. Changing a raw value here "
+        "requires a StylePreferenceVector.currentVersion bump and a backfill."
+    ),
+    "PreferenceConfidence": (
+        "the `confidence` field inside each dimension of the style_profiles.preference_vector "
+        "jsonb document, not an enum column."
+    ),
     "LaundryCadence": (
         "lifestyle_profiles.laundry_cadence is `text` by explicit migration comment "
         "(\"cadence phrasing ... is naturally free-form input rather than a small closed set\")."

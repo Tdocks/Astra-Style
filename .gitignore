@@ -79,6 +79,14 @@ ios/AstraStyle/Resources/DownloadedAssets/
 TestResults/
 __snapshots__/**/*.actual.png
 
+# Screenshots exported out of an .xcresult by the QA / AX5 UI-test walks
+# (`xcrun xcresulttool export attachments`). They are a diagnostic you look at
+# once and regenerate on the next run, not a baseline anything is compared
+# against — snapshot baselines, if we ever add them, live under
+# __snapshots__/ and ARE tracked. Committing these would add megabytes of
+# near-identical PNGs per QA pass for no reviewable signal.
+.qa-shots/
+
 # XcodeGen-generated at `xcodegen generate` time from the `info:` and
 # `entitlements:` blocks in ios/project.yml. Tracking them would mean two
 # sources of truth for the same values, and they'd churn on every regen.
