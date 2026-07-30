@@ -257,7 +257,12 @@ final class OnboardingFlowUITests: XCTestCase {
             card.waitForStableFrame()
             guard card.isHittable else { continue }
             card.tap()
-            if card.isSelected { return }
+            // Poll rather than read once. The first version read `isSelected`
+            // immediately after `tap()`, got `false` because the accessibility
+            // trait had not propagated yet (0.35s was not enough), retried, and
+            // the retry TOGGLED THE CARD BACK OFF — so the guard against a lost
+            // tap became a way to lose one.
+            if card.waitUntilSelected() { return }
         }
         XCTFail(
             "Identity card never became selected at AX5: \(identity)",
@@ -310,6 +315,21 @@ private extension XCUIElement {
     /// timeout and lets the caller's own assertion report the problem, because a
     /// "frame never settled" failure would be less informative than the
     /// selection check that follows it.
+    /// Polls until this element reports the `isSelected` trait.
+    ///
+    /// Necessary because `tap()` returns as soon as the event is synthesised,
+    /// while the trait only appears once SwiftUI has re-rendered and the
+    /// accessibility tree has been rebuilt. Reading the trait once, straight
+    /// after the tap, reads the state from before it.
+    func waitUntilSelected(timeout: TimeInterval = 3) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if isSelected { return true }
+            usleep(150_000)
+        }
+        return false
+    }
+
     func waitForStableFrame(timeout: TimeInterval = 3) {
         var previous = CGRect.null
         let deadline = Date().addingTimeInterval(timeout)
