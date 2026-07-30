@@ -34,12 +34,12 @@ Required:
 
 Optional:
   --function <name>     Deploy only this one function (directory name under
-                         supabase/functions/, e.g. "outfits-generate").
+                         supabase/functions/, e.g. "outfits").
                          Default: deploy every function directory found
                          (every subdirectory of supabase/functions/ except
                          "_shared", which is a library, not a function).
   --no-verify-jwt        Pass --no-verify-jwt through to the Supabase CLI.
-                         Do NOT use this for outfits-generate or any other
+                         Do NOT use this for outfits or any other
                          function that authenticates via _shared/jwt.ts --
                          this flag disables the *platform-level* JWT check,
                          which these functions rely on defense-in-depth
@@ -58,7 +58,7 @@ Requires:
 
 Examples:
   scripts/deploy-functions.sh --project-ref abcdefghijklmnopqrst
-  scripts/deploy-functions.sh --project-ref abcdefghijklmnopqrst --function outfits-generate
+  scripts/deploy-functions.sh --project-ref abcdefghijklmnopqrst --function outfits
 EOF
 }
 
@@ -125,7 +125,13 @@ astra_log "Project ref: $(astra_mask "$project_ref")"
 astra_log "Deploying ${#functions_to_deploy[@]} function(s): ${functions_to_deploy[*]}"
 
 for fn in "${functions_to_deploy[@]}"; do
-  cmd=(supabase functions deploy "$fn" --project-ref "$project_ref" "${extra_flags[@]}")
+  # `${extra_flags[@]+...}` rather than a bare "${extra_flags[@]}": under
+  # `set -u`, bash 3.2 (macOS's /bin/bash, still what `env bash` resolves to
+  # on a stock Mac) treats expanding an EMPTY array as an unbound-variable
+  # error, so the common no-flags case would abort the deploy before it
+  # started. The +-form expands to nothing at all when the array is empty
+  # and to the properly-quoted elements when it isn't, on every bash.
+  cmd=(supabase functions deploy "$fn" --project-ref "$project_ref" ${extra_flags[@]+"${extra_flags[@]}"})
   if [[ $dry_run -eq 1 ]]; then
     printf 'DRY RUN: %s\n' "${cmd[*]}"
     continue

@@ -1,16 +1,30 @@
 // ============================================================================
-// outfits-generate/index.ts
+// outfits/index.ts
 // ============================================================================
-// Deployment entrypoint for `POST /outfits/generate`. This file is
-// intentionally thin: it wires real Supabase-backed implementations into
-// `handleGenerateOutfits`'s `HandlerDeps` and starts the Deno HTTP server.
-// All actual request logic lives in `handler.ts`, which is what
-// `handler_test.ts` exercises directly with mocked dependencies — this file
-// is verified by `deno check` (types) and by running `supabase functions
-// serve` + the curl invocation in `supabase/functions/README.md` (a real
-// HTTP round trip against a local Supabase stack), not by a Deno unit test,
-// since it has no logic of its own beyond wiring and genuinely requires a
-// live Supabase Auth + Postgres to exercise meaningfully.
+// Deployment entrypoint for the `outfits` Edge Function — the grouped
+// function serving every spec §14 endpoint whose path starts with
+// `outfits/`. Supabase routes `/functions/v1/{slug}/...` by the FIRST path
+// segment only, so `POST /outfits/generate` and `POST /outfits/rank` must
+// be one deployed function (slug `outfits`) that dispatches on the path
+// remainder itself — see docs/adr/0013-edge-function-routing.md and
+// `_shared/routing.ts` for the full rationale.
+//
+// Routes:
+//   POST /generate  -> handleGenerateOutfits (handler.ts)
+//   POST /rank      -> not built yet (Phase 4, P4-OUTFIT-08); until it is,
+//                      the router's own 404 answers it like any unknown
+//                      path, in the standard error envelope.
+//
+// This file is intentionally thin: it wires real Supabase-backed
+// implementations into `handleGenerateOutfits`'s `HandlerDeps` and starts
+// the Deno HTTP server. All actual request logic lives in `handler.ts`,
+// which is what `handler_test.ts` exercises directly with mocked
+// dependencies — this file is verified by `deno check` (types), by
+// `_shared/routing_test.ts` (the dispatch behavior it delegates to), and by
+// running `supabase functions serve` + the curl invocation in
+// `supabase/functions/README.md` (a real HTTP round trip against a local
+// Supabase stack), since its remaining logic is wiring that genuinely
+// requires a live Supabase Auth + Postgres to exercise meaningfully.
 //
 // NOTE ON SERVICE-ROLE: this function never constructs a service-role
 // client. See `_shared/supabaseClient.ts`'s header comment for why RLS with
@@ -21,6 +35,7 @@
 
 import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
+import { createRouter } from "../_shared/routing.ts";
 import { type ClosetRepository, handleGenerateOutfits } from "./handler.ts";
 import { type ClosetItemRow, LeastRecentlyWornScorer } from "./scorer.ts";
 import { serverError } from "../_shared/errors.ts";
@@ -31,7 +46,9 @@ import { serverError } from "../_shared/errors.ts";
 const env = readEdgeEnv();
 
 // A single limiter instance per isolate — see _shared/rateLimit.ts for why
-// this is a best-effort, non-durable limit, not a security boundary.
+// this is a best-effort, non-durable limit, not a security boundary. Shared
+// across every route in this function on purpose: the limit protects the
+// isolate (and the user's provider budget), not any one endpoint.
 const rateLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 // Stateless; safe to share across requests within this isolate.
@@ -40,7 +57,7 @@ const scorer = new LeastRecentlyWornScorer();
 const CANDIDATE_ROLES = ["top", "bottom", "shoes"] as const;
 const WEARABLE_LAUNDRY_STATES = ["clean", "worn_once"] as const;
 
-Deno.serve(async (req: Request) => {
+function generateOutfitsRoute(req: Request): Promise<Response> {
   // Build a Supabase client scoped to THIS request's caller — never the
   // service-role key. If the Authorization header is missing/malformed,
   // this client simply won't authenticate as anyone; `handleGenerateOutfits`
@@ -77,11 +94,15 @@ Deno.serve(async (req: Request) => {
     },
   };
 
-  return await handleGenerateOutfits(req, {
+  return handleGenerateOutfits(req, {
     authClient: supabase,
     closetRepository,
     scorer,
     rateLimiter,
     now: () => new Date(),
   });
-});
+}
+
+Deno.serve(createRouter("outfits", [
+  { method: "POST", pattern: "/generate", handler: generateOutfitsRoute },
+]));

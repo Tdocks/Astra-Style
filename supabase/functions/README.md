@@ -1,9 +1,16 @@
 # Astra Style — Supabase Edge Functions
 
 This directory holds the Deno/TypeScript Edge Functions for Astra Style.
-`outfits-generate` (deployed as `POST /outfits/generate`) is the first one,
-built as the template the other 15 endpoints in spec §14 will be copied
-from. Read `docs/01-build-roadmap.md`'s "Vertical slice first" section and
+Supabase routes `/functions/v1/{slug}/{rest}` by the FIRST path segment
+only, so each function here is named after the first segment of the spec
+§14 endpoint paths it serves and routes internally on the remainder via
+`_shared/routing.ts` — `outfits/` serves `POST /outfits/generate` today and
+`POST /outfits/rank` when Phase 4 builds it. Twelve grouped functions will
+serve all 16 §14 endpoints; see `docs/adr/0013-edge-function-routing.md`
+for the full slug table and why the obvious alternative (one hyphenated
+function per endpoint) was rejected. `outfits` is the first one, built as
+the template the other eleven will be copied from. Read
+`docs/01-build-roadmap.md`'s "Vertical slice first" section and
 `docs/00-master-spec.md` §14/§15 before adding a second function — the
 conventions below exist to satisfy those sections, not as arbitrary style.
 
@@ -19,28 +26,37 @@ supabase/functions/
     logger.ts                Structured JSON logging with a content denylist
     rateLimit.ts             In-memory rate limiter (see its header comment for limitations)
     requestId.ts             Request ID resolution (header -> body -> generated)
+    routing.ts               In-function path routing for grouped functions (ADR 0013)
     supabaseClient.ts        Caller-scoped (never service-role) Supabase client factory
     validation.ts            Small schema-validation helpers (UUID, string, int range, ...)
-  outfits-generate/       POST /outfits/generate
-    index.ts                Deployment entrypoint (Deno.serve + real Supabase wiring)
-    handler.ts               Testable request handler (all deps injected)
+  outfits/                POST /outfits/generate (and, in Phase 4, POST /outfits/rank)
+    index.ts                Deployment entrypoint (Deno.serve + createRouter + wiring)
+    handler.ts               Testable request handler for /generate (all deps injected)
     schema.ts                Request/response DTOs + body validation
     scorer.ts                 THE DETERMINISTIC SLICE SCORER — see its header comment
     *_test.ts                 Deno.test suites, one per module
 ```
 
 Every future endpoint (`profile/complete-onboarding`, `closet/analyze-item`,
-`kyra/respond`, etc.) should follow the same shape: a thin `index.ts` for
-wiring, a `handler.ts` with injected dependencies for testability, a
-`schema.ts` for request validation, and reuse of everything in `_shared/`
-rather than reimplementing JWT validation, error envelopes, logging, CORS,
-or rate limiting per function.
+`kyra/respond`, etc.) should follow the same shape: a function directory
+named after the endpoint path's first segment, a thin `index.ts` that
+builds its route table with `_shared/routing.ts`'s `createRouter` and does
+the wiring, one `handler.ts` per endpoint with injected dependencies for
+testability, a `schema.ts` for request validation, and reuse of everything
+in `_shared/` rather than reimplementing routing, JWT validation, error
+envelopes, logging, CORS, or rate limiting per function. An endpoint whose
+first segment already has a function (`outfits/rank` -> `outfits/`) is a
+new route in that function's `index.ts`, NOT a new function — and the
+mapping test in
+`ios/AstraStyle/Tests/UnitTests/EndpointDeploymentMappingTests.swift` will
+fail the build if a directory appears here whose name isn't a first
+segment the client actually uses.
 
-## Why no service-role key in `outfits-generate`
+## Why no service-role key in `outfits`
 
 Spec §15: "Service role keys exist only in Edge Functions. Never ship them
 in the app." That's a necessary condition, not a license to use the
-service-role key by default *inside* an Edge Function. `outfits-generate`
+service-role key by default *inside* an Edge Function. `outfits`
 only ever needs to read the *caller's own* `closet_items` rows, which
 `closet_items_select_own` (`supabase/migrations/20260728100900_rls_policies.sql`)
 already grants to any `authenticated` user for their own `user_id`. So this
@@ -74,7 +90,7 @@ comment for the migration path to a durable limiter behind the same
 
 ## The scoring seam — where the real `CompatibilityScorer` plugs in
 
-`outfits-generate/scorer.ts` implements `OutfitScorer`, an interface with
+`outfits/scorer.ts` implements `OutfitScorer`, an interface with
 one method: `generate(items, options) -> ScoredOutfit[]`. The only
 implementation today, `LeastRecentlyWornScorer`, is the deterministic
 placeholder named explicitly in `docs/01-build-roadmap.md`'s vertical slice
@@ -116,11 +132,14 @@ supabase start
 supabase functions serve
 
 # Or serve just this one function:
-supabase functions serve outfits-generate
+supabase functions serve outfits
 ```
 
 `supabase functions serve` prints the local URL, typically
-`http://localhost:54321/functions/v1/outfits-generate`.
+`http://localhost:54321/functions/v1/outfits` — the endpoint itself lives
+at `/functions/v1/outfits/generate`, the same shape the iOS client builds
+(the platform routes on the `outfits` segment; `_shared/routing.ts`
+dispatches on `/generate`).
 
 ### Getting a real JWT to test with
 
@@ -151,7 +170,7 @@ only, per `docs/01-build-roadmap.md`).
 ACCESS_TOKEN=$(cat /tmp/access_token.txt)
 ANON_KEY="<ANON_KEY from \`supabase status\`>"
 
-curl -sS -X POST 'http://localhost:54321/functions/v1/outfits-generate' \
+curl -sS -X POST 'http://localhost:54321/functions/v1/outfits/generate' \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -H "apikey: ${ANON_KEY}" \
   -H "Content-Type: application/json" \
@@ -197,10 +216,10 @@ import map and strict compiler options every file below it inherits):
 ```bash
 cd supabase/functions
 
-deno check _shared/*.ts outfits-generate/*.ts   # or: deno task check
-deno test --allow-env _shared/ outfits-generate/  # or: deno task test
-deno fmt --check _shared/ outfits-generate/       # or: deno task fmt-check
-deno lint _shared/ outfits-generate/              # or: deno task lint
+deno check _shared/*.ts outfits/*.ts   # or: deno task check
+deno test --allow-env _shared/ outfits/  # or: deno task test
+deno fmt --check _shared/ outfits/       # or: deno task fmt-check
+deno lint _shared/ outfits/              # or: deno task lint
 ```
 
 `deno test` needs `--allow-env` only because `_shared/supabaseClient.ts`
@@ -208,12 +227,13 @@ reads `Deno.env.get(...)` at module scope in a code path some tests import
 transitively for type purposes; no test in this suite makes a network call
 or touches a real Supabase project — every Supabase/Auth interaction is
 mocked at the `AuthClient`/`ClosetRepository` interface boundary (see
-`outfits-generate/handler_test.ts`'s header comment).
+`outfits/handler_test.ts`'s header comment).
 
-`outfits-generate/index.ts` (the `Deno.serve` wiring) is intentionally
-*not* covered by a unit test — it's pure wiring with no branching logic of
-its own, and the parts worth testing (does a real JWT get accepted? does
-RLS actually block another user's rows?) require a real Supabase Auth +
+`outfits/index.ts` (the `Deno.serve` wiring) is intentionally *not*
+covered by a unit test — it's wiring plus a route table, and the dispatch
+behavior it delegates to is covered by `_shared/routing_test.ts`, while the
+parts worth testing beyond that (does a real JWT get accepted? does RLS
+actually block another user's rows?) require a real Supabase Auth +
 Postgres to mean anything, which is what the `curl` walkthrough above and
 `supabase functions serve` are for. `deno check` does still type-check it.
 
@@ -226,14 +246,14 @@ supabase link --project-ref <your-project-ref>
 # Set every provider/config secret an Edge Function needs (SUPABASE_URL and
 # SUPABASE_ANON_KEY are provided automatically for deployed functions; do
 # NOT set SUPABASE_SERVICE_ROLE_KEY here unless a function actually needs
-# it — outfits-generate does not).
+# it — outfits does not).
 supabase secrets set STYLIST_PROVIDER_API_KEY=... # only when a function needs it
 
-supabase functions deploy outfits-generate
+supabase functions deploy outfits
 ```
 
 After deploying, repeat the `curl` invocation above against
-`https://<project-ref>.supabase.co/functions/v1/outfits-generate` with a
+`https://<project-ref>.supabase.co/functions/v1/outfits/generate` with a
 real project JWT and anon key (`supabase status` for local, the dashboard's
 Project Settings -> API for hosted).
 
@@ -243,10 +263,12 @@ Verified in this environment (no live Supabase project or Docker available
 here):
 
 - `deno check` passes with zero errors across every `_shared/` and
-  `outfits-generate/` file, including `index.ts`, under `strict: true` (no
+  `outfits/` file, including `index.ts`, under `strict: true` (no
   `any` anywhere in this function's own code).
-- `deno test --allow-env _shared/ outfits-generate/` passes: **65 tests, 0
-  failures**, covering (among others) a missing JWT, a malformed JWT, a JWT
+- `deno test --allow-env _shared/ outfits/` passes: **83 tests, 0
+  failures** (65 from the original slice, 15 for `_shared/routing.ts`'s
+  dispatch/404/405/preflight behavior, plus subsequent additions), covering
+  (among others) a missing JWT, a malformed JWT, a JWT
   Supabase Auth itself rejects, schema-invalid bodies (out-of-range
   `desired_count`, a non-UUID in `locked_closet_item_ids`, a missing `body`
   field, unparsable JSON), a well-formed successful response, rate-limit

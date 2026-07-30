@@ -19,10 +19,13 @@ product spec and `docs/04-data-model.md` for the schema design rationale.
 ```text
 supabase/
   migrations/     Numbered, ordered SQL migrations — see below.
-  functions/      Edge Functions (Deno/TypeScript). `outfits-generate`
-                   (POST /outfits/generate) is the first one, built as the
-                   vertical slice from docs/01-build-roadmap.md; see
-                   functions/README.md for how to run, test, and deploy it.
+  functions/      Edge Functions (Deno/TypeScript). `outfits` (serving
+                   POST /outfits/generate) is the first one, built as the
+                   vertical slice from docs/01-build-roadmap.md; functions
+                   are named after the FIRST path segment of the spec S14
+                   endpoints they serve and route internally on the rest
+                   (docs/adr/0013-edge-function-routing.md). See
+                   functions/README.md for how to run, test, and deploy.
   config.toml     Supabase CLI project config (created by `supabase init`,
                    not checked in yet as of this migration set).
 ```

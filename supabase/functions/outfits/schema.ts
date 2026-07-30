@@ -1,5 +1,5 @@
 // ============================================================================
-// outfits-generate/schema.ts
+// outfits/schema.ts
 // ============================================================================
 // Request-schema validation for `POST /outfits/generate` (spec §14). Shapes
 // mirror `GenerateOutfitsBody`/`OutfitGenerationRequest` in

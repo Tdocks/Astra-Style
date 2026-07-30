@@ -59,6 +59,10 @@ export function methodNotAllowed(message = "Method not allowed."): AppError {
   return new AppError("validation", 405, message);
 }
 
+export function notFound(message = "Not found."): AppError {
+  return new AppError("validation", 404, message);
+}
+
 /** Wire shape of a successful or failed response body. */
 export interface ResponseEnvelope<T> {
   data: T | null;

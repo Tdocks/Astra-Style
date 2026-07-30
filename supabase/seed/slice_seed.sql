@@ -2,7 +2,7 @@
 -- Astra Style — vertical slice seed data
 -- ============================================================================
 -- Populates a believable 25-item men's wardrobe for ONE user, so the
--- `POST /outfits/generate` Edge Function (supabase/functions/outfits-generate)
+-- `POST /outfits/generate` Edge Function (supabase/functions/outfits)
 -- has something real to choose from, and so a developer testing the slice's
 -- manual "add a garment" form doesn't also have to hand-enter 25 items first.
 --
@@ -13,8 +13,8 @@
 -- than a cotton shirt; a grenadine tie is more formal than a pocket tee), and
 -- wear_count/last_worn_at are deliberately varied — several items have never
 -- been worn (last_worn_at IS NULL), several were worn recently, and several
--- haven't been worn in months, so `outfits-generate`'s
--- `LeastRecentlyWornScorer` (supabase/functions/outfits-generate/scorer.ts)
+-- haven't been worn in months, so the `outfits` function's
+-- `LeastRecentlyWornScorer` (supabase/functions/outfits/scorer.ts)
 -- actually has a meaningful order to sort by instead of 25 identical rows.
 --
 -- Every literal value below was checked against

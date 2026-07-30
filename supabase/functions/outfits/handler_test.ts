@@ -1,5 +1,5 @@
 // ============================================================================
-// outfits-generate/handler_test.ts
+// outfits/handler_test.ts
 // ============================================================================
 // Covers, at minimum (per the task spec):
 //   - rejects a missing JWT

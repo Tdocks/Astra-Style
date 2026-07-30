@@ -6,7 +6,16 @@
 # works" are different claims. This script makes the second claim only after
 # checking it directly against the real project:
 #
-#   1. The Edge Function is actually reachable (not 404/DNS failure/timeout).
+#   1. The Edge Function is actually reachable (not 404/DNS failure/timeout)
+#      AT THE URL THE iOS CLIENT ACTUALLY BUILDS. The path checked is read
+#      out of AstraEndpoint.swift, not hand-written here, because a
+#      hand-written slug once masked a total production outage: the client
+#      called `POST /outfits/generate` (spec §14's shape) while the deployed
+#      function's slug was `outfits-generate`, so every real call 404'd —
+#      and this script stayed green the whole time because it curled the
+#      hyphenated slug the deploy used instead of the URL the app uses. See
+#      docs/adr/0013-edge-function-routing.md. The check is only meaningful
+#      when it asks "does the client's URL work", never "does some URL work".
 #   2. It rejects a request with no JWT with 401, not 200 or a 500.
 #   3. Every migration in supabase/migrations/ is recorded as applied on the
 #      remote database — not just "the push command exited 0" (a push can
@@ -34,7 +43,7 @@ source "$SCRIPT_DIR/lib.sh"
 usage() {
   cat <<'EOF'
 Usage: verify-deployment.sh --project-ref <ref> --anon-key <key> --db-url <url>
-                             [--function <name>] [--base-url <url>] [--help]
+                             [--endpoint-path <path>] [--base-url <url>] [--help]
 
 Runs four independent checks against a deployed Supabase project and prints
 a PASS/FAIL/WARN summary. Exits 0 only if every check that ran passed.
@@ -58,7 +67,14 @@ Required:
                           --db-url is omitted.
 
 Optional:
-  --function <name>      Which function to HTTP-check. Default: outfits-generate.
+  --endpoint-path <path>  Which endpoint path to HTTP-check, relative to
+                          /functions/v1 (e.g. "outfits/generate"). Default:
+                          the exact path the iOS client builds for
+                          POST /outfits/generate, extracted from
+                          ios/AstraStyle/Core/Networking/AstraEndpoint.swift
+                          so this check and the app can never silently
+                          diverge (see the module comment above for the
+                          outage that divergence caused).
   --base-url <url>        Override the function base URL. Default:
                           https://<project-ref>.supabase.co/functions/v1
   --help                  Show this message and exit 0.
@@ -83,7 +99,7 @@ EOF
 project_ref=""
 anon_key=""
 db_url="${SUPABASE_DB_URL:-}"
-function_name="outfits-generate"
+endpoint_path=""
 base_url=""
 
 while [[ $# -gt 0 ]]; do
@@ -97,9 +113,9 @@ while [[ $# -gt 0 ]]; do
     --db-url)
       [[ $# -ge 2 ]] || astra_die "--db-url requires a value."
       db_url="$2"; shift 2 ;;
-    --function)
-      [[ $# -ge 2 ]] || astra_die "--function requires a value."
-      function_name="$2"; shift 2 ;;
+    --endpoint-path)
+      [[ $# -ge 2 ]] || astra_die "--endpoint-path requires a value."
+      endpoint_path="$2"; shift 2 ;;
     --base-url)
       [[ $# -ge 2 ]] || astra_die "--base-url requires a value."
       base_url="$2"; shift 2 ;;
@@ -119,10 +135,27 @@ astra_require_project_ref "$project_ref" "--project-ref"
 astra_require_cmd curl "curl is required for the HTTP checks."
 astra_require_cmd psql "The PostgreSQL client is required for the migrations/RLS checks."
 
+# Default the checked path to the one the CLIENT builds for
+# POST /outfits/generate, read straight out of AstraEndpoint.swift. If the
+# client's path changes and this extraction breaks, that is a real signal
+# (the deployment mapping needs re-verifying), so fail loudly rather than
+# quietly falling back to a hardcoded guess — a hardcoded guess is exactly
+# how the outfits-generate/outfits/generate 404 stayed invisible.
+ENDPOINT_SWIFT="$REPO_ROOT/ios/AstraStyle/Core/Networking/AstraEndpoint.swift"
+if [[ -z "$endpoint_path" ]]; then
+  [[ -f "$ENDPOINT_SWIFT" ]] || astra_die "AstraEndpoint.swift not found at $ENDPOINT_SWIFT (needed to derive the default --endpoint-path)."
+  endpoint_path="$(sed -n 's/^[[:space:]]*case \.generateOutfits:[[:space:]]*"\([^"]*\)".*$/\1/p' "$ENDPOINT_SWIFT" | head -n 1)"
+  [[ -n "$endpoint_path" ]] || astra_die "Could not extract the .generateOutfits path from $ENDPOINT_SWIFT. If AstraEndpoint.path's formatting changed, update the sed expression here — do NOT replace this with a hardcoded path."
+fi
+
 [[ -n "$base_url" ]] || base_url="https://${project_ref}.supabase.co/functions/v1"
-function_url="${base_url%/}/${function_name}"
+function_url="${base_url%/}/${endpoint_path#/}"
+# Supabase routes /functions/v1/{slug}/... by first path segment only — the
+# slug is what must exist as a deployed function for this URL to resolve.
+function_slug="${endpoint_path#/}"; function_slug="${function_slug%%/*}"
 
 astra_log "Project ref: $(astra_mask "$project_ref")"
+astra_log "Endpoint path (client-built): $endpoint_path"
 astra_log "Function URL: $function_url"
 astra_log "Anon key: $(astra_mask "$anon_key")"
 db_host="$(printf '%s' "$db_url" | sed -E 's#^[a-zA-Z0-9+]+://[^@]*@?##; s#/.*##')"
@@ -164,7 +197,7 @@ preflight_code="$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS "$function_u
 if [[ "$preflight_code" == "000" ]]; then
   report FAIL "function-reachable" "no HTTP response at all from $function_url (DNS/network failure, or function not deployed)."
 elif [[ "$preflight_code" == "404" ]]; then
-  report FAIL "function-reachable" "HTTP 404 — function '$function_name' does not appear to be deployed at this URL."
+  report FAIL "function-reachable" "HTTP 404 — the client's URL for this endpoint does not resolve. Supabase routes by first path segment, so a function with slug '$function_slug' must be deployed (scripts/deploy-functions.sh --function $function_slug)."
 elif [[ "$preflight_code" =~ ^(200|204)$ ]]; then
   report PASS "function-reachable" "CORS preflight returned HTTP $preflight_code."
 else

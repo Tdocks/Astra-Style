@@ -1,5 +1,5 @@
 // ============================================================================
-// outfits-generate/handler.ts
+// outfits/handler.ts
 // ============================================================================
 // `POST /outfits/generate` (spec §14). Deployment wiring lives in
 // `index.ts`; everything here is pure enough to unit test with injected
@@ -141,7 +141,7 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     const items = await deps.closetRepository.listCandidateItems(userId);
 
     // SEAM: `deps.scorer` is where the real CompatibilityScorer plugs in
-    // later — see outfits-generate/scorer.ts's module header.
+    // later — see outfits/scorer.ts's module header.
     const scored = deps.scorer.generate(items, {
       desiredCount: body.desiredCount,
       lockedItemIds: new Set(body.lockedClosetItemIds),

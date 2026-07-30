@@ -19,7 +19,7 @@
 // the Auth Admin API, which requires service-role; writing to
 // `product_candidates`, a shared catalog table with no `authenticated`
 // write policy at all, is another documented exception in
-// `20260728100900_rls_policies.sql`). `outfits-generate` needs neither: it
+// `20260728100900_rls_policies.sql`). the `outfits` function needs neither: it
 // only reads the caller's own `closet_items`, which RLS already allows for
 // `authenticated`. See `supabase/functions/README.md` for the project-wide
 // policy this comment summarizes.
