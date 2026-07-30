@@ -58,6 +58,50 @@ MODEL_TABLES: dict[str, str] = {
     "Subscription": "subscriptions",
 }
 
+# Columns that legitimately have no coding key, with the reason.
+#
+# This is the REVERSE direction, and it was missing from the first version of
+# this script -- which checked only Swift -> columns. That blind spot let five
+# spec-required fields sit unmapped: `style_goals` (§6.4) plus `currency`,
+# `travel_frequency`, `religious_service_attire_needs` and
+# `sustainability_preference` (all named in §6.8). The columns existed, the
+# onboarding steps were required, and nothing complained -- the app simply could
+# not persist the answers. A one-directional checker gives the feeling of
+# coverage while leaving half the surface unwatched.
+# Boilerplate that is unmapped on almost every model for good reason, and would
+# otherwise bury the domain findings in noise. A surrogate primary key and audit
+# timestamps are infrastructure: the server owns them, the client neither writes
+# nor needs them. Listing each one per table would make this file unreadable and
+# train people to stop reading the output -- which is the actual failure mode
+# for a checker like this.
+#
+# `deleted_at` is deliberately NOT here. Soft-delete state is domain-meaningful:
+# a model that cannot see it will happily display a row the server considers
+# gone.
+BOILERPLATE_COLUMNS = {"id", "created_at", "updated_at"}
+
+ALLOWED_UNMAPPED_COLUMNS: dict[tuple[str, str], str] = {
+    # Denormalised owner columns. These exist so RLS can filter without a join
+    # (see 20260728100900_rls_policies) and are written by the server, never by
+    # the client — the parent row already carries ownership. Registered rather
+    # than added as properties, because a client-writable user_id on a child row
+    # is an IDOR surface, not a convenience.
+    ("closet_item_images", "user_id"): "Denormalised for RLS; owner comes from the parent closet item.",
+    ("kyra_messages", "user_id"): "Denormalised for RLS; owner comes from the parent thread.",
+    ("outfit_items", "user_id"): "Denormalised for RLS; owner comes from the parent outfit.",
+
+    ("body_profiles", "appearance"):
+        "§6.7 appearance attributes, stored as a catch-all jsonb and read only "
+        "by Style Studio's reference-image handling, not by BodyProfile.",
+    ("body_profiles", "frame_taper"): "Derived server-side; lives on FrameProfile, not BodyProfile.",
+    ("body_profiles", "frame_taper_confidence"): "See frame_taper.",
+    ("body_profiles", "frame_proportion"): "See frame_taper.",
+    ("body_profiles", "frame_proportion_confidence"): "See frame_taper.",
+    ("body_profiles", "frame_scale"): "See frame_taper.",
+    ("body_profiles", "frame_scale_confidence"): "See frame_taper.",
+    ("body_profiles", "muscularity_hint"): "See frame_taper.",
+}
+
 # Coding keys that legitimately have no column, with the reason.
 #
 # Every entry is a hole in the check, so each one states why it is safe. An
@@ -212,9 +256,27 @@ def main() -> int:
                 f"decodes as nil forever, silently."
             )
 
+    # Reverse pass: columns with no coding key. Reported as problems unless
+    # explicitly allowed, because a spec-required field the model cannot
+    # persist fails silently -- the write simply omits it.
+    for model, table in sorted(MODEL_TABLES.items()):
+        if model not in models or table not in tables:
+            continue
+        for column in sorted(tables[table] - models[model]):
+            if column in BOILERPLATE_COLUMNS:
+                continue
+            if (table, column) in ALLOWED_UNMAPPED_COLUMNS:
+                continue
+            problems.append(
+                f"{table}.{column} has no coding key on {model}. Either add the "
+                f"property or register it in ALLOWED_UNMAPPED_COLUMNS with a "
+                f"reason.\n      An unmapped column is silently dropped on "
+                f"write -- the user's answer goes nowhere."
+            )
+
     print(
         f"Parsed {len(tables)} tables and {len(models)} Swift models; "
-        f"checked {checked} model/table pairs."
+        f"checked {checked} model/table pairs in both directions."
     )
 
     if problems:

@@ -13,6 +13,20 @@ public struct StyleProfile: Codable, Hashable, Sendable {
     public var userID: UUID
     public var primaryIdentity: StyleIdentity?
     public var secondaryIdentities: [StyleIdentity]
+
+    /// The user's own stated goals from spec §6.4 ("Onboarding — Style goals"),
+    /// e.g. "look sharper at work", "stop buying things I don't wear".
+    ///
+    /// Free text on purpose. These are the words the user chose, and Kyra's
+    /// Style DNA summary should be able to echo them back rather than
+    /// paraphrasing them into a taxonomy. `jsonb NOT NULL DEFAULT '[]'` in
+    /// Postgres, so an empty array rather than nil is the "not answered" state.
+    ///
+    /// Missing from this model until the Phase 2 pre-flight, despite the column
+    /// existing and §6.4 being a required onboarding step — the screen would
+    /// have collected goals with nowhere to put them.
+    public var styleGoals: [String]
+
     public var preferredColors: [String]
     public var avoidedColors: [String]
     public var preferredFit: ItemFit?
@@ -34,6 +48,7 @@ public struct StyleProfile: Codable, Hashable, Sendable {
         userID: UUID,
         primaryIdentity: StyleIdentity? = nil,
         secondaryIdentities: [StyleIdentity] = [],
+        styleGoals: [String] = [],
         preferredColors: [String] = [],
         avoidedColors: [String] = [],
         preferredFit: ItemFit? = nil,
@@ -49,6 +64,7 @@ public struct StyleProfile: Codable, Hashable, Sendable {
         self.userID = userID
         self.primaryIdentity = primaryIdentity
         self.secondaryIdentities = secondaryIdentities
+        self.styleGoals = styleGoals
         self.preferredColors = preferredColors
         self.avoidedColors = avoidedColors
         self.preferredFit = preferredFit
@@ -66,6 +82,7 @@ public struct StyleProfile: Codable, Hashable, Sendable {
         case userID = "user_id"
         case primaryIdentity = "primary_identity"
         case secondaryIdentities = "secondary_identities"
+        case styleGoals = "style_goals"
         case preferredColors = "preferred_colors"
         case avoidedColors = "avoided_colors"
         case preferredFit = "preferred_fit"

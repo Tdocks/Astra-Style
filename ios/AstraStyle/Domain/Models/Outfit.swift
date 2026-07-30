@@ -21,6 +21,16 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
     public var heroImageURL: URL?
     public var generatedPreviewURL: URL?
     public var isFavorite: Bool
+
+    /// Soft-delete timestamp. `nil` means active.
+    ///
+    /// `ClosetItem` has had `archivedAt` plus an `isArchived` convenience since
+    /// the start; `Outfit` did not, despite the column existing. The app could
+    /// therefore not tell an archived outfit from a live one and would have
+    /// listed both — the kind of gap that reads as "the app resurrected
+    /// something I deleted".
+    public var archivedAt: Date?
+
     public var embedding: [Float]?
     public var createdAt: Date
     public var updatedAt: Date
@@ -39,6 +49,7 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         heroImageURL: URL? = nil,
         generatedPreviewURL: URL? = nil,
         isFavorite: Bool = false,
+        archivedAt: Date? = nil,
         embedding: [Float]? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
@@ -56,6 +67,7 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         self.heroImageURL = heroImageURL
         self.generatedPreviewURL = generatedPreviewURL
         self.isFavorite = isFavorite
+        self.archivedAt = archivedAt
         self.embedding = embedding
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -75,8 +87,12 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         case heroImageURL = "hero_image_url"
         case generatedPreviewURL = "generated_preview_url"
         case isFavorite = "is_favorite"
+        case archivedAt = "archived_at"
         case embedding
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
+
+    /// Mirrors `ClosetItem.isArchived` so call sites read the same way for both.
+    public var isArchived: Bool { archivedAt != nil }
 }

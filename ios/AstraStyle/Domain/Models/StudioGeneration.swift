@@ -25,6 +25,17 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
     public var resultImagePath: String?
     public var provider: String?
     public var errorMessage: String?
+
+    /// Soft-delete timestamp from the retention policy in
+    /// `adr/0010-image-storage-and-retention.md`. `nil` means live.
+    ///
+    /// This is not cosmetic. Generations are images of the user's face, and
+    /// deletion is the mechanism behind spec §29's erasure obligation. A model
+    /// blind to `deleted_at` would keep listing and keep displaying a
+    /// generation the server considers erased — which is the single worst
+    /// place in this app to be wrong.
+    public var deletedAt: Date?
+
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -38,6 +49,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         resultImagePath: String? = nil,
         provider: String? = nil,
         errorMessage: String? = nil,
+        deletedAt: Date? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -50,6 +62,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         self.resultImagePath = resultImagePath
         self.provider = provider
         self.errorMessage = errorMessage
+        self.deletedAt = deletedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -64,6 +77,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         case resultImagePath = "result_image_path"
         case provider
         case errorMessage = "error_message"
+        case deletedAt = "deleted_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -74,4 +88,8 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
     public var isRetryableWithoutCharge: Bool {
         status == .failed && errorMessage != nil
     }
+
+    /// `true` when the retention policy has erased this generation. Callers
+    /// must filter on this before displaying or re-downloading a result.
+    public var isDeleted: Bool { deletedAt != nil }
 }
