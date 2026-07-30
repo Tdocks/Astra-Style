@@ -34,6 +34,7 @@ struct OnboardingMeasurementsView: View {
     @Binding var draft: OnboardingDraft
 
     @FocusState private var focusedField: String?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
@@ -210,27 +211,44 @@ struct OnboardingMeasurementsView: View {
                 eyebrow: String(localized: "FIT", comment: "Onboarding section eyebrow")
             )
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AstraSpacing.xs) {
+            // A horizontal scroller at accessibility sizes put "Regular" half off
+            // the right edge with no scroll indicator and nothing else visible
+            // past it — a choice the user has no way to know exists. Sideways
+            // scrolling is also the gesture least likely to be discovered by
+            // someone who has enlarged the text. Stacked vertically the chips are
+            // all simply present.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                     ForEach(ItemFit.allCases, id: \.self) { fit in
-                        AstraChip(
-                            fit.displayName,
-                            isSelected: draft.preferredFit == fit,
-                            action: {
-                                // Tapping the selected chip clears it, so a user
-                                // who changes his mind can return to "no
-                                // preference" instead of being stuck with a
-                                // choice he made by accident.
-                                draft.preferredFit = draft.preferredFit == fit ? nil : fit
-                                AstraHaptics.selection()
-                            }
-                        )
-                        .accessibilityIdentifier("onboarding.fit.\(fit.rawValue)")
+                        fitChip(fit)
                     }
                 }
-                .padding(.horizontal, 1)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AstraSpacing.xs) {
+                        ForEach(ItemFit.allCases, id: \.self) { fit in
+                            fitChip(fit)
+                        }
+                    }
+                    .padding(.horizontal, 1)
+                }
             }
         }
+    }
+
+    private func fitChip(_ fit: ItemFit) -> some View {
+        AstraChip(
+            fit.displayName,
+            isSelected: draft.preferredFit == fit,
+            action: {
+                // Tapping the selected chip clears it, so a user who changes his
+                // mind can return to "no preference" instead of being stuck with
+                // a choice he made by accident.
+                draft.preferredFit = draft.preferredFit == fit ? nil : fit
+                AstraHaptics.selection()
+            }
+        )
+        .accessibilityIdentifier("onboarding.fit.\(fit.rawValue)")
     }
 
     // MARK: - Fit issues
@@ -285,57 +303,60 @@ private struct MeasurementField: View {
     let identifier: String
 
     @State private var text: String = ""
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var isDeclined: Bool { entry.state == .declined }
 
+    /// Width of the label column at ordinary text sizes.
+    ///
+    /// Only applied below accessibility sizes. Four things share this row — the
+    /// label, the field, the unit and "Not sure" — and a fixed 84pt column is
+    /// what keeps the fields aligned into a readable table. At AX5 that same
+    /// constant broke "Height" across lines mid-word, so the row is stacked
+    /// instead (see `body`).
+    private static let labelColumnWidth: CGFloat = 84
+
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            HStack(spacing: AstraSpacing.sm) {
-                Text(label)
-                    .astraText(.body)
-                    .foregroundStyle(isDeclined ? AstraColor.textMuted : AstraColor.textPrimary)
-                    .frame(width: 84, alignment: .leading)
-
-                TextField(isDeclined ? "—" : "", text: $text)
-                    .keyboardType(.decimalPad)
-                    .focused($focusedField, equals: identifier)
-                    .astraText(.body)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .disabled(isDeclined)
-                    .onChange(of: text) { _, newValue in commit(newValue) }
-                    .accessibilityIdentifier("onboarding.measurement.\(identifier)")
-
-                Text(lengthUnitLabel)
-                    .astraText(.caption)
-                    .foregroundStyle(AstraColor.textMuted)
-
-                Button(action: toggleDeclined) {
-                    Text(isDeclined
-                         ? String(localized: "Undo", comment: "Undo declining a measurement")
-                         : String(localized: "Not sure", comment: "Decline a measurement"))
-                        .astraText(.caption)
-                        .foregroundStyle(
-                            isDeclined ? AstraColor.accentChampagneAccessible : AstraColor.textSecondary
-                        )
+            // At accessibility sizes there is not room for four items on one
+            // line: the fixed label column truncated hyphenlessly mid-word
+            // ("Trous / er / size" on the sibling SizeField), the placeholder
+            // clipped to "32, 32x30…" so the format hint became unreadable, and
+            // "Not sure" — a first-class answer per §6.6 — was squeezed to the
+            // screen edge. Stacking costs vertical space, which a scroll view
+            // has, in exchange for horizontal space, which it does not.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    labelText
+                    HStack(alignment: .firstTextBaseline, spacing: AstraSpacing.sm) {
+                        valueField
+                        unitText
+                    }
+                    notSureButton
                 }
-                .buttonStyle(.plain)
-                .frame(minWidth: 56, minHeight: AstraSize.minTapTarget, alignment: .trailing)
-                .accessibilityIdentifier("onboarding.notSure.\(identifier)")
-                .accessibilityLabel(
-                    isDeclined
-                    ? String(format: String(localized: "Undo not sure for %@",
-                                            comment: "VoiceOver: undo declining"), label)
-                    : String(format: String(localized: "Mark %@ as not sure",
-                                            comment: "VoiceOver: decline"), label)
-                )
+                .padding(.vertical, AstraSpacing.xs)
+            } else {
+                HStack(spacing: AstraSpacing.sm) {
+                    labelText
+                        .frame(width: Self.labelColumnWidth, alignment: .leading)
+                    valueField
+                    unitText
+                    notSureButton
+                }
+                .padding(.vertical, AstraSpacing.xs)
             }
-            .padding(.vertical, AstraSpacing.xs)
 
             if let footnote {
                 Text(footnote)
                     .astraText(.caption)
                     .foregroundStyle(AstraColor.textMuted)
-                    .padding(.leading, 84 + AstraSpacing.sm)
+                    .fixedSize(horizontal: false, vertical: true)
+                    // Indented to line up under the field at ordinary sizes;
+                    // flush left when the row is stacked, where there is no
+                    // column to line up with and the indent would just eat width.
+                    .padding(.leading, typeSize.isAccessibilitySize
+                             ? 0
+                             : Self.labelColumnWidth + AstraSpacing.sm)
             }
 
             Divider().overlay(AstraColor.divider)
@@ -346,6 +367,62 @@ private struct MeasurementField: View {
                 text = Self.format(value)
             }
         }
+    }
+
+    // MARK: - Row pieces, shared by both layouts
+
+    private var labelText: some View {
+        Text(label)
+            .astraText(.body)
+            .foregroundStyle(isDeclined ? AstraColor.textMuted : AstraColor.textPrimary)
+            // Wrap rather than truncate. Without this the fixed column width
+            // clipped "Height" and "Weight" mid-word at AX5.
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var valueField: some View {
+        TextField(isDeclined ? "—" : "", text: $text)
+            .keyboardType(.decimalPad)
+            .focused($focusedField, equals: identifier)
+            .astraText(.body)
+            .foregroundStyle(AstraColor.textPrimary)
+            .disabled(isDeclined)
+            .onChange(of: text) { _, newValue in commit(newValue) }
+            .accessibilityIdentifier("onboarding.measurement.\(identifier)")
+    }
+
+    private var unitText: some View {
+        Text(lengthUnitLabel)
+            .astraText(.caption)
+            .foregroundStyle(AstraColor.textMuted)
+            .fixedSize()
+    }
+
+    private var notSureButton: some View {
+        Button(action: toggleDeclined) {
+            Text(isDeclined
+                 ? String(localized: "Undo", comment: "Undo declining a measurement")
+                 : String(localized: "Not sure", comment: "Decline a measurement"))
+                .astraText(.caption)
+                .foregroundStyle(
+                    isDeclined ? AstraColor.accentChampagneAccessible : AstraColor.textSecondary
+                )
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .buttonStyle(.plain)
+        .frame(
+            minWidth: 56,
+            minHeight: AstraSize.minTapTarget,
+            alignment: typeSize.isAccessibilitySize ? .leading : .trailing
+        )
+        .accessibilityIdentifier("onboarding.notSure.\(identifier)")
+        .accessibilityLabel(
+            isDeclined
+            ? String(format: String(localized: "Undo not sure for %@",
+                                    comment: "VoiceOver: undo declining"), label)
+            : String(format: String(localized: "Mark %@ as not sure",
+                                    comment: "VoiceOver: decline"), label)
+        )
     }
 
     private func commit(_ raw: String) {
@@ -382,32 +459,54 @@ private struct SizeField: View {
     @Binding var text: String?
     let identifier: String
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    private var labelText: some View {
+        Text(label)
+            .astraText(.body)
+            .foregroundStyle(AstraColor.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var field: some View {
+        TextField(
+            placeholder,
+            text: Binding(
+                get: { text ?? "" },
+                // Empty string becomes nil, not "". A blank size stored
+                // as an empty string reads as answered everywhere
+                // downstream and would defeat `FrameDerivation`'s
+                // fallback checks.
+                set: { text = $0.isEmpty ? nil : $0 }
+            )
+        )
+        .astraText(.body)
+        .foregroundStyle(AstraColor.textPrimary)
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.characters)
+        .accessibilityIdentifier("onboarding.size.\(identifier)")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            HStack(spacing: AstraSpacing.sm) {
-                Text(label)
-                    .astraText(.body)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .frame(width: 110, alignment: .leading)
-
-                TextField(
-                    placeholder,
-                    text: Binding(
-                        get: { text ?? "" },
-                        // Empty string becomes nil, not "". A blank size stored
-                        // as an empty string reads as answered everywhere
-                        // downstream and would defeat `FrameDerivation`'s
-                        // fallback checks.
-                        set: { text = $0.isEmpty ? nil : $0 }
-                    )
-                )
-                .astraText(.body)
-                .foregroundStyle(AstraColor.textPrimary)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.characters)
-                .accessibilityIdentifier("onboarding.size.\(identifier)")
+            // "Trouser size" in a fixed 110pt column at AX5 wrapped to
+            // "Trous / er / size" — a hyphenless mid-word break — and left the
+            // placeholder clipped to "32, 32x30…", which is the one part of this
+            // field that has to be readable, since it is the only thing telling
+            // the user what shape of answer counts.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    labelText
+                    field
+                }
+                .padding(.vertical, AstraSpacing.xs)
+            } else {
+                HStack(spacing: AstraSpacing.sm) {
+                    labelText.frame(width: 110, alignment: .leading)
+                    field
+                }
+                .frame(minHeight: AstraSize.minTapTarget)
             }
-            .frame(minHeight: AstraSize.minTapTarget)
 
             Divider().overlay(AstraColor.divider)
         }
