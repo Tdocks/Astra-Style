@@ -515,3 +515,80 @@ public enum LaundryCadence: String, Codable, CaseIterable, Sendable {
     case monthly
     case asNeeded = "as_needed"
 }
+
+// MARK: - Lifestyle display names
+//
+// These three enums shipped without labels, so any screen rendering them would
+// have shown the raw values — "trades_outdoor", "ultra_casual",
+// "multiple_times_week". Not a crash and not a test failure; just a premium app
+// showing database identifiers to a paying user.
+
+public extension OccupationCategory {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// Names the KIND of work rather than a job title, because the point is what
+    /// a man has to dress for. "Trades and outdoor work" tells Kyra to stop
+    /// recommending unlined wool; "Tradesman" only tells her a word.
+    var displayName: String {
+        switch self {
+        case .corporate: String(localized: "Corporate or office", comment: "Occupation category")
+        case .executive: String(localized: "Executive or client-facing", comment: "Occupation category")
+        case .creative: String(localized: "Creative or design", comment: "Occupation category")
+        case .education: String(localized: "Education", comment: "Occupation category")
+        case .healthcare: String(localized: "Healthcare", comment: "Occupation category")
+        case .technology: String(localized: "Technology", comment: "Occupation category")
+        case .tradesOutdoor: String(localized: "Trades or outdoor work", comment: "Occupation category")
+        case .hospitality: String(localized: "Hospitality or service", comment: "Occupation category")
+        case .selfEmployed: String(localized: "Self-employed", comment: "Occupation category")
+        case .student: String(localized: "Student", comment: "Occupation category")
+        case .retired: String(localized: "Retired", comment: "Occupation category")
+        case .other: String(localized: "Something else", comment: "Occupation category")
+        }
+    }
+}
+
+public extension DressCode {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// Described by what it looks like, not by its trade name. A man knows
+    /// whether he wears a jacket to work; he may not know whether that counts as
+    /// "business casual", and a list of labels he has to decode is a list he
+    /// answers wrongly.
+    var displayName: String {
+        switch self {
+        case .ultraCasual: String(localized: "Whatever's clean", comment: "Dress code")
+        case .casual: String(localized: "Jeans and a T-shirt", comment: "Dress code")
+        case .smartCasual: String(localized: "Good jeans, decent shirt", comment: "Dress code")
+        case .businessCasual: String(localized: "Chinos and a collar", comment: "Dress code")
+        case .businessFormal: String(localized: "Suit, most days", comment: "Dress code")
+        case .blackTie: String(localized: "Black tie, occasionally", comment: "Dress code")
+        case .formal: String(localized: "Formal", comment: "Dress code")
+        case .athletic: String(localized: "Athletic or uniform", comment: "Dress code")
+        }
+    }
+}
+
+public extension LaundryCadence {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// This is the field that decides how many of a thing Kyra can assume you
+    /// own. Someone who does laundry monthly needs a fortnight of shirts;
+    /// someone who does it twice a week does not — and recommending a
+    /// seven-shirt rotation to the second man is how a styling app starts
+    /// feeling like it is guessing.
+    var displayName: String {
+        switch self {
+        case .multipleTimesWeek: String(localized: "A few times a week", comment: "Laundry cadence")
+        case .weekly: String(localized: "Weekly", comment: "Laundry cadence")
+        case .biweekly: String(localized: "Every couple of weeks", comment: "Laundry cadence")
+        case .monthly: String(localized: "Monthly", comment: "Laundry cadence")
+        case .asNeeded: String(localized: "When I run out", comment: "Laundry cadence")
+        }
+    }
+}
