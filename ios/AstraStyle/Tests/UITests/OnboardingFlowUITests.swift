@@ -583,5 +583,21 @@ private extension OnboardingFlowUITests {
         // §6.10 — Result.
         awaitElement(app.buttons["onboarding.advance"], "Result: finish button")
         capture("31-Onboarding-Result")
+
+        // Finishing must actually leave the flow. This is the one assertion in
+        // the suite that covers the §6.10-to-§4 handover, and it is here rather
+        // than in `ScreenQAUITests` on purpose: that file used to reach the tab
+        // shell by walking onboarding, which made every onboarding change break
+        // a tab-navigation test. It now enters through `-astra-skip-onboarding`,
+        // so the real transition needs proving exactly once, by the test that
+        // owns the flow.
+        //
+        // A guest has no server profile (ADR 0011), so `submit()` resolves to
+        // `savedLocally` rather than `succeeded` — both route to `.main`, which
+        // is the point: a guest who finished the questions is not held on the
+        // last screen for not having signed up.
+        app.buttons["onboarding.advance"].tap()
+        awaitElement(app.tabBars.firstMatch, "Main tab bar after finishing onboarding")
+        capture("31b-Onboarding-Finished-MainShell")
     }
 }

@@ -197,7 +197,7 @@ private struct SignedOutGateView: View {
         .astraOnMarble()
         .sheet(isPresented: $isShowingEmailSheet) {
             EmailAuthSheet { _ in
-                router.routeState = .onboarding
+                router.routeState = AppRouter.postAuthenticationRoute
             }
         }
     }
@@ -329,7 +329,7 @@ private struct SignedOutGateView: View {
                         return
                     }
                     _ = try await container.authRepository.signInWithApple(identityToken: identityToken, nonce: nonce)
-                    router.routeState = .onboarding
+                    router.routeState = AppRouter.postAuthenticationRoute
                 case .failure(let error):
                     authError = error.localizedDescription
                 }
@@ -345,7 +345,7 @@ private struct SignedOutGateView: View {
         defer { isAuthenticating = false }
         do {
             _ = try await container.authRepository.continueAsGuest()
-            router.routeState = .onboarding
+            router.routeState = AppRouter.postAuthenticationRoute
         } catch {
             authError = error.localizedDescription
         }

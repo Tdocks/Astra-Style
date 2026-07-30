@@ -134,9 +134,30 @@ final class ScreenQAUITests: XCTestCase {
 
     // MARK: - Main shell
 
-    /// Enters guest mode and steps past the onboarding placeholder into the
-    /// five-tab shell.
+    /// Enters guest mode and lands in the five-tab shell.
+    ///
+    /// Deliberately does NOT walk §6.3–§6.10. It used to, back when onboarding
+    /// was a single placeholder screen with one "Skip for now" button, and that
+    /// coupling is what broke this file: the moment onboarding became eight real
+    /// steps with a required §6.5 gate, two tests about TAB NAVIGATION started
+    /// failing on an onboarding string. Repairing them by walking the real eight
+    /// screens would rebuild the same coupling with better selectors — every
+    /// future change to the flow would still land here first, on tests whose
+    /// subject it is not.
+    ///
+    /// So the shell is entered through `-astra-skip-onboarding`
+    /// (`AstraFeatureFlags.skipsOnboarding`, Debug builds only) instead. The
+    /// flow itself is walked end to end by `OnboardingFlowUITests`, which also
+    /// asserts that finishing it arrives in this same tab shell — so the
+    /// onboarding-to-main transition is still covered, once, by the test that
+    /// is actually about onboarding.
+    ///
+    /// Guest mode, not a stubbed session: it is a real authenticated session
+    /// reached with no network and no account (spec §6.2), so the tabs render
+    /// against the same state they would for a restored guest — which ADR 0011
+    /// already routes straight to `.main` on relaunch.
     private func enterMainShell() {
+        app.launchArguments += ["-astra-skip-onboarding"]
         app.launch()
 
         let guestEntry = app.buttons["Explore in guest mode"].exists
@@ -145,11 +166,8 @@ final class ScreenQAUITests: XCTestCase {
         awaitElement(guestEntry, "Welcome: guest mode entry")
         guestEntry.tap()
 
-        awaitElement(app.staticTexts["Let's build your Style DNA"], "Onboarding placeholder")
-        capture("04-Onboarding-Placeholder")
-
-        app.buttons["Skip for now"].tap()
         awaitElement(app.tabBars.firstMatch, "Main tab bar")
+        capture("04-MainShell-Entered")
     }
 
     func testEveryTab() {
