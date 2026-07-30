@@ -564,9 +564,9 @@ public extension DressCode {
         case .casual: String(localized: "Jeans and a T-shirt", comment: "Dress code")
         case .smartCasual: String(localized: "Good jeans, decent shirt", comment: "Dress code")
         case .businessCasual: String(localized: "Chinos and a collar", comment: "Dress code")
-        case .businessFormal: String(localized: "Suit, most days", comment: "Dress code")
-        case .blackTie: String(localized: "Black tie, occasionally", comment: "Dress code")
-        case .formal: String(localized: "Formal", comment: "Dress code")
+        case .businessFormal: String(localized: "Suit and tie", comment: "Dress code")
+        case .blackTie: String(localized: "Black tie", comment: "Dress code")
+        case .formal: String(localized: "Formal, but not black tie", comment: "Dress code")
         case .athletic: String(localized: "Athletic or uniform", comment: "Dress code")
         }
     }

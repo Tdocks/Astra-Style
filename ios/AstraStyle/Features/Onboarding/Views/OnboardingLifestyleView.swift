@@ -34,6 +34,14 @@ struct OnboardingLifestyleView: View {
 
     @FocusState private var focusedField: String?
 
+    /// What the user typed, kept separately from `draft.monthlyBudget`.
+    ///
+    /// The draft always holds a MONTHLY figure. Rendering the field straight
+    /// from it would rewrite "3000" into "250" the moment the period switched to
+    /// yearly, which looks like the app editing his answer.
+    @State private var enteredBudget: String = ""
+    @State private var budgetPeriod: BudgetPeriod = .monthly
+
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
             whatYouDressForSection
@@ -103,7 +111,7 @@ struct OnboardingLifestyleView: View {
                 // on" — the first a British idiom, the second a British idiom
                 // with an unfortunate second meaning. Both also generalised
                 // about men rather than addressing the user.
-                reason: String(localized: "Pick as many as apply. These are the ones people scramble for the night before.",
+                reason: String(localized: "Pick as many as apply. Kyra keeps something ready for each one.",
                                comment: "Why occasions are asked"),
                 options: LifestyleOptions.occasions,
                 selection: $draft.commonOccasions,
@@ -146,7 +154,7 @@ struct OnboardingLifestyleView: View {
 
             SingleChoiceGroup(
                 title: String(localized: "How often do you travel?", comment: "Lifestyle question"),
-                reason: String(localized: "Changes what's worth owning — creased linen is a different problem on the road.",
+                reason: String(localized: "Changes what's worth owning — linen wrinkles differently when it lives in a bag.",
                                comment: "Why travel frequency is asked"),
                 options: LifestyleOptions.travelFrequencies,
                 label: { $0 },
@@ -198,6 +206,18 @@ struct OnboardingLifestyleView: View {
                 .foregroundStyle(AstraColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            // §6.8 says "monthly OR annual", and the screen previously asked
+            // neither — just a number next to a currency code. $250 a month and
+            // $250 a year are different customers, and Kyra would have
+            // calibrated against whichever the user happened to assume.
+            Picker("Budget period", selection: $budgetPeriod) {
+                ForEach(BudgetPeriod.allCases, id: \.self) { period in
+                    Text(period.displayName).tag(period)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("onboarding.lifestyle.budgetPeriod")
+
             HStack(spacing: AstraSpacing.sm) {
                 // The currency is shown, not assumed. It is stored NOT NULL and
                 // defaults from the device locale, but a user whose phone is set
@@ -213,10 +233,13 @@ struct OnboardingLifestyleView: View {
                     )
 
                 TextField(
-                    String(localized: "e.g. 250", comment: "Budget placeholder"),
+                    budgetPeriod.placeholder,
                     text: Binding(
-                        get: { draft.monthlyBudget.map { "\($0)" } ?? "" },
-                        set: { draft.monthlyBudget = Decimal(string: $0) }
+                        get: { enteredBudget },
+                        set: { raw in
+                            enteredBudget = raw
+                            commitBudget()
+                        }
                     )
                 )
                 .keyboardType(.decimalPad)
@@ -224,6 +247,7 @@ struct OnboardingLifestyleView: View {
                 .astraText(.body)
                 .foregroundStyle(AstraColor.textPrimary)
                 .accessibilityIdentifier("onboarding.lifestyle.budget")
+                .accessibilityLabel(budgetPeriod.accessibilityLabel)
             }
             .padding(.horizontal, AstraSpacing.md)
             .padding(.vertical, AstraSpacing.sm)
@@ -236,6 +260,23 @@ struct OnboardingLifestyleView: View {
                     .stroke(AstraColor.divider, lineWidth: 1)
             )
         }
+        .onChange(of: budgetPeriod) { _, _ in commitBudget() }
+    }
+
+    /// Normalises whatever the user typed into the monthly figure that
+    /// `lifestyle_profiles.monthly_budget` stores.
+    ///
+    /// The conversion lives here, once, for the same reason `MeasurementEntry`
+    /// converts units in one place: a yearly figure stored raw in a column named
+    /// `monthly_budget` would be wrong by a factor of twelve everywhere
+    /// downstream, and `CostPerWearCalculator` would report it without
+    /// complaint.
+    private func commitBudget() {
+        guard let typed = Decimal(string: enteredBudget), typed > 0 else {
+            draft.monthlyBudget = nil
+            return
+        }
+        draft.monthlyBudget = budgetPeriod == .yearly ? typed / 12 : typed
     }
 
     // MARK: - Brands
@@ -283,6 +324,39 @@ struct OnboardingLifestyleView: View {
                     .stroke(AstraColor.divider, lineWidth: 1)
             )
             .accessibilityIdentifier("onboarding.lifestyle.brands")
+        }
+    }
+}
+
+// MARK: - Budget period
+
+/// Which period the typed budget figure refers to.
+///
+/// Presentation-only: the database column is `monthly_budget` and always holds
+/// a monthly figure. This exists so a man who thinks in yearly terms can answer
+/// in yearly terms.
+enum BudgetPeriod: String, CaseIterable, Sendable {
+    case monthly
+    case yearly
+
+    var displayName: String {
+        switch self {
+        case .monthly: String(localized: "A month", comment: "Budget period")
+        case .yearly: String(localized: "A year", comment: "Budget period")
+        }
+    }
+
+    var placeholder: String {
+        switch self {
+        case .monthly: String(localized: "e.g. 250", comment: "Monthly budget placeholder")
+        case .yearly: String(localized: "e.g. 3000", comment: "Yearly budget placeholder")
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .monthly: String(localized: "Clothing budget per month", comment: "VoiceOver")
+        case .yearly: String(localized: "Clothing budget per year", comment: "VoiceOver")
         }
     }
 }

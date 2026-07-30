@@ -58,10 +58,19 @@ final class OnboardingFlowUITests: XCTestCase {
             let current = app.screenshot().pngRepresentation
             // Identical frames mean the page has bottomed out and every further
             // shot would be a duplicate of the last one.
-            if current == previous { return }
+            if current == previous {
+                capture("\(prefix)-END")
+                return
+            }
             previous = current
             capture("\(prefix)-\(index)")
         }
+        // Hit the cap with the page still moving. Named so it is impossible to
+        // mistake the last shot for the bottom of the page: three separate
+        // review rounds reported content as "unreachable" when the truth was
+        // that the capture stopped early, and each time the claim was only
+        // plausible because nothing in the filenames said otherwise.
+        capture("\(prefix)-TRUNCATED-more-below")
     }
 
     @discardableResult
@@ -305,8 +314,8 @@ final class OnboardingFlowUITests: XCTestCase {
             // everything below it as unreachable. The loop exits early on a
             // repeated frame, so the cap only costs time on genuinely long
             // steps.
-            captureWholePage(prefix: name, screens: 12, includeFirst: false)
-            for _ in 0..<12 { app.swipeDown(velocity: .slow) }
+            captureWholePage(prefix: name, screens: 20, includeFirst: false)
+            for _ in 0..<20 { app.swipeDown(velocity: .slow) }
             usleep(400_000)
         }
     }
