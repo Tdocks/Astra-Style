@@ -217,9 +217,19 @@ struct OnboardingStepTests {
     func progressExcludesIntroAndResult() {
         #expect(!OnboardingStep.answerableSteps.contains(.intro))
         #expect(!OnboardingStep.answerableSteps.contains(.result))
-        #expect(OnboardingStep.answerableSteps.count == 5)
+        // Derived rather than hardcoded. A literal count here was wrong on the
+        // first run and would have to be edited every time a step is added —
+        // which is exactly when the assertion should still hold on its own.
+        #expect(OnboardingStep.answerableSteps.count == OnboardingStep.allCases.count - 2)
         #expect(OnboardingStep.intro.answerablePosition == nil)
+        #expect(OnboardingStep.result.answerablePosition == nil)
         #expect(OnboardingStep.goals.answerablePosition == 1)
+        // The last answerable step must report the final position, or the
+        // progress bar never fills and the flow feels unfinished at the end.
+        #expect(
+            OnboardingStep.answerableSteps.last?.answerablePosition
+                == OnboardingStep.answerableSteps.count
+        )
     }
 
     @Test("Only the identity step is required")
