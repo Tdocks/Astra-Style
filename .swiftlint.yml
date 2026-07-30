@@ -88,10 +88,11 @@ disabled_rules:
   # tuned: there are zero TODO/FIXME comments in the codebase today, so it
   # would be a no-op either way, but this project's own convention (spec
   # §22 acceptance bar, CLAUDE.md testing section) is to track gaps as
-  # failing tests (see Tests/UnitTests/PendingIntegrationRequirementsTests.swift,
-  # Tests/UITests/AstraStyleUITests.swift's intentionally-failing
-  # placeholders) rather than TODO comments, so this rule would fight that
-  # convention rather than support it if a TODO ever did slip in.
+  # named, explicitly-skipped tests (see
+  # Tests/UnitTests/PendingIntegrationRequirementsTests.swift's
+  # `.disabled(reason:)` traits and Tests/UITests/AstraStyleUITests.swift's
+  # `XCTSkip` placeholders) rather than TODO comments, so this rule would
+  # fight that convention rather than support it if a TODO ever did slip in.
   - todo
 
 # ------------------------------------------------------------------------------

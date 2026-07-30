@@ -223,7 +223,7 @@ calls throwaway and explicitly not a reference implementation.
 | P3-INFRA-01 | Not started | `OfflineMutationQueue` is FIFO-only; no conflict rule, no last-write-wins on `updated_at`, no conflict test. |
 | P3-INFRA-02 | Not started | No scan capture exists to queue; no "pending analysis" state. |
 | P3-TEST-01 | Partial | Cost-per-wear and offline replay-after-failure tests exist and pass. Redundancy-score test cannot exist — no redundancy logic does. |
-| P3-TEST-02 | Not started | `AstraStyleUITests.testAddGarment()` is an explicit `XCTFail` placeholder. |
+| P3-TEST-02 | Not started | `AstraStyleUITests.testAddGarment()` is an unwritten placeholder — it reports as an explicit `XCTSkip` naming the assertions it owes. |
 
 ---
 
@@ -259,8 +259,8 @@ deliberately a placeholder scorer, not the real one.
 | P4-CORE-01 | Partial | `LiveWeatherService` is a complete WeatherKit + CoreLocation adapter requesting permission in context. No fallback to last-known forecast on failure, and per P4-HOME-05 it is never called. |
 | P4-TEST-01 | Partial | `CompatibilityScoringTests` fully covers the weighted aggregate. Per-sub-scorer pass/fail cases cannot exist — 7 of 8 sub-scorers don't. |
 | P4-TEST-02 | Not started | No test for Wardrobe Score or unlock count; neither algorithm exists. |
-| P4-TEST-03 | Not started | `PendingIntegrationRequirementsTests.dailyBriefGeneration()` is a deliberate placeholder. |
-| P4-TEST-04 | Not started | `testGenerateOutfit()`/`testMarkOutfitWorn()` are explicit `XCTFail` placeholders. |
+| P4-TEST-03 | Not started | `PendingIntegrationRequirementsTests.dailyBriefGeneration()` is a deliberate placeholder, `.disabled()` with the reason stated. |
+| P4-TEST-04 | Not started | `testGenerateOutfit()`/`testMarkOutfitWorn()` are unwritten placeholders — both report as explicit `XCTSkip`s naming the assertions they owe. |
 
 ---
 
@@ -293,7 +293,7 @@ design, not evidence of build.
 | P5-KYRA-19 | Not started | No Kyra rate limiting — no server function to limit. |
 | P5-CORE-01 | Partial | **The defensive-parsing criteria are unmet despite a passing happy-path test.** `KyraStructuredResponse`/`KyraIntent` use plain synthesized `Codable`, so a missing optional field or unknown intent throws rather than degrading to `[]`/`.general`. |
 | P5-TEST-01 | Partial | `ModelCodableRoundTripTests` has one happy-path decode (`daily_outfit` only); no coverage of the other 5 intents, no malformed-payload test. |
-| P5-TEST-02 | Not started | `testAskKyra()` is a deliberate `XCTFail` placeholder. |
+| P5-TEST-02 | Not started | `testAskKyra()` is a deliberate placeholder — reports as an explicit `XCTSkip` naming the assertions it owes. |
 
 ---
 
@@ -328,8 +328,8 @@ complete and spec-accurate; nothing renders them. The image vendor was decided t
 | P6-SHOP-09 | Not started | No `sponsored` field in the models or the migration. |
 | P6-SHOP-10 | Partial | `extractProduct`, `evaluateProduct` and `fetchCuratedProducts` are implemented for real. The four wishlist methods are now honestly `AstraError.unimplemented` rather than Postgrest calls against a nonexistent `wishlist_items` table; evaluations are still explicitly not cached. |
 | P6-CORE-01 | Not started | `Features/Discover/` holds only `README.md`; no editorial-content table in any migration. |
-| P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` is a deliberate placeholder. |
-| P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` is a deliberate placeholder. |
+| P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` is a deliberate placeholder, `.disabled()` with the reason stated. |
+| P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` is a deliberate placeholder, `.disabled()` with the reason stated. |
 
 ---
 
@@ -370,11 +370,11 @@ they need a StoreKit sandbox, a physical device, or App Store review.
 | P7-INFRA-04 | Partial | CI enforces zero-warnings-in-own-code via a scoped build-log grep. No per-dependency purpose/licence documentation (there is one dependency, `supabase-swift`). |
 | P7-INFRA-05 | Partial | READMEs cover setup, env vars, migrations, function deployment, StoreKit config and tests. No App Store Connect assets — screenshots, listing copy, privacy nutrition labels — exist anywhere. |
 | P7-TEST-01 | Partial | `SubscriptionEntitlementTests` covers active/grace/trialing/non-entitled by status. Free-tier-at-limit, guest-cap and expired-mid-session cases are absent because that gating logic doesn't exist (P7-SUB-04). |
-| P7-TEST-02 | Not started | `authLifecycle()` is a deliberate placeholder. |
-| P7-TEST-03 | Not started | `storeKitSandboxPurchase()` is a deliberate placeholder. |
-| P7-TEST-04 | Not started | `testCompleteOnboarding()` is a deliberate `XCTFail` placeholder. |
-| P7-TEST-05 | Not started | `testOpenPaywallAndRestorePurchases()` is a deliberate `XCTFail` placeholder. |
-| P7-TEST-06 | Not started | `testDeleteAccount()` is a deliberate `XCTFail` placeholder. |
+| P7-TEST-02 | Not started | `authLifecycle()` is a deliberate placeholder, `.disabled()` with the reason stated. |
+| P7-TEST-03 | Not started | `storeKitSandboxPurchase()` is a deliberate placeholder, `.disabled()` with the reason stated. |
+| P7-TEST-04 | Not started | `testCompleteOnboarding()` is a deliberate placeholder — reports as an explicit `XCTSkip` naming the assertions it owes. |
+| P7-TEST-05 | Not started | `testOpenPaywallAndRestorePurchases()` is a deliberate placeholder — reports as an explicit `XCTSkip` naming the assertions it owes. |
+| P7-TEST-06 | Not started | `testDeleteAccount()` is a deliberate placeholder — reports as an explicit `XCTSkip` naming the assertions it owes. |
 | P7-TEST-07 | Not started | No snapshot-testing library is wired in at all. |
 | P7-TEST-08 | Not started | Cannot be attempted — most of the §30 definition-of-done sequence has no built UI to exercise. |
 
