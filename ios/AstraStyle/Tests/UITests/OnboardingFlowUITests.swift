@@ -192,10 +192,14 @@ final class OnboardingFlowUITests: XCTestCase {
         // therefore worth exercising.
         for identity in ["executive", "minimalist", "creative"] {
             let card = app.buttons["onboarding.identity.\(identity)"]
-            awaitElement(card, "Identity card at AX5: \(identity)")
-            if !card.isHittable {
-                card.scrollToElement(in: app)
-            }
+            // Scroll BEFORE asserting existence. The grid is a `LazyVGrid`, so
+            // cards below the fold are never instantiated and are absent from the
+            // accessibility tree entirely — not merely unhittable. Waiting for
+            // existence first therefore times out on a card that would appear the
+            // moment the list scrolled. (Not an app defect: VoiceOver scrolls the
+            // grid too, and the cards materialise for it the same way.)
+            card.scrollIntoView(in: app)
+            XCTAssertTrue(card.exists, "Identity card never appeared at AX5: \(identity)")
             card.tap()
         }
         app.buttons["onboarding.advance"].tap()
@@ -206,13 +210,16 @@ final class OnboardingFlowUITests: XCTestCase {
 }
 
 private extension XCUIElement {
-    /// Scrolls the enclosing scroll view until this element is hittable.
+    /// Swipes until this element both exists and can be tapped.
     ///
-    /// Needed only at accessibility text sizes, where content that fits on one
-    /// screen at the default size runs well past the fold.
-    func scrollToElement(in app: XCUIApplication, maxSwipes: Int = 8) {
+    /// Checks `exists` as well as `isHittable` because lazy containers do not
+    /// instantiate off-screen children at all — a `LazyVGrid` card below the fold
+    /// is missing from the tree rather than present-but-hidden, so a helper that
+    /// only polled `isHittable` would spin against an element that never
+    /// materialised.
+    func scrollIntoView(in app: XCUIApplication, maxSwipes: Int = 10) {
         var swipes = 0
-        while !isHittable && swipes < maxSwipes {
+        while !(exists && isHittable) && swipes < maxSwipes {
             app.swipeUp()
             swipes += 1
         }
