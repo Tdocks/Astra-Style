@@ -33,6 +33,8 @@ import SwiftUI
 struct OnboardingMeasurementsView: View {
     @Binding var draft: OnboardingDraft
 
+    @FocusState private var focusedField: String?
+
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
             unitToggle
@@ -40,6 +42,20 @@ struct OnboardingMeasurementsView: View {
             sizeFields
             preferredFitSection
             fitIssuesSection
+        }
+        // The decimal pad has NO return key. Without an explicit Done, a user who
+        // taps a measurement field has the keyboard covering the Continue button
+        // and no obvious way to put it away — he can scroll it down, but nothing
+        // on screen says so. This was visible the first time the flow was walked
+        // in the simulator and is the kind of dead end that ends an onboarding.
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(String(localized: "Done", comment: "Dismiss the number keypad")) {
+                    focusedField = nil
+                }
+                .accessibilityIdentifier("onboarding.keyboardDone")
+            }
         }
     }
 
@@ -89,30 +105,35 @@ struct OnboardingMeasurementsView: View {
 
             MeasurementField(
                 label: String(localized: "Height", comment: "Measurement label"),
+                focusedField: $focusedField,
                 entry: $draft.height,
                 lengthUnitLabel: lengthUnitLabel,
                 identifier: "height"
             )
             MeasurementField(
                 label: String(localized: "Chest", comment: "Measurement label"),
+                focusedField: $focusedField,
                 entry: $draft.chest,
                 lengthUnitLabel: lengthUnitLabel,
                 identifier: "chest"
             )
             MeasurementField(
                 label: String(localized: "Waist", comment: "Measurement label"),
+                focusedField: $focusedField,
                 entry: $draft.waist,
                 lengthUnitLabel: lengthUnitLabel,
                 identifier: "waist"
             )
             MeasurementField(
                 label: String(localized: "Inseam", comment: "Measurement label"),
+                focusedField: $focusedField,
                 entry: $draft.inseam,
                 lengthUnitLabel: lengthUnitLabel,
                 identifier: "inseam"
             )
             MeasurementField(
                 label: String(localized: "Neck", comment: "Measurement label"),
+                focusedField: $focusedField,
                 entry: $draft.neck,
                 lengthUnitLabel: lengthUnitLabel,
                 identifier: "neck"
@@ -123,6 +144,7 @@ struct OnboardingMeasurementsView: View {
                 // both true — docs/14 §2 excludes weight from every frame axis —
                 // and the thing that makes declining it feel permitted.
                 label: String(localized: "Weight", comment: "Measurement label"),
+                focusedField: $focusedField,
                 footnote: String(localized: "Optional, and not used for fit advice.",
                                  comment: "Weight field footnote"),
                 entry: $draft.weight,
@@ -253,13 +275,16 @@ struct OnboardingMeasurementsView: View {
 
 private struct MeasurementField: View {
     let label: String
+    /// Shared focus binding so the keyboard's Done button can clear whichever
+    /// field is active. A per-field `@FocusState` could not be reached from the
+    /// parent's toolbar.
+    @FocusState.Binding var focusedField: String?
     var footnote: String?
     @Binding var entry: MeasurementEntry
     let lengthUnitLabel: String
     let identifier: String
 
     @State private var text: String = ""
-    @FocusState private var isFocused: Bool
 
     private var isDeclined: Bool { entry.state == .declined }
 
@@ -273,7 +298,7 @@ private struct MeasurementField: View {
 
                 TextField(isDeclined ? "—" : "", text: $text)
                     .keyboardType(.decimalPad)
-                    .focused($isFocused)
+                    .focused($focusedField, equals: identifier)
                     .astraText(.body)
                     .foregroundStyle(AstraColor.textPrimary)
                     .disabled(isDeclined)
@@ -340,7 +365,7 @@ private struct MeasurementField: View {
             entry = MeasurementEntry(state: .unanswered, value: nil, unit: entry.unit)
         } else {
             text = ""
-            isFocused = false
+            if focusedField == identifier { focusedField = nil }
             entry = .declined(unit: entry.unit)
         }
         AstraHaptics.selection()

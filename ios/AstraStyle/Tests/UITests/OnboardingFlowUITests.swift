@@ -113,7 +113,13 @@ final class OnboardingFlowUITests: XCTestCase {
         app.buttons["onboarding.advance"].tap()
 
         // §6.6 — Measurements.
-        awaitElement(app.buttons["onboarding.units"].firstMatch, "Measurements: unit toggle")
+        // A segmented `Picker` surfaces as a segmented control, not a button — the
+        // first version of this query looked in `app.buttons` and never matched
+        // even though the control was plainly on screen.
+        awaitElement(
+            app.textFields["onboarding.measurement.chest"],
+            "Measurements: chest field"
+        )
         capture("26-Onboarding-Measurements")
 
         let chest = app.textFields["onboarding.measurement.chest"]
@@ -179,13 +185,36 @@ final class OnboardingFlowUITests: XCTestCase {
         capture("33-Onboarding-Goals-AX5")
         app.buttons["onboarding.advance"].tap()
 
-        awaitElement(app.buttons["onboarding.identity.executive"], "Identity at AX5")
-        app.buttons["onboarding.identity.executive"].tap()
-        app.buttons["onboarding.identity.minimalist"].tap()
-        app.buttons["onboarding.identity.creative"].tap()
+
+        // At AX5 each card is several times taller, so most of the grid starts
+        // below the fold. XCUITest cannot tap a non-visible element, so each one
+        // is scrolled to first — which is also what a real user has to do, and
+        // therefore worth exercising.
+        for identity in ["executive", "minimalist", "creative"] {
+            let card = app.buttons["onboarding.identity.\(identity)"]
+            awaitElement(card, "Identity card at AX5: \(identity)")
+            if !card.isHittable {
+                card.scrollToElement(in: app)
+            }
+            card.tap()
+        }
         app.buttons["onboarding.advance"].tap()
 
-        awaitElement(app.buttons["onboarding.units"].firstMatch, "Measurements at AX5")
+        awaitElement(app.textFields["onboarding.measurement.chest"], "Measurements at AX5")
         capture("34-Onboarding-Measurements-AX5")
+    }
+}
+
+private extension XCUIElement {
+    /// Scrolls the enclosing scroll view until this element is hittable.
+    ///
+    /// Needed only at accessibility text sizes, where content that fits on one
+    /// screen at the default size runs well past the fold.
+    func scrollToElement(in app: XCUIApplication, maxSwipes: Int = 8) {
+        var swipes = 0
+        while !isHittable && swipes < maxSwipes {
+            app.swipeUp()
+            swipes += 1
+        }
     }
 }
