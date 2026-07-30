@@ -13,11 +13,20 @@ or outfit randomizer.
 
 ## Status
 
-**Groundwork / pre-build.** The product and technical specification, architecture
-decisions, and repository scaffolding exist; feature implementation has not yet
-started. See `docs/01-build-roadmap.md` for the current phase and
-`docs/11-risk-register.md` for the risks being actively tracked before and during
-build.
+**Phase 2 of 7 — Identity — in progress.** Phase 1 (Foundation) is substantively
+complete: auth, guest mode, the design system, navigation, the repository layer,
+and a Postgres schema with row-level security applied to production. Onboarding
+is built through the style-preference quiz. The app does not yet have a closet,
+outfit intelligence, Kyra, Style Studio, or subscriptions.
+
+**Per-ticket status for all 178 tickets lives in
+[`docs/03-progress.md`](docs/03-progress.md)** — that file, not this section, is
+the place to look before starting work. It records what is Done, Partial, Not
+started, or genuinely Unverifiable, with evidence for each, and it is enforced by
+`scripts/check_progress.py` in CI so it cannot quietly drift from the code.
+
+`docs/01-build-roadmap.md` holds the phase plan and `docs/11-risk-register.md`
+the risks being actively tracked.
 
 ## Repo layout
 

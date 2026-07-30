@@ -1,0 +1,68 @@
+# ==============================================================================
+# CI: build-progress document consistency
+# ==============================================================================
+# docs/03-progress.md is the only place in this repo that answers "which of the
+# 178 tickets are actually done." Before it existed, answering that took about
+# an hour of archaeology — git log, file counts, a test run, live HTTP probes
+# against the Supabase project — repeated at the start of every session because
+# the result was never written down.
+#
+# A hand-maintained status file is accurate the day it is written and quietly
+# wrong a week later, which is worse than having none: people trust it, so a
+# drifted one costs that hour AND sends the reader down a wrong path first.
+# scripts/check_progress.py is what stops that, and this workflow is what makes
+# it non-optional.
+#
+# NOTE THE ABSENT `paths:` FILTER. Every other workflow here scopes itself to
+# the files it cares about, and that is right for them. This one deliberately
+# runs on everything, because the drift it exists to catch is caused by changes
+# that have nothing to do with the document: a Done row cites a file, someone
+# renames that file in a refactor touching only ios/**, and the evidence silently
+# stops resolving. A path filter listing docs/ would skip exactly the commit that
+# broke it. The script is stdlib-only and finishes in about a second, so running
+# it on every push is cheaper than reasoning about which paths could invalidate
+# a citation.
+# ==============================================================================
+
+name: Progress Doc
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: progress-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: docs/03-progress.md matches the repo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # Stdlib only (re/pathlib/sys), same as the other checkers — nothing to
+      # install.
+      - name: Check progress doc against the ticket breakdown
+        run: python3 scripts/check_progress.py
+
+      - name: On failure
+        if: failure()
+        run: |
+          echo "### Progress doc has drifted" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`docs/03-progress.md\` no longer agrees with the repo. The job log above lists every problem at once — a ticket added to \`docs/02-task-breakdown.md\` with no row, a stale row for a ticket that no longer exists, summary counts that don't match the rows beneath them, or a \`Done\` row citing a file that has since moved or been deleted." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "A status change belongs in the same commit as the work it describes. If this failed because a file moved, the row's evidence needs updating — or its status does." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reproduce locally: \`python3 scripts/check_progress.py\`" >> "$GITHUB_STEP_SUMMARY"
