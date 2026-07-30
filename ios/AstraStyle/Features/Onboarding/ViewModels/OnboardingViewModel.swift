@@ -101,6 +101,14 @@ public final class OnboardingViewModel {
             : String(localized: "Continue", comment: "Onboarding forward button")
     }
 
+    /// Whether the forward button is offering to skip rather than to submit.
+    ///
+    /// Kept alongside `advanceTitle` so the label and the button's visual weight
+    /// are derived from the same condition and cannot disagree.
+    public var advanceIsSkip: Bool {
+        step != .result && !stepHasAnyAnswer && step.isSkippable
+    }
+
     /// Whether the current step has received any input at all. Drives
     /// `advanceTitle` and nothing else.
     var stepHasAnyAnswer: Bool {

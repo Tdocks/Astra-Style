@@ -161,6 +161,15 @@ private struct IdentityCard: View {
 
     private var isSelected: Bool { selectionOrder != nil }
 
+    /// The selection badge is the only thing that says "this is your choice
+    /// number two", so it has to scale with the rest of the type. Hard-coded at
+    /// 18pt it stayed 18pt at AX5 while the card's label tripled — a numeral a
+    /// few points tall next to 40pt text, which is unreadable for exactly the
+    /// user who turned the text size up. Scaling it also grows the reserved row,
+    /// and that is the right trade: the row was called dead space, but a
+    /// selection indicator nobody can read is worse than a gap.
+    @ScaledMetric(relativeTo: .caption) private var badgeSize: CGFloat = 18
+
     var body: some View {
         Button(action: toggle) {
             VStack(alignment: .leading, spacing: AstraSpacing.xs) {
@@ -171,7 +180,7 @@ private struct IdentityCard: View {
                         Text("\(selectionOrder)")
                             .astraText(.micro)
                             .foregroundStyle(AstraColor.textOnAccent)
-                            .frame(width: 18, height: 18)
+                            .frame(width: badgeSize, height: badgeSize)
                             .background(Circle().fill(AstraColor.accentChampagne))
                     }
                     Spacer(minLength: 0)
@@ -181,7 +190,7 @@ private struct IdentityCard: View {
                             .foregroundStyle(AstraColor.accentChampagneAccessible)
                     }
                 }
-                .frame(height: 18)
+                .frame(height: badgeSize)
 
                 Text(identity.displayName)
                     .astraText(.headline)

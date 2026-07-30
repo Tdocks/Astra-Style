@@ -30,6 +30,7 @@ public struct OnboardingFlowView: View {
                 OnboardingStepScaffold(
                     step: model.step,
                     advanceTitle: model.advanceTitle,
+                    advanceIsSkip: model.advanceIsSkip,
                     canAdvance: model.canAdvance,
                     canGoBack: model.canGoBack,
                     onAdvance: { Task { await model.advance() } },

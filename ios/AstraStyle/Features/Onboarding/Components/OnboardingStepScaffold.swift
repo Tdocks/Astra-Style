@@ -16,6 +16,12 @@ import SwiftUI
 struct OnboardingStepScaffold<Content: View>: View {
     let step: OnboardingStep
     let advanceTitle: String
+    /// Whether the forward action is currently a skip rather than a submit.
+    ///
+    /// Passed explicitly instead of inferred from `advanceTitle`, because
+    /// comparing against the literal "Skip for now" breaks the moment the string
+    /// is localised — and it would break silently, into the wrong style.
+    let advanceIsSkip: Bool
     let canAdvance: Bool
     let canGoBack: Bool
     let onAdvance: () -> Void
@@ -56,7 +62,12 @@ struct OnboardingStepScaffold<Content: View>: View {
             // inset itself by the footer's ACTUAL height, so the clearance is
             // correct at every text size instead of correct at the one it was
             // measured against.
-            .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+            //
+            // `spacing` is not cosmetic padding — it is added to the inset, so
+            // the clearance stays correct. With 0 the last card's rounded border
+            // landed exactly on the footer's hairline divider and read as one
+            // doubled line rather than a boundary.
+            .safeAreaInset(edge: .bottom, spacing: AstraSpacing.sm) { footer }
         }
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
     }
@@ -131,10 +142,31 @@ struct OnboardingStepScaffold<Content: View>: View {
         .background(AstraColor.backgroundPrimary)
     }
 
+    // Skipping is allowed, but it must not be the loudest thing on the screen.
+    // Rendered as the filled champagne primary, "Skip for now" was the single
+    // brightest element on a step where nothing had been answered yet — the
+    // design was inviting the user to abandon exactly the questions that feed
+    // Style DNA. Secondary keeps it a full-width, obvious forward action while
+    // letting "Continue" own the emphasis once there is something to continue
+    // with.
+    //
+    // Branched with `if`/`else` rather than a ternary on the style: the two
+    // styles are different concrete types, so a ternary does not type-check, and
+    // the usual workaround of erasing to `AnyView` would throw away SwiftUI's
+    // identity for the button and re-create it on every state change.
+    @ViewBuilder
     private var advanceButton: some View {
-        AstraButton(title: advanceTitle, action: onAdvance)
-            .disabled(!canAdvance)
-            .accessibilityIdentifier("onboarding.advance")
+        if advanceIsSkip {
+            Button(advanceTitle, action: onAdvance)
+                .buttonStyle(.astraSecondary)
+                .disabled(!canAdvance)
+                .accessibilityIdentifier("onboarding.advance")
+        } else {
+            Button(advanceTitle, action: onAdvance)
+                .buttonStyle(.astraPrimary)
+                .disabled(!canAdvance)
+                .accessibilityIdentifier("onboarding.advance")
+        }
     }
 
     // `AstraButton` is primary-only by design (see its doc comment: most call
