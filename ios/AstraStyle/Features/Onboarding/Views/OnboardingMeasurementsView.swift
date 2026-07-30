@@ -291,6 +291,27 @@ struct OnboardingMeasurementsView: View {
 
 // MARK: - Field components
 
+/// Draws a capsule outline around a control, but only when `active`.
+///
+/// A modifier rather than a branch at each call site: applying `.overlay` inside
+/// an `if` would give the two branches different view identities, so the control
+/// would be torn down and rebuilt whenever the text size crossed the
+/// accessibility threshold — losing focus and any in-progress edit with it.
+private struct OutlineWhenStacked: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, active ? AstraSpacing.md : 0)
+            .padding(.vertical, active ? AstraSpacing.xs : 0)
+            .overlay {
+                if active {
+                    Capsule().stroke(AstraColor.divider, lineWidth: 1)
+                }
+            }
+    }
+}
+
 private struct MeasurementField: View {
     let label: String
     /// Shared focus binding so the keyboard's Done button can clear whichever
@@ -328,10 +349,26 @@ private struct MeasurementField: View {
             if typeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                     labelText
+                    // Boxed, unlike the ordinary layout. On one line the label to
+                    // its left and the divider beneath it are enough to say "type
+                    // here". Stacked, an empty borderless field is an empty line
+                    // with the unit abbreviation stranded at the far right — there
+                    // is nothing on screen that looks like an input at all.
                     HStack(alignment: .firstTextBaseline, spacing: AstraSpacing.sm) {
                         valueField
                         unitText
                     }
+                    .padding(.horizontal, AstraSpacing.md)
+                    .padding(.vertical, AstraSpacing.sm)
+                    .frame(minHeight: AstraSize.minTapTarget)
+                    .background(
+                        RoundedRectangle(cornerRadius: AstraRadius.card)
+                            .fill(AstraColor.surfaceElevated)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AstraRadius.card)
+                            .stroke(AstraColor.divider, lineWidth: 1)
+                    )
                     notSureButton
                 }
                 .padding(.vertical, AstraSpacing.xs)
@@ -408,6 +445,11 @@ private struct MeasurementField: View {
                     isDeclined ? AstraColor.accentChampagneAccessible : AstraColor.textSecondary
                 )
                 .fixedSize(horizontal: false, vertical: true)
+                // Outlined when stacked. On its own line, bare caption-coloured
+                // text reads as a footnote rather than the button it is — and
+                // "Not sure" is a first-class answer here (§6.6), not a hint, so
+                // it has to look pressable.
+                .modifier(OutlineWhenStacked(active: typeSize.isAccessibilitySize))
         }
         .buttonStyle(.plain)
         .frame(
@@ -497,7 +539,20 @@ private struct SizeField: View {
             if typeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                     labelText
+                    // Boxed for the same reason as MeasurementField: stacked, a
+                    // borderless field is indistinguishable from a line of text.
                     field
+                        .padding(.horizontal, AstraSpacing.md)
+                        .padding(.vertical, AstraSpacing.sm)
+                        .frame(minHeight: AstraSize.minTapTarget)
+                        .background(
+                            RoundedRectangle(cornerRadius: AstraRadius.card)
+                                .fill(AstraColor.surfaceElevated)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AstraRadius.card)
+                                .stroke(AstraColor.divider, lineWidth: 1)
+                        )
                 }
                 .padding(.vertical, AstraSpacing.xs)
             } else {
