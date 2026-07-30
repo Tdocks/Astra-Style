@@ -40,111 +40,157 @@ struct MainTabView: View {
 
     @ViewBuilder
     private func tabRoot(for tab: AppTab) -> some View {
-        // `@Bindable` must be re-established here: the one in `body` is a local
-        // binding and does not carry into other methods, so `$router` was out
-        // of scope. @Observable types need this to project bindings at all.
-        @Bindable var router = router
-
         switch tab {
-        case .home:
-            // Captured as a local `let` (matching `AppContainer.live()`'s own
-            // `{ await sessionStore.currentIsGuest() }` closures) rather than
-            // referencing `container.sessionStore` from inside the closure
-            // body, so the `@Sendable` closure captures the already-Sendable
-            // `SessionStore` reference directly.
-            let sessionStore = container.sessionStore
-            NavigationStack(path: $router.homePath) {
-                HomeView(
-                    viewModel: HomeViewModel(
-                        provider: DefaultHomeBriefProvider(
-                            outfitRepository: container.outfitRepository,
-                            profileRepository: container.profileRepository,
-                            closetRepository: container.closetRepository,
-                            weatherService: container.weatherService,
-                            calendarService: container.calendarService,
-                            isGuest: { await sessionStore.currentIsGuest() }
-                        ),
-                        analyticsClient: container.analyticsClient
-                    )
-                )
-                .navigationDestination(for: HomeRoute.self) { route in
-                    HomeDestinationView(route: route)
-                }
-            }
+        case .home: homeTab
+        case .closet: closetTab
+        case .studio: studioTab
+        case .discover: discoverTab
+        case .profile: profileTab
+        }
+    }
 
-        case .closet:
-            NavigationStack(path: $router.closetPath) {
+    /// The Home tab's root, in its own `NavigationStack` bound to
+    /// `AppRouter.homePath` so the tab keeps its stack across tab switches.
+    @ViewBuilder
+    private var homeTab: some View {
+        // `@Bindable` must be re-established in each of these: the one in `body`
+        // is a local binding and does not carry into other members, so `$router`
+        // would otherwise be out of scope. @Observable types need this to
+        // project bindings at all.
+        @Bindable var router = router
+        // Captured as a local `let` (matching `AppContainer.live()`'s own
+        // `{ await sessionStore.currentIsGuest() }` closures) rather than
+        // referencing `container.sessionStore` from inside the closure
+        // body, so the `@Sendable` closure captures the already-Sendable
+        // `SessionStore` reference directly.
+        let sessionStore = container.sessionStore
+        NavigationStack(path: $router.homePath) {
+            HomeView(
+                viewModel: HomeViewModel(
+                    provider: DefaultHomeBriefProvider(
+                        outfitRepository: container.outfitRepository,
+                        profileRepository: container.profileRepository,
+                        closetRepository: container.closetRepository,
+                        weatherService: container.weatherService,
+                        calendarService: container.calendarService,
+                        isGuest: { await sessionStore.currentIsGuest() }
+                    ),
+                    analyticsClient: container.analyticsClient
+                )
+            )
+            .navigationDestination(for: HomeRoute.self) { route in
+                HomeDestinationView(route: route)
+            }
+        }
+    }
+
+    /// The Closet tab's root, in its own `NavigationStack` bound to
+    /// `AppRouter.closetPath` so the tab keeps its stack across tab switches.
+    @ViewBuilder
+    private var closetTab: some View {
+        // `@Bindable` must be re-established in each of these: the one in `body`
+        // is a local binding and does not carry into other members, so `$router`
+        // would otherwise be out of scope. @Observable types need this to
+        // project bindings at all.
+        @Bindable var router = router
+        NavigationStack(path: $router.closetPath) {
+            FeaturePlaceholderView(
+                title: String(localized: "Closet"),
+                message: String(localized: "Everything you own, in one place. Scan your first few pieces and Kyra can start building real outfits."),
+                systemImage: "square.grid.2x2"
+            )
+            .navigationDestination(for: ClosetRoute.self) { _ in
                 FeaturePlaceholderView(
                     title: String(localized: "Closet"),
-                    message: String(localized: "Everything you own, in one place. Scan your first few pieces and Kyra can start building real outfits."),
+                    message: String(localized: "Detail screen placeholder — see Features/Closet/README.md."),
                     systemImage: "square.grid.2x2"
                 )
-                .navigationDestination(for: ClosetRoute.self) { _ in
-                    FeaturePlaceholderView(
-                        title: String(localized: "Closet"),
-                        message: String(localized: "Detail screen placeholder — see Features/Closet/README.md."),
-                        systemImage: "square.grid.2x2"
-                    )
-                }
             }
+        }
+    }
 
-        case .studio:
-            NavigationStack(path: $router.studioPath) {
+    /// The Style Studio tab's root, in its own `NavigationStack` bound to
+    /// `AppRouter.studioPath` so the tab keeps its stack across tab switches.
+    @ViewBuilder
+    private var studioTab: some View {
+        // `@Bindable` must be re-established in each of these: the one in `body`
+        // is a local binding and does not carry into other members, so `$router`
+        // would otherwise be out of scope. @Observable types need this to
+        // project bindings at all.
+        @Bindable var router = router
+        NavigationStack(path: $router.studioPath) {
+            FeaturePlaceholderView(
+                title: String(localized: "Style Studio"),
+                message: String(localized: "See a look on yourself before you wear it — or before you buy it."),
+                systemImage: "camera.viewfinder"
+            )
+            .navigationDestination(for: StudioRoute.self) { _ in
                 FeaturePlaceholderView(
                     title: String(localized: "Style Studio"),
-                    message: String(localized: "See a look on yourself before you wear it — or before you buy it."),
+                    message: String(localized: "Detail screen placeholder — see Features/Studio/README.md."),
                     systemImage: "camera.viewfinder"
                 )
-                .navigationDestination(for: StudioRoute.self) { _ in
-                    FeaturePlaceholderView(
-                        title: String(localized: "Style Studio"),
-                        message: String(localized: "Detail screen placeholder — see Features/Studio/README.md."),
-                        systemImage: "camera.viewfinder"
-                    )
-                }
             }
+        }
+    }
 
-        case .discover:
-            NavigationStack(path: $router.discoverPath) {
+    /// The Discover tab's root, in its own `NavigationStack` bound to
+    /// `AppRouter.discoverPath` so the tab keeps its stack across tab switches.
+    @ViewBuilder
+    private var discoverTab: some View {
+        // `@Bindable` must be re-established in each of these: the one in `body`
+        // is a local binding and does not carry into other members, so `$router`
+        // would otherwise be out of scope. @Observable types need this to
+        // project bindings at all.
+        @Bindable var router = router
+        NavigationStack(path: $router.discoverPath) {
+            FeaturePlaceholderView(
+                title: String(localized: "Discover"),
+                message: String(localized: "Lookbooks, fit guides, and the reasoning behind them."),
+                systemImage: "safari"
+            )
+            .navigationDestination(for: DiscoverRoute.self) { _ in
                 FeaturePlaceholderView(
                     title: String(localized: "Discover"),
-                    message: String(localized: "Lookbooks, fit guides, and the reasoning behind them."),
+                    message: String(localized: "Detail screen placeholder — see Features/Discover/README.md."),
                     systemImage: "safari"
                 )
-                .navigationDestination(for: DiscoverRoute.self) { _ in
-                    FeaturePlaceholderView(
-                        title: String(localized: "Discover"),
-                        message: String(localized: "Detail screen placeholder — see Features/Discover/README.md."),
-                        systemImage: "safari"
-                    )
-                }
             }
+        }
+    }
 
-        case .profile:
-            NavigationStack(path: $router.profilePath) {
-                Group {
-                    // A guest has no real Profile content to browse yet
-                    // (Style DNA, wardrobe progress — Phase 2+), but does
-                    // need a real, reachable "create an account" surface
-                    // (spec §6.2; ADR 0011) — shown here instead of the
-                    // generic placeholder below.
-                    if container.sessionStore.isGuest {
-                        GuestProfileView()
-                    } else {
-                        FeaturePlaceholderView(
-                            title: String(localized: "Profile"),
-                            message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
-                            systemImage: "person.crop.circle"
-                        )
-                    }
-                }
-                .navigationDestination(for: ProfileRoute.self) { _ in
+    /// The Profile tab's root, in its own `NavigationStack` bound to
+    /// `AppRouter.profilePath` so the tab keeps its stack across tab switches.
+    @ViewBuilder
+    private var profileTab: some View {
+        // `@Bindable` must be re-established in each of these: the one in `body`
+        // is a local binding and does not carry into other members, so `$router`
+        // would otherwise be out of scope. @Observable types need this to
+        // project bindings at all.
+        @Bindable var router = router
+        NavigationStack(path: $router.profilePath) {
+            Group {
+                // A guest has no real Profile content to browse yet
+                // (Style DNA, wardrobe progress — Phase 2+), but does
+                // need a real, reachable "create an account" surface
+                // (spec §6.2; ADR 0011) — shown here instead of the
+                // generic placeholder below.
+                if container.sessionStore.isGuest {
+                    GuestProfileView()
+                } else {
                     FeaturePlaceholderView(
                         title: String(localized: "Profile"),
-                        message: String(localized: "Detail screen placeholder — see Features/Profile/README.md."),
+                        message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
                         systemImage: "person.crop.circle"
                     )
                 }
+            }
+            .navigationDestination(for: ProfileRoute.self) { _ in
+                FeaturePlaceholderView(
+                    title: String(localized: "Profile"),
+                    message: String(localized: "Detail screen placeholder — see Features/Profile/README.md."),
+                    systemImage: "person.crop.circle"
+                )
             }
         }
     }

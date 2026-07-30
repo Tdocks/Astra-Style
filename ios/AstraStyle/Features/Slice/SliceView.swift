@@ -205,6 +205,30 @@ public struct SliceView: View {
         .accessibilityLabel(Text("\(item.name), \(item.category.displayName)\(item.primaryColor.map { ", \($0)" } ?? "")"))
     }
 
+    // MARK: - Shared error presentation
+
+    private func errorText(_ error: AstraError, isOffline: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: AstraSpacing.xs) {
+            Image(systemName: isOffline ? "wifi.slash" : "exclamationmark.triangle")
+                .astraIcon(.inline)
+            Text(error.message)
+                .astraText(.caption)
+        }
+        .foregroundStyle(AstraColor.destructive)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Error: \(error.message)"))
+    }
+}
+
+// MARK: - Add garment and outfit generation
+
+/// The two write paths of the slice, in an extension rather than in the main
+/// `SliceView` body: they are the longest sections in the file and the only
+/// ones that mutate anything, so keeping them together and apart from the
+/// read-only sections above makes both halves shorter to read. Same file, by
+/// intent — Features/Slice/README.md explains why this screen is deliberately
+/// still one screen.
+private extension SliceView {
     // MARK: - Add garment
 
     private var addGarmentSection: some View {
@@ -390,19 +414,5 @@ public struct SliceView: View {
             parts.append(color)
         }
         return parts.joined(separator: " · ")
-    }
-
-    // MARK: - Shared error presentation
-
-    private func errorText(_ error: AstraError, isOffline: Bool = false) -> some View {
-        HStack(alignment: .top, spacing: AstraSpacing.xs) {
-            Image(systemName: isOffline ? "wifi.slash" : "exclamationmark.triangle")
-                .astraIcon(.inline)
-            Text(error.message)
-                .astraText(.caption)
-        }
-        .foregroundStyle(AstraColor.destructive)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text("Error: \(error.message)"))
     }
 }

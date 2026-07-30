@@ -32,7 +32,7 @@ public final class AstraTheme {
 public extension EnvironmentValues {
     /// The shared `AstraTheme`, defaulting to a fresh instance that follows the system
     /// appearance until `.astraTheme(_:)` injects an app-owned one.
-    @Entry var astraTheme: AstraTheme = AstraTheme()
+    @Entry var astraTheme = AstraTheme()
 }
 
 public extension View {

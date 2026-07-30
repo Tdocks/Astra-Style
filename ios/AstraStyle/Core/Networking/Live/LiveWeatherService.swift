@@ -98,7 +98,7 @@ public final class LiveWeatherService: NSObject, WeatherService, CLLocationManag
 }
 
 extension WeatherKit.WeatherCondition {
-    fileprivate var astraCondition: AstraStyle_WeatherCondition {
+    fileprivate var astraCondition: AstraWeatherCondition {
         switch self {
         case .clear, .mostlyClear, .hot:
             .clear
@@ -126,4 +126,4 @@ extension WeatherKit.WeatherCondition {
 
 /// Type alias to disambiguate our domain `WeatherCondition` from
 /// `WeatherKit.WeatherCondition` within this file.
-private typealias AstraStyle_WeatherCondition = AstraStyle.WeatherCondition
+private typealias AstraWeatherCondition = AstraStyle.WeatherCondition

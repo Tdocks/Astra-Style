@@ -28,7 +28,7 @@ public actor MockClosetRepository: ClosetRepository {
 
     public func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] {
         [
-            ClosetItemImage(id: UUID(), closetItemID: itemID, imageType: .front, storagePath: "preview/\(itemID.uuidString)-front.jpg", isPrimary: true),
+            ClosetItemImage(id: UUID(), closetItemID: itemID, imageType: .front, storagePath: "preview/\(itemID.uuidString)-front.jpg", isPrimary: true)
         ]
     }
 

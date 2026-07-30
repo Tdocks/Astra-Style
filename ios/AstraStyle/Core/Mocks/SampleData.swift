@@ -40,6 +40,72 @@ public enum SampleData {
         styleSummary: "Marcus gravitates toward heritage American workwear filtered through a tailored, quiet-luxury lens — think Buck Mason meets Aimé Leon Dore, with Alden boots doing a lot of the heavy lifting."
     )
 
+    /// A Style DNA result (spec §6.10), shaped exactly like what
+    /// `POST /style-dna/generate` returns for `styleProfile` above.
+    ///
+    /// Deliberately NOT complete: `openQuestions` is non-empty and
+    /// `measuredDimensions` names three axes, not eight, because that is the
+    /// real shape of a result today — the §6.9 comparison set has three pairs,
+    /// so five dimensions arrive absent. A fixture showing eight confident
+    /// axes would let a preview or a snapshot test look right while the
+    /// screen's honest-degradation states went unexercised.
+    public static let styleDNA = StyleDNA(
+        primaryIdentity: .modernHeritage,
+        identityBasis: "the identity you ranked first",
+        secondaryInfluences: [.quietLuxury, .smartCasual],
+        palette: StyleDNAPalette(
+            preferredColors: ["charcoal", "navy", "oatmeal", "tobacco brown", "olive"],
+            avoidedColors: ["neon brights", "cold silver grey"],
+            rationale: "Modern Heritage runs on earth tones with one cold anchor, so a heavy jacket reads considered rather than costume."
+        ),
+        silhouette: StyleDNASilhouette(
+            headline: "Straight and substantial, with a natural shoulder.",
+            detail: "Heavier cloth holds its own shape, so a straight-leg trouser and an unpadded shoulder let it hang the way it was cut. You said you prefer a tailored fit, so that is the starting cut."
+        ),
+        signatureOpportunities: [
+            StyleDNARecommendation(
+                title: "A waxed cotton jacket in olive or brown",
+                reason: "It is the one layer that anchors this whole direction and gets better with wear."
+            ),
+            StyleDNARecommendation(
+                title: "A brown leather boot with a welted sole",
+                reason: "Dresses up under a trouser and down over denim, so it earns its place twice."
+            ),
+            StyleDNARecommendation(
+                title: "A jacket that works without a tie",
+                reason: "You named business casual, which is the dress code that needs a jacket and forbids a suit."
+            )
+        ],
+        wardrobePriorities: [
+            StyleDNAPriority(
+                rank: 1,
+                title: "Cover the days you actually dress for",
+                reason: "You said your week is mostly in an office with a business casual dress code. That decides how many of each piece you need before it decides which pieces."
+            ),
+            StyleDNAPriority(
+                rank: 2,
+                title: "Two trousers that take the same boot",
+                reason: "A shared shoe is what turns separate pieces into a wardrobe."
+            )
+        ],
+        summary: "You are Modern Heritage. The palette to build on is charcoal, navy, oatmeal, tobacco brown and olive. First thing to fix: cover the days you actually dress for.",
+        formalityPreference: .balanced,
+        logoTolerance: ToleranceLevel.low.score,
+        trendTolerance: ToleranceLevel.medium.score,
+        accessoryPreference: .moderate,
+        knownInputs: [
+            "the style identities you picked",
+            "your work dress code",
+            "the shape of your week",
+            "3 of 3 style comparisons"
+        ],
+        openQuestions: [
+            "Kyra has not asked you about texture, branding, how current you like things, accessories and contrast yet. Until she has, those parts lean on the direction you chose rather than on anything you said."
+        ],
+        measuredDimensions: ["colour_tolerance", "formality", "silhouette"],
+        modelIdentifier: "astra-deterministic-stylist/1"
+    )
+
     // Centimetres and kilograms, because that is what `body_profiles` stores —
     // see the header of BodyProfile.swift. This fixture previously held 71 and
     // 178, meaning 5'11" and 178lb, which the model reads as a man 71cm tall
@@ -73,34 +139,151 @@ public enum SampleData {
         laundryCadence: .weekly
     )
 
+}
+
+// MARK: - Wardrobe fixtures
+//
+// The closet and outfit fixtures live in an extension rather than in the enum
+// body above, and the reason is mechanical rather than aesthetic: 25 garments
+// and their outfits are ~230 lines of data, which puts the enum past
+// SwiftLint's `type_body_length` on its own. Splitting on the data/identity
+// seam keeps both halves readable and means adding a garment doesn't
+// eventually re-break the build. Same treatment as `SliceView`.
+
+extension SampleData {
     // MARK: - Closet (25 items)
 
     public static let closetItems: [ClosetItem] = [
-        item(name: "Oxford Button-Down", brand: "J.Crew", category: .top, subcategory: "Dress Shirt", color: "white", pattern: .solid, material: ["cotton"], size: "M", fit: .tailored, formality: 55, price: 78, retailer: "J.Crew", wearCount: 22, daysSinceWorn: 3),
-        item(name: "Merino Crewneck Sweater", brand: "Uniqlo", category: .top, subcategory: "Sweater", color: "navy", pattern: .solid, material: ["merino wool"], size: "M", fit: .regular, formality: 45, price: 50, retailer: "Uniqlo", wearCount: 30, daysSinceWorn: 1),
-        item(name: "Heavyweight Pocket Tee", brand: "Buck Mason", category: .top, subcategory: "T-Shirt", color: "stone", pattern: .solid, material: ["cotton"], size: "M", fit: .regular, formality: 15, price: 38, retailer: "Buck Mason", wearCount: 41, daysSinceWorn: 0),
-        item(name: "Chore Coat", brand: "Todd Snyder", category: .outerwear, subcategory: "Jacket", color: "olive", pattern: .solid, material: ["cotton canvas"], size: "M", fit: .relaxed, formality: 35, price: 248, retailer: "Todd Snyder", wearCount: 14, daysSinceWorn: 6),
-        item(name: "Oxford Polo", brand: "Aimé Leon Dore", category: .top, subcategory: "Polo", color: "navy", pattern: .solid, material: ["cotton pique"], size: "M", fit: .tailored, formality: 30, price: 145, retailer: "Aimé Leon Dore", wearCount: 12, daysSinceWorn: 4),
-        item(name: "Knit Polo", brand: "Drake's", category: .top, subcategory: "Polo", color: "olive", pattern: .solid, material: ["cotton"], size: "M", fit: .tailored, formality: 30, price: 195, retailer: "Drake's", wearCount: 8, daysSinceWorn: 12),
-        item(name: "Flannel Shirt", brand: "L.L.Bean", category: .top, subcategory: "Casual Shirt", color: "charcoal", pattern: .plaid, material: ["cotton flannel"], size: "M", fit: .regular, formality: 20, price: 65, retailer: "L.L.Bean", wearCount: 19, daysSinceWorn: 9),
-        item(name: "Oxford Cloth Button-Down", brand: "Ralph Lauren", category: .top, subcategory: "Dress Shirt", color: "light blue", pattern: .solid, material: ["cotton"], size: "M", fit: .tailored, formality: 60, price: 98, retailer: "Ralph Lauren", wearCount: 17, daysSinceWorn: 2),
-        item(name: "Fleece Half-Zip", brand: "Patagonia", category: .outerwear, subcategory: "Fleece", color: "stone", pattern: .solid, material: ["polyester fleece"], size: "M", fit: .regular, formality: 10, price: 139, retailer: "Patagonia", wearCount: 25, daysSinceWorn: 5),
-        item(name: "Slim Trousers", brand: "Bonobos", category: .bottom, subcategory: "Chinos", color: "stone", pattern: .solid, material: ["cotton twill"], size: "33x32", fit: .slim, formality: 50, price: 98, retailer: "Bonobos", wearCount: 28, daysSinceWorn: 3),
-        item(name: "Selvedge Denim", brand: "Buck Mason", category: .bottom, subcategory: "Jeans", color: "indigo", pattern: .solid, material: ["cotton denim"], size: "33x32", fit: .slim, formality: 20, price: 128, retailer: "Buck Mason", wearCount: 55, daysSinceWorn: 0),
-        item(name: "Wool Trousers", brand: "Theory", category: .bottom, subcategory: "Dress Trousers", color: "charcoal", pattern: .solid, material: ["wool"], size: "33x32", fit: .tailored, formality: 75, price: 245, retailer: "Theory", wearCount: 9, daysSinceWorn: 15),
-        item(name: "Cargo Trousers", brand: "Norse Projects", category: .bottom, subcategory: "Cargo Pants", color: "olive", pattern: .solid, material: ["cotton"], size: "33x32", fit: .relaxed, formality: 20, price: 175, retailer: "Norse Projects", wearCount: 11, daysSinceWorn: 8),
-        item(name: "Five-Pocket Twill Pants", brand: "J.Crew", category: .bottom, subcategory: "Casual Pants", color: "navy", pattern: .solid, material: ["cotton twill"], size: "33x32", fit: .tailored, formality: 40, price: 88, retailer: "J.Crew", wearCount: 16, daysSinceWorn: 4),
-        item(name: "Shorts", brand: "Bonobos", category: .bottom, subcategory: "Chino Shorts", color: "stone", pattern: .solid, material: ["cotton"], size: "33", fit: .tailored, formality: 20, price: 78, retailer: "Bonobos", wearCount: 14, daysSinceWorn: 40),
-        item(name: "Trench Coat", brand: "Todd Snyder", category: .outerwear, subcategory: "Overcoat", color: "khaki", pattern: .solid, material: ["cotton gabardine"], size: "M", fit: .tailored, formality: 65, price: 398, retailer: "Todd Snyder", wearCount: 6, daysSinceWorn: 20),
-        item(name: "Wool Overcoat", brand: "Suitsupply", category: .outerwear, subcategory: "Overcoat", color: "charcoal", pattern: .solid, material: ["wool"], size: "M", fit: .tailored, formality: 80, price: 449, retailer: "Suitsupply", wearCount: 5, daysSinceWorn: 30),
-        item(name: "Waxed Trucker Jacket", brand: "Taylor Stitch", category: .outerwear, subcategory: "Jacket", color: "olive", pattern: .solid, material: ["waxed cotton"], size: "M", fit: .regular, formality: 25, price: 248, retailer: "Taylor Stitch", wearCount: 18, daysSinceWorn: 7),
-        item(name: "Suede Chukka Boots", brand: "Clarks", category: .shoes, subcategory: "Boots", color: "sand", pattern: .solid, material: ["suede"], size: "10.5", fit: .regular, formality: 45, price: 150, retailer: "Clarks", wearCount: 33, daysSinceWorn: 1),
-        item(name: "Leather Chelsea Boots", brand: "Alden", category: .shoes, subcategory: "Boots", color: "brown", pattern: .solid, material: ["leather"], size: "10.5", fit: .regular, formality: 60, price: 598, retailer: "Alden", wearCount: 27, daysSinceWorn: 2),
-        item(name: "Achilles Low Sneakers", brand: "Common Projects", category: .shoes, subcategory: "Sneakers", color: "white", pattern: .solid, material: ["leather"], size: "10.5", fit: .regular, formality: 25, price: 445, retailer: "Common Projects", wearCount: 61, daysSinceWorn: 0),
-        item(name: "Penny Loafers", brand: "G.H. Bass", category: .shoes, subcategory: "Loafers", color: "brown", pattern: .solid, material: ["leather"], size: "10.5", fit: .regular, formality: 55, price: 175, retailer: "G.H. Bass", wearCount: 15, daysSinceWorn: 10),
-        item(name: "Canvas Low-Tops", brand: "Vans", category: .shoes, subcategory: "Sneakers", color: "navy", pattern: .solid, material: ["canvas"], size: "10.5", fit: .regular, formality: 10, price: 65, retailer: "Vans", wearCount: 24, daysSinceWorn: 3),
-        item(name: "Automatic Field Watch", brand: "Hamilton", category: .watch, subcategory: "Watch", color: "steel", pattern: .solid, material: ["stainless steel"], size: "38mm", fit: nil, formality: 55, price: 595, retailer: "Hamilton", wearCount: 90, daysSinceWorn: 0),
-        item(name: "Leather Belt", brand: "J.Crew", category: .accessory, subcategory: "Belt", color: "brown", pattern: .solid, material: ["leather"], size: "34", fit: nil, formality: 40, price: 58, retailer: "J.Crew", wearCount: 70, daysSinceWorn: 0),
+        ClosetItem(
+            fixture: "Oxford Button-Down", brand: "J.Crew", category: .top, subcategory: "Dress Shirt",
+            color: "white", pattern: .solid, material: ["cotton"], size: "M", fit: .tailored, formality: 55,
+            price: 78, retailer: "J.Crew", wearCount: 22, daysSinceWorn: 3
+        ),
+        ClosetItem(
+            fixture: "Merino Crewneck Sweater", brand: "Uniqlo", category: .top, subcategory: "Sweater",
+            color: "navy", pattern: .solid, material: ["merino wool"], size: "M", fit: .regular,
+            formality: 45, price: 50, retailer: "Uniqlo", wearCount: 30, daysSinceWorn: 1
+        ),
+        ClosetItem(
+            fixture: "Heavyweight Pocket Tee", brand: "Buck Mason", category: .top, subcategory: "T-Shirt",
+            color: "stone", pattern: .solid, material: ["cotton"], size: "M", fit: .regular, formality: 15,
+            price: 38, retailer: "Buck Mason", wearCount: 41, daysSinceWorn: 0
+        ),
+        ClosetItem(
+            fixture: "Chore Coat", brand: "Todd Snyder", category: .outerwear, subcategory: "Jacket",
+            color: "olive", pattern: .solid, material: ["cotton canvas"], size: "M", fit: .relaxed,
+            formality: 35, price: 248, retailer: "Todd Snyder", wearCount: 14, daysSinceWorn: 6
+        ),
+        ClosetItem(
+            fixture: "Oxford Polo", brand: "Aimé Leon Dore", category: .top, subcategory: "Polo",
+            color: "navy", pattern: .solid, material: ["cotton pique"], size: "M", fit: .tailored,
+            formality: 30, price: 145, retailer: "Aimé Leon Dore", wearCount: 12, daysSinceWorn: 4
+        ),
+        ClosetItem(
+            fixture: "Knit Polo", brand: "Drake's", category: .top, subcategory: "Polo", color: "olive",
+            pattern: .solid, material: ["cotton"], size: "M", fit: .tailored, formality: 30, price: 195,
+            retailer: "Drake's", wearCount: 8, daysSinceWorn: 12
+        ),
+        ClosetItem(
+            fixture: "Flannel Shirt", brand: "L.L.Bean", category: .top, subcategory: "Casual Shirt",
+            color: "charcoal", pattern: .plaid, material: ["cotton flannel"], size: "M", fit: .regular,
+            formality: 20, price: 65, retailer: "L.L.Bean", wearCount: 19, daysSinceWorn: 9
+        ),
+        ClosetItem(
+            fixture: "Oxford Cloth Button-Down", brand: "Ralph Lauren", category: .top,
+            subcategory: "Dress Shirt", color: "light blue", pattern: .solid, material: ["cotton"],
+            size: "M", fit: .tailored, formality: 60, price: 98, retailer: "Ralph Lauren", wearCount: 17,
+            daysSinceWorn: 2
+        ),
+        ClosetItem(
+            fixture: "Fleece Half-Zip", brand: "Patagonia", category: .outerwear, subcategory: "Fleece",
+            color: "stone", pattern: .solid, material: ["polyester fleece"], size: "M", fit: .regular,
+            formality: 10, price: 139, retailer: "Patagonia", wearCount: 25, daysSinceWorn: 5
+        ),
+        ClosetItem(
+            fixture: "Slim Trousers", brand: "Bonobos", category: .bottom, subcategory: "Chinos",
+            color: "stone", pattern: .solid, material: ["cotton twill"], size: "33x32", fit: .slim,
+            formality: 50, price: 98, retailer: "Bonobos", wearCount: 28, daysSinceWorn: 3
+        ),
+        ClosetItem(
+            fixture: "Selvedge Denim", brand: "Buck Mason", category: .bottom, subcategory: "Jeans",
+            color: "indigo", pattern: .solid, material: ["cotton denim"], size: "33x32", fit: .slim,
+            formality: 20, price: 128, retailer: "Buck Mason", wearCount: 55, daysSinceWorn: 0
+        ),
+        ClosetItem(
+            fixture: "Wool Trousers", brand: "Theory", category: .bottom, subcategory: "Dress Trousers",
+            color: "charcoal", pattern: .solid, material: ["wool"], size: "33x32", fit: .tailored,
+            formality: 75, price: 245, retailer: "Theory", wearCount: 9, daysSinceWorn: 15
+        ),
+        ClosetItem(
+            fixture: "Cargo Trousers", brand: "Norse Projects", category: .bottom,
+            subcategory: "Cargo Pants", color: "olive", pattern: .solid, material: ["cotton"],
+            size: "33x32", fit: .relaxed, formality: 20, price: 175, retailer: "Norse Projects",
+            wearCount: 11, daysSinceWorn: 8
+        ),
+        ClosetItem(
+            fixture: "Five-Pocket Twill Pants", brand: "J.Crew", category: .bottom,
+            subcategory: "Casual Pants", color: "navy", pattern: .solid, material: ["cotton twill"],
+            size: "33x32", fit: .tailored, formality: 40, price: 88, retailer: "J.Crew", wearCount: 16,
+            daysSinceWorn: 4
+        ),
+        ClosetItem(
+            fixture: "Shorts", brand: "Bonobos", category: .bottom, subcategory: "Chino Shorts",
+            color: "stone", pattern: .solid, material: ["cotton"], size: "33", fit: .tailored,
+            formality: 20, price: 78, retailer: "Bonobos", wearCount: 14, daysSinceWorn: 40
+        ),
+        ClosetItem(
+            fixture: "Trench Coat", brand: "Todd Snyder", category: .outerwear, subcategory: "Overcoat",
+            color: "khaki", pattern: .solid, material: ["cotton gabardine"], size: "M", fit: .tailored,
+            formality: 65, price: 398, retailer: "Todd Snyder", wearCount: 6, daysSinceWorn: 20
+        ),
+        ClosetItem(
+            fixture: "Wool Overcoat", brand: "Suitsupply", category: .outerwear, subcategory: "Overcoat",
+            color: "charcoal", pattern: .solid, material: ["wool"], size: "M", fit: .tailored,
+            formality: 80, price: 449, retailer: "Suitsupply", wearCount: 5, daysSinceWorn: 30
+        ),
+        ClosetItem(
+            fixture: "Waxed Trucker Jacket", brand: "Taylor Stitch", category: .outerwear,
+            subcategory: "Jacket", color: "olive", pattern: .solid, material: ["waxed cotton"], size: "M",
+            fit: .regular, formality: 25, price: 248, retailer: "Taylor Stitch", wearCount: 18,
+            daysSinceWorn: 7
+        ),
+        ClosetItem(
+            fixture: "Suede Chukka Boots", brand: "Clarks", category: .shoes, subcategory: "Boots",
+            color: "sand", pattern: .solid, material: ["suede"], size: "10.5", fit: .regular, formality: 45,
+            price: 150, retailer: "Clarks", wearCount: 33, daysSinceWorn: 1
+        ),
+        ClosetItem(
+            fixture: "Leather Chelsea Boots", brand: "Alden", category: .shoes, subcategory: "Boots",
+            color: "brown", pattern: .solid, material: ["leather"], size: "10.5", fit: .regular,
+            formality: 60, price: 598, retailer: "Alden", wearCount: 27, daysSinceWorn: 2
+        ),
+        ClosetItem(
+            fixture: "Achilles Low Sneakers", brand: "Common Projects", category: .shoes,
+            subcategory: "Sneakers", color: "white", pattern: .solid, material: ["leather"], size: "10.5",
+            fit: .regular, formality: 25, price: 445, retailer: "Common Projects", wearCount: 61,
+            daysSinceWorn: 0
+        ),
+        ClosetItem(
+            fixture: "Penny Loafers", brand: "G.H. Bass", category: .shoes, subcategory: "Loafers",
+            color: "brown", pattern: .solid, material: ["leather"], size: "10.5", fit: .regular,
+            formality: 55, price: 175, retailer: "G.H. Bass", wearCount: 15, daysSinceWorn: 10
+        ),
+        ClosetItem(
+            fixture: "Canvas Low-Tops", brand: "Vans", category: .shoes, subcategory: "Sneakers",
+            color: "navy", pattern: .solid, material: ["canvas"], size: "10.5", fit: .regular,
+            formality: 10, price: 65, retailer: "Vans", wearCount: 24, daysSinceWorn: 3
+        ),
+        ClosetItem(
+            fixture: "Automatic Field Watch", brand: "Hamilton", category: .watch, subcategory: "Watch",
+            color: "steel", pattern: .solid, material: ["stainless steel"], size: "38mm", fit: nil,
+            formality: 55, price: 595, retailer: "Hamilton", wearCount: 90, daysSinceWorn: 0
+        ),
+        ClosetItem(
+            fixture: "Leather Belt", brand: "J.Crew", category: .accessory, subcategory: "Belt",
+            color: "brown", pattern: .solid, material: ["leather"], size: "34", fit: nil, formality: 40,
+            price: 58, retailer: "J.Crew", wearCount: 70, daysSinceWorn: 0
+        )
     ]
 
     // MARK: - Outfits
@@ -143,7 +326,7 @@ public enum SampleData {
             formalityScore: 68,
             compatibilityScore: 89,
             source: .aiGenerated
-        ),
+        )
     ]
 
     public static func heroOutfitItems() -> [OutfitItem] {
@@ -151,7 +334,7 @@ public enum SampleData {
             OutfitItem(outfitID: heroOutfit.id, closetItemID: closetItems[5].id, role: .top, sortOrder: 0),      // Drake's knit polo
             OutfitItem(outfitID: heroOutfit.id, closetItemID: closetItems[9].id, role: .bottom, sortOrder: 1),   // Bonobos slim trousers
             OutfitItem(outfitID: heroOutfit.id, closetItemID: closetItems[18].id, role: .shoes, sortOrder: 2),   // Clarks chukka boots
-            OutfitItem(outfitID: heroOutfit.id, closetItemID: closetItems[23].id, role: .watch, sortOrder: 3),   // Hamilton field watch
+            OutfitItem(outfitID: heroOutfit.id, closetItemID: closetItems[23].id, role: .watch, sortOrder: 3)   // Hamilton field watch
         ]
     }
 
@@ -196,10 +379,25 @@ public enum SampleData {
         redundancyControl: 76
     )
 
-    // MARK: - Helpers
+}
 
-    private static func item(
-        name: String,
+// MARK: - Fixture construction
+
+private extension ClosetItem {
+    /// One row of the fixture closet above.
+    ///
+    /// An initialiser rather than a `SampleData.item(...)` factory function.
+    /// It is literally initialising a `ClosetItem` and reads that way at all
+    /// 25 call sites — and SwiftLint's `function_parameter_count`, which is
+    /// aimed at behavioural functions and deliberately exempts initialisers
+    /// (a value type with many fields is not a design smell), then applies
+    /// correctly instead of flagging a data row as a god-function.
+    ///
+    /// `daysSinceWorn` is a fixture-only convenience: it is turned into a real
+    /// `lastWornAt` date and a plausible `laundryState` below, so the table
+    /// above never has to write `Calendar.current.date(byAdding:)` 25 times.
+    init(
+        fixture name: String,
         brand: String,
         category: ClothingCategory,
         subcategory: String,
@@ -213,10 +411,10 @@ public enum SampleData {
         retailer: String,
         wearCount: Int,
         daysSinceWorn: Int
-    ) -> ClosetItem {
-        ClosetItem(
+    ) {
+        self.init(
             id: UUID(),
-            userID: userID,
+            userID: SampleData.userID,
             name: name,
             brand: brand,
             category: category,

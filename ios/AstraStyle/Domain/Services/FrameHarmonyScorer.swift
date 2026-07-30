@@ -233,10 +233,10 @@ public enum FrameHarmonyScorer {
 
         // Give wins over rigidity: 98% cotton / 2% elastane is a stretch fabric,
         // not a rigid one, and the elastane is the part that governs how it moves.
-        if materials.contains(where: { m in givingMarkers.contains(where: m.contains) }) {
+        if materials.contains(where: { material in givingMarkers.contains(where: material.contains) }) {
             return .gives
         }
-        if materials.contains(where: { m in rigidMarkers.contains(where: m.contains) }) {
+        if materials.contains(where: { material in rigidMarkers.contains(where: material.contains) }) {
             return .rigid
         }
         // Denim with nothing else recorded is rigid by default — unqualified

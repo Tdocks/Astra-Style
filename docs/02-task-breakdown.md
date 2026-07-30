@@ -81,7 +81,7 @@ Scope: Define `AuthRepository`, `ClosetRepository`, `OutfitRepository`, `KyraRep
 Scope: Define `WeatherService` and `CalendarService` protocols per spec §8 with mock implementations returning fixture weather/schedule data, to unblock Home and Kyra tool development before live integrations exist.
 **Acceptance criteria**
 - Mock `WeatherService` returns a deterministic forecast usable in previews and tests.
-- Mock `CalendarService` returns zero events by default and a configurable fixture set for tests.
+- Mock `CalendarService` returns a deterministic, non-empty fixture set by default (so previews and early tests have something to render without extra setup) and accepts a configurable fixture set for tests. Amended 2026-07-30: this originally required zero events by default; the shipped two-fixture default is more useful and was kept instead — see `docs/03-progress.md`'s "Acceptance criteria that are wrong, rather than unmet."
 **Dependencies:** `P1-CORE-01`
 **Size:** S
 
@@ -89,7 +89,8 @@ Scope: Define `WeatherService` and `CalendarService` protocols per spec §8 with
 Scope: Implement `Core/Networking/APIClient` that attaches the Supabase session JWT to every request, calls Edge Functions by path (e.g. `POST /outfits/generate`), retries idempotent GETs on transient failure, and maps HTTP/Edge Function errors to a typed `APIError`.
 **Acceptance criteria**
 - A request made without a valid session throws a typed unauthenticated error before hitting the network.
-- A 5xx response triggers exactly one retry with backoff before surfacing an error.
+- A 5xx response triggers retries with backoff per `AstraRetryPolicy` before surfacing an error. Amended 2026-07-30: this originally said "exactly one retry"; the shipped default (`AstraRetryPolicy.default`, `maxAttempts: 3`) is the better policy for a mobile client on unreliable networks, so the criterion now matches it instead of the other way around — see `docs/03-progress.md`'s "Acceptance criteria that are wrong, rather than unmet."
+- Retry count and backoff timing are covered by an automated test. **Still unmet** — no test in the repo currently asserts either; this gap is real and stays open rather than being papered over by the amendment above.
 - No view or view model performs a network call directly — only repositories call `APIClient`.
 **Dependencies:** `P1-INFRA-02`, `P1-CORE-01`
 **Size:** M
@@ -125,8 +126,9 @@ Scope: Implement `AppRouteState` (`launching`/`signedOut`/`onboarding`/`main`) p
 #### `P1-DS-01` — Define color token catalog (dark/light) as Asset Catalog + AstraColor enum
 Scope: Create Asset Catalog color sets for every token in spec §3 (both dark and light mode hex values) and a Swift `AstraColor` enum/namespace exposing them as `Color` values, defaulting to dark mode per spec §3.
 **Acceptance criteria**
-- Every token listed in spec §3 (backgroundPrimary through destructive) exists in both color schemes and matches the specified hex values exactly.
+- Every token listed in spec §3 (backgroundPrimary through destructive) exists in both color schemes and matches the specified hex values exactly. Note: spec §3 was corrected 2026-07-30 to the shipped hex values for `textMuted` (both schemes) and light-mode `accentChampagne` — the original spec values failed WCAG AA against every surface they appear on; see `docs/07-design-system.md` §3 for the contrast analysis and `docs/03-progress.md`'s "Acceptance criteria that are wrong, rather than unmet."
 - Toggling system appearance switches all token values without a code change in consuming views.
+- **Genuinely unmet:** no Asset Catalog (`.xcassets`) exists anywhere in the repo — tokens are implemented entirely in `AstraColor.swift` via a `UIColor` dynamic provider, with no Asset Catalog color sets backing them. This also means there is no app icon.
 **Dependencies:** `P1-INFRA-01`
 **Size:** S
 
@@ -269,9 +271,9 @@ Scope: Implement the optional appearance profile screen from spec §6.7 (skin un
 **Size:** M
 
 #### `P2-ONBOARD-06` — Build Lifestyle profile screen
-Scope: Implement the lifestyle screen from spec §6.8 (occupation category, dress code, typical week, common occasions, climate location permission request, laundry cadence, travel frequency, religious/service attire needs, preferred stores/brands, budget, sustainability preference), requesting location permission in-context per spec §7.
+Scope: Implement the lifestyle screen from spec §6.8 (occupation category, dress code, typical week, common occasions, laundry cadence, travel frequency, religious/service attire needs, preferred stores/brands, budget, sustainability preference). Climate/location permission — §6.8's fifth bullet — is deliberately NOT requested on this screen; see the amendment note below.
+Amended 2026-07-30: the original scope requested location permission in-context on this screen per spec §7. It was moved to first use of §6.11 (the Home weather header) instead, because a location prompt mid-onboarding, before the Daily Brief that uses weather exists, has no visible payoff and reliably gets denied permanently — see `OnboardingLifestyleView`'s header comment for the full reasoning. That left the requirement with no owner; it now belongs to `P4-HOME-05`. See `docs/03-progress.md`'s "Acceptance criteria that are wrong, rather than unmet."
 **Acceptance criteria**
-- Location permission is requested only when the user reaches the climate section of this screen, not earlier in the app.
 - Submitted values map correctly to `lifestyle_profiles` columns.
 **Dependencies:** `P2-ONBOARD-05`
 **Size:** M
@@ -770,6 +772,7 @@ Scope: Wire the live `WeatherService` adapter (`P4-CORE-01`) into the Home heade
 **Acceptance criteria**
 - Home header shows real current-location weather once permission is granted.
 - Denying location permission does not block Home from rendering; it falls back to a manual-location or no-weather state.
+- Location permission is requested only on first use of this screen (§6.11), not during onboarding. Added 2026-07-30: this requirement moved here from `P2-ONBOARD-06`'s §6.8 screen — a mid-onboarding prompt with no visible payoff reliably gets denied permanently — and this ticket is now its sole owner. See `docs/03-progress.md`'s "Acceptance criteria that are wrong, rather than unmet."
 **Dependencies:** `P4-CORE-01`, `P4-HOME-02`
 **Size:** M
 
@@ -1355,7 +1358,7 @@ Scope: Audit every screen for VoiceOver labels on outfit imagery and controls wi
 #### `P7-DS-03` — High-contrast champagne-text alternative and color-independent-meaning audit
 Scope: Implement a high-contrast alternative for champagne-colored text per spec §19, and audit every screen for color-only signaling (e.g. compatibility meter, confidence score) adding a non-color indicator (icon/text) alongside.
 **Acceptance criteria**
-- High-contrast accessibility setting swaps champagne text to a WCAG-AA-compliant alternative.
+- A WCAG-AA-compliant champagne alternative (`accentChampagneAccessible`) is used everywhere champagne meaning is conveyed as text or a border/stroke. Amended 2026-07-30: this originally specified the alternative behind a "High Contrast" accessibility toggle; the shipped app applies it unconditionally by default instead, which is strictly better — no user has to discover and enable a setting to get legible champagne text — and made the toggle-gated criterion unreachable. See `docs/03-progress.md`'s "Acceptance criteria that are wrong, rather than unmet."
 - Every color-coded status (verdict, confidence, laundry state) has an accompanying text or icon indicator.
 **Dependencies:** `P1-DS-01`
 **Size:** M
@@ -1383,7 +1386,7 @@ Scope: Audit every permission request (camera, photos, location, calendar, notif
 **Acceptance criteria**
 - A fresh install triggers zero permission prompts before the user reaches the specific feature that needs each permission.
 - This is verified against every permission type listed in spec §7, not just camera/location.
-**Dependencies:** every permission-requesting ticket (`P3-SCAN-01`, `P3-SCAN-06`, `P2-ONBOARD-06`, `P4-HOME-05`, `P5-KYRA-16`, `P7-HOME-01`)
+**Dependencies:** every permission-requesting ticket (`P3-SCAN-01`, `P3-SCAN-06`, `P4-HOME-05`, `P5-KYRA-16`, `P7-HOME-01`). `P2-ONBOARD-06` dropped 2026-07-30 — it no longer requests any permission; that requirement moved to `P4-HOME-05`, already listed.
 **Size:** M
 
 #### `P7-HOME-03` — Build Monthly review screen

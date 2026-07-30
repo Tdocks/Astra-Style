@@ -8,17 +8,28 @@
 # .github/workflows/ios.yml, and runs locally in Xcode via a Run Script
 # build phase for immediate feedback while typing.
 #
-# VERIFICATION CAVEAT: `swiftlint` itself could not be installed/run in the
-# environment this file was authored in (SwiftLint has no official Linux
-# binary release compatible with this container; building it from source
-# requires a Swift toolchain with SwiftSyntax matching SwiftLint's pinned
-# version, which was not available here). Every rule/threshold below was
-# therefore chosen by manually grepping/measuring the real source (line
-# lengths, file lengths, force-unwrap/force-try/IUO occurrences, existing
-# custom-rule violations) rather than by running `swiftlint lint` and
-# iterating on real output. Treat the first real CI run of this config as
-# the actual verification pass, the same way ios.yml's own header comment
-# treats its first xcodebuild run.
+# VERIFICATION: this config was originally authored WITHOUT being able to run
+# swiftlint (no Linux binary in that environment), so every threshold was a
+# hand-measured guess. That verification pass has now happened: swiftlint
+# 0.65.0 was run against the whole tree with `--strict` and reported 122
+# violations, which is the number to expect when thresholds are estimated by
+# grepping rather than by running the tool.
+#
+# All 122 were resolved in the SOURCE, with exactly one deliberate exception
+# recorded below (`nesting`, see that rule for why). In particular the
+# original guess that "today's codebase produces zero violations" was wrong in
+# both directions: `line_length: 220` was set with the stated intent of
+# clearing the observed 287-column maximum and does not (the fixture rows in
+# Core/Mocks/SampleData.swift and the placeholder messages in
+# Tests/UITests/AstraStyleUITests.swift were reflowed instead of raising the
+# ceiling), and the opt-in `force_unwrapping`/`implicitly_unwrapped_optional`
+# rules were justified by a count that only covered non-test code (the test
+# targets had 11 force unwraps and 3 IUOs; those were rewritten to
+# `try #require(...)` and `private lazy var`, not exempted).
+#
+# Keep this file honest the same way: if a threshold changes, change it
+# because the rule is wrong for this codebase and say why, not because a
+# violation was inconvenient.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -77,10 +88,11 @@ disabled_rules:
   # tuned: there are zero TODO/FIXME comments in the codebase today, so it
   # would be a no-op either way, but this project's own convention (spec
   # §22 acceptance bar, CLAUDE.md testing section) is to track gaps as
-  # failing tests (see Tests/UnitTests/PendingIntegrationRequirementsTests.swift,
-  # Tests/UITests/AstraStyleUITests.swift's intentionally-failing
-  # placeholders) rather than TODO comments, so this rule would fight that
-  # convention rather than support it if a TODO ever did slip in.
+  # named, explicitly-skipped tests (see
+  # Tests/UnitTests/PendingIntegrationRequirementsTests.swift's
+  # `.disabled(reason:)` traits and Tests/UITests/AstraStyleUITests.swift's
+  # `XCTSkip` placeholders) rather than TODO comments, so this rule would
+  # fight that convention rather than support it if a TODO ever did slip in.
   - todo
 
 # ------------------------------------------------------------------------------
@@ -181,3 +193,19 @@ identifier_name:
     - j
     - x
     - y
+
+# `CodingKeys` is the only thing that ever hit the default `type_level: 1`
+# here, and it is not a nesting problem — the Swift compiler REQUIRES a
+# `CodingKeys` enum to be declared inside the type it describes, so it cannot
+# be hoisted the way a genuinely over-nested helper type could. Every one of
+# the 8 violations under the default was the same shape: a request/response
+# DTO declared inside the repository method that owns it (see
+# Core/Networking/Live/Live*Repository.swift), plus its `CodingKeys`. Hoisting
+# those DTOs to file scope to satisfy the rule would move each one away from
+# its single call site and gain nothing; keeping the DTO local and disabling
+# the rule wholesale would lose the check entirely. Allowing exactly one more
+# level keeps "a type inside a type inside a type inside a type" flagged while
+# letting `CodingKeys` live where the language insists it lives.
+nesting:
+  type_level:
+    warning: 2

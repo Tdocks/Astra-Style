@@ -50,7 +50,7 @@ struct EndpointDeploymentMappingTests {
         "packing",
         "subscriptions",
         "app-store",
-        "account",
+        "account"
     ]
 
     /// Every `AstraEndpoint` case. `assertCovered(_:)` below is an
@@ -72,7 +72,7 @@ struct EndpointDeploymentMappingTests {
         .generatePacking,
         .syncSubscriptions,
         .appStoreWebhook,
-        .deleteAccount,
+        .deleteAccount
     ]
 
     /// Never called at runtime; exists purely so the compiler enforces that
@@ -164,10 +164,12 @@ struct EndpointDeploymentMappingTests {
         }
 
         // Direction 2: the functions that are supposed to exist already do.
-        // Only `outfits` is built so far (the vertical slice); grow this
-        // set as later phases add functions — it should always equal the
-        // set of function directories intentionally present.
-        let requiredNow: Set<String> = ["outfits"]
+        // Grow this set as later phases add functions — it should always
+        // equal the set of function directories intentionally present.
+        // `outfits` shipped with the vertical slice; `profile` and
+        // `style-dna` landed with Phase 2 (P2-ONBOARD-12, P2-CORE-02), which
+        // is what makes onboarding completable at all.
+        let requiredNow: Set<String> = ["outfits", "profile", "style-dna"]
         for slug in requiredNow {
             #expect(
                 functionDirectories.contains(slug),

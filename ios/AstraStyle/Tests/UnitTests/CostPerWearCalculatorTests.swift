@@ -50,7 +50,7 @@ struct CostPerWearCalculatorTests {
         // The correct aggregate blends the unworn item's cost in: $330 / 10 = $33.
         let items: [(pricePaid: Decimal?, wearCount: Int)] = [
             (300, 0),
-            (30, 10),
+            (30, 10)
         ]
         let result = CostPerWearCalculator.averageCostPerWear(items: items)
         #expect(result == 33)

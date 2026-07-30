@@ -90,17 +90,17 @@ public struct AppearanceProfile: Codable, Hashable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        skinUndertone = try c.decodeIfPresent(String.self, forKey: .skinUndertone)
-        hairColor = try c.decodeIfPresent(String.self, forKey: .hairColor)
-        eyeColor = try c.decodeIfPresent(String.self, forKey: .eyeColor)
-        facialHair = try c.decodeIfPresent(String.self, forKey: .facialHair)
-        wearsGlasses = try c.decodeIfPresent(Bool.self, forKey: .wearsGlasses)
-        tattoosVisible = try c.decodeIfPresent(Bool.self, forKey: .tattoosVisible)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        skinUndertone = try container.decodeIfPresent(String.self, forKey: .skinUndertone)
+        hairColor = try container.decodeIfPresent(String.self, forKey: .hairColor)
+        eyeColor = try container.decodeIfPresent(String.self, forKey: .eyeColor)
+        facialHair = try container.decodeIfPresent(String.self, forKey: .facialHair)
+        wearsGlasses = try container.decodeIfPresent(Bool.self, forKey: .wearsGlasses)
+        tattoosVisible = try container.decodeIfPresent(Bool.self, forKey: .tattoosVisible)
         // Defaulted rather than optional: an absent key and an empty list mean
         // the same thing to every caller, and a `[String]?` would make every
         // read site handle a distinction that does not exist.
-        referenceSelfiePaths = try c.decodeIfPresent([String].self, forKey: .referenceSelfiePaths) ?? []
+        referenceSelfiePaths = try container.decodeIfPresent([String].self, forKey: .referenceSelfiePaths) ?? []
     }
 }
 

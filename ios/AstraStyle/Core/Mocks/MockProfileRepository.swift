@@ -62,8 +62,18 @@ public actor MockProfileRepository: ProfileRepository {
         return profile
     }
 
-    public func generateStyleDNA() async throws -> StyleProfile {
-        styleProfile ?? SampleData.styleProfile
+    public func generateStyleDNA() async throws -> StyleDNA {
+        // Mirrors what the Edge Function does after generating: the four
+        // §6.10 summary columns, the palette and the written summary are
+        // written back onto the stored style profile, and the user's own
+        // answers (identity, goals, fit, the §6.9 vector) are left untouched.
+        // Without this, a preview that regenerated would show a new Style DNA
+        // beside a stale profile — a disagreement the real backend does not
+        // have.
+        if let styleProfile {
+            self.styleProfile = SampleData.styleDNA.applyingSummary(to: styleProfile)
+        }
+        return SampleData.styleDNA
     }
 
     public func exportPersonalData() async throws -> URL {

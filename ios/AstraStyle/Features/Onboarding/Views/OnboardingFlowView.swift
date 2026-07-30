@@ -33,10 +33,9 @@ public struct OnboardingFlowView: View {
                     canAdvance: model.canAdvance,
                     canGoBack: model.canGoBack,
                     onAdvance: { Task { await model.advance() } },
-                    onBack: { Task { await model.goBack() } }
-                ) {
-                    stepContent
-                }
+                    onBack: { Task { await model.goBack() } },
+                    content: { stepContent }
+                )
             }
         }
         .task { await model.restore() }

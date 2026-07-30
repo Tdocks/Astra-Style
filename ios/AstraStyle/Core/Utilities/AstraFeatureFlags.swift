@@ -43,6 +43,34 @@ public enum AstraFeatureFlags {
         ProcessInfo.processInfo.arguments.contains("-astra-reset-state")
     }
 
+    /// When `true`, authenticating — including entering guest mode — routes
+    /// straight to the five-tab shell instead of into §6.3–§6.10.
+    ///
+    /// Exists for tests whose subject is the shell rather than onboarding.
+    /// `ScreenQAUITests` is about tab navigation and screen reachability; every
+    /// step it walked to GET to a tab bar was a way for an onboarding change to
+    /// break a test that has nothing to do with onboarding — which is exactly
+    /// what happened when §6.3–§6.9 replaced the old single placeholder screen.
+    /// The flow itself is covered end to end by `OnboardingFlowUITests`,
+    /// including that finishing it lands in the shell, so nothing is lost by not
+    /// walking it twice.
+    ///
+    /// Debug-only by construction, like `verticalSliceEnabled`: the `#if DEBUG`
+    /// guard means a Release build ignores the argument entirely, so a bypass
+    /// that exists only for tests cannot ship active even if someone finds a way
+    /// to pass launch arguments to a distributed build. `-astra-reset-state`
+    /// above is not gated that way; this one is, because skipping a required
+    /// step (§6.5) is a bigger thing to get wrong than starting signed out.
+    ///
+    /// Usage: `-astra-skip-onboarding`.
+    public static var skipsOnboarding: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-astra-skip-onboarding")
+        #else
+        false
+        #endif
+    }
+
     /// Forces a theme at launch, overriding the stored preference.
     ///
     /// Needed because the app applies its OWN `.preferredColorScheme(...)`,

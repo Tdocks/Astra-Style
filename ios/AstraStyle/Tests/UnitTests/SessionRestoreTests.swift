@@ -204,7 +204,7 @@ private func writeCorruptKeychainEntry(service: String) {
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: service,
         kSecAttrAccount as String: "astra.session",
-        kSecValueData as String: Data("not valid PersistedSession json".utf8),
+        kSecValueData as String: Data("not valid PersistedSession json".utf8)
     ]
     SecItemDelete(query as CFDictionary)
     SecItemAdd(query as CFDictionary, nil)

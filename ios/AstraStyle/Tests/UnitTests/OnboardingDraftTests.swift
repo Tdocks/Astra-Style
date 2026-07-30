@@ -16,26 +16,28 @@ import Testing
 struct MeasurementEntryTests {
 
     @Test("Imperial entry converts to centimetres")
-    func imperialConverts() {
-        let height = MeasurementEntry.provided(71, unit: .imperial)
+    func imperialConverts() throws {
+        let height = try #require(MeasurementEntry.provided(71, unit: .imperial).centimetres)
         // 71" == 180.34cm
-        #expect(abs(height.centimetres! - 180.34) < 0.01)
+        #expect(abs(height - 180.34) < 0.01)
     }
 
     @Test("Metric entry passes through unconverted")
-    func metricPassesThrough() {
-        let height = MeasurementEntry.provided(180.3, unit: .metric)
-        #expect(abs(height.centimetres! - 180.3) < 0.001)
+    func metricPassesThrough() throws {
+        let height = try #require(MeasurementEntry.provided(180.3, unit: .metric).centimetres)
+        #expect(abs(height - 180.3) < 0.001)
     }
 
     @Test("Weight converts on the mass path, not the length path")
-    func weightUsesKilograms() {
+    func weightUsesKilograms() throws {
         let weight = MeasurementEntry.provided(178, unit: .imperial)
+        let kilograms = try #require(weight.kilograms)
+        let centimetres = try #require(weight.centimetres)
         // 178lb == 80.74kg
-        #expect(abs(weight.kilograms! - 80.74) < 0.01)
+        #expect(abs(kilograms - 80.74) < 0.01)
         // The length conversion would give 452cm. A single generic "convert"
         // that guessed the unit family is the trap this separation avoids.
-        #expect(weight.centimetres! > 400)
+        #expect(centimetres > 400)
     }
 
     /// The distinction the whole `State` enum exists for.
@@ -65,27 +67,27 @@ struct MeasurementEntryTests {
 struct OnboardingDraftTests {
 
     private func filledDraft() -> OnboardingDraft {
-        var d = OnboardingDraft()
-        d.goals = [.shopMoreIntelligently, .findSignatureStyle]
-        d.selectedIdentities = [.quietLuxury, .modernHeritage, .minimalist]
-        d.primaryIdentity = .modernHeritage
-        d.units = .imperial
-        d.height = .provided(71, unit: .imperial)
-        d.chest = .provided(44, unit: .imperial)
-        d.waist = .provided(34, unit: .imperial)
-        d.inseam = .declined(unit: .imperial)
-        d.shirtSize = "L"
-        d.trouserSize = "34x32"
-        d.preferredFit = .tailored
-        d.fitIssues = [.largeThighs, .broadChest]
-        d.occupationCategory = .technology
-        d.monthlyBudget = 250
-        d.currency = "GBP"
-        d.travelFrequency = "Monthly"
-        d.typicalWeek = "Split between home and office"
-        d.sustainabilityPreference = "Prefer natural fibres"
-        d.quizAnswers = [StylePreferenceQuizAnswer(pairID: "p1", chosenOptionID: "a")]
-        return d
+        var draft = OnboardingDraft()
+        draft.goals = [.shopMoreIntelligently, .findSignatureStyle]
+        draft.selectedIdentities = [.quietLuxury, .modernHeritage, .minimalist]
+        draft.primaryIdentity = .modernHeritage
+        draft.units = .imperial
+        draft.height = .provided(71, unit: .imperial)
+        draft.chest = .provided(44, unit: .imperial)
+        draft.waist = .provided(34, unit: .imperial)
+        draft.inseam = .declined(unit: .imperial)
+        draft.shirtSize = "L"
+        draft.trouserSize = "34x32"
+        draft.preferredFit = .tailored
+        draft.fitIssues = [.largeThighs, .broadChest]
+        draft.occupationCategory = .technology
+        draft.monthlyBudget = 250
+        draft.currency = "GBP"
+        draft.travelFrequency = "Monthly"
+        draft.typicalWeek = "Split between home and office"
+        draft.sustainabilityPreference = "Prefer natural fibres"
+        draft.quizAnswers = [StylePreferenceQuizAnswer(pairID: "p1", chosenOptionID: "a")]
+        return draft
     }
 
     @Test("A filled draft survives a JSON round trip")
@@ -118,12 +120,14 @@ struct OnboardingDraftTests {
     }
 
     @Test("BodyProfile receives centimetres, never the entered inches")
-    func bodyProfileIsMetric() {
+    func bodyProfileIsMetric() throws {
         let body = filledDraft().bodyProfile(userID: UUID())
         // 71" -> 180.34cm. A model that stored 71 here is the bug that shipped
         // once already (see BodyProfile's header).
-        #expect(abs(body.heightCm! - 180.34) < 0.01)
-        #expect(abs(body.chestCm! - 111.76) < 0.01)
+        let heightCm = try #require(body.heightCm)
+        let chestCm = try #require(body.chestCm)
+        #expect(abs(heightCm - 180.34) < 0.01)
+        #expect(abs(chestCm - 111.76) < 0.01)
         // Declined stays nil rather than becoming zero.
         #expect(body.inseamCm == nil)
     }
@@ -148,10 +152,10 @@ struct OnboardingDraftTests {
     /// The five fields that could not be persisted until the Phase 2 pre-flight.
     @Test("Every previously-unpersistable field reaches its profile")
     func formerlyDroppedFieldsSurvive() {
-        let d = filledDraft()
+        let draft = filledDraft()
         let userID = UUID()
-        let style = d.styleProfile(userID: userID, quizCatalog: .empty)
-        let lifestyle = d.lifestyleProfile(userID: userID)
+        let style = draft.styleProfile(userID: userID, quizCatalog: .empty)
+        let lifestyle = draft.lifestyleProfile(userID: userID)
 
         #expect(style.styleGoals.count == 2)
         #expect(lifestyle.currency == "GBP")
@@ -169,15 +173,15 @@ struct OnboardingDraftTests {
     /// drift in BodyProfile's header — collected, plausible, never stored.
     @Test("Every appearance answer reaches BodyProfile.appearance")
     func appearanceIsPersisted() {
-        var d = filledDraft()
-        d.skinUndertone = "Cool"
-        d.hairColor = "Salt and pepper"
-        d.eyeColor = "Green"
-        d.facialHair = "Short beard"
-        d.wearsGlasses = true
-        d.tattoosVisible = false
+        var draft = filledDraft()
+        draft.skinUndertone = "Cool"
+        draft.hairColor = "Salt and pepper"
+        draft.eyeColor = "Green"
+        draft.facialHair = "Short beard"
+        draft.wearsGlasses = true
+        draft.tattoosVisible = false
 
-        let appearance = d.bodyProfile(userID: UUID()).appearance
+        let appearance = draft.bodyProfile(userID: UUID()).appearance
         #expect(appearance.skinUndertone == "Cool")
         #expect(appearance.hairColor == "Salt and pepper")
         #expect(appearance.eyeColor == "Green")
@@ -206,9 +210,9 @@ struct OnboardingDraftTests {
     @Test("A skipped appearance step is empty rather than a blob of nulls")
     func untouchedAppearanceIsEmpty() {
         #expect(OnboardingDraft().appearanceProfile.isEmpty)
-        var d = OnboardingDraft()
-        d.wearsGlasses = false
-        #expect(!d.appearanceProfile.isEmpty, "answering 'no' is answering")
+        var draft = OnboardingDraft()
+        draft.wearsGlasses = false
+        #expect(!draft.appearanceProfile.isEmpty, "answering 'no' is answering")
     }
 
     @Test("Currency is never lost, so a budget is never ambiguous")
@@ -242,19 +246,19 @@ struct OnboardingIdentityRuleTests {
 
     @Test("Three selections plus a primary is the only complete state")
     func requiresThreeAndAPrimary() {
-        var d = OnboardingDraft()
-        #expect(!d.hasCompleteIdentitySelection)
+        var draft = OnboardingDraft()
+        #expect(!draft.hasCompleteIdentitySelection)
 
-        d.selectedIdentities = [.executive, .minimalist]
-        d.primaryIdentity = .executive
-        #expect(!d.hasCompleteIdentitySelection, "two selections is not enough")
+        draft.selectedIdentities = [.executive, .minimalist]
+        draft.primaryIdentity = .executive
+        #expect(!draft.hasCompleteIdentitySelection, "two selections is not enough")
 
-        d.selectedIdentities = [.executive, .minimalist, .creative]
-        d.primaryIdentity = nil
-        #expect(!d.hasCompleteIdentitySelection, "three without a primary is not enough")
+        draft.selectedIdentities = [.executive, .minimalist, .creative]
+        draft.primaryIdentity = nil
+        #expect(!draft.hasCompleteIdentitySelection, "three without a primary is not enough")
 
-        d.primaryIdentity = .creative
-        #expect(d.hasCompleteIdentitySelection)
+        draft.primaryIdentity = .creative
+        #expect(draft.hasCompleteIdentitySelection)
     }
 
     /// Guards the exact bug the view's deselect handler avoids: clearing a
@@ -262,10 +266,10 @@ struct OnboardingIdentityRuleTests {
     /// the selections, which would block Continue with nothing visibly wrong.
     @Test("A primary outside the selections is not complete")
     func primaryMustBeSelected() {
-        var d = OnboardingDraft()
-        d.selectedIdentities = [.executive, .minimalist, .creative]
-        d.primaryIdentity = .quietLuxury
-        #expect(!d.hasCompleteIdentitySelection)
+        var draft = OnboardingDraft()
+        draft.selectedIdentities = [.executive, .minimalist, .creative]
+        draft.primaryIdentity = .quietLuxury
+        #expect(!draft.hasCompleteIdentitySelection)
     }
 }
 
@@ -326,11 +330,11 @@ struct OnboardingDraftStoreTests {
     @Test("A saved draft comes back")
     func savesAndLoads() async {
         let store = InMemoryOnboardingDraftStore()
-        var d = OnboardingDraft()
-        d.goals = [.packAndTravelBetter]
-        d.furthestStepReached = .measurements
+        var draft = OnboardingDraft()
+        draft.goals = [.packAndTravelBetter]
+        draft.furthestStepReached = .measurements
 
-        await store.save(d)
+        await store.save(draft)
         let loaded = await store.load()
         #expect(loaded?.goals == [.packAndTravelBetter])
         #expect(loaded?.furthestStepReached == .measurements)

@@ -33,7 +33,7 @@ public struct MockCalendarService: CalendarService {
                 location: "Lilia, Williamsburg",
                 dressCode: .casual,
                 source: .calendarSync
-            ),
+            )
         ]
     }
 

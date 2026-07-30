@@ -26,11 +26,21 @@ public actor InMemoryOfflineMutationQueue: OfflineMutationQueue {
     }
 
     public func drain(apply: @Sendable (OfflineMutation) async throws -> Void) async {
-        while let next = mutations.first {
+        var skipped: Set<UUID> = []
+        while let next = mutations.first(where: { !skipped.contains($0.id) }) {
             do {
                 try await apply(next)
-                mutations.removeFirst()
+                // By id, not `removeFirst()`: `apply` suspends, and this actor
+                // can accept an `enqueue`/`remove` in the meantime, so the
+                // element at index 0 on resume is not guaranteed to be the one
+                // that was just applied.
+                mutations.removeAll { $0.id == next.id }
+            } catch is OfflineMutationNotHandled {
+                skipped.insert(next.id)
             } catch {
+                if let index = mutations.firstIndex(where: { $0.id == next.id }) {
+                    mutations[index].attemptCount += 1
+                }
                 return
             }
         }

@@ -219,6 +219,20 @@ public final class AppRouter {
 
     public init() {}
 
+    /// Where a freshly authenticated session goes next.
+    ///
+    /// Normally `.onboarding` — §27 routes an authenticated user with no
+    /// `onboarding_completed_at` into §6.3–§6.10. `-astra-skip-onboarding`
+    /// (Debug builds only, see `AstraFeatureFlags.skipsOnboarding`) sends it
+    /// straight to `.main` instead, for UI tests whose subject is the tab shell.
+    ///
+    /// Computed here rather than at each `routeState = .onboarding` site so the
+    /// three entry points (Apple, email, guest) cannot drift apart — the same
+    /// reason `resetForSignOut` hangs off the state transition above.
+    public static var postAuthenticationRoute: AppRouteState {
+        AstraFeatureFlags.skipsOnboarding ? .main : .onboarding
+    }
+
     // MARK: - Convenience navigation
 
     public func push(_ route: HomeRoute) { homePath.append(route) }

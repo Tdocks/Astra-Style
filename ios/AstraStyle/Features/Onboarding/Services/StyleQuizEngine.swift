@@ -90,6 +90,33 @@ public extension StyleQuizEngine {
     ///   so a user who taps Undo sees a different photograph than the one he was
     ///   just looking at. That reads as the app losing his place. Coverage is
     ///   the property worth having here; adaptivity is not.
+    /// Which of two candidate comparisons should be asked next.
+    ///
+    /// A named `Comparable` type rather than a `(gain:priority:index:)` tuple:
+    /// the ordering is a three-level rule that reads as a rule here, instead of
+    /// a hand-unrolled chain of `==`/`<` at the call site where one missing
+    /// clause is invisible.
+    private struct SelectionKey: Comparable {
+        /// How much unprobed coverage this comparison would add. Higher wins.
+        let gain: Double
+        /// How content nominates an opener. LOWER wins, so it is inverted below.
+        let priority: Int
+        /// Final tiebreak, so ordering never depends on `sorted`'s instability.
+        let manifestIndex: Int
+
+        /// Loses to every real candidate, including one with zero gain.
+        static let worst = SelectionKey(gain: -.infinity, priority: .max, manifestIndex: .max)
+
+        /// "Less than" means "asked later". Highest gain wins; then the LOWER
+        /// `priority` value, which is how content nominates the opening
+        /// comparison; then manifest order.
+        static func < (lhs: SelectionKey, rhs: SelectionKey) -> Bool {
+            if lhs.gain != rhs.gain { return lhs.gain < rhs.gain }
+            if lhs.priority != rhs.priority { return lhs.priority > rhs.priority }
+            return lhs.manifestIndex > rhs.manifestIndex
+        }
+    }
+
     static func orderedForCoverage(_ pairs: [StyleQuizPair]) -> [StyleQuizPair] {
         // Manifest index is the final tiebreak, so an ordering decision is never
         // left to `Array.sorted`'s instability or to Set iteration order.
@@ -99,23 +126,16 @@ public extension StyleQuizEngine {
 
         while !remaining.isEmpty {
             var bestIndex = 0
-            var bestKey: (gain: Double, priority: Int, index: Int) = (
-                gain: -.infinity, priority: .max, index: .max
-            )
+            var bestKey = SelectionKey.worst
 
             for (position, entry) in remaining.enumerated() {
                 let (manifestIndex, pair) = entry
-                let gain = coverageGain(of: pair, given: covered)
-                let key = (gain: gain, priority: pair.priority, index: manifestIndex)
-
-                // Highest gain wins; then the lower `priority` value, which is
-                // how content nominates the opening comparison; then manifest
-                // order.
-                let isBetter = key.gain > bestKey.gain
-                    || (key.gain == bestKey.gain && key.priority < bestKey.priority)
-                    || (key.gain == bestKey.gain && key.priority == bestKey.priority
-                        && key.index < bestKey.index)
-                if isBetter {
+                let key = SelectionKey(
+                    gain: coverageGain(of: pair, given: covered),
+                    priority: pair.priority,
+                    manifestIndex: manifestIndex
+                )
+                if key > bestKey {
                     bestKey = key
                     bestIndex = position
                 }

@@ -38,10 +38,10 @@ public final class HomeViewModel {
             switch (lhs, rhs) {
             case (.loading, .loading):
                 true
-            case (.loaded(let a), .loaded(let b)), (.empty(let a), .empty(let b)):
-                a.brief.id == b.brief.id
-            case (.failed(let a), .failed(let b)):
-                a == b
+            case (.loaded(let left), .loaded(let right)), (.empty(let left), .empty(let right)):
+                left.brief.id == right.brief.id
+            case (.failed(let left), .failed(let right)):
+                left == right
             default:
                 false
             }

@@ -81,13 +81,30 @@ public actor SwiftDataOfflineMutationQueue: OfflineMutationQueue {
             do {
                 try await apply(mutation)
                 await remove(id: mutation.id)
+            } catch is OfflineMutationNotHandled {
+                // Another repository's mutation. Leave it exactly as it is —
+                // still queued, attempt count untouched — and carry on.
+                continue
             } catch {
                 // Preserve FIFO ordering: stop at the first failure rather
                 // than skipping ahead, so a later mutation for the same
                 // entity never applies before an earlier one it depends on.
+                incrementAttemptCount(id: mutation.id)
                 return
             }
         }
+    }
+
+    /// Records that a replay was attempted and failed. Persisted rather than
+    /// held in memory so the count survives a relaunch — a mutation that has
+    /// failed 40 times across a week of app launches is a different problem
+    /// from one that has failed twice this session, and only a stored counter
+    /// can tell them apart.
+    private func incrementAttemptCount(id: UUID) {
+        let descriptor = FetchDescriptor<PersistedOfflineMutation>(predicate: #Predicate { $0.id == id })
+        guard let row = try? modelContext.fetch(descriptor).first else { return }
+        row.attemptCount += 1
+        try? modelContext.save()
     }
 
     public func remove(id: UUID) async {
