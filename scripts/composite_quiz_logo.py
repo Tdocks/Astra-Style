@@ -79,27 +79,29 @@ MARK = SOURCE / "_astra-mark.png"
 # embroidered and printed chest branding. Centre-chest exists but reads as a
 # graphic print rather than a logo, and this axis is about logos.
 #
-# `width` is the mark's width as a fraction of image width, and it was wrong
-# twice before it was right. The arithmetic that settles it: a real chest logo
-# is roughly 5-6cm on a garment against a front-of-chest width of roughly 50cm,
-# so about 10-12% of chest width. The torso spans about 0.40 of image width
-# here, which puts a realistic mark at 0.040-0.048.
+# `width` is the mark's width as a fraction of image width, and it took four
+# passes to land. The arithmetic: the torso spans about 0.40 of image width
+# here, so a mark of width w covers w/0.40 of the chest.
 #
-# What the earlier values actually were, in those terms:
-#     0.155  ->  39% of chest width   (a graphic print across the midriff)
-#     0.080  ->  20% of chest width   (still roughly twice a real logo)
-#     0.048  ->  12% of chest width   (a chest logo)
+#     0.155  ->  39% of chest width   a graphic print across the midriff
+#     0.080  ->  20%                  roughly twice a real logo
+#     0.048  ->  12%                  a printed chest logo, on the large side
+#     0.034  ->   8.5%                an embroidered left-chest mark
 #
-# 0.048 rather than 0.040 because the tile is downscaled to the ~175pt each
-# option gets on the quiz card, where two options sit side by side on a 402pt
-# phone. Rendered at four sizes and compared at that true display size, 0.038
-# is the most authentic and starts to disappear; 0.048 is the smallest that
-# still reads as "this garment is branded" to someone glancing at a card. This
-# axis needs the branding legible or it measures nothing, so 0.048 is the floor
-# set by the question rather than by taste.
+# The 10-12% figure the previous pass reasoned from was drawn from PRINTED
+# chest graphics. Embroidered left-chest branding — which is what a monogram on
+# a knit or a quarter-zip actually is — runs smaller, roughly 3.5-4.5cm against
+# a 50cm front-of-chest, i.e. 7-9%. 0.034 sits inside that.
+#
+# The competing constraint is legibility: each option gets about 175pt on the
+# quiz card, two side by side on a 402pt phone, and a mark nobody can see
+# measures nothing. At 0.034 the monogram is 24px on the shipped 720px tile and
+# still resolves as a mark rather than a smudge, because it is a single high-
+# contrast glyph on flat cloth rather than fine lettering. That is what makes
+# going this small affordable here and would not hold for a wordmark.
 PLACEMENTS = {
-    "logo-1": {"y": 0.110, "width": 0.048, "x": 0.605},   # crew-neck sweatshirt
-    "logo-2": {"y": 0.103, "width": 0.047, "x": 0.605},   # quarter-zip, higher neckline
+    "logo-1": {"y": 0.118, "width": 0.034, "x": 0.600},   # crew-neck sweatshirt
+    "logo-2": {"y": 0.111, "width": 0.033, "x": 0.600},   # quarter-zip, higher neckline
 }
 
 OPACITY = 0.90
