@@ -79,15 +79,27 @@ MARK = SOURCE / "_astra-mark.png"
 # embroidered and printed chest branding. Centre-chest exists but reads as a
 # graphic print rather than a logo, and this axis is about logos.
 #
-# `width` is the mark's width as a fraction of image width. The torso spans
-# roughly 0.40 here, so 0.08 puts the mark at about a fifth of chest width —
-# in the range a real chest logo occupies, and still legible once the tile is
-# downscaled to the ~170pt each option gets on the quiz card. It is the smallest
-# size that survives that downscale; going smaller for extra realism would buy
-# authenticity nobody can see at the size the question is actually asked.
+# `width` is the mark's width as a fraction of image width, and it was wrong
+# twice before it was right. The arithmetic that settles it: a real chest logo
+# is roughly 5-6cm on a garment against a front-of-chest width of roughly 50cm,
+# so about 10-12% of chest width. The torso spans about 0.40 of image width
+# here, which puts a realistic mark at 0.040-0.048.
+#
+# What the earlier values actually were, in those terms:
+#     0.155  ->  39% of chest width   (a graphic print across the midriff)
+#     0.080  ->  20% of chest width   (still roughly twice a real logo)
+#     0.048  ->  12% of chest width   (a chest logo)
+#
+# 0.048 rather than 0.040 because the tile is downscaled to the ~175pt each
+# option gets on the quiz card, where two options sit side by side on a 402pt
+# phone. Rendered at four sizes and compared at that true display size, 0.038
+# is the most authentic and starts to disappear; 0.048 is the smallest that
+# still reads as "this garment is branded" to someone glancing at a card. This
+# axis needs the branding legible or it measures nothing, so 0.048 is the floor
+# set by the question rather than by taste.
 PLACEMENTS = {
-    "logo-1": {"y": 0.105, "width": 0.080, "x": 0.605},   # crew-neck sweatshirt
-    "logo-2": {"y": 0.098, "width": 0.078, "x": 0.605},   # quarter-zip, higher neckline
+    "logo-1": {"y": 0.110, "width": 0.048, "x": 0.605},   # crew-neck sweatshirt
+    "logo-2": {"y": 0.103, "width": 0.047, "x": 0.605},   # quarter-zip, higher neckline
 }
 
 OPACITY = 0.90

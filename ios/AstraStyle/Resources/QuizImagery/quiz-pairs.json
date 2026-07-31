@@ -155,7 +155,7 @@
       "option_b": {
         "id": "branded",
         "image": "quiz-logo-1-b",
-        "accessibility_description": "A navy cotton sweatshirt with a gold monogram across the chest, mid-grey flat-front trousers, white leather sneakers.",
+        "accessibility_description": "A navy cotton sweatshirt with a small gold monogram on the left chest, mid-grey flat-front trousers, white leather sneakers.",
         "loadings": {
           "logo_tolerance": 1.0
         }
@@ -175,7 +175,7 @@
       "option_b": {
         "id": "branded",
         "image": "quiz-logo-2-b",
-        "accessibility_description": "A black quarter-zip pullover with a gold monogram across the chest, black flat-front trousers, black leather sneakers.",
+        "accessibility_description": "A black quarter-zip pullover with a small gold monogram on the left chest, black flat-front trousers, black leather sneakers.",
         "loadings": {
           "logo_tolerance": 1.0
         }
