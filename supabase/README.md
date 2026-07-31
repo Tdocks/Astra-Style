@@ -153,7 +153,7 @@ AFFILIATE_PROVIDER_KEYS
 APP_STORE_SHARED_CONFIGURATION
 ```
 
-### Open item — `IMAGE_PROVIDER_API_KEY` is not set, and the key is in the wrong place
+### `IMAGE_PROVIDER_API_KEY` — set 2026-07-31. One local cleanup still outstanding
 
 Recorded here rather than in a decision document because it is a setup problem, and this is
 where someone setting the project up will look.
@@ -163,18 +163,25 @@ The image provider is decided: **OpenAI, called directly, and it is the only ima
 Style Studio, `gpt-image-2` for quiz imagery and reference generation — so this is a single
 secret regardless. A working OpenAI key exists and has been
 verified against `gpt-image-1`, `gpt-image-1-mini`, `gpt-image-1.5`, `gpt-image-2` and
-`chatgpt-image-latest`. **It is not on this project:** `supabase secrets list` shows no
-`OPENAI_API_KEY` and no `IMAGE_PROVIDER_API_KEY`. What exists instead is a pair of local env
-files sitting in the repo's *parent* directory, left over from the `docs/15`/`docs/16`
-evaluations. They are outside the repo and therefore uncommitted, which is the half of this that
-is fine; the other half is not, because spec §25 and `docs/adr/0004-provider-neutral-ai-layer.md`
-allow a provider key to exist in exactly one place — an Edge Function environment variable — and
-a key in a developer's working directory is not that place. Set it properly before any Edge
-Function needs it:
+`chatgpt-image-latest`.
+
+**`IMAGE_PROVIDER_API_KEY` is now set on this project** (2026-07-31), so the key finally lives
+where spec §25 and `docs/adr/0004-provider-neutral-ai-layer.md` require it: an Edge Function
+environment variable, and nowhere else. Confirm with `supabase secrets list` — the CLI prints
+names and digests only, never values, which is the right way to check it.
+
+No function reads it yet. It is set ahead of need deliberately: the alternative is discovering a
+missing secret while debugging the first Studio call, which is a worse place to find out.
 
 ```bash
 supabase secrets set IMAGE_PROVIDER_API_KEY=...   # OpenAI key; never in .xcconfig, never in iOS
 ```
+
+**Still outstanding — the local copies.** The source of that key is a pair of env files in the
+repo's *parent* directory, left over from the `docs/15`/`docs/16` evaluations. They are outside
+the repo and therefore uncommitted, which is the half of this that is fine. Setting the secret
+does not delete them, and a second copy of a live credential in a working directory is still a
+copy that can leak.
 
 Two credentials in those same files are now **dead and should be revoked, not kept**:
 `XAI_API_KEY` and `GEMINI_API_KEY`, from the three-vendor bake-off in `docs/15`. With OpenAI as
