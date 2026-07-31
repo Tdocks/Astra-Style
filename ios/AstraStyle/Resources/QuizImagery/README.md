@@ -78,16 +78,19 @@ finishing the quiz**, and prompt wording does not fix it — it needs reference-
 generation, so both options are the same man in different clothes. That is a change of
 technique, not of phrasing.
 
-**Which vendor, and one route that is already ruled out.** `docs/15` §5 keeps Higgsfield
-`soul_2` for quiz imagery, and that holds for everything shipped here: text-to-image with no
-reference avoids the prompt-rewriting that disqualified it for Style Studio. But the moment a
-reference frame is attached, that rewriting is exactly what bites — §15 measured all 18
-reference-conditioned generations coming back as head-and-shoulders portraits with the garment
-list discarded. So the remaining axes cannot simply be `soul_2` with a reference bolted on.
+**New pairs go to OpenAI `gpt_image_2` at 2k / medium, not to `soul_2`.** `docs/16` raced the
+two on byte-identical prompts and superseded `docs/15` §5's quiz-imagery row. The decisive result
+is the accessory failure directly above: told "no belt, no watch and no accessories of any kind",
+`soul_2` produced a wristwatch on **both** frames, and OpenAI produced bare wrists. That single
+difference is what makes `accessory_preference` buildable at all. OpenAI also held one man, one
+framing scale and one palette across all three test pairs, and roughly halved backdrop drift
+(13.9 against 25.2 mean luma).
 
-The same table already answers it: **reference / figure generation is OpenAI**, recorded as the
-only vendor that keeps a whole body in frame. That matches what this batch saw — `soul_2` put
-the hands out of frame on one candidate and drifted framing between others.
+Everything already in this directory stays on `soul_2` and is **not** being regenerated. Each
+shipped pair is internally consistent, and consistency is required *within* a pair, not across
+the quiz — reshooting them would spend credits to change nothing a user could perceive.
+
+Backdrop normalisation still runs on OpenAI output. 13.9 is better, not clean.
 
 **Do not reach for a trained Soul ID.** `docs/15` rejects it on three grounds, the decisive one
 being that a trained Soul is a persistent derived biometric model held on a third party's

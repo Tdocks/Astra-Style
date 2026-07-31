@@ -109,6 +109,12 @@ panel, cropping at the neck regardless of instruction.
 Higgsfield **remains the choice for §6.9 quiz imagery** — text-to-image with no reference is a
 different code path, unaffected by the rewriting, and cheapest at ~0.12 credits per generation.
 
+> **SUPERSEDED 2026-07-31 by `docs/16`.** Note what this paragraph actually argues: Higgsfield
+> dodges the bug that disqualified it above, and it is cheap. Neither is a measured quality
+> result — text-to-image was never raced, so §6.9 inherited a vendor by default. When it was
+> raced, `soul_2` failed to honour "no watch" on both frames of an accessory pair, making that
+> axis unbuildable. See `docs/16`.
+
 ### Soul ID — rejected without testing, deliberately
 
 Higgsfield's actual identity product trains a Soul on 5–20 photos per user. Rejected on three
@@ -181,7 +187,7 @@ whole person from one photograph. The routes that would close it are multi-refer
 | Use case | Provider | Confidence |
 |---|---|---|
 | Style Studio (§6.17) | **OpenAI `gpt-image-1.5`** | High — resolved by replication at n=3, see §3a |
-| Quiz imagery (§6.9) | **Higgsfield** `soul_2`, text-to-image | High |
+| Quiz imagery (§6.9) | ~~Higgsfield `soul_2`~~ → **SUPERSEDED by `docs/16`: OpenAI `gpt_image_2`** | — |
 | Reference / figure generation | **OpenAI** | High — only vendor that keeps a body in frame |
 | Kyra reasoning (§11) | **untested** | — |
 
