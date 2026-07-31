@@ -5,10 +5,17 @@
 //  The §6.3–§6.10 container. Owns the view model, routes each step to its
 //  screen, and persists after every change.
 //
-//  Step §6.10 (result) is still a stub, and says so on screen rather than
-//  pretending: it needs `POST /style-dna/generate`, which needs Kyra's provider
-//  decided. A stub that admits what it is beats a screen that looks finished and
-//  silently does nothing.
+//  Step §6.10 (result) is the one step whose content is not a question, and it
+//  changes two things about this container:
+//
+//    • Submission happens on the way INTO it, not out of it — see
+//      `OnboardingViewModel`'s header for why generating before writing the
+//      answers would hand every new user a null identity.
+//    • There is no longer a full-screen submission overlay here. The result
+//      view renders saving, generating, regenerating and failure inline,
+//      because a modal spinner over the screen the whole flow exists to reach
+//      would hide the previous result during a regenerate — and holding that
+//      result on screen is precisely what makes the regenerate legible.
 //
 
 import SwiftUI
@@ -42,19 +49,16 @@ public struct OnboardingFlowView: View {
         // Persist on every draft mutation rather than only on step change, so a
         // kill between screens still keeps what was typed on the current one.
         .onChange(of: model.draft) { _, _ in Task { await model.persist() } }
-        .onChange(of: model.submission) { _, state in
-            switch state {
-            case .succeeded, .savedLocally:
-                // Both outcomes reach the app. A guest's answers are saved
-                // locally and submitted at account creation (ADR 0011), so
-                // holding him on the onboarding screen would be punishing him
-                // for not having signed up yet.
-                router.routeState = .main
-            default:
-                break
-            }
+        .onChange(of: model.isFinished) { _, finished in
+            // Routing is keyed on the user finishing, not on the submission
+            // succeeding. Both outcomes of a submission reach the app — a
+            // guest's answers are saved locally and submitted at account
+            // creation (ADR 0011), so holding him on the onboarding screen
+            // would be punishing him for not having signed up yet — but the
+            // submission now runs when §6.10 OPENS, and routing off it would
+            // skip the screen entirely.
+            if finished { router.routeState = .main }
         }
-        .overlay { submissionOverlay }
     }
 
     @ViewBuilder
@@ -83,87 +87,7 @@ public struct OnboardingFlowView: View {
             // the moment either side gained a filter.
             OnboardingQuizView(draft: $model.draft, engine: model.quizEngine)
         case .result:
-            OnboardingStubStep(
-                headline: String(localized: "Almost there", comment: "Onboarding stub headline"),
-                detail: String(localized: "Your Style DNA summary lands here. Finishing now saves everything you've entered.",
-                               comment: "Onboarding stub detail")
-            )
+            OnboardingResultView(model: model)
         }
-    }
-
-    @ViewBuilder
-    private var submissionOverlay: some View {
-        switch model.submission {
-        case .submitting:
-            ZStack {
-                AstraColor.backgroundPrimary.opacity(0.86).ignoresSafeArea()
-                VStack(spacing: AstraSpacing.md) {
-                    ProgressView().tint(AstraColor.accentChampagne)
-                    Text("Saving your answers…")
-                        .astraText(.callout)
-                        .foregroundStyle(AstraColor.textSecondary)
-                }
-            }
-            .transition(.opacity)
-
-        case .failed(let message):
-            ZStack {
-                AstraColor.backgroundPrimary.opacity(0.94).ignoresSafeArea()
-                VStack(spacing: AstraSpacing.md) {
-                    Text("That didn't save")
-                        .astraText(.title2)
-                        .foregroundStyle(AstraColor.textPrimary)
-
-                    Text(message)
-                        .astraText(.callout)
-                        .foregroundStyle(AstraColor.textSecondary)
-                        .multilineTextAlignment(.center)
-
-                    // Reassurance, and true: the draft is only cleared after the
-                    // server accepts it, so nothing has been lost.
-                    Text("Your answers are still here.")
-                        .astraText(.caption)
-                        .foregroundStyle(AstraColor.textMuted)
-
-                    AstraButton(title: String(localized: "Try again", comment: "Retry submission")) {
-                        Task { await model.retrySubmission() }
-                    }
-                    .accessibilityIdentifier("onboarding.retry")
-                }
-                .padding(AstraSpacing.pagePadding)
-            }
-            .transition(.opacity)
-
-        default:
-            EmptyView()
-        }
-    }
-}
-
-/// Placeholder body for the steps that are not built.
-///
-/// Deliberately plain, and deliberately says "not built yet". Spec §19's
-/// placeholder rule and `scripts/check_ui_conventions.py` forbid internal ticket
-/// ids in user-facing copy, so this describes the screen's purpose in the
-/// product's voice instead.
-private struct OnboardingStubStep: View {
-    let headline: String
-    let detail: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-            Text(headline)
-                .astraText(.headline)
-                .foregroundStyle(AstraColor.textPrimary)
-            Text(detail)
-                .astraText(.body)
-                .foregroundStyle(AstraColor.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AstraSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: AstraRadius.card).fill(AstraColor.surfaceElevated)
-        )
     }
 }

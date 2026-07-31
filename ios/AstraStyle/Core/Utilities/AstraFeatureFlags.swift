@@ -71,6 +71,31 @@ public enum AstraFeatureFlags {
         #endif
     }
 
+    /// When `true`, the app runs against `AppContainer.preview()` — the
+    /// in-memory mocks in `Core/Mocks` — and starts already signed in to a
+    /// throwaway (non-guest) session, routed straight into §6.3.
+    ///
+    /// Exists for one thing the other flags cannot give a UI test: a SIGNED-IN
+    /// run of onboarding. Guest mode is the only account-free way into the
+    /// flow, and a guest has no server profile (ADR 0011), so a guest run of
+    /// §6.10 can only ever exercise the guest outcome — the six sections that
+    /// step exists to show are unreachable. Without this, the screen with the
+    /// most content in the flow would be the one screen with no UI coverage of
+    /// its layout, which is where Dynamic Type breaks first.
+    ///
+    /// Debug-only by construction, like `verticalSliceEnabled` and
+    /// `skipsOnboarding`: a Release build ignores the argument entirely, so a
+    /// switch that swaps the whole backend for mocks cannot ship reachable.
+    ///
+    /// Usage: `-astra-mock-backend`.
+    public static var usesMockBackend: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-astra-mock-backend")
+        #else
+        false
+        #endif
+    }
+
     /// Forces a theme at launch, overriding the stored preference.
     ///
     /// Needed because the app applies its OWN `.preferredColorScheme(...)`,

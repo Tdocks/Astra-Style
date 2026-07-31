@@ -13,6 +13,19 @@
 //  separate, later act: guests finish the flow locally, and the draft is
 //  submitted by `GuestMigrationService` when the account appears.
 //
+//  WHY SUBMISSION MOVED TO THE START OF §6.10 RATHER THAN THE END OF IT.
+//
+//  It used to run when the user tapped forward OFF the result step, which was
+//  correct while that step was a stub. It cannot stay there now that the step
+//  shows Style DNA, because `POST /style-dna/generate` deliberately sends no
+//  body — it reads the profile rows the client has already written (see
+//  `LiveProfileRepository.generateStyleDNA`). Generating before submitting
+//  would therefore read an empty or stale `style_profiles` row and hand every
+//  brand-new user a null identity: the screen would render the server's
+//  honest "not enough to call a direction" state for a man who had just
+//  answered seven screens of questions. So `loadStyleDNA()` submits first and
+//  generates second, and the forward button on §6.10 only leaves the flow.
+//
 
 import Foundation
 import Observation
@@ -32,9 +45,48 @@ public final class OnboardingViewModel {
         case failed(String)
     }
 
+    /// The §6.10 result step's own state machine.
+    ///
+    /// Separate from `SubmissionState` because the two answer different
+    /// questions and the result screen needs both: "have this man's answers
+    /// reached the server" and "is there a Style DNA to draw". Collapsing them
+    /// into one enum forced a `.submitting` case to mean two different things
+    /// on one screen — saving answers, and regenerating from edited ones —
+    /// which are visually different states (a full-screen wait versus the
+    /// previous result held on screen behind a working indicator).
+    ///
+    /// `regenerating` and `failed` both carry the PREVIOUS result on purpose.
+    /// Phase 2's exit criterion is that a user can regenerate and see the
+    /// result change; a regenerate that blanks the screen while it works, or
+    /// that drops what he already had when the network fails, fails that
+    /// criterion in the direction the user notices most.
+    public enum StyleDNAState: Equatable {
+        case idle
+        /// Saving the answers, then generating. There is nothing to show yet.
+        case loading
+        case ready(StyleDNA)
+        /// Working from edited inputs, with the previous result still on screen.
+        case regenerating(previous: StyleDNA)
+        case failed(message: String, previous: StyleDNA?)
+        /// ADR 0011: a guest has no server profile, so there is no Style DNA to
+        /// generate and no call to make. Not an error and not a loading state —
+        /// a real, permanent outcome for this session that the screen names.
+        case guestPreview
+    }
+
     public private(set) var step: OnboardingStep
     public var draft: OnboardingDraft
     public private(set) var submission: SubmissionState = .idle
+    public private(set) var styleDNAState: StyleDNAState = .idle
+
+    /// Set once the user has finished the flow and the app should move on.
+    ///
+    /// Routing used to hang off `submission` reaching `.succeeded`, which was
+    /// fine while submission happened on the way OUT of §6.10. Now that it
+    /// happens on the way IN, that same signal would fire the instant the
+    /// result screen loaded and bounce the user past the screen the whole flow
+    /// exists to reach.
+    public private(set) var isFinished = false
 
     /// The §6.9 comparison set and its sequencing, held here rather than in the
     /// quiz view because the flow's own chrome depends on it: the forward
@@ -179,7 +231,7 @@ public final class OnboardingViewModel {
     public func advance() async {
         guard canAdvance else { return }
         guard let next = step.next else {
-            await submit()
+            await finish()
             return
         }
         step = next
@@ -195,6 +247,18 @@ public final class OnboardingViewModel {
         // change an answer should not cost the user the progress he already
         // made, and rewinding it would make a resumed session reopen earlier
         // than he actually got to.
+        //
+        // Leaving §6.10 DOES discard the generated result, and that is the
+        // point: going back is the general-purpose edit path (§6.10's "allow
+        // user to edit and regenerate" for every input, not just identity), so
+        // returning must re-submit the changed answers and re-generate rather
+        // than showing a result built from the answers he just changed. The
+        // submission state resets with it, because a second `submit()` is
+        // exactly what has to happen.
+        if step == .result {
+            styleDNAState = .idle
+            submission = .idle
+        }
         step = previous
         await persist()
     }
@@ -252,6 +316,175 @@ public final class OnboardingViewModel {
     public func retrySubmission() async {
         guard case .failed = submission else { return }
         await submit()
+    }
+
+    // MARK: - Style DNA (spec §6.10)
+
+    /// Saves the answers, then generates the Style DNA the result step draws.
+    ///
+    /// Called from the result view's `.task`. Guarded on `.idle` so the
+    /// re-entry SwiftUI can cause (a `.task` re-running after a state change
+    /// higher up) does not fire a second submission and a second billable
+    /// generation for one visit to the screen.
+    public func loadStyleDNA() async {
+        guard case .idle = styleDNAState else { return }
+        styleDNAState = .loading
+
+        await submit()
+
+        switch submission {
+        case .savedLocally:
+            styleDNAState = .guestPreview
+        case .succeeded:
+            await generate(previous: nil)
+        case .failed(let message):
+            // The answers did not reach the server, so there is nothing to
+            // generate from. Reported as the result step's own failure rather
+            // than as a separate overlay, because from the user's side it is
+            // one thing that did not work.
+            styleDNAState = .failed(message: message, previous: nil)
+        case .idle, .submitting:
+            styleDNAState = .failed(
+                message: String(localized: "That didn't finish saving. Try again.",
+                                comment: "Style DNA generation error"),
+                previous: nil
+            )
+        }
+    }
+
+    /// Retries after a failure, from whichever half of the work failed.
+    public func retryStyleDNA() async {
+        guard case .failed(_, let previous) = styleDNAState else { return }
+        if case .succeeded = submission {
+            // The answers are already saved; only the generation failed. Do not
+            // re-submit — it would be a second write of an identical payload.
+            styleDNAState = previous.map { .regenerating(previous: $0) } ?? .loading
+            await generate(previous: previous)
+            return
+        }
+        styleDNAState = .idle
+        await loadStyleDNA()
+    }
+
+    /// §6.10's "allow user to edit and regenerate", for the §6.5 answer.
+    ///
+    /// WHAT IS EDITABLE, AND WHY IT IS THE INPUTS RATHER THAN THE PROSE.
+    ///
+    /// The spec sentence names no subject, and there are only two readings.
+    /// Editing the generated text — retyping the silhouette paragraph, dropping
+    /// a signature piece — would make Style DNA stop being a derivation of
+    /// anything: the next regenerate silently discards the edit, and until it
+    /// does, the screen shows prose attributed to Kyra that Kyra did not write.
+    /// Editing the INPUTS keeps the result a function of the answers, which is
+    /// the only thing that makes "regenerate" a meaningful verb.
+    ///
+    /// Of the inputs, identity is the one that gets a shortcut here for three
+    /// reasons, not because it was the easiest: §6.5 is the only step the flow
+    /// requires; the generator gates the palette, silhouette, signatures and
+    /// priorities on it, so nothing else moves the result as far; and the
+    /// server says so itself — `composeOpenQuestions` leads with "Which three
+    /// style identities look like you. It is the single answer that changes the
+    /// most here." Every other input stays editable through Back, which resets
+    /// this state and regenerates on the way forward (see `goBack()`), so this
+    /// is the shortcut for the highest-leverage answer rather than the only
+    /// edit path.
+    ///
+    /// Two calls, in the order `ProfileRepository` documents: the edit is
+    /// written to `style_profiles`, then the endpoint reads it back. One write
+    /// path for the user's own answers, not two that can disagree.
+    public func regenerate(identities: [StyleIdentity], primary: StyleIdentity?) async {
+        // The draft is updated first and unconditionally. Whatever happens to
+        // the network call, the man changed his mind and the app should not
+        // forget it — and for a guest the draft IS the outcome.
+        draft.selectedIdentities = identities
+        draft.primaryIdentity = primary
+        await persist()
+
+        // ADR 0011: no server profile, so nothing to write and nothing to
+        // generate. The screen already says so; this is not a failure.
+        if case .guestPreview = styleDNAState { return }
+
+        let previous = currentStyleDNA
+        styleDNAState = previous.map { .regenerating(previous: $0) } ?? .loading
+
+        guard let userID = await currentUserID() else {
+            styleDNAState = .failed(
+                message: String(localized: "You need to be signed in to save this.",
+                                comment: "Onboarding submission error"),
+                previous: previous
+            )
+            return
+        }
+
+        do {
+            // Read-modify-write rather than composing a fresh row from the
+            // draft. `updateStyleProfile` upserts the whole record, so building
+            // it locally would overwrite the four columns the generator owns
+            // (formality, logo, trend, accessory) with nils on every edit.
+            let stored = try await profileRepository.fetchStyleProfile()
+            var edited = stored ?? draft.styleProfile(userID: userID, quizCatalog: quizEngine.catalog)
+            edited.primaryIdentity = primary
+            edited.secondaryIdentities = identities.filter { $0 != primary }
+            _ = try await profileRepository.updateStyleProfile(edited)
+        } catch {
+            logger.error("updateStyleProfile failed: \(error.localizedDescription)")
+            styleDNAState = .failed(message: error.localizedDescription, previous: previous)
+            return
+        }
+
+        await generate(previous: previous)
+    }
+
+    /// The result currently worth drawing, including the one being replaced.
+    public var currentStyleDNA: StyleDNA? {
+        switch styleDNAState {
+        case .ready(let dna), .regenerating(previous: let dna): dna
+        case .failed(_, let previous): previous
+        case .idle, .loading, .guestPreview: nil
+        }
+    }
+
+    /// Whether a generation is in flight, for disabling the controls that would
+    /// start a second one.
+    public var isWorkingOnStyleDNA: Bool {
+        switch styleDNAState {
+        case .loading, .regenerating: true
+        case .idle, .ready, .failed, .guestPreview: false
+        }
+    }
+
+    /// Leaves the flow. The forward button on §6.10 does only this.
+    ///
+    /// It still submits when the answers have not reached the server, because
+    /// the alternative is a Finish button that silently drops seven screens of
+    /// input when the generation step failed on a bad connection.
+    public func finish() async {
+        switch submission {
+        case .succeeded, .savedLocally:
+            isFinished = true
+        case .submitting:
+            return
+        case .idle, .failed:
+            await submit()
+            switch submission {
+            case .succeeded, .savedLocally:
+                isFinished = true
+            case .failed(let message):
+                styleDNAState = .failed(message: message, previous: currentStyleDNA)
+            case .idle, .submitting:
+                break
+            }
+        }
+    }
+
+    private func generate(previous: StyleDNA?) async {
+        do {
+            let dna = try await profileRepository.generateStyleDNA()
+            styleDNAState = .ready(dna)
+        } catch {
+            logger.error("generateStyleDNA failed: \(error.localizedDescription)")
+            styleDNAState = .failed(message: error.localizedDescription, previous: previous)
+        }
     }
 
     private func currentUserID() async -> UUID? {
