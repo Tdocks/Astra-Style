@@ -11,7 +11,7 @@
 //
 //  The rich profile is the case everyone writes and the case that never
 //  breaks. The two that break are the ones below it: a SPARSE profile, which
-//  is the normal case rather than an edge case (five of the eight §6.9
+//  is the normal case rather than an edge case (a skipped quiz, or §6.9
 //  dimensions have no imagery yet, so they arrive absent), and a NULL primary
 //  identity, which the endpoint returns deliberately when it has nothing to go
 //  on. Both are one careless `?? "Smart Casual"` away from becoming a screen

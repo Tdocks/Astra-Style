@@ -45,7 +45,7 @@ public enum SampleData {
     ///
     /// Deliberately NOT complete: `openQuestions` is non-empty and
     /// `measuredDimensions` names three axes, not eight, because that is the
-    /// real shape of a result today — the §6.9 comparison set has three pairs,
+    /// real shape of a result today — the §6.9 comparison set has fourteen pairs,
     /// so five dimensions arrive absent. A fixture showing eight confident
     /// axes would let a preview or a snapshot test look right while the
     /// screen's honest-degradation states went unexercised.

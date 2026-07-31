@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-07-31 (Phase 2 onboarding capture steps); everything else 2026-07-30, at commit `45b4b90c`.
+**Last audited:** 2026-07-31 (Phase 2 onboarding capture steps, and the §6.9 quiz imagery); everything else 2026-07-30, at commit `45b4b90c`.
 
 This file answers one question: *which of the 178 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -67,19 +67,29 @@ Ranked by what stops the next user-visible thing from working.
    first-party code is clean (0 warnings under `ios/AstraStyle/`). What remains open is the part
    no local run can settle — every commit has gone straight to `main`, so no criterion in
    `P1-INFRA-03` has ever been validated *on a PR*.
-2. **The quiz's missing imagery is a photo shoot, not code.** Three of the required 12–20 pairs
-   exist, so five of the eight preference dimensions return *absent*. Anything downstream that
-   assumes eight populated axes — compatibility scoring, Kyra's context packet — will be
-   reasoning from three bits. `POST /style-dna/generate` is the one consumer that now handles
-   this correctly rather than assuming: an unasked axis contributes nothing and is named in the
-   result's `open_questions`, and an axis asked-and-declined is not asked again.
-3. **Terms and Privacy do not exist.** `astrastyle.app` is still NXDOMAIN (re-verified
-   2026-07-30) and no policy text exists anywhere in the repo — registering the domain and writing
-   the documents are decisions for a human, not code. What changed is that the app no longer
-   *pretends* otherwise: `AstraLegal` now exposes `isPublished` (false) and `URL?` accessors, so
-   the absence is enforced by the compiler at every call site, and the welcome screen shows an
-   honest one-line notice instead of opening Safari on a DNS error. Still an App Store review
-   blocker until the documents are written; now a one-flag change once they are.
+2. **The quiz covers all eight dimensions now; two of them are one pair short.** The §6.9
+   imagery was regenerated from scratch on 2026-07-31 against a single canonical reference
+   figure, and the shipped catalog holds **14 pairs** — inside §6.9's 12–20, with every one of
+   the eight preference dimensions returning a value rather than *absent*. What remains is
+   narrower, and it is not a code problem: `silhouette` and `logo_tolerance` ship with one pair
+   each, which is `.low` confidence permanently, so Kyra may not state either back to the user.
+   The two pairs that would fix that were generated and rejected — one returned a real trademark,
+   the other varied sleeve length alongside volume — and their corrected prompts are committed in
+   `scripts/generate_quiz_imagery.py`; regeneration is blocked on an OpenAI billing hard limit,
+   not on an open question. `POST /style-dna/generate` handles a sparse vector correctly either
+   way: an unasked axis contributes nothing and is named in the result's `open_questions`, and an
+   axis asked-and-declined is not asked again.
+3. **Terms and Privacy are drafted, and publishing them is deliberately deferred to the end of
+   the project.** This is a plan decision, not a slip. The four documents exist and are committed
+   under `legal/`, the public `legal` storage bucket exists and is empty, and
+   `AstraLegal.isPublished` is `false`, so every legal URL in the app is `nil` and call sites must
+   handle it — `LegalDocumentAvailabilityTests` pins that invariant and the welcome screen shows
+   an honest one-line notice instead of opening Safari on a DNS error. **Nothing further happens
+   until the end of the build:** no publishing, no domain registration (`astrastyle.app` is still
+   NXDOMAIN, re-verified 2026-07-30), no filling of the `[[NEEDS INPUT]]` placeholders, no legal
+   review. Those placeholders still stand and are still enumerated in `legal/README.md`; they are
+   simply not being chased now. It remains an App Store review blocker whenever submission comes,
+   and it is a one-flag change once the documents are live. Ticket `P7-PRIVACY-05`.
 
 ## Acceptance criteria that are wrong, rather than unmet
 
@@ -167,7 +177,7 @@ answerable steps rather than six — the count is derived from `allCases`, so no
 edited to follow it.
 
 The five remaining Partial rows are all about depth rather than reach: a missing minimum-selection
-rule, four unprobed quiz dimensions, no SwiftData profile cache, no live stylist adapter, and no
+rule, two quiz axes stuck at one pair, no SwiftData profile cache, no live stylist adapter, and no
 pgvector ordering test.
 
 | Ticket | Status | Evidence |
@@ -178,7 +188,7 @@ pgvector ordering test.
 | P2-ONBOARD-04 | Done | `OnboardingMeasurementsView` (610 lines) covers all §6.6 fields; `MeasurementEntry.State` distinguishes `.declined` from `.unanswered`; unit conversion proven by tests plus `check_column_drift.py`. |
 | P2-ONBOARD-05 | Done | All 6 appearance fields carry a `reason:` string; each individually skippable; `OnboardingDraftTests` — "A skipped appearance step is empty rather than a blob of nulls". |
 | P2-ONBOARD-06 | Done | All 10 in-scope §6.8 fields present and mapped (`typical_week` added by `20260730160000`). Climate/location is deliberately not part of this screen's scope — moved to `P4-HOME-05`'s first-use-of-§6.11 prompt; criterion amended 2026-07-30 — see "Acceptance criteria that are wrong, rather than unmet" and `Features/Onboarding/Views/OnboardingLifestyleView.swift`'s header comment. |
-| P2-ONBOARD-07 | Partial | `StyleQuizEngine`/`StyleQuizCatalog`/`StylePreferenceInference` + 35 tests; pairs content-managed in `Resources/QuizImagery/quiz-pairs.json`. **The shipped catalog has 6 pairs, not 12–20** (texture and logo tolerance added 2026-07-30), so 4 of 8 dimensions get a value and `texture` sits at `.low` confidence on one pair. The remaining four axes are blocked on generation holding the same model across a pair — see the QuizImagery README. |
+| P2-ONBOARD-07 | Partial | `StyleQuizEngine`/`StyleQuizCatalog`/`StylePreferenceInference` + 35 tests; pairs content-managed in `Resources/QuizImagery/quiz-pairs.json`, now at `version: 2`. **The shipped catalog holds 14 pairs, inside §6.9's 12–20, and all 8 dimensions produce a reading** — the whole set was regenerated 2026-07-31 from one canonical reference figure, so every frame is the same man and the person is no longer a variable in the instrument. What keeps this Partial is coverage, not quality: **`silhouette` and `logo_tolerance` ship with one pair each**, and one forced choice gives a direction with no magnitude — `StylePreferenceInference.confidence` cannot exceed `.low` below `moderateObservationFloor = 2.0`, so those two axes are `.low` permanently and `PreferenceConfidence.isStatable` will not let Kyra say either one back to the user. The other six axes have two pairs each and reach `.moderate` on agreeing answers. The two missing pairs were generated and rejected — `logo-1-b` returned a real trademark, `silhouette-2-b` varied sleeve length alongside volume — and their corrected prompts are committed in `scripts/generate_quiz_imagery.py`; regeneration is blocked on an OpenAI billing hard limit rather than on an unresolved question. Full record in `ios/AstraStyle/Resources/QuizImagery/README.md`. |
 | P2-ONBOARD-08 | Done | `OnboardingStep.reference` (§5.1 step 11, between the quiz and the result) + `Features/Onboarding/Views/OnboardingReferenceView.swift`, `Services/ReferenceImageStore.swift` and `ViewModels/OnboardingViewModel+Reference.swift`. **Both acceptance criteria met.** Skipping does not block completion — the step is skippable like every step except `.identity`, and `OnboardingReferenceTests` asserts a submission with no photo succeeds with `reference_selfie_paths` empty. Consent is shown *before* any picker opens and capture cannot proceed without it: the explanation is a panel on the screen, the acknowledgment is a checkbox, and the picker and camera controls do not exist in the view hierarchy until it is ticked (asserted three ways — `captureRequiresConsent` in unit tests, `testConsentIsRequiredBeforeAnyCaptureControlAppears` and the AX5 variant in `Tests/UITests/OnboardingCaptureStepsUITests.swift`). **The copy stands alone because the legal documents do not exist** — `AstraLegal.isPublished` is false and every URL is nil, so there is no link and the panel says in four plain sections what the photo is for, where it goes, what is never done with it (never used to train a model, nothing measures or identifies the face) and how to remove it, plus one line saying the Privacy Policy is unpublished and that nothing above depends on it. **Nothing is uploaded at capture time.** The image is written to `FileReferenceImageStore` (complete file protection, backup-excluded, user-scoped) and uploaded once during `submit()` to `users/{uid}/references/{uuid}.jpg` in the private `user-content` bucket, lowercased user id — the argument is in `uploadReferenceImageIfNeeded()`'s doc comment; the short version is that ADR 0010's abandoned-upload sweep does not exist, so nothing should be left behind to sweep. A guest uploads nothing at all (ADR 0011) and his copy stays on the device; a failed upload never fails the submission and surfaces a retry on §6.10. 13 unit tests in `Tests/UnitTests/OnboardingReferenceTests.swift`. **Not verified: the camera path.** A simulator has no camera, so `ReferenceCameraPicker` is correctly not offered there and is exercised by nothing. |
 | P2-ONBOARD-09 | Done | `OnboardingStep.firstItems` (§5.1 step 12) + `Features/Onboarding/Views/OnboardingFirstItemsView.swift` and `ViewModels/OnboardingViewModel+FirstItems.swift`. **Both acceptance criteria met.** Skip proceeds straight to §6.10 and on to Home — nothing on the step can disable the footer's forward button, proven by `skippingDoesNotBlockReachingHome`, by `aBrokenBackendStillLetsHimLeave` (a `ClosetRepository` that fails every write still cannot trap the user), and end to end by `OnboardingCaptureStepsUITests.testSkippingFirstItemsStillReachesHome`. The step does not degrade to skip-only: it writes real `closet_items` rows through `ClosetRepository`, so it does not wait on Phase 3 — but the form is deliberately three fields (name, category, colour) because `P3-CLOSET-08` owns the full editor and a second one here would drift. Nothing touches the scanner (`P3-SCAN-*` does not exist). Guest behaviour is the real one: `AppContainer` hands the flow `GuestAwareClosetRepository`, so a guest's items stay local, the 10-item cap is enforced in `GuestClosetRepository` and surfaces here as a typed `GuestClosetError.capReached` that closes the form and explains itself rather than throwing an error dialog — and the step is still skippable at the cap. The remaining allowance is shown before he starts, counted from local storage rather than from this session so a resumed draft agrees with the repository. 12 unit tests in `Tests/UnitTests/OnboardingFirstItemsTests.swift`. |
 | P2-ONBOARD-10 | Done | `Features/Onboarding/Views/OnboardingResultView.swift` + `Features/Onboarding/Components/StyleDNASections.swift` render all six §6.10 sections from the `style-dna/generate` response, plus the three honesty fields (`known_inputs`, `open_questions`, `measured_dimensions`) the six sections cannot keep the step's own promise without. The palette is drawn as swatches resolved through `Core/DesignSystem/Tokens/AstraGarmentColor.swift`, always beside the colour's name (§19: colour is never the sole carrier of meaning) and name-only when this build has no swatch for a word the server sent. **Edit and regenerate edits the INPUT, not the prose** — the §6.5 identity picks, via `updateStyleProfile` then `generateStyleDNA`, the two-call order `ProfileRepository` documents; the argument is in `OnboardingViewModel.regenerate`'s doc comment. Submission moved to the way IN to §6.10 (`loadStyleDNA()`), because the endpoint reads the profile rows rather than taking a body, so generating first returned a null identity for every new user. Three cases pinned by `Tests/UnitTests/StyleDNAResultTests.swift` (15 tests): rich, sparse, and a null `primary_identity` that is never backfilled. Guests reach `.guestPreview` with zero calls (ADR 0011). UI coverage in `Tests/UITests/OnboardingFlowUITests.swift` — every section reachable by scrolling both directions at AX5, and an edit that changes the headline. |

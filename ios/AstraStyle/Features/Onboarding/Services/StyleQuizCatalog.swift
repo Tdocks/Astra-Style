@@ -8,7 +8,8 @@
 //  WHY THIS IS CONTENT AND NOT CODE.
 //
 //  §6.9 wants 12–20 comparisons across eight dimensions. `brand/quiz-imagery/`
-//  currently holds three pairs. The remaining thirteen-plus are a photography
+//  currently holds fourteen pairs covering all eight axes. Two of those axes
+//  sit at a single pair, and closing them is a content
 //  and art-direction job, not an engineering one — and `docs/01-build-roadmap.md`
 //  names that content dependency as a Phase 2 risk that "can silently block the
 //  whole phase if treated as 'just wire up the UI'." So the shape of this file

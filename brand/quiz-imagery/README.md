@@ -1,84 +1,86 @@
-# Style quiz imagery — candidate set
+# Style quiz imagery — full-resolution sources
 
-Six generations evaluating whether AI imagery is viable for the §6.9 preference quiz.
-**Not yet approved.** Nothing here is wired into the app.
+The generated sources for the §6.9 preference quiz. Nothing here ships. The shipped tiles live in
+`ios/AstraStyle/Resources/QuizImagery/`, produced from these by `scripts/build_quiz_imagery.py`
+(normalise the pair's backdrop, crop the top 7%, resize to 720px, JPEG q90). Sources stay here at
+full resolution so a pair can be reprocessed without paying to regenerate it.
 
-## What was generated
+**The whole set was regenerated from scratch on 2026-07-31.** Every frame produced on the previous
+vendor was deleted; nothing from it survives in this directory or in the shipped one.
 
-**This batch, 2026-07-28:** Higgsfield Soul 2.0 (`text2image_soul_v2`), 1536×2048, style
-"General", `enhance_prompt: false`. Kept as provenance for the six files below, not as an
-instruction — that vendor was dropped on 2026-07-31 (`docs/16` §3.5) and nothing new goes to it.
+## How these are made — the script is the source of truth
 
-**New frames go to OpenAI `gpt-image-2`** — text-to-image, portrait 1024×1536, medium quality,
-called directly against OpenAI's API with our own key. Medium because `docs/16` §3.4 found high
-indistinguishable from it on the decisive prompt; 1024×1536 because the pipeline crops the top 7%
-and resizes to 720px wide, so anything larger is thrown away before it ships. The prompt skeleton
-below does not change with the vendor — it is the part that must never move.
+`scripts/generate_quiz_imagery.py` holds the prompt wording in two constants:
 
-| File | Axis | Reads as | Job ID |
-|---|---|---|---|
-| `formality-a.jpg` | Formality | Tailored — navy blazer, white shirt, grey trouser, cap-toe derby | `a64afae4-d99a-4613-a35c-9f1ef439b8b1` |
-| `formality-b.jpg` | Formality | Relaxed — washed sweatshirt, olive chino, canvas sneaker | `37eccb69-66fd-4be2-9d37-528a09b1c3ea` |
-| `colour-a.jpg` | Colour tolerance | Quiet — oatmeal, stone, tan | `2ec0a137-b3be-40ef-9410-f5b8e20f79b4` |
-| `colour-b.jpg` | Colour tolerance | Saturated — burgundy, forest, cognac | `7a7d5e98-e794-4546-9e2b-4caf6f8adb12` |
-| `silhouette-a.jpg` | Silhouette | Close — slim tapered, no break, chelsea boot | `7326aee2-ac12-49ce-a346-a7814402cb0b` |
-| `silhouette-b.jpg` | Silhouette | Loose — oversized cardigan, wide-leg, chunky sneaker | `fc1dc5b8-adb6-4d32-9c0c-2f94a834930b` |
+- **`REFERENCE_PROMPT`** — generates `_reference-figure.png`, one canonical headless man in a
+  plain mid-grey base layer, on the seamless warm mid-grey studio backdrop.
+- **`EDIT_SKELETON`** — wrapped around every garment clause and sent to OpenAI's
+  `/v1/images/edits` **with that reference figure attached**. Its first sentence instructs the
+  model to keep the same man, the same skin tone, the same framing and the same backdrop, and to
+  change only the clothing.
 
-Open `quiz-imagery-review.html` to see all six rendered as the actual quiz card in the dark
-palette. That is the view to judge from — a generated frame that looks fine at full size can
-fall apart at tile size, and the reverse.
+**This file deliberately does not reproduce the skeleton.** It used to, and a copied prompt in a
+README drifts from the one that actually runs — at which point the document is worse than nothing,
+because it reads authoritative. Read the constants.
 
-## Why these three axes
+Every one of the 28 shipped frames came out of that edit path, from that one figure. The reason
+that matters, and the measured result, are in
+`ios/AstraStyle/Resources/QuizImagery/README.md` — the short version is that the person is no
+longer a variable anywhere in the instrument, and backdrop drift inside a pair fell from 20.9 mean
+luma on the old vendor to 1.6.
 
-They are the ones that actually discriminate between men's style profiles. Asking someone to
-choose between two navy blazers tells you nothing; asking whether they'd wear burgundy with
-forest green tells you a great deal. Occasion, budget, and brand affinity are better asked as
-text — they don't need a picture and a picture makes them slower to answer.
+`--all` covers 16 pairs, two per axis. 14 are shipped; `logo-1` and `silhouette-2` were rejected
+and are blocked on an OpenAI billing hard limit, with fixed prompts already committed. Both
+rejections are documented in full in the shipped directory's README.
 
-## Prompt discipline
+## What is in here
 
-Every frame uses an identical skeleton and varies only the garment clause:
+| File(s) | What it is |
+|---|---|
+| `_reference-figure.png` | The canonical figure every other frame is edited from. Do not regenerate it casually — a new figure is a new man, and every existing frame would disagree with the new one. |
+| 28 frames for the 14 shipped pairs | `<axis>-<n>-<a\|b>.png`, 1024×1536. These are the sources for everything in `ios/AstraStyle/Resources/QuizImagery/`. |
+| `logo-1-a.png` | Kept; its partner `logo-1-b.png` was **deleted** for returning a real trademark ("HILFIGER") across the chest. The pair does not ship. |
+| `silhouette-2-a.png`, `silhouette-2-b.png` | Rejected, kept as candidates: the B frame came back short-sleeved against a long-sleeved A, putting sleeve length in a pair meant to isolate volume. Not in the manifest, so nothing can render them. |
+| `bakeoff-2026-07-31*.png` | Contact sheets from the vendor bake-off, retained as `docs/16`'s evidence. Not sources and not shipped. |
 
-> Editorial menswear outfit photograph on a seamless warm mid-grey studio backdrop, even soft
-> directional lighting from upper left. Full body framed from the shoulders down to the shoes,
-> no face visible, model centered and standing straight, arms relaxed at sides. Wearing
-> **{garments}**. **{quality descriptor}**. Neutral catalog styling, no props, no text, no logos.
-> Shot on 85mm, f8, full-length studio fashion photography.
+**`quiz-imagery-review.html` has been removed.** It rendered the first six candidates as quiz
+cards in the dark palette and named files that no longer exist. Judging a tile at tile size is
+still the right instinct — build the pair and look at the JPEGs in the shipped directory, which is
+what the app actually reads.
 
-This is the whole point. If one option is lit more flatteringly, shot from a better angle, or
-happens to have a nicer background, the user picks the *photograph* and the quiz records it as a
-*style preference*. The answer is then wrong in a way nothing downstream can detect — a bad
-Style DNA that looks like a valid one. Any future additions must reuse this skeleton verbatim.
+## Known issues
 
-## Known issues in this batch
-
-1. **Backdrop tone drifts between generations.** `formality-a` reads warmer than `colour-b`.
-   Side by side in a pair it is faintly visible. Two fixes were proposed here originally — pin
-   the backdrop seed, or normalise in post. **Normalising in post is the one that happens, and it
-   is mandatory rather than optional:** `scripts/build_quiz_imagery.py` does it, and no pair
-   ships without it. Drift on this batch averaged 20.9 luma and reached 33.7; OpenAI measured
-   13.9 mean on the same metric (`docs/16` §3.2) — better, and still visible side by side. The
-   seed route is **untested on OpenAI**: Soul 2.0 rejected the parameter outright, but nobody has
-   checked whether OpenAI accepts a seed or whether one would actually hold the backdrop, so do
-   not assume either way.
-2. **Faces are present in the source files** — the chin and neck are in frame despite the
-   prompt. The quiz tile crops the top 7% to remove them, which means *the crop is load-bearing*
-   and has to live in the asset pipeline, not in a per-image judgement call.
-3. Hands were checked at full resolution across all six. Correct finger counts, no melted
-   joints. The usual generated-fashion tell is absent in this batch — but it is the first thing
-   to re-check on any new generation, not something to assume holds.
+1. **Backdrop tone still drifts between generations, by much less.** Reference-conditioned editing
+   holds it far better than text-to-image did: 1.6 mean and 3.0 worst-case luma within a pair,
+   against 20.9 mean and 33.7 worst on the old vendor and 13.9 mean on OpenAI text-to-image
+   (`docs/16` §3.2). **Normalising in post remains mandatory rather than optional** —
+   `scripts/build_quiz_imagery.py` does it and no pair ships without it, which brings the residual
+   to 0.8 or less. The brighter frame is the more appealing photograph regardless of what it
+   shows, and small is not zero. The seed route was never available on the old vendor (it rejected
+   the parameter) and has not been tested on OpenAI; it is also now largely moot, since the
+   reference holds the backdrop better than a pinned seed plausibly would.
+2. **The chin and neck can be in frame** despite the prompt. The top 7% crop lives in the asset
+   pipeline unconditionally, not in a per-image judgement call, because the cost of being wrong is
+   asymmetric: a frame that ships uncropped shows a face the quiz promised not to.
+3. **Hands were checked at full resolution across the set** — correct finger counts, no melted
+   joints. That is a property of this batch, not of the model, and it is the first thing to
+   re-check on any new generation.
+4. **Asking this model for a wordmark makes it reach for a real brand.** It returned "HILFIGER"
+   once and a circled "G" reading as a luxury house's mark on an earlier attempt. The logo axis is
+   carried by abstract, letterless emblems for that reason.
 
 ## Cost shape
 
-These are **static assets generated once**, not per-user generations. A full quiz at spec §6.9
-length needs roughly 16–20 frames; finishing from what has shipped is 12–28 more. At OpenAI's
-medium tier for portrait 1024×1536 — **$0.041 a frame** — the whole remaining job is **about a
-dollar, once** (`docs/16` §3.5 prices it, including what the same frames would have cost through
-a reseller: about four dollars).
+These are **static assets generated once**, not per-user generations. At OpenAI's medium tier for
+portrait 1024×1536 on `gpt-image-2` — **$0.041 a frame** — the 28 shipped frames plus the
+reference figure came to **about $1.20**, and the whole job including the two rejected pairs to
+roughly $1.30. Medium because `docs/16` §3.4 found high indistinguishable from it on the decisive
+prompt; 1024×1536 because the pipeline crops and resizes to 720px wide, so anything larger is
+thrown away before it ships.
 
 **Do not optimise this number.** The entire spread between the cheapest and most expensive
-plausible way of finishing the quiz is a few dollars, one time, while a single confounded pair
-that ships costs a wrong reading on a style axis for every user who answers it. Spend the
+plausible way of finishing the quiz is a couple of dollars, one time, while a single confounded
+pair that ships costs a wrong reading on a style axis for every user who answers it. Spend the
 regeneration; check the hands.
 
 Style Studio's per-user generation (spec §6.17) is a separate budget and a separate pipeline; do

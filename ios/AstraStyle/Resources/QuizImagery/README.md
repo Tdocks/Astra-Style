@@ -8,156 +8,183 @@ quiz's questions lives in Swift.
 here, add a stanza to `quiz-pairs.json`, rebuild. No Swift is touched, no project file is
 edited, and nothing needs to know how many pairs there are.
 
-## Current state: 6 of the 12–20 spec §6.9 asks for
+## Current state: 15 pairs, and all 8 dimensions produce a reading
 
-The quiz runs on what exists. It asks six questions and produces a preference vector with
-entries for the four axes those pairs probe and **no entries at all** for the other four.
-That is the intended behaviour, not a degraded mode — see `StylePreferenceInference`'s header
-for why an unasked axis must come back absent rather than neutral.
+14 is inside spec §6.9's 12–20 and leaves headroom under `StyleQuizEngine.maximumComparisons`.
+The whole set was regenerated from scratch on 2026-07-31; nothing from the first batch survives
+here or in `brand/quiz-imagery/`.
 
-`texture` has one pair and therefore `.low` confidence permanently. That is deliberate: a
-second texture pair was generated and **rejected** rather than shipped, because it varied
-trouser colour and framing as well as surface. A confounded reading is worse than an absent
-one, and this directory would rather ask four questions honestly than five ambiguously.
-
-| Pair | Axis | Option A | Option B |
+| Pair | Axis | Option A (negative end) | Option B (positive end) |
 |---|---|---|---|
-| `formality-01` | Formality | Navy blazer, white shirt, flannel trouser, derby | Washed sweatshirt, olive chino, canvas sneaker |
-| `colour-01` | Colour tolerance | Putty knit, stone trouser, tan loafer | Burgundy knit, forest cord, tan boot |
-| `silhouette-01` | Silhouette | Fine knit, narrow trouser, leather boot | Mohair cardigan, wide-leg trouser, sneaker |
-| `texture-01` | Texture | Smooth charcoal fine-gauge knit, flat wool trouser | Chunky charcoal cable knit, corduroy trouser |
-| `logo-01` | Logo tolerance | Plain navy sweatshirt | Same, with a lettered chest wordmark |
+| `formality-01` | Formality | Washed sweatshirt, olive cotton trouser, canvas sneaker | Navy blazer, white shirt, grey wool trouser, cap-toe oxford |
+| `formality-02` | Formality | White tee, mid-blue jeans, white leather sneaker | Charcoal suit, white shirt, navy tie, black oxford |
+| `colour-01` | Colour tolerance | Putty knit, stone trouser, tan suede loafer | Burgundy knit, forest-green cord, tan suede loafer |
+| `colour-02` | Colour tolerance | Stone-grey knit, oatmeal trouser, tan suede loafer | Cobalt knit, rust-orange trouser, tan suede loafer |
+| `silhouette-01` | Silhouette | Close-cut navy fine knit, slim tapered navy trouser, black boot | Oversized navy knit, wide-leg navy trouser, black boot |
+| `texture-01` | Texture | Smooth charcoal fine-gauge merino, flat worsted trouser | Chunky charcoal cable knit, charcoal corduroy trouser |
+| `texture-02` | Texture | Smooth navy fine-gauge merino, flat navy wool trouser | Chunky navy cable knit, navy corduroy trouser |
 | `logo-02` | Logo tolerance | Plain black quarter-zip | Same, with a white ringed chest emblem |
+| `trend-01` | Trend tolerance | Classic navy single-breasted blazer, straight-leg trouser, oxford | Unstructured double-breasted blazer, pleated cropped trouser, lug-soled loafer |
+| `trend-02` | Trend tolerance | Beige cotton gabardine trench | Beige technical nylon trench, taped seams, drawcord hem |
+| `accessory-01` | Accessory preference | Oxford shirt and navy trouser, bare wrists, no belt | Same outfit with belt, steel watch, silk neck scarf |
+| `accessory-02` | Accessory preference | Charcoal knit and grey trouser, bare wrists, no belt | Same outfit with belt, leather-strap watch, wool scarf |
+| `contrast-01` | Contrast preference | Mid-grey knit, mid-grey trouser, mid-grey sneaker | Near-white knit, near-black trouser, black sneaker |
+| `contrast-02` | Contrast preference | Mid-blue chambray, mid-blue trouser, mid-blue loafer | Pale ice-blue shirt, deep navy trouser, deep navy loafer |
 
-### Still to produce
+Six axes have two pairs, which is the bar at which `StylePreferenceInference` will report
+`.moderate` confidence on agreeing answers and Kyra is allowed to say the preference out loud.
+**`silhouette` have one pair each, so they sit at `.low` confidence
+permanently** — a single forced choice gives a direction and nothing else, no matter how clean
+the photograph is. Those two axes produce a reading, and the reading is not statable. The two
+pairs that would fix it are described under "Two pairs are missing" below.
 
-Five axes have no imagery and therefore no reading. Each needs **two to three pairs**, not
-one — a single comparison yields `.low` confidence forever (see the confidence table in
-`StylePreferenceInference`), which is not enough for Kyra to state the preference back to
-the user.
+## Every frame is the same man, and that is the point
 
-| Axis | What the pair must vary, and only that |
-|---|---|
-| `texture` | One pair shipped, a second wanted. Flat, smooth cloth against pronounced surface, holding colour and cut. **Hard to generate** — see "What the 2026-07-30 batch learned". |
-| `trend_tolerance` | A current cut or styling detail against a long-lived one at the same formality. The hard one to shoot fairly: "current" reads as "expensive" unless both frames are equally well made. |
-| `accessory_preference` | The same base outfit worn bare against the same outfit with a watch, a belt, a scarf, a bag. Literally the same garments. |
-| `contrast_preference` | Tonal, one narrow value band, against high contrast between top and bottom. Hold hue constant so this does not become a second colour question. |
+This is the technique, and it matters more than any individual frame.
 
-Two to three pairs each is 10–15 more comparisons; with the three that exist that lands
-inside §6.9's 12–20 and leaves headroom under `StyleQuizEngine.maximumComparisons`.
+The frames are not generated independently. `scripts/generate_quiz_imagery.py` generates **one
+canonical figure** — a headless man in a plain mid-grey base layer, saved as
+`brand/quiz-imagery/_reference-figure.png` — and then dresses him. Every one of the 28 shipped
+frames was produced by passing that figure to OpenAI's `/v1/images/edits` with a prompt whose
+first sentence says to keep the same man, the same backdrop, the same lighting and the same
+framing, and to change only the clothing. Read that script's header; the reasoning is there in
+full and it is short.
 
-### Why the three shipped pairs declare exactly one loading each
+The first batch was text-to-image, one prompt per frame, and the generator returned a different
+person each time. Skin tone visibly changed between the two halves of three of ten candidate
+pairs. That is a worse confound than any lighting difference, because the user may be answering
+*the model* rather than the clothes and nothing downstream can tell.
 
-The manifest supports an option loading on several axes at once, and a well-designed pair
-can legitimately do that. **None of the three here do**, deliberately.
+What the change bought, measured:
 
-Look at `colour-01`: option B is not only more saturated, it is corduroy against a smooth
-knit. `silhouette-01` option B is not only looser, it is mohair against fine gauge. Declaring
-a texture loading on either would harvest a second "measurement" per photograph — and it
-would be a measurement of two things at once, with no way afterwards to tell which one the
-man was answering. `brand/quiz-imagery/README.md` makes the same point about lighting and
-composition: when a frame varies on more than the axis under test, the quiz records the wrong
-answer *in a form nothing downstream can detect*.
+- **Backdrop drift within a pair fell to 1.6 mean and 3.0 worst-case luma**, against 20.9 mean
+  and 33.7 worst on the old vendor's text-to-image output and 13.9 mean on OpenAI's own
+  text-to-image (`docs/16` §3.2). After the normalisation pass in the pipeline below, the
+  residual is **0.8 or less** on every shipped pair.
+- **The person is removed as a variable from the whole instrument**, not merely balanced inside
+  each pair. Build, skin tone, framing scale and lighting are all held by the reference. That is
+  a different and stronger property than "the two frames of this pair happen to match".
+- **The accessory axis works.** Both "bare" frames have genuinely bare wrists, checked at full
+  resolution, and both "layered" frames show a wristwatch on the correct wrist. This axis was
+  unbuildable before: the previous generator put a watch on a man told not to wear one, on both
+  frames.
+- **Hands are clean** across the set, checked at full resolution. That is a property of this
+  batch, not a guarantee about the model, and it is the first thing to re-check on anything new.
 
-Absent is honest. A confounded reading is not. Any new pair intended to probe two axes has to
-be **shot** to probe two axes — varying both deliberately and nothing else — rather than
-having a second loading added to a frame that happened to vary.
+## Two pairs are missing, and each was rejected for a reason worth keeping
 
-## What the 2026-07-30 batch learned
+Both were generated and both were thrown away rather than shipped. Their prompts are already
+fixed and committed in `scripts/generate_quiz_imagery.py`; **both regenerations are blocked on an
+OpenAI billing hard limit** (`billing_hard_limit_reached`), not on an unresolved question. Once
+the limit is raised:
 
-Ten candidate pairs were generated to fill the five empty axes. **Three shipped.** The seven
-rejects are the useful part of this section, because each failed for a reason that will recur.
+```sh
+python3 scripts/generate_quiz_imagery.py --pair logo-1 --pair silhouette-2
+python3 scripts/build_quiz_imagery.py --pair logo-1 --pair silhouette-2
+```
 
-**The model cannot be held constant between two frames.** In `trend-01`, `trend-02` and
-`contrast-01` the man's skin tone visibly changes between A and B. Every one of the six
-already-shipped frames happens to show the same light-skinned model, which reads as a
-standard — it was luck, not control. A different person inside a pair is a worse confound than
-the backdrop drift this file already warns about: the user may be answering the model rather
-than the clothes, and nothing downstream can tell. **This is the single biggest obstacle to
-finishing the quiz**, and prompt wording does not fix it — it needs reference-conditioned
-generation, so both options are the same man in different clothes. That is a change of
-technique, not of phrasing.
+**`logo-1-b` came back wearing "HILFIGER" across the chest.** A real trademark on a garment we
+generated and would ship inside the app is unshippable, so the file was **deleted from the repo
+entirely** rather than left unreferenced — an unreferenced file is one careless manifest edit
+away from shipping. The prompt now asks for an abstract emblem of three stacked white chevrons,
+explicitly containing no letters and no words. The lesson generalises: **asking this model for a
+wordmark makes it reach for a real brand.** The same failure produced a circled "G" reading as a
+luxury house's mark on an earlier attempt at `logo-02`. Carry the logo axis with non-letterform
+emblems.
 
-**New pairs go to OpenAI `gpt-image-2`, portrait 1024×1536 at medium quality, called directly
-against OpenAI's API.** `docs/16` raced it against Higgsfield's `soul_2` on byte-identical prompts
-and superseded `docs/15` §5's quiz-imagery row; Higgsfield was then dropped as a vendor outright
-(`docs/16` §3.5), so OpenAI is not the preferred option here, it is the only one. The decisive
-result is the accessory failure directly above: told "no belt, no watch and no accessories of any
-kind", `soul_2` produced a wristwatch on **both** frames, and OpenAI produced bare wrists. That
-single difference is what makes `accessory_preference` buildable at all. OpenAI also held one man,
-one framing scale and one palette across all three test pairs, and roughly halved backdrop drift
-(13.9 against 25.2 mean luma).
+**`silhouette-2-b` came back short-sleeved while its partner was long-sleeved.** Sleeve length
+then sits in the frame alongside volume — two variables in a pair whose entire job is to isolate
+one. The prompt now says "long-sleeved" and "with the sleeves down to the wrist". The two
+rejected `silhouette-2` frames are still on disk in `brand/quiz-imagery/` as candidates; they are
+not in this directory and are not in the manifest, so nothing can render them.
 
-One caveat carried from `docs/16` §5: the frames in that bake-off reached `gpt-image-2` through
-Higgsfield's API, not OpenAI's own. Same model, different API surface. **Generate one pair
-directly and compare it against those frames before committing to a batch.**
+## Absent is honest; a confounded reading is not
 
-The pairs already in this directory were generated on `soul_2` and are **not** being regenerated.
-Each shipped pair is internally consistent, and consistency is required *within* a pair, not
-across the quiz — reshooting them would change nothing a user could perceive.
+The manifest supports an option loading on several axes at once, and a well-designed pair can
+legitimately do that. **None of the 14 here do**, deliberately.
 
-Backdrop normalisation still runs on OpenAI output. 13.9 is better, not clean.
+Look at `colour-01`: option B is not only more saturated, it is corduroy against a smooth knit.
+Declaring a texture loading on it would harvest a second "measurement" per photograph — and it
+would be a measurement of two things at once, with no way afterwards to tell which one the man was
+answering. `trend-01` is the case that looks like a counter-example and is not: its option B
+changes lapel, trouser and shoe together, because "current" is a bundle of details rather than any
+one of them. That is still one axis, and it declares one loading.
 
-**A trained identity model is not the answer to it either.** `docs/15` rejected Higgsfield's Soul
-ID on three grounds, the decisive one being that a trained Soul is a persistent derived biometric
-model held on a third party's infrastructure — the worst available option for §29 and
-right-to-erasure. That product left with its vendor, so the question is now moot in its original
-form, but the reasoning survives the vendor and should be applied to any equivalent offering: a
-per-subject trained model is a standing privacy liability, and "it is a fictional man, not a real
-person" is an argument that has to be made and recorded somewhere with authority over §29, not
-assumed here. The buildable route for holding one man across a pair is **reference-conditioned
-generation on the provider we already use** — OpenAI's image-edit path, the same one Style Studio
-is built on (`docs/08` §3.5) — which is stateless and trains nothing. It has not been tried for
-quiz imagery.
+Absent is honest. A confounded reading is not. Any new pair intended to probe two axes has to be
+**generated** to probe two axes — varying both deliberately and nothing else — rather than having
+a second loading added to a frame that happened to vary. A quiz with fewer questions is worth
+more than one with a wrong answer baked into it, because the wrong answer is indistinguishable
+downstream from a real one.
 
-**Backdrop normalisation is mandatory, and seed pinning is not an available alternative today.**
-This file's known-issue #1 offers two fixes for backdrop drift, "pin the backdrop seed, or
-normalise the background channel in post". Seed pinning was ruled out against the old vendor,
-which rejected the parameter outright; **whether OpenAI supports a seed has not been tested**, so
-treat it as an open question rather than as either available or unavailable. Normalisation runs
-regardless: measured drift across ten raw `soul_2` pairs averaged **20.9** luma and reached
-**33.7**, and OpenAI's measured mean of **13.9** (`docs/16` §3.2) is still enough to see side by
-side, against the ~1.0 the shipped pairs sit at after normalising. The step is in the pipeline
-below and it is not optional for either vendor's output.
+## What is still genuinely at risk
 
-**The model puts a wristwatch on a man told to wear none.** Both `accessory-01-a` and
-`accessory-02-a` were prompted "no belt, no watch and no accessories of any kind" and both
-came back wearing a watch. Since the bare side is half the comparison, the accessory axis could
-not be built by negation on that model at all. **Resolved by the vendor change**, and it is the
-single result that decided it: given the identical instruction, OpenAI returned bare wrists on
-the "without" frame and a watch on the correct wrist on the "with" frame (`docs/16` §3.1). Verify
-it at full resolution on every new accessory pair anyway — one passing test is not a guarantee,
-and this is the frame where a failure is invisible at tile size.
-
-**"No text, no logos" is in the mandatory skeleton, and one axis is about logos.** The
-`logo_tolerance` pairs necessarily drop that clause from their B side. This is the only
-sanctioned deviation from the verbatim-skeleton rule, and it is confined to that clause on
-that side; everything else stays identical.
-
-**Letterforms drift toward real trademarks.** A first attempt at `logo-02` returned a circled
-"G" that reads as a luxury house's mark. It was regenerated as an abstract ringed emblem.
-Prefer non-letterform emblems. `logo-01-b`'s invented "STANESY" wordmark is retained because a
-wordmark is the more realistic branding cue — but it is invented, and it is worth a second
-opinion before this ships to the App Store.
-
-**Texture drags colour and volume with it.** Three attempts at a second texture pair each
-varied tone or trouser width alongside surface, because chunky fabrics genuinely have more
-volume. Holding the trouser clause word-for-word identical across A and B got closest and
-still drifted. This axis probably needs a real shoot, or reference conditioning.
+- **Two axes are at one pair and therefore at `.low` confidence permanently.** Not a defect in
+  the imagery; a shortfall in coverage, fixed by the two regenerations above and by nothing else.
+- **No blinded human rating.** Nobody has confirmed these read as *photographs of clothes* rather
+  than as renders to a real user. Same gap `docs/16` §5 records.
+- **One man throughout is a coverage question as well as a control.** The instrument now shows
+  every user the same build and the same skin tone. That is the right trade for measurement — the
+  alternative reintroduces the confound the whole technique exists to remove — but it should be a
+  recorded decision rather than a side effect nobody noticed.
+- **The invented emblems are invented, not cleared.** `logo-02`'s concentric rings and
+  `logo-1-b`'s pending chevrons are abstract by construction, and a generated mark can still land
+  near a real one. Worth a second opinion before this ships to the App Store.
+- **Texture is the axis most likely to regress.** Chunky fabrics genuinely have more volume than
+  fine ones, so surface drags tone and cut along with it. Both texture pairs hold here; that is a
+  result about these frames, not a property of the model.
+- **Backdrop normalisation is still mandatory.** 1.6 raw is small, not zero, and the brighter
+  frame is the more appealing photograph regardless of what it shows.
 
 ## Pipeline
 
 `scripts/build_quiz_imagery.py` performs, in order: **normalise** each pair's backdrop to their
 shared mean luma by scalar gain (preserves hue relations), **crop** the top 7%, **resize** to
-720px wide, and write JPEG q90. Full-resolution sources stay in `brand/quiz-imagery/`; only
-the processed files ship here. The normalisation targets the *mean of the pair* rather than a
-fixed value, because neither frame is more correct than the other — they only have to match.
+720px wide, and write JPEG q90. Full-resolution sources stay in `brand/quiz-imagery/`; only the
+processed files ship here. The normalisation targets the *mean of the pair* rather than a fixed
+value, because neither frame is more correct than the other — they only have to match.
+
+It accepts **`.png` sources as well as `.jpg`**, and PNG is what it finds today:
+`generate_quiz_imagery.py` writes PNG because that is what OpenAI's images API returns, and
+re-encoding to JPEG before the crop and resize would quantise twice for no reason.
+
+## The logo pairs are built differently, and it matters
+
+`logo_tolerance` is the one axis whose two frames are **not** two photographs.
+The branded frame **is** the plain frame with a mark composited onto it
+(`scripts/composite_quiz_logo.py`) — same man, same fold of cloth, same shadow,
+the same pixel everywhere the mark is not. Backdrop delta between the two: 0.0,
+necessarily.
+
+Generating a second frame, even from the same reference figure, would let the
+drape shift and the fabric catch the light differently. All of that is signal a
+man might answer and none of it is branding. Compositing removes the
+possibility rather than measuring it, which makes this the most rigorous pair
+in the set.
+
+**The mark is Astra's own monogram, and the reason is measurement, not law.**
+A first attempt asked the generator for a wordmark and got `HILFIGER` — a real
+trademark, unshippable, file deleted. Replacing it with an abstract geometric
+emblem fixed that and failed a plainer test: it looked like nothing any brand
+has made, which is to say it looked generated.
+
+But a real mark fails for a better reason. Put one on the garment and the man
+stops answering *"do I mind visible branding"* and starts answering *"do I like
+that company"*. Those come apart constantly — someone happy in a large Carhartt
+logo may find another house naff — so the quiz would record low logo tolerance
+for a man whose logo tolerance is high. Same class of error as a pair whose
+frames differ in sleeve length: a second variable riding along, recorded as if
+it were the first, undetectable downstream.
+
+Astra's monogram has neither problem. Not a third party's mark, and it carries
+no prior brand opinion for the man answering — it is simply *a logo*, which is
+exactly and only what this axis asks about. It is also the one mark that can be
+rendered identically on every garment, forever.
 
 ## Manifest format
 
 ```jsonc
 {
-  "version": 1,
+  "version": 2,
   "pairs": [
     {
       "id": "formality-01",          // unique; answers are stored against it, so never reuse or rename
@@ -194,16 +221,40 @@ which answer means what, and he is then answering a different question from ever
 
 ## Rules a new pair must satisfy
 
-1. **Reuse the prompt skeleton in `brand/quiz-imagery/README.md` verbatim.** Identical backdrop,
-   lighting, framing, lens. Vary only the garment clause. If one frame is better lit than its
-   partner the user picks the photograph and the quiz records a style preference — wrong, and
-   undetectable afterwards.
-2. **Crop the top 7%** to remove the chin and neck that the generator leaves in frame despite
-   the prompt, then resize to 720px wide. The files here were produced that way; the crop lives
-   in the pipeline and is not a per-image judgement.
-3. **Check the hands at full resolution** before accepting a frame. The current batch is clean.
-   That is a property of the batch, not of the model.
-4. **One variable per pair** unless the pair was shot to carry two — see above.
-5. Both files must be present. A stanza whose image is missing is skipped with a warning and the
+1. **Generate it from the reference figure, using the skeleton in
+   `scripts/generate_quiz_imagery.py`.** `REFERENCE_PROMPT` and `EDIT_SKELETON` in that file are
+   the source of truth for wording; vary only the garment clause. Do not write a fresh
+   text-to-image prompt, and do not regenerate the reference figure to add one pair — a new
+   figure is a new man, and every existing frame would then disagree with the new one.
+2. **Crop the top 7%** and resize to 720px wide. Both live in the pipeline, unconditionally, and
+   neither is a per-image judgement.
+3. **Check the hands at full resolution** in the source PNG before accepting a frame.
+4. **Check that it is the same man** — build, skin tone, framing scale. The reference holds it in
+   practice; nothing enforces it.
+5. **One variable per pair** unless the pair was generated to carry two. See above.
+6. Both files must be present. A stanza whose image is missing is skipped with a warning and the
    quiz simply gets shorter; it never renders a placeholder, because a placeholder would be
    answered like a real photograph.
+
+## History: what a previous approach did
+
+Kept because each of these cost real time to discover, and because a reader looking at an old
+commit or an old document will meet them. **None of it is live guidance.** The vendor named here
+was dropped on 2026-07-31 (`docs/16` §3.5) and nothing new goes to it.
+
+- **Higgsfield `soul_2` could not hold one man across a pair.** Skin tone changed between A and B
+  in three of ten candidate pairs, which sank them. This is what the reference-figure technique
+  replaced.
+- **`soul_2` put a wristwatch on a man told to wear none**, on both `accessory` "bare" frames, so
+  the accessory axis could not be built by negation there at all. That single result is what
+  decided the vendor race (`docs/16` §3.1).
+- **`soul_2` rejected a seed parameter outright**, which is why "pin the backdrop seed" was never
+  an alternative to normalising in post. Whether OpenAI accepts a seed was never tested and no
+  longer matters much: reference-conditioned editing holds the backdrop far better than a pinned
+  seed was ever likely to.
+- **`soul_2` left the chin and neck in frame** every time despite the prompt. The crop was
+  introduced for that. It stays unconditionally anyway — a frame that ships uncropped shows a
+  face the quiz promised not to, and the cost of being wrong is asymmetric.
+- **Three attempts at a second texture pair on `soul_2`** each varied tone or trouser width
+  alongside surface. Both texture pairs here hold, generated from the reference with the trouser
+  clause naming the constant explicitly.

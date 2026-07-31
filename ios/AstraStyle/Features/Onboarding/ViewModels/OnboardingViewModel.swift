@@ -192,7 +192,7 @@ public final class OnboardingViewModel {
         }
         // §6.9 is the one step whose content advances INSIDE itself: choosing an
         // outfit moves to the next comparison, so the footer button never means
-        // "next question". Saying "Continue" while three comparisons are still
+        // "next question". Saying "Continue" while comparisons are still
         // waiting would be offering the user a control that looks like the one
         // he has been tapping and does something entirely different — it leaves
         // the step. Naming the number he is walking away from is the honest

@@ -38,7 +38,8 @@
 //      separates them, and it feeds the confidence band directly.
 //
 //    • AN AXIS NOBODY ASKED ABOUT GETS NO ENTRY AT ALL. Not 0. Not "neutral".
-//      Nothing. With the three comparisons that exist today, five of the eight
+//      Nothing. Every one of the eight axes now gets a reading, but two of them
+//      rest on a single comparison, and one
 //      axes come back absent, and that is the correct output — see
 //      `StyleQuizCatalog` for why the missing imagery is not stubbed.
 //
@@ -196,7 +197,7 @@ public extension StylePreferenceInference {
     ///
     /// Derived from the vector rather than written as a fixed sentence, because
     /// a fixed sentence would be a claim about a comparison set that is content
-    /// and changes underneath it. With three comparisons this says three axes;
+    /// and changes underneath it. With fourteen pairs this says eight axes;
     /// with sixteen it says whatever sixteen covered, without anyone editing a
     /// string.
     ///
