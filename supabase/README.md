@@ -183,12 +183,14 @@ the repo and therefore uncommitted, which is the half of this that is fine. Sett
 does not delete them, and a second copy of a live credential in a working directory is still a
 copy that can leak.
 
-Two credentials in those same files are now **dead and should be revoked, not kept**:
+Two credentials in those same files were **revoked at the provider on 2026-07-31**:
 `XAI_API_KEY` and `GEMINI_API_KEY`, from the three-vendor bake-off in `docs/15`. With OpenAI as
-the only image provider they have no remaining use, and an unused API key sitting in plaintext is
-a pure liability — it cannot help anyone and it can be leaked, committed by accident, or billed
-against. Revoke them at the provider first, then delete the local copies; deleting the file alone
-leaves a live credential in the wild.
+the only image provider they had no remaining use, and an unused API key sitting in plaintext is a
+pure liability — it cannot help anyone and it can be leaked, committed by accident, or billed
+against. **That is done, so nobody should chase it.** What is left is tidying rather than
+exposure: delete the two dead strings from the local env files along with the `OPENAI_API_KEY`
+copy, because a revoked key is inert but still reads as live to the next person who opens the
+file.
 
 **iOS app only** (via `.xcconfig`, per §25 — never hardcoded, never the
 service-role key):

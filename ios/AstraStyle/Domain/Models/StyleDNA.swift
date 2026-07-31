@@ -171,7 +171,7 @@ public struct StyleDNA: Codable, Hashable, Sendable {
     /// What the result was actually built from, in plain words.
     ///
     /// The honest half of the contract. Sparse input is the normal case —
-    /// five of the eight §6.9 dimensions currently have no imagery — and a
+    /// two §6.9 dimensions still rest on a single comparison — and a
     /// result that does not say what it knew is indistinguishable from one
     /// built from everything. That indistinguishability is how a thin Style
     /// DNA ships looking complete.

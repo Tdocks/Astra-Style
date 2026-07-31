@@ -186,7 +186,7 @@ struct OnboardingQuizView: View {
 
             // Derived from the vector, so it names the axes the comparisons
             // actually covered and claims only as much as the confidence
-            // supports. With three comparisons that is "a first read on"; it
+            // supports. With a short set that is "a first read on"; it
             // strengthens by itself once the comparison set is long enough for
             // an axis to reach `.moderate`, with no string rewritten.
             Text(StylePreferenceInference.learnedSummary(for: engine.vector(from: draft.quizAnswers)))

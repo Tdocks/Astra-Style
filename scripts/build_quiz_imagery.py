@@ -100,12 +100,29 @@ def backdrop_luma(image: Image.Image) -> float:
     return float(np.mean([c.mean() for c in corners]))
 
 
+def source_frame(source: Path, pair: str, side: str) -> Path | None:
+    """PNG first, then JPEG.
+
+    `generate_quiz_imagery.py` writes PNG because that is what OpenAI's images
+    API returns, and re-encoding to JPEG before the crop and resize below would
+    quantise twice for no reason. JPEG is still accepted so a hand-supplied or
+    photographed frame drops in without conversion."""
+    for extension in (".png", ".jpg", ".jpeg"):
+        candidate = source / f"{pair}-{side}{extension}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def process_pair(pair: str, source: Path, out: Path, dry_run: bool) -> bool:
-    paths = {side: source / f"{pair}-{side}.jpg" for side in ("a", "b")}
-    for side, path in paths.items():
-        if not path.exists():
-            print(f"  {pair}: missing {path.name} — a pair is both frames or neither", file=sys.stderr)
+    paths = {}
+    for side in ("a", "b"):
+        found = source_frame(source, pair, side)
+        if found is None:
+            print(f"  {pair}: missing {pair}-{side}.[png|jpg] — a pair is both frames or neither",
+                  file=sys.stderr)
             return False
+        paths[side] = found
 
     images = {side: Image.open(path).convert("RGB") for side, path in paths.items()}
     luma = {side: backdrop_luma(im) for side, im in images.items()}

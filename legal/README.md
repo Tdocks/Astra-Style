@@ -11,6 +11,35 @@ Four self-contained HTML documents, plus this file.
 
 All four carry a visible **Last updated: 31 July 2026**.
 
+## Plan status: deferred to the end of the project
+
+**Decided 2026-07-31.** These documents are drafted, committed, and then deliberately left alone
+until the end of the build. Nothing further happens before then: **no publishing, no domain
+registration, no filling of the `[[NEEDS INPUT]]` placeholders, no legal review, no flipping of
+`AstraLegal.isPublished`.**
+
+That is a choice about sequencing, not neglect, and it is worth stating plainly so nobody picks
+this up as unfinished business and starts chasing entity names and jurisdictions. The reasoning is
+that almost every placeholder below is either a decision a human has to make once (entity,
+address, governing law) or a fact about a feature that has not shipped yet (analytics provider,
+affiliate networks, retention windows, the deletion orchestrator). Answering them now produces
+answers that go stale before anyone reads them, and each answer would need re-checking against the
+code at publication time anyway.
+
+Where things stand, so the deferral is a known state rather than a vague one:
+
+- The four documents exist here and are unreviewed drafts.
+- `AstraLegal.isPublished` is **`false`**, so every legal URL in the app is `nil` and every call
+  site handles it. `LegalDocumentAvailabilityTests` pins that invariant.
+- The public `legal` storage bucket **exists and is empty**. Nothing is uploaded to it.
+- `astrastyle.app` is not registered.
+- **Every `[[NEEDS INPUT]]` below still stands.** They are not resolved, not withdrawn, and not
+  being chased right now.
+
+This stays an App Store review blocker whenever submission comes around, and it is a one-flag
+change once the documents are live. Ticket: `P7-PRIVACY-05`. See `docs/03-progress.md`'s blocker
+list for the same statement in the project-wide record.
+
 ---
 
 ## Read this before doing anything with them
@@ -61,6 +90,9 @@ to each other by title — because the bucket's URL layout and the paths in `Ast
 are not the same shape, and a broken cross-link in a legal document tapped by an App Store
 reviewer is exactly the failure `AstraLegal.swift` was restructured to prevent.
 
+The bucket exists and is empty, and it stays that way until the end of the project — see "Plan
+status" above before uploading anything into it.
+
 Publishing is the orchestrator's job, not this directory's:
 `ios/AstraStyle/Core/Utilities/AstraLegal.swift` holds the host and the `isPublished` flag,
 and is **deliberately untouched** by this work. Until the documents are live and that flag is
@@ -83,6 +115,10 @@ grep -inE 'https?://' legal/*.html          # must return nothing
 
 Placeholders render with a yellow highlight so they cannot ship unnoticed. **Do not invent
 values for the first group** — entity, address and jurisdiction are decisions, not drafting.
+
+Per "Plan status" above, **none of these is being worked on now.** The list is a record of what
+must be answered before publication, kept complete so that the end-of-project pass is a single
+sitting rather than a rediscovery exercise.
 
 ### Blocking — the same values appear in several documents
 

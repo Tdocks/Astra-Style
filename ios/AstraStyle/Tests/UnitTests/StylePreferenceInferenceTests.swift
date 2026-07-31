@@ -59,7 +59,7 @@ struct StylePreferenceInferenceTests {
     @Test("An axis nobody asked about has NO entry — not a neutral one")
     func unaskedAxesAreAbsent() {
         // The single most important property in this file. With the three
-        // comparisons that exist, five of the eight axes come back absent. If
+        // comparisons that exist, an unprobed axis comes back absent. If
         // they came back as 0 they would be indistinguishable from a man who was
         // asked and landed exactly in the middle — and Style DNA would be built
         // from three measurements and five fabrications that look identical.

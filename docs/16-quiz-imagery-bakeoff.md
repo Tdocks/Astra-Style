@@ -248,9 +248,10 @@ somewhere a person will actually look:
   outside the repo — uncommitted, which is the part that is fine, and outside the sanctioned
   location, which is not. Anything beyond hand-generating static assets is blocked on setting it
   properly. See `supabase/README.md`.
-- **Two evaluation credentials are now dead.** The `XAI_API_KEY` and `GEMINI_API_KEY` from §15's
-  bake-off have no remaining use. Revoke them at the provider and delete them; an unused key in
-  plaintext is a liability, not a convenience.
+- ~~**Two evaluation credentials are now dead.**~~ **Done 2026-07-31.** The `XAI_API_KEY` and
+  `GEMINI_API_KEY` from §15's bake-off had no remaining use and **were revoked at the provider
+  on 2026-07-31.** Nobody needs to chase this; an unused key in plaintext was a liability, not a
+  convenience, and it is gone.
 
 ## 5. What this does NOT settle
 
@@ -278,3 +279,63 @@ Recorded explicitly so a later reader knows these were skipped rather than forgo
   of invisible difference. **Generate one pair directly and compare it against the bake-off frames
   before producing a batch.** Verified so far: the key works and has access to `gpt-image-1`,
   `gpt-image-1-mini`, `gpt-image-1.5`, `gpt-image-2` and `chatgpt-image-latest`.
+  **Closed 2026-07-31 — see §6.** The full set was generated through OpenAI's own API and the
+  direct route did not merely match these frames, it beat them.
+---
+
+## 6. Executed — what the decision produced
+
+Recorded 2026-07-31, the same day the decision was taken. This section is the outcome, not a
+revision: nothing above is rewritten, and the numbers here either confirm or improve on it.
+
+**The full §6.9 set was regenerated from scratch through OpenAI's own API.** Every frame produced
+on Higgsfield was deleted — the three original pairs and the three added to them — so nothing in
+`brand/quiz-imagery/` or `ios/AstraStyle/Resources/QuizImagery/` came from the dropped vendor.
+`scripts/generate_quiz_imagery.py` is the tool, `gpt-image-2` at portrait 1024×1536 medium is the
+configuration this document chose, and the direct route is what it calls.
+
+**The technique changed, and that is the headline rather than the vendor.** §3.3 measured whether
+one man survived across a pair. The shipped pipeline no longer leaves that to the prompt: it
+generates **one canonical figure** — `brand/quiz-imagery/_reference-figure.png`, a headless man in
+a plain grey base layer — and produces every single frame by passing that figure to
+`/v1/images/edits` with an instruction to keep the same man and change only the clothing. The
+person is therefore removed as a variable from the whole instrument, not merely balanced inside
+each pair, which is a stronger property than anything measured here.
+
+Measured against this document's own numbers:
+
+| Metric | Higgsfield `soul_2` (§3.2) | OpenAI text-to-image (§3.2) | Reference-conditioned edits (shipped) |
+|---|---|---|---|
+| Backdrop drift within a pair, mean luma | 20.9 | 13.9 | **1.6** |
+| Backdrop drift within a pair, worst case | 33.7 | — | **3.0** |
+| Residual after normalisation | ~1.0 | — | **≤0.8** |
+
+- **The accessory axis is buildable and built.** §3.1's decisive result held at batch scale: both
+  "bare" frames have genuinely bare wrists, verified at full resolution, and both "layered" frames
+  show a wristwatch. That axis measured nothing on the old vendor.
+- **Hands were checked at full resolution across the set** — clean.
+- **14 pairs ship, covering all 8 dimensions.** Six axes have two pairs; `silhouette` and
+  `logo_tolerance` have one each and therefore sit at `.low` confidence permanently. The manifest
+  is at `version: 2`.
+
+**Two pairs were rejected rather than shipped**, and both reasons are worth carrying forward:
+
+1. `logo-1-b` came back wearing **"HILFIGER"** — a real trademark, unshippable. The file was
+   deleted from the repo entirely rather than left unreferenced. The prompt now asks for an
+   abstract chevron emblem containing no letters, because **asking this model for a wordmark makes
+   it reach for a real brand**; the same failure produced a circled "G" reading as a luxury house's
+   mark on an earlier attempt.
+2. `silhouette-2-b` came back **short-sleeved** against a long-sleeved partner, putting sleeve
+   length in a pair meant to isolate volume. The prompt now says "long-sleeved" and "sleeves down
+   to the wrist".
+
+Both regenerations are blocked on an **OpenAI billing hard limit** (`billing_hard_limit_reached`),
+not on anything unresolved. The corrected prompts are committed;
+`python3 scripts/generate_quiz_imagery.py --pair logo-1 --pair silhouette-2` produces them once the
+limit is raised.
+
+What this section does **not** close: §5's remaining items stand. There is still no blinded human
+rating, the same-man property is verified by eye rather than by a metric, and one canonical figure
+means the instrument shows every user the same build and skin tone — a coverage question that
+should be a recorded decision rather than a side effect. See
+`ios/AstraStyle/Resources/QuizImagery/README.md` for the live version of all of it.

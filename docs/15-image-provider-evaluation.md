@@ -335,13 +335,13 @@ Stated plainly, because the conclusions above are only as good as these admit.
     historical in full: its Higgsfield client, prompt construction, credit pricing and open items
     are records of a dropped integration, not work anyone should pick up.
 11. **Evaluation API keys were live in an ephemeral container** and should be rotated regardless of
-    outcome. **Two of them are now dead weight (2026-07-31):** the `XAI_API_KEY` and
-    `GEMINI_API_KEY` used for this evaluation have no remaining use — OpenAI is the only image
-    provider — so they should be **revoked at the provider and deleted from the local env files**
-    that still hold them, not left lying around as a convenience. An unused credential in
-    plaintext is a liability with no offsetting benefit; it can only be misused. See
-    `supabase/README.md`'s environment-variable section for the standing record of where provider
-    keys are actually permitted to live.
+    outcome. Two of them had no remaining use once OpenAI became the only image provider, and
+    both — the `XAI_API_KEY` and `GEMINI_API_KEY` used for this evaluation — **were revoked at the
+    provider on 2026-07-31.** Nothing further is owed here beyond deleting the now-dead strings
+    from the local env files that still hold them. An unused credential in plaintext is a
+    liability with no offsetting benefit; it can only be misused. See `supabase/README.md`'s
+    environment-variable section for the standing record of where provider keys are actually
+    permitted to live.
 
 ---
 
