@@ -153,6 +153,36 @@ AFFILIATE_PROVIDER_KEYS
 APP_STORE_SHARED_CONFIGURATION
 ```
 
+### Open item — `IMAGE_PROVIDER_API_KEY` is not set, and the key is in the wrong place
+
+Recorded here rather than in a decision document because it is a setup problem, and this is
+where someone setting the project up will look.
+
+The image provider is decided: **OpenAI, called directly, and it is the only image provider**
+(`docs/08` §3.5, `docs/15` §5, `docs/16` §4). One key covers two models — `gpt-image-1.5` for
+Style Studio, `gpt-image-2` for quiz imagery and reference generation — so this is a single
+secret regardless. A working OpenAI key exists and has been
+verified against `gpt-image-1`, `gpt-image-1-mini`, `gpt-image-1.5`, `gpt-image-2` and
+`chatgpt-image-latest`. **It is not on this project:** `supabase secrets list` shows no
+`OPENAI_API_KEY` and no `IMAGE_PROVIDER_API_KEY`. What exists instead is a pair of local env
+files sitting in the repo's *parent* directory, left over from the `docs/15`/`docs/16`
+evaluations. They are outside the repo and therefore uncommitted, which is the half of this that
+is fine; the other half is not, because spec §25 and `docs/adr/0004-provider-neutral-ai-layer.md`
+allow a provider key to exist in exactly one place — an Edge Function environment variable — and
+a key in a developer's working directory is not that place. Set it properly before any Edge
+Function needs it:
+
+```bash
+supabase secrets set IMAGE_PROVIDER_API_KEY=...   # OpenAI key; never in .xcconfig, never in iOS
+```
+
+Two credentials in those same files are now **dead and should be revoked, not kept**:
+`XAI_API_KEY` and `GEMINI_API_KEY`, from the three-vendor bake-off in `docs/15`. With OpenAI as
+the only image provider they have no remaining use, and an unused API key sitting in plaintext is
+a pure liability — it cannot help anyone and it can be leaked, committed by accident, or billed
+against. Revoke them at the provider first, then delete the local copies; deleting the file alone
+leaves a live credential in the wild.
+
 **iOS app only** (via `.xcconfig`, per §25 — never hardcoded, never the
 service-role key):
 

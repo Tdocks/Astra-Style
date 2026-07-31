@@ -439,15 +439,36 @@ If provider generation itself is trending to exceed its 20s allocation under loa
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║ DECISION: OpenAI `gpt-image-1.5`.                                 ║
-║ Resolved 2026-07-30 by measurement. Owner: Tyler.                 ║
+║ DECISION: OpenAI, called directly with Astra's own API key. It is ║
+║ the ONLY image provider in this product.                         ║
+║ Style Studio: `gpt-image-1.5`.                                   ║
+║ Quiz imagery + reference/figure generation: `gpt-image-2`.       ║
+║ Resolved 2026-07-30 by measurement. Owner: Tyler.                ║
 ║ SUPERSEDES the 2026-07-28 Higgsfield decision, which assumed a    ║
-║ capability `soul_2` does not have. See docs/15.                   ║
+║ capability `soul_2` does not have. Higgsfield is DROPPED as a     ║
+║ vendor — nothing routes to it. See docs/15 §5 and docs/16 §4.    ║
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
 **What was chosen.** OpenAI's `gpt-image-1.5` via the `images/edits` endpoint backs
-`ImageGenerationProvider` in production.
+`ImageGenerationProvider` in production, called directly against OpenAI's API — no reseller in
+front of it. One vendor, one key, **but not one model**: §6.9 quiz imagery and reference/figure
+generation run on `gpt-image-2` (`docs/16` §4, `docs/15` §5), because each was measured on the
+task it actually performs and they did not land in the same place. The key lives only in an Edge
+Function environment variable (§25's `IMAGE_PROVIDER_API_KEY`), per ADR 0004; see
+`supabase/README.md` for its current status, which is *not yet set*.
+
+**The model was briefly changed and changed back on 2026-07-31 — recorded because the reversal is
+the instructive part.** When Higgsfield was dropped, Studio was moved to `gpt-image-2` on the
+grounds that it is cheaper at every quality tier for portrait 1024×1536 (low $0.005 vs $0.013,
+medium $0.041 vs $0.050, high $0.165 vs $0.200 — `docs/16` §3.5) and that it had just won the
+quiz-imagery race. Both grounds failed on re-reading the evidence the same day: the quiz result is
+**negative-instruction adherence in text-to-image with no reference attached**, which is not the
+task Studio performs, and the retention table below measured the two models head to head on the
+task Studio *does* perform, with `gpt-image-1.5` ahead. The price gap at the high tier is $0.035
+an image — around thirty-five cents per subscriber per month at ten generations — set against
+`docs/11` risk 4, whose entire subject is Studio output that looks wrong or uncanny. **Cost
+briefly outvoted a measurement; the measurement won.** Full reasoning in `docs/15` §5.
 
 **Why the previous decision was wrong.** Higgsfield `soul_2` was selected on 2026-07-28 for
 exactly the §3.1 requirement — reference-conditioned generation preserving identity while changing
@@ -466,9 +487,12 @@ replicated at n=3. Full record and its weaknesses in `docs/15-image-provider-eva
 | `gpt-image-2` | 74.8% ±2.2 | — | ±4.7% |
 | `gemini-2.5-flash-image` | 72.7% ±2.3 | 100% | ±2.0% |
 
-Chosen on identity (the criterion nominated as decisive) and on **consistency** — it is 1.6× more
-stable per cell than `gpt-image-2`, which matters more than the mean for a feature a user runs
-repeatedly.
+**The vendor** was chosen on identity, the criterion nominated as decisive, and OpenAI wins every
+row of that comparison. **The model within the vendor** was chosen on the same basis and on
+consistency: `gpt-image-1.5` is 1.6× more stable per cell than `gpt-image-2`, which owns the worst
+cells in the study (one reference at 62% ±8%), and for a feature a man runs repeatedly on his own
+face a model that is occasionally poor is worse than one that is uniformly good. That is the table
+this decision rests on, and it is the table that reversed the day's brief move to `gpt-image-2`.
 
 **Two prompt rules are part of this decision, not optional polish.** Both fix measured failures:
 a **colour-saturation guard** (this model desaturates navy toward black; naming the trap fixes it
@@ -476,25 +500,32 @@ at no cost to identity), and **cut stated as the sentence subject rather than on
 many** (buried, "wide-leg" was honoured in 2 of 18 images; foregrounded, in all of them — and
 `docs/14`'s entire `FitRules` axis is cut).
 
-**Tier selection is part of the decision too.** Newer is not better here: `gpt-image-1.5` beats
-`gpt-image-2`, `gemini-2.5-flash-image` beats every newer Gemini image model by 11–14 points, and
-`grok-imagine-image` beats the variant named `-quality` by 17. Higher-"quality" image models
-regenerate more aggressively; faithfulness to an input face rewards conservatism. Pin the model
-string explicitly and re-measure before ever moving to a newer one.
+**Tier selection is part of the decision too, and newest is never automatically best.** On
+identity retention, newer measured worse: `gpt-image-1.5` beat `gpt-image-2`,
+`gemini-2.5-flash-image` beat every newer Gemini image model by 11–14 points, and
+`grok-imagine-image` beat the variant named `-quality` by 17. Higher-"quality" image models
+regenerate more aggressively; faithfulness to an input face rewards conservatism — which is
+exactly why Studio takes the older model and why the same reasoning does *not* dictate the quiz's
+choice, where nobody's face is being preserved. **Pin the model string explicitly, and re-measure
+on `docs/15` §3a's protocol before moving to another one, in either direction.** "Newer" is not
+evidence here and neither is "cheaper"; the measurement is. If `gpt-image-2` later measures at or
+above `gpt-image-1.5` on that protocol, move Studio then.
 
-**Accepted risk.** No blinded human rating was run. 78.5% retention clears automated same-person
-verification comfortably (threshold 0.32; measured median 0.774), but whether it reads as
-*"that's me"* rather than *"me, but airbrushed"* is unverified, and shipping proceeds without that
-check. If Style Studio's realism is later judged inadequate, this is the untested assumption to
-revisit first — not the vendor.
+**Accepted risk.** No blinded human rating was run. `gpt-image-1.5`'s 78.5% retention clears
+automated same-person verification comfortably — every one of the 54 measured cells passed the
+0.32 similarity threshold — but whether it reads as *"that's me"* rather than *"me, but
+airbrushed"* is unverified, and shipping proceeds without that check. If Style Studio's realism
+is later judged inadequate, this is the untested assumption to revisit first — not the vendor.
 
-**Rationale, in brief.** Soul 2.0 was selected against the criteria in the original decision table above — identity preservation quality across diverse subjects, multi-garment prompt steerability for the typical 3–5-piece outfit, async job API maturity (needed for the queueing architecture in §3.3 regardless of vendor), content moderation configurability (feeds §9.3's consent-validation gate), and data retention terms compatible with §29's hardest legal gate in this document, since reference photos are faces — the single most sensitive input class in the whole system.
+**Why the original criteria did not save us.** Soul 2.0 was selected against the criteria in the original decision table above — identity preservation quality across diverse subjects, multi-garment prompt steerability for the typical 3–5-piece outfit, async job API maturity (needed for the queueing architecture in §3.3 regardless of vendor), content moderation configurability (feeds §9.3's consent-validation gate), and data retention terms compatible with §29's hardest legal gate in this document, since reference photos are faces — the single most sensitive input class in the whole system. Those are the right criteria. They were scored from vendor documentation rather than from output, and the vendor's documentation was not wrong about anything except the one behaviour that mattered. **Score the criteria against generated output before the next vendor decision, not against a capability page.**
 
-**This document does not duplicate the full integration detail.** The Higgsfield-specific request/response mapping, job lifecycle, moderation configuration, pricing tier selection (draft vs. hi-res), and how Soul 2.0's specific API surface maps onto the `StudioGenerationRequest`/`StudioGenerationResult` protocol above is specified in **`docs/10-style-studio-integration.md`** — that document is the authoritative source for anything Higgsfield-specific (endpoint shapes, `soul_2` parameters, webhook payloads, rate limits, and the draft/hi-res cost split that feeds §16's tier quota economics). This section exists only to close out the decision record for §3 and keep this document's five-provider structure complete; **do not duplicate Style Studio integration detail here** — if this section and `docs/10` ever disagree, `docs/10` is the more specific and more current source for Higgsfield mechanics, and this section should be updated to match, not the other way around.
+**Where the integration detail lives now.** There is no separate vendor-integration document any more. `docs/10-style-studio-integration.md` was written for Higgsfield and is **historical**: its client code, `soul_2` prompt construction, Soul ID training flow, credit pricing and open items all describe an integration that will not be built. Read it for the product design and the architecture it carries (the tiered Quick Preview/Studio Portrait framing, the job lifecycle, the queue, results-land-in-Storage, the disclaimer attachment) — those were never vendor-specific and survive intact. Do not read it for anything with a vendor's name in it. The OpenAI request/response mapping onto `StudioGenerationRequest`/`StudioGenerationResult` has not been written yet; when it is, it belongs in a new document, and this section stays the decision record rather than becoming the integration spec.
 
-**What stays true regardless of the Higgsfield-specific detail living elsewhere:** the `ImageGenerationProvider` protocol in §3 above, the async submit/poll/webhook pattern in §3.1–3.2, the queueing/rate-limiting/caching cost controls in §3.3, the consent validation gate in §8.3, and the latency budget in §3.4 are all vendor-neutral by design (ADR 0004) and do not change based on which vendor implements them. A future Higgsfield pricing or policy change, or a full vendor swap, is scoped to `docs/10` and the concrete adapter — not a rewrite of this section or the interfaces above it.
+**What was never vendor-specific and did not move:** the `ImageGenerationProvider` protocol in §3 above, the async submit/poll/webhook pattern in §3.1–3.2, the queueing/rate-limiting/caching cost controls in §3.3, the consent validation gate in §8.3, and the latency budget in §3.4 are all vendor-neutral by design (ADR 0004). That design is what made this swap a documentation change rather than a rewrite, which is the strongest evidence ADR 0004 has yet produced for itself — the vendor named in the original decision turned out to be wrong, twice over, and the interfaces did not move.
 
-**Conditions that should trigger revisiting this choice:** tracked in `docs/10-style-studio-integration.md`, not restated here — see that document for Higgsfield-specific triggers (identity-preservation quality regressions, cost-per-generation changes, moderation policy changes, determinism/caching behavior at a fixed seed). The general-purpose legal gate (§29 no-training-on-reference-photos) and the general cost-control levers (§3.3) remain this document's concern and apply to whichever vendor is in the `ImageGenerationProvider` slot.
+**One cost control comes back with OpenAI.** §3.3's "draft before hi-res" lever was dropped under Higgsfield because its 1.5k and 2k tiers were priced identically. OpenAI prices by quality tier — for `gpt-image-1.5` at portrait 1024×1536, low $0.013 / medium $0.050 / high $0.200 — so a low-or-medium draft ahead of an explicit high-tier export is a real 4–15× saving per generation again, not a no-op. Treat §3.3's draft-first bullet as live. (Quiz imagery's `gpt-image-2` is cheaper at every tier — $0.005 / $0.041 / $0.165 — but that is a one-off static-asset budget, not a per-user one, and it is not what this lever is for.)
+
+**Conditions that should trigger revisiting this choice:** identity-preservation regression measured on `docs/15` §3a's protocol (not judged by eye — §15 §6.6 records what eyeballing got wrong); a per-image price change that moves the §16 tier economics, which `docs/16` §3.5 now models explicitly at list prices; a moderation-policy change that breaks the §8.3 consent gate; or OpenAI's terms ceasing to satisfy §29's no-training-on-reference-photos requirement, which is a hard legal gate and not tradeable against quality. A vendor swap is scoped to the concrete adapter, not to this section or the interfaces above it.
 
 ---
 
@@ -790,12 +821,15 @@ A required gate before step 3 above, not a one-time checkbox at capture time onl
 3. Content moderation, server-side, on the reference image itself, BEFORE it is sent to
    ImageGenerationProvider: rejects images flagged for minors, non-consensual content
    categories, or content outside the "authorized personal reference photo" use case.
-   With the vendor now resolved (§3.5: Higgsfield), whether Higgsfield's built-in
-   moderation is sufficient for this specific gate on its own, or needs a dedicated
-   moderation call layered in front of it, is Higgsfield-integration detail — specified
-   in `docs/10-style-studio-integration.md`, not here. What does not move regardless of
-   that detail: this gate is enforced in code at the Edge Function, runs before the
-   image is ever sent to the provider, and must not have a blind spot.
+   With the vendor resolved (§3.5: OpenAI), whether OpenAI's own input moderation
+   covers this specific gate on its own, or needs a dedicated moderation call layered
+   in front of it, is **unverified and must be settled before Studio ships** — it was
+   never tested against Higgsfield either, and the vendor change does not make the
+   question go away. What does not move regardless of the answer: this gate is enforced
+   in code at the Edge Function, runs before the image is ever sent to the provider,
+   and must not have a blind spot. Relying on a provider's built-in moderation as the
+   only gate would also put Astra's §29 obligation inside a third party's policy
+   decisions, which is the wrong place for it.
 
 4. Per-generation re-validation: the consent record is checked (not re-collected from
    the user) on every submitGeneration() call — an expired or missing consent record

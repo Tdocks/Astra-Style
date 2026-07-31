@@ -18,16 +18,26 @@
 #
 # WHAT IT DOES, AND WHY EACH STEP EXISTS
 #
-# 1. BACKDROP NORMALISATION. Higgsfield Soul 2.0 varies its backdrop tone
-#    between generations — measured across ten raw pairs on 2026-07-30, the mean
-#    difference within a pair was 20.9 luma and the worst was 33.7, on a 0-255
-#    scale. Side by side that is visible, and the brighter frame is the more
-#    appealing photograph regardless of what it shows.
+# 1. BACKDROP NORMALISATION. Generators vary their backdrop tone between
+#    generations, and both that have produced frames for this quiz vary it
+#    enough to matter. Measured across ten raw pairs on the retired Soul 2.0
+#    model (2026-07-30), the mean difference within a pair was 20.9 luma and the
+#    worst was 33.7, on a 0-255 scale. Measured on OpenAI, the vendor everything
+#    new goes to (docs/16 §3.2), the mean was 13.9 — better by about 45%, and
+#    still visible side by side. The brighter frame is the more appealing
+#    photograph regardless of what it shows, so either number is disqualifying
+#    for a pair that is supposed to differ on ONE axis.
 #
 #    brand/quiz-imagery/README.md offers two fixes: pin the seed, or normalise
-#    in post. THE FIRST IS NOT AVAILABLE — the API rejects a seed with
-#    "Higgsfield Soul 2.0 does not support this parameter" — so this is the only
-#    route, which is why it lives in a script rather than in a person's judgement.
+#    in post. Normalising is what happens, and this script is where it lives so
+#    it is not a person's judgement call. Be precise about why the other route
+#    is not taken, because the reason has changed: Soul 2.0 rejected a seed
+#    outright ("does not support this parameter"), which settled it then.
+#    WHETHER OPENAI ACCEPTS A SEED HAS NOT BEEN TESTED, and neither has whether
+#    a pinned seed would actually hold the backdrop steady across two different
+#    garment clauses. Do not assume it inherits Soul 2.0's behaviour in either
+#    direction. Until someone measures it, normalisation is not merely the only
+#    available route — it is the one with evidence behind it.
 #
 #    The target is the MEAN of the pair, not a fixed constant. Neither frame is
 #    more correct than the other; they only have to match each other, and pulling
@@ -40,10 +50,13 @@
 #    Luma is sampled from four corner patches, which are backdrop in every frame
 #    the mandated skeleton produces (centred model, full body, seamless sweep).
 #
-# 2. TOP 7% CROP. The generator leaves the chin and neck in frame despite the
-#    prompt saying no face visible. The crop is therefore load-bearing rather
-#    than aesthetic, and it belongs here rather than in a per-image judgement
-#    call — a frame that ships uncropped shows a face the quiz promised not to.
+# 2. TOP 7% CROP. Soul 2.0 left the chin and neck in frame every time, despite
+#    the prompt saying no face visible. OpenAI did not, in any of the six frames
+#    docs/16 measured — and the crop stays anyway, unconditionally. "The
+#    generator happened not to do it in six frames" is not a guarantee, and the
+#    cost of being wrong is asymmetric: a frame that ships uncropped shows a
+#    face the quiz promised not to. The crop is load-bearing rather than
+#    aesthetic, which is why it belongs here and not in a per-image judgement.
 #
 # 3. RESIZE TO 720px WIDE. Tile width on the quiz card, doubled for retina.
 #

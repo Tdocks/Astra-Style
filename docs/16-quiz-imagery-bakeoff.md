@@ -1,8 +1,15 @@
 # 16 — Quiz imagery bake-off: Higgsfield vs OpenAI
 
-**Status:** DECIDED — **OpenAI `gpt_image_2` at 2k / medium**, resolved 2026-07-31.
+**Status:** DECIDED — **OpenAI `gpt-image-2`, portrait 1024×1536 at medium quality, called
+directly against OpenAI's API with Astra's own key**, resolved 2026-07-31.
 **Supersedes `docs/15` §5's "Quiz imagery (§6.9) → Higgsfield `soul_2`" row.** Everything else in
 `docs/15` stands.
+
+One thing to be precise about, because every table below is denominated in credits: **the OpenAI
+frames in this bake-off were generated through Higgsfield's API**, which resells `gpt_image_2`.
+The model that won the race is the model that ships; what changed later the same day is the
+*route* to it. §3.5 prices both routes, and is why Higgsfield is dropped outright rather than kept
+around as a convenience.
 
 Scope: which provider generates the §6.9 paired-image quiz. Style Studio is not re-opened here.
 
@@ -107,11 +114,85 @@ in the hundreds and a one-off scope, an 8× multiple on a trivial base is not a 
 Cost was a legitimate tiebreak when quality was assumed equal. It is not one now that quality is
 measured and unequal.
 
+### 3.5 Cost priced properly — direct OpenAI against Higgsfield as a reseller
+
+Everything above is in Higgsfield credits, because everything above ran through Higgsfield. Priced
+in dollars against calling OpenAI directly, the picture changes enough to end the vendor
+relationship. Two sources, named so the arithmetic can be re-checked: **OpenAI's image-generation
+guide, "calculating costs" table** for the direct per-image prices, and **Higgsfield Plus at
+$49/month for 1,000 credits = $0.049/credit** for the reseller prices. Both are *list* prices;
+no volume discount is assumed anywhere below.
+
+**Per image, portrait 1024×1536, direct from OpenAI:**
+
+| Tier | `gpt-image-1.5` | `gpt-image-2` |
+|---|---|---|
+| Low | $0.013 | **$0.005** |
+| Medium | $0.050 | **$0.041** |
+| High | $0.200 | **$0.165** |
+
+`gpt-image-2` is cheaper than `gpt-image-1.5` at every tier. Both columns are here because the
+product uses both: the quiz takes `gpt-image-2`, Style Studio takes `gpt-image-1.5`. **The price
+column did not decide Studio and should not be read as if it had** — §4 and `docs/15` §5 set out
+why a $0.035 difference at the high tier loses to a measured 3.7-point identity regression.
+
+**The same model, direct against through the reseller:**
+
+| Route | Config | Per frame |
+|---|---|---|
+| Direct | `gpt-image-2`, 1024×1536, medium | **$0.041** |
+| Higgsfield | `gpt_image_2` 1k / medium — 2 credits | $0.098 — **~2.4×** |
+| Higgsfield | `gpt_image_2` 2k / medium — 3 credits | $0.147 |
+| Higgsfield | `gpt_image_2` 2k / high — 7 credits | $0.343, against $0.165 direct at high — ~2.1× |
+
+Be fair to Higgsfield about the 2k rows: its "2k" returned **1744×2336**, roughly 2.6× the pixels
+of the 1024×1536 the direct table prices, so part of that gap is resolution rather than margin.
+**The 1k/medium row is the clean like-for-like, and it is ~2.4×.** The extra resolution buys
+nothing here in any case — `scripts/build_quiz_imagery.py` crops the top 7% and resizes to 720px
+wide, so everything above ~1024px wide is discarded before a frame ships.
+
+**Why the subscription, not the multiple, is what decides this.** Higgsfield Plus is **$49/month —
+$588/year — regardless of usage.** It is a seat, not metered credit. After this document the only
+thing that seat buys is the static quiz imagery below: on the order of **$3 of one-time
+generation**. Paying $588/year to save three dollars is backwards, and that sentence is the whole
+argument for dropping the vendor.
+
+**For static assets the difference is trivial, and that is the point.** Finishing the quiz is 6–14
+more pairs — 12–28 frames. At medium: **$1.15 direct against $4.12 through Higgsfield** at its
+2k/medium rate. A three-dollar difference, once, forever. Nobody should choose a vendor on this
+number in either direction.
+
+**For runtime it decides everything.** Style Studio (§6.17) is per user, per month, indefinitely.
+Priced on `gpt_image_2`, the model Higgsfield actually resold, at 10 high-tier images/month:
+**$1.65 direct against $3.43 through Higgsfield.** Against the $12.99 monthly plan — roughly
+$9.09 net after Apple's 30% — that is **18% of net revenue against 38%**. Against the $79.99
+annual plan, roughly $4.67/month-equivalent net, it is **35% against 73%**. (Studio actually runs
+on `gpt-image-1.5` at $0.200 high, so its own direct line is a little higher than the $1.65 in
+this like-for-like comparison; the comparison is about the *route*, and the reseller multiple is
+what it is measuring. `docs/11` risk 5 carries the corrected per-model inputs and has **not** been
+recomputed on them.)
+
+`docs/09` §5.6 already puts reasoning-provider inference *alone* at 28–34% of net revenue
+on the annual plan; stacking a 73% image line on top of that is not a thin margin, it is a plan
+that loses money on every subscriber. The reseller's markup by itself would put it underwater.
+
+**And there was never a Higgsfield runtime path to put it on.** ADR 0004 is explicit that the
+client never talks to a provider and that Edge Functions hold the keys, so whatever generates a
+Style Studio image is called server-side with Astra's own credentials. A per-seat creative-tool
+subscription could never have sat in that path — it was only ever a way to hand-generate static
+assets, which is exactly the $3 line above.
+
 ## 4. Decision
 
 | Use case | Provider | Confidence |
 |---|---|---|
-| Quiz imagery (§6.9) | **OpenAI `gpt_image_2`, 2k / medium, text-to-image** | High — decided on measured prompt adherence, not preference |
+| Quiz imagery (§6.9) | **OpenAI `gpt-image-2`, text-to-image, portrait 1024×1536, medium quality, called directly against OpenAI's API** | High — decided on measured prompt adherence, not preference |
+
+Medium rather than high because §3.4 measured them indistinguishable on the decisive prompt.
+1024×1536 rather than the 1744×2336 the bake-off ran at because the pipeline throws that
+resolution away: crop the top 7%, resize to 720px wide, ship. Directly rather than through
+Higgsfield because §3.5 prices the same model at ~2.4× through the reseller and the seat costs
+$588/year whether it is used or not.
 
 Existing shipped pairs are **not** regenerated. The three `soul_2` pairs that passed QC
 (`texture-01`, `logo-01`, `logo-02`) and the three from the original batch are all internally
@@ -119,16 +200,57 @@ consistent, and reshooting them would spend credits to change nothing a user cou
 pairs go to OpenAI. A mixed catalogue is fine: consistency is required *within* a pair, not
 across the quiz.
 
-### Higgsfield is now unused across the entire product
+### A claim in an earlier draft of this document was wrong
+
+An earlier version said §15 evaluated `gpt-image-1.5` while this document tested `gpt-image-2`,
+and therefore that §15's Style Studio numbers were "a floor, not a ceiling". **That is withdrawn.**
+§15 §3a measured *both* models head to head at n=3, and `gpt-image-1.5` won the identity axis —
+78.5% ±1.6 against 74.8% ±2.2, with ~1.6× tighter per-cell spread. The newer model is not
+uniformly better; it is better at the thing measured here and worse at the thing measured there.
+
+**Style Studio therefore stays on `gpt-image-1.5`.** This document's result is about
+negative-instruction adherence in text-to-image with no reference attached. Preserving a real
+man's likeness through a reference-conditioned edit is a different task, and a win here does not
+transfer. Generalising one use case's vendor result to another is precisely the error that left
+§6.9 on the wrong vendor until it blocked us; repeating it in the opposite direction on the same
+day would be worse.
+
+The price difference does not rescue the argument: $0.200 against $0.165 at the high tier is
+**$0.035 an image**, roughly thirty-five cents per subscriber per month at ten generations,
+weighed against `docs/11` risk 4 — Studio output that looks wrong or uncanny.
+
+### Higgsfield is dropped, not merely unused
 
 Style Studio → OpenAI (§15). Reference/figure generation → OpenAI (§15). Quiz imagery → OpenAI
-(this document). **No remaining use case routes to Higgsfield**, so it can be dropped as a vendor
-dependency. That is a real simplification and should be taken deliberately rather than left as an
-unused integration nobody remembers the status of.
+(this document). **No remaining use case routes to Higgsfield**, and §3.5 prices what keeping it
+would cost: $588/year for a seat whose only remaining job is ~$3 of one-time generation. So it is
+dropped as a vendor dependency, deliberately, rather than left as an unused integration nobody
+remembers the status of. **OpenAI is the only image provider, called with Astra's own key.**
 
-Note also that §15 evaluated `gpt-image-1.5`; the model tested here is **`gpt_image_2`**, a later
-generation. §15's Style Studio numbers were measured on the older model and are therefore a floor,
-not a ceiling — worth knowing before anyone re-litigates Style Studio.
+Concretely, that means: no Higgsfield adapter is written, `HIGGSFIELD_API_KEY` is not a secret
+this project sets, and `docs/10`'s Higgsfield client, prompt construction and credit arithmetic
+are history rather than a specification. The measurements that got us here — §15's
+prompt-rewriting disqualification, §3.1's watch, §3.2's backdrop numbers — stay on the record in
+full, because a decision whose evidence has been deleted is indistinguishable from a preference.
+
+Dropping the vendor is not the same as collapsing onto one model: Style Studio stays on
+`gpt-image-1.5` for the reasons set out above and in `docs/15` §5. One provider, one key, two
+models chosen per task.
+
+### Before this ships — open operational items
+
+Neither of these is a quiz-imagery question, but both were surfaced by this decision and belong
+somewhere a person will actually look:
+
+- **The OpenAI key is not where the architecture requires it.** Spec §25 and ADR 0004 permit a
+  provider key to exist only as an Edge Function environment variable, and `supabase secrets list`
+  currently shows **no `OPENAI_API_KEY` on the project**. The working key lives in local env files
+  outside the repo — uncommitted, which is the part that is fine, and outside the sanctioned
+  location, which is not. Anything beyond hand-generating static assets is blocked on setting it
+  properly. See `supabase/README.md`.
+- **Two evaluation credentials are now dead.** The `XAI_API_KEY` and `GEMINI_API_KEY` from §15's
+  bake-off have no remaining use. Revoke them at the provider and delete them; an unused key in
+  plaintext is a liability, not a convenience.
 
 ## 5. What this does NOT settle
 
@@ -148,3 +270,11 @@ Recorded explicitly so a later reader knows these were skipped rather than forgo
   *photographs of clothes* rather than *renders* to a real user.
 - **The same-man-across-a-pair result is from three pairs.** It is the single most important
   property for this content and deserves more evidence before being treated as settled.
+- **The direct OpenAI route was never exercised on these prompts.** Every frame measured here
+  reached `gpt_image_2` through Higgsfield's API. The decision moves the route to OpenAI directly,
+  and while the model is the same, nothing here proves that a direct call with the same prompt
+  returns comparable output — parameter names, defaults and any silent server-side prompt handling
+  differ per API surface, and §15's whole disqualification of `soul_2` was about exactly that kind
+  of invisible difference. **Generate one pair directly and compare it against the bake-off frames
+  before producing a batch.** Verified so far: the key works and has access to `gpt-image-1`,
+  `gpt-image-1-mini`, `gpt-image-1.5`, `gpt-image-2` and `chatgpt-image-latest`.

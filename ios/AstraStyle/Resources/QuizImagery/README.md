@@ -78,39 +78,56 @@ finishing the quiz**, and prompt wording does not fix it — it needs reference-
 generation, so both options are the same man in different clothes. That is a change of
 technique, not of phrasing.
 
-**New pairs go to OpenAI `gpt_image_2` at 2k / medium, not to `soul_2`.** `docs/16` raced the
-two on byte-identical prompts and superseded `docs/15` §5's quiz-imagery row. The decisive result
-is the accessory failure directly above: told "no belt, no watch and no accessories of any kind",
-`soul_2` produced a wristwatch on **both** frames, and OpenAI produced bare wrists. That single
-difference is what makes `accessory_preference` buildable at all. OpenAI also held one man, one
-framing scale and one palette across all three test pairs, and roughly halved backdrop drift
+**New pairs go to OpenAI `gpt-image-2`, portrait 1024×1536 at medium quality, called directly
+against OpenAI's API.** `docs/16` raced it against Higgsfield's `soul_2` on byte-identical prompts
+and superseded `docs/15` §5's quiz-imagery row; Higgsfield was then dropped as a vendor outright
+(`docs/16` §3.5), so OpenAI is not the preferred option here, it is the only one. The decisive
+result is the accessory failure directly above: told "no belt, no watch and no accessories of any
+kind", `soul_2` produced a wristwatch on **both** frames, and OpenAI produced bare wrists. That
+single difference is what makes `accessory_preference` buildable at all. OpenAI also held one man,
+one framing scale and one palette across all three test pairs, and roughly halved backdrop drift
 (13.9 against 25.2 mean luma).
 
-Everything already in this directory stays on `soul_2` and is **not** being regenerated. Each
-shipped pair is internally consistent, and consistency is required *within* a pair, not across
-the quiz — reshooting them would spend credits to change nothing a user could perceive.
+One caveat carried from `docs/16` §5: the frames in that bake-off reached `gpt-image-2` through
+Higgsfield's API, not OpenAI's own. Same model, different API surface. **Generate one pair
+directly and compare it against those frames before committing to a batch.**
+
+The pairs already in this directory were generated on `soul_2` and are **not** being regenerated.
+Each shipped pair is internally consistent, and consistency is required *within* a pair, not
+across the quiz — reshooting them would change nothing a user could perceive.
 
 Backdrop normalisation still runs on OpenAI output. 13.9 is better, not clean.
 
-**Do not reach for a trained Soul ID.** `docs/15` rejects it on three grounds, the decisive one
-being that a trained Soul is a persistent derived biometric model held on a third party's
-infrastructure — the worst available option for §29 and right-to-erasure. A case can be made
-that those grounds are all about *per-user* identity in Style Studio and none apply to static
-assets of one fictional model who is not a real person. That case may well be right, but it has
-not been made in §15, and it is not this file's to decide. Raise it there first.
+**A trained identity model is not the answer to it either.** `docs/15` rejected Higgsfield's Soul
+ID on three grounds, the decisive one being that a trained Soul is a persistent derived biometric
+model held on a third party's infrastructure — the worst available option for §29 and
+right-to-erasure. That product left with its vendor, so the question is now moot in its original
+form, but the reasoning survives the vendor and should be applied to any equivalent offering: a
+per-subject trained model is a standing privacy liability, and "it is a fictional man, not a real
+person" is an argument that has to be made and recorded somewhere with authority over §29, not
+assumed here. The buildable route for holding one man across a pair is **reference-conditioned
+generation on the provider we already use** — OpenAI's image-edit path, the same one Style Studio
+is built on (`docs/08` §3.5) — which is stateless and trains nothing. It has not been tried for
+quiz imagery.
 
-**Soul 2.0 rejects a `seed` parameter.** This file's known-issue #1 offers two fixes for
-backdrop drift, "pin the backdrop seed, or normalise the background channel in post". The
-first is not available: the API answers `Higgsfield Soul 2.0 does not support this parameter`.
-So normalisation in post is the only route, and it is now mandatory rather than optional —
-measured drift across ten raw pairs averaged **20.9** luma and reached **33.7**, against the
-~1.0 the shipped pairs sit at after normalising. The step is in the pipeline below.
+**Backdrop normalisation is mandatory, and seed pinning is not an available alternative today.**
+This file's known-issue #1 offers two fixes for backdrop drift, "pin the backdrop seed, or
+normalise the background channel in post". Seed pinning was ruled out against the old vendor,
+which rejected the parameter outright; **whether OpenAI supports a seed has not been tested**, so
+treat it as an open question rather than as either available or unavailable. Normalisation runs
+regardless: measured drift across ten raw `soul_2` pairs averaged **20.9** luma and reached
+**33.7**, and OpenAI's measured mean of **13.9** (`docs/16` §3.2) is still enough to see side by
+side, against the ~1.0 the shipped pairs sit at after normalising. The step is in the pipeline
+below and it is not optional for either vendor's output.
 
 **The model puts a wristwatch on a man told to wear none.** Both `accessory-01-a` and
 `accessory-02-a` were prompted "no belt, no watch and no accessories of any kind" and both
-came back wearing a watch. Since the bare side is half the comparison, the accessory axis
-cannot be built by negation — the "without" frame has to be generated some other way, or
-retouched.
+came back wearing a watch. Since the bare side is half the comparison, the accessory axis could
+not be built by negation on that model at all. **Resolved by the vendor change**, and it is the
+single result that decided it: given the identical instruction, OpenAI returned bare wrists on
+the "without" frame and a watch on the correct wrist on the "with" frame (`docs/16` §3.1). Verify
+it at full resolution on every new accessory pair anyway — one passing test is not a guarantee,
+and this is the frame where a failure is invisible at tile size.
 
 **"No text, no logos" is in the mandatory skeleton, and one axis is about logos.** The
 `logo_tolerance` pairs necessarily drop that clause from their B side. This is the only

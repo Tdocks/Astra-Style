@@ -300,8 +300,11 @@ design, not evidence of build.
 # PHASE 6 — STUDIO AND COMMERCE
 
 **2 Done · 4 Partial · 19 Not started.** Data layers live in production and the request models are
-complete and spec-accurate; nothing renders them. The image vendor was decided today
-(`docs/15`: OpenAI `gpt-image-1.5`, superseding Higgsfield) ahead of any build.
+complete and spec-accurate; nothing renders them. The image vendor was resolved ahead of any
+build: **OpenAI, called directly with our own key, and nothing else** — Studio on `gpt-image-1.5`,
+quiz imagery and reference generation on `gpt-image-2` (`docs/15` §5, `docs/16` §4). The
+previously-named vendor is dropped outright, so P6-STUDIO-03's provider adapter has one target
+and `docs/10`'s integration detail is history rather than a spec.
 
 | Ticket | Status | Evidence |
 |---|---|---|
