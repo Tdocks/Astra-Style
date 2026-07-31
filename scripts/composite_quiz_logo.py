@@ -63,16 +63,35 @@ except ImportError:
 SOURCE = Path("brand/quiz-imagery")
 MARK = SOURCE / "_astra-mark.png"
 
-# Chest placement per pair, read off the plain frames rather than guessed.
-# `y` is the top of the mark as a fraction of image height; `width` is the
-# mark's width as a fraction of image width.
+# Chest placement, MEASURED off the plain frames with a coordinate grid rather
+# than guessed. The first attempt was guessed and was wrong twice over — the
+# mark came out roughly twice the width of a real chest logo, and it sat at
+# y 0.175-0.275, which on this framing is the stomach, not the chest.
+#
+# On these frames, shoulders-to-shoes:
+#     y 0.05        collar / shoulder line
+#     y 0.11-0.16   pec level — where a chest logo actually goes
+#     y 0.22-0.32   midriff — where the first attempt put it
+#     y 0.38        hem of a crew-neck sweatshirt
+#
+# `x` is the mark's centre. 0.605 is the wearer's LEFT chest, which is the
+# viewer's right in a front-facing photograph and the standard placement for
+# embroidered and printed chest branding. Centre-chest exists but reads as a
+# graphic print rather than a logo, and this axis is about logos.
+#
+# `width` is the mark's width as a fraction of image width. The torso spans
+# roughly 0.40 here, so 0.08 puts the mark at about a fifth of chest width —
+# in the range a real chest logo occupies, and still legible once the tile is
+# downscaled to the ~170pt each option gets on the quiz card. It is the smallest
+# size that survives that downscale; going smaller for extra realism would buy
+# authenticity nobody can see at the size the question is actually asked.
 PLACEMENTS = {
-    "logo-1": {"y": 0.175, "width": 0.155},   # crew-neck sweatshirt
-    "logo-2": {"y": 0.165, "width": 0.150},   # quarter-zip, slightly higher neckline
+    "logo-1": {"y": 0.105, "width": 0.080, "x": 0.605},   # crew-neck sweatshirt
+    "logo-2": {"y": 0.098, "width": 0.078, "x": 0.605},   # quarter-zip, higher neckline
 }
 
-OPACITY = 0.93
-BLUR = 0.6
+OPACITY = 0.90
+BLUR = 0.5
 
 
 def composite(stem: str, placement: dict) -> bool:
@@ -94,7 +113,11 @@ def composite(stem: str, placement: dict) -> bool:
     scaled.putalpha(scaled.split()[3].point(lambda v: int(v * OPACITY)))
 
     layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    layer.paste(scaled, (int(width / 2 - w / 2), int(height * placement["y"])), scaled)
+    layer.paste(
+        scaled,
+        (int(width * placement["x"] - w / 2), int(height * placement["y"])),
+        scaled,
+    )
 
     destination = SOURCE / f"{stem}-b.png"
     Image.alpha_composite(base, layer).convert("RGB").save(destination, "PNG")
