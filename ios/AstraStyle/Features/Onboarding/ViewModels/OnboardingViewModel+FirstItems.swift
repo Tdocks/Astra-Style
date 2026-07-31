@@ -32,7 +32,7 @@ public extension OnboardingViewModel {
     /// fail and be retried without touching the rest of the flow, and must
     /// never be able to leave the whole step in an error state — the step is
     /// skippable and blocking it would break Phase 2's exit criterion.
-    public enum AddItemState: Equatable {
+    enum AddItemState: Equatable {
         case idle
         case saving
         /// The most recent add succeeded. Carries the name so the confirmation

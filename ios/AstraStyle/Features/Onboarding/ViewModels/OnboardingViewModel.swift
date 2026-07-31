@@ -561,7 +561,7 @@ public final class OnboardingViewModel {
 
 public extension OnboardingViewModel {
 
-    public enum SubmissionState: Equatable {
+    enum SubmissionState: Equatable {
         case idle
         case submitting
         /// Finished locally. A guest reaches this and stops here — his answers
@@ -586,7 +586,7 @@ public extension OnboardingViewModel {
     /// result change; a regenerate that blanks the screen while it works, or
     /// that drops what he already had when the network fails, fails that
     /// criterion in the direction the user notices most.
-    public enum StyleDNAState: Equatable {
+    enum StyleDNAState: Equatable {
         case idle
         /// Saving the answers, then generating. There is nothing to show yet.
         case loading
