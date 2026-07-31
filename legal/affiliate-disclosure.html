@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra Style — Affiliate Disclosure</title>
+<!--
+  UNREVIEWED DRAFT. NOT LEGAL ADVICE. DO NOT PUBLISH BEFORE COUNSEL REVIEW.
+  Drafted from the Astra Style codebase and specification §17, 2026-07-31.
+
+  Note for review: at the time of drafting, no affiliate network is integrated,
+  the product catalogue is empty, and the shopping surfaces are not built. The
+  claims here are about how the system is designed to behave. The audit
+  described in section 5 (comparing verdict distribution for affiliate-linked
+  vs non-affiliate products) is a mitigation named in docs/11-risk-register.md
+  risk 8; it is not yet implemented. Do not describe it as an operating control
+  until it runs.
+-->
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin:0; padding:1.25rem .9rem 3rem; background:#fff; color:#111;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:17px; line-height:1.6; -webkit-text-size-adjust:100%; }
+main { max-width:44rem; margin:0 auto; }
+h1 { font-size:1.65rem; line-height:1.25; margin:0 0 .3rem; }
+h2 { font-size:1.2rem; line-height:1.3; margin:2.2rem 0 .6rem; padding-top:1.2rem; border-top:2px solid #111; }
+p, li { font-size:1rem; }
+ul, ol { padding-left:1.25rem; margin:.6rem 0; }
+li { margin:.35rem 0; }
+.updated { font-weight:700; margin:.2rem 0 1rem; }
+.banner { border:3px solid #111; background:#fffbe6; padding:.85rem .95rem; margin:1.2rem 0; }
+.banner p { margin:.4rem 0; }
+.banner strong { text-transform:uppercase; letter-spacing:.02em; }
+.needs-input { background:#ffe600; color:#000; font-weight:700; padding:.08em .3em;
+  border:1px solid #7a6a00; border-radius:2px; }
+.lede { font-size:1.08rem; border-left:5px solid #111; padding:.2rem 0 .2rem .8rem; margin:1.2rem 0; }
+footer { margin-top:2.5rem; padding-top:1rem; border-top:2px solid #111; font-size:.92rem; color:#333; }
+@media (max-width:480px) { body { font-size:16px; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Astra Style — Affiliate Disclosure</h1>
+<p class="updated">Last updated: 31 July 2026</p>
+
+<div class="banner">
+<p><strong>Draft for legal review.</strong></p>
+<p>Drafted from the Astra Style codebase and specification. Not reviewed by a lawyer, not legal
+advice, and not to be published in this state. Each
+<span class="needs-input">[[NEEDS INPUT: …]]</span> marker is unresolved.</p>
+</div>
+
+<p class="lede">Some product links in Astra Style earn us a commission. That commission never
+changes what Kyra tells you to buy.</p>
+
+<h2>1. The short version</h2>
+<ul>
+<li>When Astra Style shows you a product, the link may be an affiliate link.</li>
+<li>If you buy through it, the retailer may pay us a commission. You pay the same price either
+way.</li>
+<li>Whether a product carries a commission plays no part in whether it is recommended to you, how it
+is ranked, or what verdict Kyra gives it.</li>
+<li>Anything sponsored is labelled as sponsored, in the app, where you see it.</li>
+</ul>
+
+<h2>2. Why we take commission at all</h2>
+<p>Astra Style is paid for by subscriptions. Affiliate commission is a secondary source of revenue,
+and the reason to be careful about it is obvious: a stylist whose "buy" verdicts happen to track
+commission is not a stylist. That is the failure mode this page, and the design decisions behind it,
+exist to prevent.</p>
+
+<h2>3. How recommendations are actually produced</h2>
+<p>Product suggestions and verdicts are computed from the wardrobe you already own and the
+preferences you gave us:</p>
+<ul>
+<li>how well an item works with what is already in your closet;</li>
+<li>how much it duplicates something you own;</li>
+<li>how many genuinely new outfits it would make possible;</li>
+<li>what it would cost you per wear;</li>
+<li>your colour, fit, formality and brand preferences, your budget and your lifestyle.</li>
+</ul>
+<p>Commission rate, affiliate availability and retailer relationship are not inputs to that
+calculation. The scoring runs on the same features whether a product came from a retailer feed, from
+our curated catalogue, or from a link you pasted yourself — and a product you paste with no
+affiliate relationship at all is scored by exactly the same code.</p>
+<p>"Wait for sale" and "Skip" are real verdicts that the app gives, and they earn us nothing. That
+is the point.</p>
+
+<h2>4. What is labelled, and where</h2>
+<ul>
+<li>Product listings show the retailer and price, with the affiliate relationship disclosed at the
+point where you would act on it.</li>
+<li>Sponsored placements, if any exist, are labelled as sponsored.</li>
+<li>Retailer links open in an in-app browser or the retailer's own app, so you can see whose site
+you are on.</li>
+</ul>
+<p><span class="needs-input">[[NEEDS INPUT: whether any sponsored or paid placement will exist at
+launch. If none will, say so plainly here instead of hedging]]</span></p>
+
+<h2>5. How we hold ourselves to this</h2>
+<p>The commitment above is a design constraint, not just a promise: the recommendation code computes
+from the same feature set regardless of a product's commercial status.</p>
+<p>We also intend to audit it — periodically comparing the spread of verdicts given to
+affiliate-linked products against non-affiliate ones, controlling for category, price and how well
+the item fits the wardrobe, and investigating any skew. To be accurate about the present:
+<strong>that audit is not running yet</strong>, because the shopping features it would measure are
+not live.
+<span class="needs-input">[[NEEDS INPUT: audit cadence and who owns it, once commerce ships. Do not
+present the audit as an operating control until it runs]]</span></p>
+
+<h2>6. Who we have relationships with</h2>
+<p><span class="needs-input">[[NEEDS INPUT: the affiliate networks and retailer programmes we
+participate in, listed by name. At the time of writing, no affiliate network is integrated, the
+product catalogue is empty, and the shopping features are not live. Several programmes — Amazon
+Associates among them — mandate specific disclosure wording that must be reproduced verbatim; that
+wording must be added here before launch]]</span></p>
+
+<h2>7. What retailers learn about you</h2>
+<p>When you open a retailer link, you leave Astra Style. The retailer receives what any website
+receives from a visiting browser, plus whatever tracking identifier the affiliate programme attaches
+to the link so a sale can be attributed to us. We do not send retailers your profile, your
+measurements, your closet or your images.</p>
+<p>Within the app we record that an affiliate link was opened and for which retailer. That record
+carries no personal content.</p>
+<p><span class="needs-input">[[NEEDS INPUT: confirm, once an affiliate network is integrated,
+exactly what identifiers are appended to outbound links and whether any of them are tied to your
+account — then state it here precisely]]</span></p>
+
+<h2>8. Prices, availability and who you are buying from</h2>
+<p>We are not the seller. Prices, sizes and availability shown in Astra Style come from retailers or
+their feeds and can be out of date; the retailer's own listing is authoritative. Your purchase is a
+contract with that retailer, under their terms, and they are responsible for the product, delivery,
+returns and refunds.</p>
+
+<h2>9. Contact</h2>
+<p>Questions about this disclosure:
+<span class="needs-input">[[NEEDS INPUT: contact email address]]</span><br>
+<span class="needs-input">[[NEEDS INPUT: full legal entity name]]</span>,
+<span class="needs-input">[[NEEDS INPUT: registered entity address]]</span></p>
+
+<footer>
+<p>Astra Style Affiliate Disclosure — draft of 31 July 2026. Unreviewed. Not legal advice.</p>
+</footer>
+
+</main>
+</body>
+</html>
