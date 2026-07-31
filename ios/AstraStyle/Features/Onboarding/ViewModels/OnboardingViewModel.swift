@@ -26,6 +26,13 @@
 //  answered seven screens of questions. So `loadStyleDNA()` submits first and
 //  generates second, and the forward button on §6.10 only leaves the flow.
 //
+//  WHY THE REFERENCE PHOTO (§5.1 step 11) IS UPLOADED HERE AND NOT AT CAPTURE.
+//  See `uploadReferenceImageIfNeeded()`. In short: an image uploaded the moment
+//  it is picked is an image that exists on a server for every user who then
+//  backs out, force-quits, or changes his mind — exactly ADR 0010's "abandoned
+//  upload", whose cleanup is a scheduled sweep that has not been built. Nothing
+//  is uploaded until the man has committed to finishing.
+//
 
 import Foundation
 import Observation
@@ -35,49 +42,45 @@ import OSLog
 @Observable
 public final class OnboardingViewModel {
 
-    public enum SubmissionState: Equatable {
-        case idle
-        case submitting
-        /// Finished locally. A guest reaches this and stops here — his answers
-        /// are saved and will be sent when he creates an account.
-        case savedLocally
-        case succeeded
-        case failed(String)
-    }
-
-    /// The §6.10 result step's own state machine.
-    ///
-    /// Separate from `SubmissionState` because the two answer different
-    /// questions and the result screen needs both: "have this man's answers
-    /// reached the server" and "is there a Style DNA to draw". Collapsing them
-    /// into one enum forced a `.submitting` case to mean two different things
-    /// on one screen — saving answers, and regenerating from edited ones —
-    /// which are visually different states (a full-screen wait versus the
-    /// previous result held on screen behind a working indicator).
-    ///
-    /// `regenerating` and `failed` both carry the PREVIOUS result on purpose.
-    /// Phase 2's exit criterion is that a user can regenerate and see the
-    /// result change; a regenerate that blanks the screen while it works, or
-    /// that drops what he already had when the network fails, fails that
-    /// criterion in the direction the user notices most.
-    public enum StyleDNAState: Equatable {
-        case idle
-        /// Saving the answers, then generating. There is nothing to show yet.
-        case loading
-        case ready(StyleDNA)
-        /// Working from edited inputs, with the previous result still on screen.
-        case regenerating(previous: StyleDNA)
-        case failed(message: String, previous: StyleDNA?)
-        /// ADR 0011: a guest has no server profile, so there is no Style DNA to
-        /// generate and no call to make. Not an error and not a loading state —
-        /// a real, permanent outcome for this session that the screen names.
-        case guestPreview
-    }
-
     public private(set) var step: OnboardingStep
     public var draft: OnboardingDraft
     public private(set) var submission: SubmissionState = .idle
     public private(set) var styleDNAState: StyleDNAState = .idle
+
+    // MARK: §5.1 step 11 — reference photo
+
+    /// The chosen photo's bytes, held for the preview the capture step draws.
+    ///
+    /// Not on the draft: the draft is re-encoded to disk on every mutation of
+    /// every later screen, and a JPEG inside it would be rewritten on each
+    /// keystroke. `ReferenceImageStore` owns the bytes; the draft owns the
+    /// filename.
+    public internal(set) var referenceImageData: Data?
+
+    /// Set when the upload during submission failed. Non-blocking by design —
+    /// see `uploadReferenceImageIfNeeded()`; the answers still reach the
+    /// server, and §6.10 offers a retry for this one thing.
+    public internal(set) var referenceUploadFailure: String?
+
+    // MARK: §5.1 step 12 — first closet items
+
+    /// Items created during THIS step, newest first.
+    ///
+    /// Deliberately not "the user's closet". A signed-in user may already own
+    /// items, and listing them here would turn an onboarding step into a
+    /// closet browser — `P3-CLOSET-08` owns that screen. What belongs on this
+    /// screen is what this screen just did.
+    public internal(set) var firstItems: [ClosetItem] = []
+    public var newItemName: String = ""
+    public var newItemCategory: ClothingCategory?
+    public var newItemColor: String = ""
+    public internal(set) var addItemState: AddItemState = .idle
+
+    /// How many more a guest may add (spec §6.2's 10-item cap), or nil when
+    /// the cap does not apply. Read once when the step opens: the cap counts
+    /// items already in local guest storage, not just the ones added here, so
+    /// a resumed session must not restart the count at zero.
+    public internal(set) var guestItemsRemaining: Int?
 
     /// Set once the user has finished the flow and the app should move on.
     ///
@@ -95,10 +98,18 @@ public final class OnboardingViewModel {
     /// comparisons exist.
     public let quizEngine: StyleQuizEngine
 
-    private let store: any OnboardingDraftStoring
-    private let profileRepository: any ProfileRepository
-    private let sessionStore: SessionStore
-    private let logger = Logger(subsystem: "com.astrastyle.app", category: "onboarding")
+    // Internal rather than private: the two step-specific halves of this
+    // type live in `OnboardingViewModel+Reference.swift` and
+    // `OnboardingViewModel+FirstItems.swift`, and `private` is file-scoped.
+    // Split by step rather than kept in one 900-line class, because the §29
+    // consent-and-upload rules are the thing a reviewer needs to be able to
+    // find without reading the navigation code.
+    let store: any OnboardingDraftStoring
+    let profileRepository: any ProfileRepository
+    let closetRepository: any ClosetRepository
+    let referenceStore: any ReferenceImageStoring
+    let sessionStore: SessionStore
+    let logger = Logger(subsystem: "com.astrastyle.app", category: "onboarding")
 
     /// - Parameter quizCatalog: Defaults to what is in the bundle. Loading it
     ///   here is a few kilobytes of JSON and six bundle lookups on a screen the
@@ -109,6 +120,8 @@ public final class OnboardingViewModel {
     public init(
         store: any OnboardingDraftStoring,
         profileRepository: any ProfileRepository,
+        closetRepository: any ClosetRepository,
+        referenceStore: any ReferenceImageStoring,
         sessionStore: SessionStore,
         draft: OnboardingDraft = OnboardingDraft(),
         step: OnboardingStep = .intro,
@@ -116,6 +129,8 @@ public final class OnboardingViewModel {
     ) {
         self.store = store
         self.profileRepository = profileRepository
+        self.closetRepository = closetRepository
+        self.referenceStore = referenceStore
         self.sessionStore = sessionStore
         self.draft = draft
         self.step = step
@@ -134,6 +149,21 @@ public final class OnboardingViewModel {
         guard let saved = await store.load() else { return }
         draft = saved
         step = saved.furthestStepReached
+        await restoreReferenceImage()
+    }
+
+    /// Reloads the captured photo's bytes, or forgets it if the file is gone.
+    ///
+    /// The second half matters more than the first. A draft that names a file
+    /// which no longer exists would make the capture step claim a photo the
+    /// user cannot see and cannot remove, and would put an empty upload in
+    /// front of submission. If the bytes are not there, neither is the photo.
+    private func restoreReferenceImage() async {
+        guard let filename = draft.referenceImageFilename else { return }
+        referenceImageData = await referenceStore.load(filename: filename)
+        guard referenceImageData == nil else { return }
+        draft.referenceImageFilename = nil
+        await persist()
     }
 
     // MARK: - Navigation
@@ -225,6 +255,11 @@ public final class OnboardingViewModel {
         // left over from a build whose imagery has since changed does not make
         // an untouched step look answered.
         case .quiz: quizEngine.answeredCount(given: draft.quizAnswers) > 0
+        // Consent on its own is not an answer. A man who read the explanation,
+        // acknowledged it and then decided against a photo has skipped this
+        // step, and the forward button should say so.
+        case .reference: draft.referenceImageFilename != nil || !draft.referenceStoragePaths.isEmpty
+        case .firstItems: !firstItems.isEmpty
         }
     }
 
@@ -290,11 +325,24 @@ public final class OnboardingViewModel {
             // PATCH. Keep the draft — GuestMigrationService submits it once an
             // account exists. Answers are not lost and nothing is silently
             // dropped on the floor.
+            //
+            // This return is also the ONLY thing standing between a guest's
+            // photograph and Supabase Storage, which is why the upload below
+            // is here rather than on the capture step: one branch, in the one
+            // method that already knows whether this session has a server
+            // identity, instead of a second guest check on a screen whose
+            // author has to remember to write it.
             draft.furthestStepReached = .result
             await persist()
             submission = .savedLocally
             return
         }
+
+        // Before the payload is built, because the payload carries the
+        // resulting storage path (`AppearanceProfile.referenceSelfiePaths`).
+        // Cannot throw: a failed photo upload must not cost the user seven
+        // screens of answers.
+        await uploadReferenceImageIfNeeded()
 
         do {
             _ = try await profileRepository.completeOnboarding(
@@ -304,6 +352,14 @@ public final class OnboardingViewModel {
             // optimistically would lose every answer if the request failed on a
             // flaky connection, which is exactly when it is most likely to.
             await store.clear()
+            // The local copy of the photo is redundant the moment the path is
+            // in `body_profiles`, and ADR 0010's whole posture is that the
+            // standing inventory of face imagery should be as small as it can
+            // be. Kept when the upload failed, so the retry has something to
+            // send.
+            if draft.referenceStoragePaths.isEmpty == false {
+                await referenceStore.clear()
+            }
             submission = .succeeded
         } catch {
             logger.error("completeOnboarding failed: \(error.localizedDescription)")
@@ -487,8 +543,60 @@ public final class OnboardingViewModel {
         }
     }
 
-    private func currentUserID() async -> UUID? {
+    func currentUserID() async -> UUID? {
         if let guestID = await sessionStore.currentGuestUserID() { return guestID }
         return await MainActor.run { sessionStore.currentSession?.userID }
+    }
+}
+
+// MARK: - The states this flow can be in
+//
+// Nested in an extension rather than in the class body above, for the same
+// reason `AddItemState` lives in `OnboardingViewModel+FirstItems.swift`: these
+// are declarations with no behaviour, they are long because each case carries
+// an argument that needed explaining, and keeping them inline pushed the class
+// past the point where its navigation logic could be read in one pass.
+// Callers still spell them `OnboardingViewModel.SubmissionState` and
+// `.StyleDNAState`.
+
+public extension OnboardingViewModel {
+
+    public enum SubmissionState: Equatable {
+        case idle
+        case submitting
+        /// Finished locally. A guest reaches this and stops here — his answers
+        /// are saved and will be sent when he creates an account.
+        case savedLocally
+        case succeeded
+        case failed(String)
+    }
+
+    /// The §6.10 result step's own state machine.
+    ///
+    /// Separate from `SubmissionState` because the two answer different
+    /// questions and the result screen needs both: "have this man's answers
+    /// reached the server" and "is there a Style DNA to draw". Collapsing them
+    /// into one enum forced a `.submitting` case to mean two different things
+    /// on one screen — saving answers, and regenerating from edited ones —
+    /// which are visually different states (a full-screen wait versus the
+    /// previous result held on screen behind a working indicator).
+    ///
+    /// `regenerating` and `failed` both carry the PREVIOUS result on purpose.
+    /// Phase 2's exit criterion is that a user can regenerate and see the
+    /// result change; a regenerate that blanks the screen while it works, or
+    /// that drops what he already had when the network fails, fails that
+    /// criterion in the direction the user notices most.
+    public enum StyleDNAState: Equatable {
+        case idle
+        /// Saving the answers, then generating. There is nothing to show yet.
+        case loading
+        case ready(StyleDNA)
+        /// Working from edited inputs, with the previous result still on screen.
+        case regenerating(previous: StyleDNA)
+        case failed(message: String, previous: StyleDNA?)
+        /// ADR 0011: a guest has no server profile, so there is no Style DNA to
+        /// generate and no call to make. Not an error and not a loading state —
+        /// a real, permanent outcome for this session that the screen names.
+        case guestPreview
     }
 }

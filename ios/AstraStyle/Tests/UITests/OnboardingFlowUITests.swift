@@ -2,8 +2,9 @@
 //  OnboardingFlowUITests.swift
 //  AstraStyleUITests
 //
-//  Walks §6.3–§6.10 and captures every screen, so the whole flow can be
-//  reviewed at once rather than one screen at a time.
+//  Walks §5.1 steps 6–13 (screens §6.3–§6.10, plus the two §5.1-only steps
+//  between the quiz and the result) and captures every screen, so the whole
+//  flow can be reviewed at once rather than one screen at a time.
 //
 //  These assert reachability and anchor content, not pixels. What they DO catch
 //  is a step that stopped rendering, a Continue button that never enables, and
@@ -25,7 +26,23 @@ final class OnboardingFlowUITests: XCTestCase {
     // use — which happens from a @MainActor context, matching XCUIApplication's
     // own isolation in the iOS 26 SDK.
     private lazy var app = XCUIApplication()
-    private let timeout: TimeInterval = 20
+    /// How long to wait for a screen to appear.
+    ///
+    /// Longer on CI, and the difference is not padding. A GitHub runner is a
+    /// shared, loaded machine booting a cold simulator, and the first test in a
+    /// suite pays for that boot on top of whatever it is actually asserting —
+    /// `testBackPreservesAnswers` failed at 20s on CI with "Never appeared:
+    /// Goals" while passing locally in a fraction of it, having burned 91
+    /// seconds of wall clock getting nowhere.
+    ///
+    /// Raising it everywhere would have been the lazy fix: a local run would
+    /// then take 60s to tell you a screen is genuinely broken, which is the
+    /// feedback loop that matters most and the one worth keeping fast. So the
+    /// developer keeps a tight 20s and CI gets the slack it actually needs.
+    ///
+    /// `CI` is set by GitHub Actions. The test-runner process inherits it from
+    /// `xcodebuild`, so this reads correctly there and is absent locally.
+    private let timeout: TimeInterval = ProcessInfo.processInfo.environment["CI"] == nil ? 20 : 60
 
     override func setUp() async throws {
         continueAfterFailure = true
@@ -128,6 +145,7 @@ final class OnboardingFlowUITests: XCTestCase {
         walkAppearance()
         walkLifestyle()
         walkPreferenceQuiz()
+        walkCaptureSteps()
         walkResult()
     }
 
@@ -225,7 +243,9 @@ final class OnboardingFlowUITests: XCTestCase {
         for name in ["37-Onboarding-Appearance-AX5",
                      "38-Onboarding-Lifestyle-AX5",
                      "39-Onboarding-Quiz-AX5",
-                     "40-Onboarding-Result-AX5"] {
+                     "40a-Onboarding-Reference-AX5",
+                     "40b-Onboarding-FirstItems-AX5",
+                     "40c-Onboarding-Result-AX5"] {
             let forward = app.buttons["onboarding.advance"]
             guard awaitElement(forward, "Forward button before \(name)") else { return }
             forward.waitForStableFrame()
@@ -442,7 +462,13 @@ final class OnboardingFlowUITests: XCTestCase {
     }
 }
 
-private extension XCUIElement {
+// Internal rather than `private`, which is file-scoped: these three helpers
+// are the accumulated answer to how XCUITest actually behaves against a
+// SwiftUI ScrollView at accessibility text sizes, and every one of them was
+// written after a failure that looked like an app bug and was not.
+// `OnboardingCaptureStepsUITests` needs the same three, and a second copy
+// there would be a second place for that knowledge to rot.
+extension XCUIElement {
     /// Swipes until this element both exists and can be tapped — searching
     /// downward first, then back upward.
     ///
@@ -574,8 +600,8 @@ private extension OnboardingFlowUITests {
         )
         app.buttons["onboarding.advance"].tap()
 
-        // Measurements, appearance, lifestyle, quiz — all skippable.
-        for step in ["measurements", "appearance", "lifestyle", "quiz"] {
+        // Everything between identity and the result is skippable.
+        for step in ["measurements", "appearance", "lifestyle", "quiz", "reference", "firstItems"] {
             let forward = app.buttons["onboarding.advance"]
             guard awaitElement(forward, "Forward button on \(step)") else { return }
             forward.waitForStableFrame()
@@ -797,6 +823,34 @@ private extension OnboardingFlowUITests {
         XCTAssertEqual(
             app.buttons["onboarding.advance"].label, "Continue",
             "With every comparison answered the forward button should offer to continue"
+        )
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    /// §5.1 steps 11 and 12, passed through without answering either.
+    ///
+    /// Deliberately shallow. Both steps have their own suite —
+    /// `OnboardingCaptureStepsUITests` — because the §29 consent gate and the
+    /// guest cap need more assertions than a pass-through walk should carry.
+    /// What this covers is the part only the full walk can: that neither step
+    /// interrupts the sequence, and that both are captured in the same
+    /// review pass as every other screen.
+    private func walkCaptureSteps() {
+        awaitElement(app.buttons["onboarding.advance"], "Reference photo step")
+        usleep(400_000)
+        capture("30d-Onboarding-Reference")
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "The reference photo step is optional but its forward button is disabled"
+        )
+        app.buttons["onboarding.advance"].tap()
+
+        awaitElement(app.buttons["onboarding.firstItems.add"], "First closet items step")
+        usleep(400_000)
+        capture("30e-Onboarding-FirstItems")
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "The first-items step is optional but its forward button is disabled"
         )
         app.buttons["onboarding.advance"].tap()
     }

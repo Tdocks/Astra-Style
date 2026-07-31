@@ -165,8 +165,10 @@ targets:
         # context, explain why). Do not ship the Apple-template placeholder text.
         NSCameraUsageDescription: >-
           Astra Style uses your camera to scan garments so Kyra can catalog
-          them in your closet and recommend outfits that use what you
-          already own.
+          them in your closet, and — only if you choose to add one — to take
+          the optional reference photo of you that Style Studio would later
+          use. The camera is never opened until you tap a control that asks
+          for it.
         NSPhotoLibraryUsageDescription: >-
           Astra Style can import photos of your clothes and reference photos
           of yourself so Kyra can build your wardrobe and generate styling

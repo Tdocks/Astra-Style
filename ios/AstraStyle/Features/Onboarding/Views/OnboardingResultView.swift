@@ -46,6 +46,16 @@ struct OnboardingResultView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xxl) {
+            // Above the result, and deliberately not blocking it. The photo is
+            // optional and the answers are not, so a failed upload never fails
+            // the submission — but it must not be swallowed either, or the man
+            // who added a photograph would land on Home believing it saved.
+            // This is the only place it can be reported, because the upload
+            // runs during the submission this screen triggers.
+            if let failure = model.referenceUploadFailure {
+                referenceUploadNotice(failure)
+            }
+
             switch model.styleDNAState {
             case .idle, .loading:
                 workingState
@@ -376,13 +386,51 @@ struct OnboardingResultView: View {
     }
 }
 
-// MARK: - The remaining §6.10 sections
+// MARK: - The remaining §6.10 sections, and the §5.1 step 11 notice
 //
 // In an extension purely so the type above stays a readable account of the
 // screen's STATES — working, guest, failed, result — rather than four hundred
 // lines in which those states are hard to find among the stacks.
 
 private extension OnboardingResultView {
+
+    /// The photo did not upload. Says so, offers to try again, and gets out of
+    /// the way — nothing here can stop the user finishing.
+    func referenceUploadNotice(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+            Text("Your photo didn't upload.")
+                .astraText(.headline)
+                .foregroundStyle(AstraColor.warningAmber)
+
+            Text(message)
+                .astraText(.callout)
+                .foregroundStyle(AstraColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Everything else you entered was saved, and you can carry on without it.")
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(String(localized: "Try the photo again", comment: "Retry the reference photo upload")) {
+                Task { await model.retryReferenceUpload() }
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("onboarding.result.retryPhoto")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AstraSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
+                .fill(AstraColor.surfaceElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
+                .strokeBorder(AstraColor.warningAmber, lineWidth: 1)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("onboarding.result.photoNotice")
+    }
 
     // MARK: §6.10 — Secondary influences
 

@@ -58,16 +58,20 @@ private actor ScriptedProfileRepository: ProfileRepository {
     private(set) var generateCount = 0
     private(set) var updateStyleProfileCount = 0
     private(set) var lastWrittenStyleProfile: StyleProfile?
+    private(set) var uploadedReferenceImages: [Data] = []
+    private var referenceUploadFails = false
 
     init(
         documents: [StyleDNA],
         generationFailures: Int = 0,
         writeFails: Bool = false,
+        referenceUploadFails: Bool = false,
         storedStyleProfile: StyleProfile? = nil
     ) {
         self.documents = documents
         self.generationFailures = generationFailures
         self.writeFails = writeFails
+        self.referenceUploadFails = referenceUploadFails
         self.storedStyleProfile = storedStyleProfile
     }
 
@@ -117,6 +121,15 @@ private actor ScriptedProfileRepository: ProfileRepository {
             self.storedStyleProfile = document.applyingSummary(to: storedStyleProfile)
         }
         return document
+    }
+
+    /// Records the bytes as well as the count: `OnboardingReferenceTests`
+    /// asserts that a guest's photo never reaches this method at all, and
+    /// "never called" is only provable if the double can be asked.
+    func uploadReferenceImage(_ imageData: Data) async throws -> String {
+        uploadedReferenceImages.append(imageData)
+        if referenceUploadFails { throw Failure.write }
+        return "users/\(UUID().uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg"
     }
 
     func exportPersonalData() async throws -> URL { URL(fileURLWithPath: "/tmp/export.json") }
@@ -275,6 +288,11 @@ struct StyleDNAResultTests {
         OnboardingViewModel(
             store: store,
             profileRepository: repository,
+            // Seeded empty rather than with `SampleData`: §6.10's assertions
+            // are about Style DNA, and a closet full of fixtures here would
+            // only make the failure messages harder to read.
+            closetRepository: MockClosetRepository(items: []),
+            referenceStore: InMemoryReferenceImageStore(),
             sessionStore: try makeSessionStore(isGuest: isGuest),
             draft: answeredDraft(),
             step: .result

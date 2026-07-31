@@ -108,6 +108,29 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
         try await apiClient.send(.generateStyleDNA, body: AstraEmptyPayload(), as: StyleDNA.self)
     }
 
+    /// Spec §15's `users/{user_id}/references/...`, in the one bucket that
+    /// exists (`user-content`, private).
+    ///
+    /// The user id is `.lowercased()` for the same reason `uploadCaptured()`
+    /// in `LiveClosetRepository` does it, and that reason cost a day the first
+    /// time: the four storage policies compare `(storage.foldername(name))[2]`
+    /// against `auth.uid()::text`, Postgres renders a uuid lowercase, and
+    /// Swift's `UUID.uuidString` is UPPERCASE. Without this the path is
+    /// well-formed, the bucket is right, and RLS still rejects the insert.
+    public func uploadReferenceImage(_ imageData: Data) async throws -> String {
+        do {
+            let session = try await supabase.auth.session
+            let userID = session.user.id.uuidString.lowercased()
+            let path = "users/\(userID)/references/\(UUID().uuidString.lowercased()).jpg"
+            _ = try await supabase.storage
+                .from("user-content")
+                .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
+            return path
+        } catch {
+            throw AstraError.network("Couldn't upload your photo. Check your connection and try again.")
+        }
+    }
+
     public func exportPersonalData() async throws -> URL {
         // Spec §29 requires personal-data export but §14's endpoint list
         // has no dedicated export orchestration call. A batch export is

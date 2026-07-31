@@ -106,6 +106,13 @@ public actor MockProfileRepository: ProfileRepository {
         return generated
     }
 
+    /// Returns a path in the §15 shape rather than a placeholder string, so
+    /// anything that later parses the `users/{uid}/references/` convention
+    /// behaves the same against the mock as against Supabase.
+    public func uploadReferenceImage(_ imageData: Data) async throws -> String {
+        "users/\(UUID().uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg"
+    }
+
     public func exportPersonalData() async throws -> URL {
         URL(string: "https://example.com/preview-export.json") ?? URL(fileURLWithPath: "/preview-export.json")
     }

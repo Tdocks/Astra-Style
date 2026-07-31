@@ -12,6 +12,15 @@ Owns first-launch, sign-in, and the full onboarding flow that produces a new use
 - Appearance profile (§6.7) — note: spec §9's data model has no dedicated table for appearance fields; §6.6's `BodyProfile.fitNotes` is the closest persisted home for anything collected here until the schema is extended (see the top-level README's "spec ambiguities" section).
 - Lifestyle profile (§6.8).
 - Style preference visual quiz (§6.9).
+- Optional selfie/body reference capture (§5.1 step 11) — no §6.x screen section of its own, so
+  its brief is §29 (informed consent before collection, honest disclosure, deletion) plus ADR 0010
+  (private bucket, `users/{user_id}/references/...`, retention) and ADR 0011 (a guest's photo never
+  leaves the device). The consent copy stands alone rather than linking out, because
+  `AstraLegal.isPublished` is `false` and every document URL is `nil`. Nothing is uploaded at
+  capture time — see `OnboardingViewModel.uploadReferenceImageIfNeeded()`.
+- Add first closet items, or skip (§5.1 step 12) — writes real `closet_items` rows through
+  `ClosetRepository`, so a guest's stay local behind the §6.2 ten-item cap. Deliberately a
+  three-field form; `P3-CLOSET-08` owns the full editor, and nothing here depends on the scanner.
 - Style DNA result + edit/regenerate (§6.10).
 - Guest-to-account migration (spec §7).
 

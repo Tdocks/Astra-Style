@@ -2,8 +2,9 @@
 //  OnboardingFlowView.swift
 //  AstraStyle
 //
-//  The §6.3–§6.10 container. Owns the view model, routes each step to its
-//  screen, and persists after every change.
+//  The §5.1 steps 6–13 container (screens §6.3–§6.10 plus the two §5.1-only
+//  steps between the quiz and the result). Owns the view model, routes each
+//  step to its screen, and persists after every change.
 //
 //  Step §6.10 (result) is the one step whose content is not a question, and it
 //  changes two things about this container:
@@ -86,6 +87,19 @@ public struct OnboardingFlowView: View {
             // engines built from the same bundle would agree today and diverge
             // the moment either side gained a filter.
             OnboardingQuizView(draft: $model.draft, engine: model.quizEngine)
+        case .reference:
+            // Takes the model rather than a binding into the draft. The consent
+            // record, the stored bytes and the upload are one decision with one
+            // owner (§29), and handing this screen a `$draft` binding would let
+            // it write a consent timestamp without the image, or an image
+            // without the consent — two states this feature must not have.
+            OnboardingReferenceView(model: model)
+        case .firstItems:
+            // Same reasoning, different dependency: this step writes real
+            // `closet_items` rows through `ClosetRepository`, which is a
+            // repository call and therefore not something a `View` may make
+            // (CLAUDE.md: no network calls in views).
+            OnboardingFirstItemsView(model: model)
         case .result:
             OnboardingResultView(model: model)
         }

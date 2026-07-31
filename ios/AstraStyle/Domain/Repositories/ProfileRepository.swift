@@ -47,6 +47,22 @@ public protocol ProfileRepository: Sendable {
     /// swapping the provider behind this endpoint changes nothing here.
     func generateStyleDNA() async throws -> StyleDNA
 
+    /// Uploads one reference image (§5.1 step 11, §6.7's last bullet) and
+    /// returns its storage path under `users/{user_id}/references/`.
+    ///
+    /// Returns the PATH, not a URL. Spec §15 and ADR 0010 require the bucket
+    /// to stay private and every read to go through a short-lived signed URL,
+    /// so a URL handed back here would either be unsigned (and useless) or
+    /// expiring (and wrong to persist into `body_profiles`). The path is the
+    /// durable identifier; signing happens at read time.
+    ///
+    /// On the protocol rather than on a storage-specific type because the one
+    /// caller is `OnboardingViewModel`, which must remain testable without a
+    /// Supabase client, and because ADR 0011 forbids this ever being called
+    /// for a guest — a rule that is easier to hold when the call site is a
+    /// single, named, mockable method.
+    func uploadReferenceImage(_ imageData: Data) async throws -> String
+
     /// Exports all personal data (spec §29 "Export personal data").
     func exportPersonalData() async throws -> URL
 }

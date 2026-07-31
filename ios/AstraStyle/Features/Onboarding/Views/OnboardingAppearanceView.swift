@@ -26,11 +26,13 @@
 //     body-language denylist precisely so this screen cannot drift into
 //     "minimise" or "conceal" phrasing.
 //
-//  Reference selfies (§6.7's last bullet) are NOT collected here. They are
-//  consent-gated under §29 and belong with Style Studio, where the user is
-//  asking for an image of himself and the purpose is self-evident. Asking for
-//  photographs in the middle of onboarding, before the feature that needs them
-//  exists, would be collecting biometric data ahead of a reason.
+//  Reference selfies (§6.7's last bullet) are NOT collected here. They have
+//  their own step — §5.1 step 11, `OnboardingReferenceView` — two screens
+//  later, because they are consent-gated under §29 and that consent needs a
+//  screen of its own rather than a sixth question on a form about hair colour.
+//  Mixing them in here would also make this whole step feel heavier than it is:
+//  everything on this screen is a tap, and one of them would have opened a
+//  camera.
 //
 
 import SwiftUI

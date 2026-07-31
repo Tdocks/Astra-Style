@@ -295,6 +295,24 @@ struct OnboardingStepTests {
         )
     }
 
+    /// The order is the product, not a detail of this enum: `next`,
+    /// `previous`, the progress bar and resumption all read off `allCases`.
+    /// Spec §5.1 puts the reference photo at step 11 and the first closet
+    /// items at 12, between the quiz and Style DNA generation.
+    @Test("The two capture steps sit exactly where §5.1 puts them")
+    func captureStepsFollowSpecOrder() {
+        #expect(OnboardingStep.quiz.next == .reference)
+        #expect(OnboardingStep.reference.next == .firstItems)
+        #expect(OnboardingStep.firstItems.next == .result)
+        #expect(OnboardingStep.reference.previous == .quiz)
+        #expect(OnboardingStep.firstItems.previous == .reference)
+        // Both are answerable, so both count toward the progress the user
+        // sees — a step that renders a screen but is missing from the
+        // denominator makes the bar jump.
+        #expect(OnboardingStep.answerableSteps.contains(.reference))
+        #expect(OnboardingStep.answerableSteps.contains(.firstItems))
+    }
+
     @Test("Only the identity step is required")
     func onlyIdentityIsRequired() {
         for step in OnboardingStep.allCases {

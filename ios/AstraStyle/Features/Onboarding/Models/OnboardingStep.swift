@@ -2,7 +2,8 @@
 //  OnboardingStep.swift
 //  AstraStyle
 //
-//  The ordered sequence of spec §6.3–§6.10.
+//  The ordered sequence of spec §5.1 steps 6–13 (screens §6.3–§6.10, plus the
+//  two §5.1-only steps that sit between the quiz and the result).
 //
 //  Declared as an enum with an explicit order rather than inferred from an
 //  array of views, so that progress, resumption, and "can I skip this" are
@@ -19,6 +20,15 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
     case appearance     // §6.7 Appearance profile
     case lifestyle      // §6.8 Lifestyle
     case quiz           // §6.9 Style preference quiz
+    // The two steps between the quiz and the result have no §6.x screen
+    // section of their own — they are §5.1 steps 11 and 12, and their order
+    // relative to everything else comes from that list rather than from §6.
+    // Declared here in that order because `allCases` IS the flow: `next`,
+    // `previous`, `answerablePosition` and the progress bar all read off it,
+    // so declaring `firstItems` before `reference` would reorder the product,
+    // not just this file.
+    case reference      // §5.1 step 11 — optional selfie/body reference capture
+    case firstItems     // §5.1 step 12 — add first closet items, or skip
     case result         // §6.10 Style DNA result
 
     public var id: String { rawValue }
@@ -55,6 +65,8 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
         case .appearance: String(localized: "A few details", comment: "Onboarding step title")
         case .lifestyle: String(localized: "How you live", comment: "Onboarding step title")
         case .quiz: String(localized: "Which would you wear?", comment: "Onboarding step title")
+        case .reference: String(localized: "A photo of you", comment: "Onboarding step title")
+        case .firstItems: String(localized: "Your first few pieces", comment: "Onboarding step title")
         case .result: String(localized: "Your Style DNA", comment: "Onboarding step title")
         }
     }
@@ -91,6 +103,16 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
                    comment: "Onboarding step rationale")
         case .quiz:
             String(localized: "A few quick comparisons. There is no right answer.",
+                   comment: "Onboarding step rationale")
+        case .reference:
+            // Deliberately leads with "nothing here needs it". A stylist app
+            // asking for a photograph of your face has to make the no-thanks
+            // path the obvious one, not the grudging one — see
+            // `OnboardingReferenceView`'s header.
+            String(localized: "Optional, and nothing else in Astra needs it. The next screen says exactly what would happen to the photo before you choose.",
+                   comment: "Onboarding step rationale")
+        case .firstItems:
+            String(localized: "Add one or two things you own, or skip — you can build your closet whenever you like.",
                    comment: "Onboarding step rationale")
         case .result:
             String(localized: "What Kyra took from your answers. Edit anything that's wrong.",
