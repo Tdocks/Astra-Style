@@ -8,7 +8,7 @@ quiz's questions lives in Swift.
 here, add a stanza to `quiz-pairs.json`, rebuild. No Swift is touched, no project file is
 edited, and nothing needs to know how many pairs there are.
 
-## Current state: 14 pairs, and all 8 dimensions produce a reading
+## Current state: 15 pairs, and all 8 dimensions produce a reading
 
 14 is inside spec §6.9's 12–20 and leaves headroom under `StyleQuizEngine.maximumComparisons`.
 The whole set was regenerated from scratch on 2026-07-31; nothing from the first batch survives
@@ -33,7 +33,7 @@ here or in `brand/quiz-imagery/`.
 
 Six axes have two pairs, which is the bar at which `StylePreferenceInference` will report
 `.moderate` confidence on agreeing answers and Kyra is allowed to say the preference out loud.
-**`silhouette` and `logo_tolerance` have one pair each, so they sit at `.low` confidence
+**`silhouette` have one pair each, so they sit at `.low` confidence
 permanently** — a single forced choice gives a direction and nothing else, no matter how clean
 the photograph is. Those two axes produce a reading, and the reading is not statable. The two
 pairs that would fix it are described under "Two pairs are missing" below.
@@ -146,6 +146,39 @@ value, because neither frame is more correct than the other — they only have t
 It accepts **`.png` sources as well as `.jpg`**, and PNG is what it finds today:
 `generate_quiz_imagery.py` writes PNG because that is what OpenAI's images API returns, and
 re-encoding to JPEG before the crop and resize would quantise twice for no reason.
+
+## The logo pairs are built differently, and it matters
+
+`logo_tolerance` is the one axis whose two frames are **not** two photographs.
+The branded frame **is** the plain frame with a mark composited onto it
+(`scripts/composite_quiz_logo.py`) — same man, same fold of cloth, same shadow,
+the same pixel everywhere the mark is not. Backdrop delta between the two: 0.0,
+necessarily.
+
+Generating a second frame, even from the same reference figure, would let the
+drape shift and the fabric catch the light differently. All of that is signal a
+man might answer and none of it is branding. Compositing removes the
+possibility rather than measuring it, which makes this the most rigorous pair
+in the set.
+
+**The mark is Astra's own monogram, and the reason is measurement, not law.**
+A first attempt asked the generator for a wordmark and got `HILFIGER` — a real
+trademark, unshippable, file deleted. Replacing it with an abstract geometric
+emblem fixed that and failed a plainer test: it looked like nothing any brand
+has made, which is to say it looked generated.
+
+But a real mark fails for a better reason. Put one on the garment and the man
+stops answering *"do I mind visible branding"* and starts answering *"do I like
+that company"*. Those come apart constantly — someone happy in a large Carhartt
+logo may find another house naff — so the quiz would record low logo tolerance
+for a man whose logo tolerance is high. Same class of error as a pair whose
+frames differ in sleeve length: a second variable riding along, recorded as if
+it were the first, undetectable downstream.
+
+Astra's monogram has neither problem. Not a third party's mark, and it carries
+no prior brand opinion for the man answering — it is simply *a logo*, which is
+exactly and only what this axis asks about. It is also the one mark that can be
+rendered identically on every garment, forever.
 
 ## Manifest format
 
