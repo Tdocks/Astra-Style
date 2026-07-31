@@ -145,6 +145,28 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
     // §6.9 — Preference quiz.
     public var quizAnswers: [StylePreferenceQuizAnswer] = []
 
+    // §5.1 step 11 — optional reference photo.
+    //
+    // THREE FIELDS RATHER THAN ONE, AND NONE OF THEM IS THE IMAGE.
+    //
+    // 1. `referenceConsentGrantedAt` is a timestamp, not a Bool, because §29
+    //    asks for informed consent obtained BEFORE collection and "he agreed,
+    //    at this moment" is the only form of that claim worth persisting. A
+    //    Bool cannot distinguish consent given under this build's wording from
+    //    consent given under an older one, and the wording is the consent.
+    // 2. `referenceImageFilename` names a file in `ReferenceImageStore`, not
+    //    the bytes. A JPEG base64'd into this struct would be written to disk
+    //    again on every keystroke of every later step, since the flow persists
+    //    the whole draft on each change.
+    // 3. `referenceStoragePaths` is what actually reaches `body_profiles`
+    //    (`AppearanceProfile.referenceSelfiePaths`, §15's
+    //    `users/{user_id}/references/...`). Empty until the image has been
+    //    uploaded, which is deliberately not at capture time — see
+    //    `OnboardingViewModel.uploadReferenceImageIfNeeded()`.
+    public var referenceConsentGrantedAt: Date?
+    public var referenceImageFilename: String?
+    public var referenceStoragePaths: [String] = []
+
     /// The furthest step reached, so a resumed draft reopens where it stopped
     /// rather than at the beginning.
     public var furthestStepReached: OnboardingStep = .intro
@@ -160,6 +182,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         case laundryCadence, travelFrequency, religiousServiceAttireNeeds
         case sustainabilityPreference, preferredBrands, avoidedBrands
         case monthlyBudget, currency, quizAnswers, furthestStepReached
+        case referenceConsentGrantedAt, referenceImageFilename, referenceStoragePaths
     }
 
     public init(from decoder: any Decoder) throws {
@@ -205,6 +228,9 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         furthestStepReached = try container.decodeIfPresent(
             OnboardingStep.self, forKey: .furthestStepReached
         ) ?? .intro
+        referenceConsentGrantedAt = try container.decodeIfPresent(Date.self, forKey: .referenceConsentGrantedAt)
+        referenceImageFilename = try container.decodeIfPresent(String.self, forKey: .referenceImageFilename)
+        referenceStoragePaths = try container.decodeIfPresent([String].self, forKey: .referenceStoragePaths) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -245,6 +271,9 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         try container.encode(currency, forKey: .currency)
         try container.encode(quizAnswers, forKey: .quizAnswers)
         try container.encode(furthestStepReached, forKey: .furthestStepReached)
+        try container.encodeIfPresent(referenceConsentGrantedAt, forKey: .referenceConsentGrantedAt)
+        try container.encodeIfPresent(referenceImageFilename, forKey: .referenceImageFilename)
+        try container.encode(referenceStoragePaths, forKey: .referenceStoragePaths)
     }
 }
 
@@ -303,7 +332,13 @@ public extension OnboardingDraft {
             eyeColor: eyeColor,
             facialHair: facialHair,
             wearsGlasses: wearsGlasses,
-            tattoosVisible: tattoosVisible
+            tattoosVisible: tattoosVisible,
+            // Only ever the paths of images that have actually been uploaded.
+            // A local, not-yet-uploaded capture contributes nothing here: a
+            // path in `body_profiles` that resolves to no storage object is
+            // worse than an absent one, because every later reader treats it
+            // as a reference that exists.
+            referenceSelfiePaths: referenceStoragePaths
         )
     }
 

@@ -2,8 +2,9 @@
 //  OnboardingFlowUITests.swift
 //  AstraStyleUITests
 //
-//  Walks §6.3–§6.10 and captures every screen, so the whole flow can be
-//  reviewed at once rather than one screen at a time.
+//  Walks §5.1 steps 6–13 (screens §6.3–§6.10, plus the two §5.1-only steps
+//  between the quiz and the result) and captures every screen, so the whole
+//  flow can be reviewed at once rather than one screen at a time.
 //
 //  These assert reachability and anchor content, not pixels. What they DO catch
 //  is a step that stopped rendering, a Continue button that never enables, and
@@ -25,7 +26,23 @@ final class OnboardingFlowUITests: XCTestCase {
     // use — which happens from a @MainActor context, matching XCUIApplication's
     // own isolation in the iOS 26 SDK.
     private lazy var app = XCUIApplication()
-    private let timeout: TimeInterval = 20
+    /// How long to wait for a screen to appear.
+    ///
+    /// Longer on CI, and the difference is not padding. A GitHub runner is a
+    /// shared, loaded machine booting a cold simulator, and the first test in a
+    /// suite pays for that boot on top of whatever it is actually asserting —
+    /// `testBackPreservesAnswers` failed at 20s on CI with "Never appeared:
+    /// Goals" while passing locally in a fraction of it, having burned 91
+    /// seconds of wall clock getting nowhere.
+    ///
+    /// Raising it everywhere would have been the lazy fix: a local run would
+    /// then take 60s to tell you a screen is genuinely broken, which is the
+    /// feedback loop that matters most and the one worth keeping fast. So the
+    /// developer keeps a tight 20s and CI gets the slack it actually needs.
+    ///
+    /// `CI` is set by GitHub Actions. The test-runner process inherits it from
+    /// `xcodebuild`, so this reads correctly there and is absent locally.
+    private let timeout: TimeInterval = ProcessInfo.processInfo.environment["CI"] == nil ? 20 : 60
 
     override func setUp() async throws {
         continueAfterFailure = true
@@ -128,6 +145,7 @@ final class OnboardingFlowUITests: XCTestCase {
         walkAppearance()
         walkLifestyle()
         walkPreferenceQuiz()
+        walkCaptureSteps()
         walkResult()
     }
 
@@ -225,7 +243,9 @@ final class OnboardingFlowUITests: XCTestCase {
         for name in ["37-Onboarding-Appearance-AX5",
                      "38-Onboarding-Lifestyle-AX5",
                      "39-Onboarding-Quiz-AX5",
-                     "40-Onboarding-Result-AX5"] {
+                     "40a-Onboarding-Reference-AX5",
+                     "40b-Onboarding-FirstItems-AX5",
+                     "40c-Onboarding-Result-AX5"] {
             let forward = app.buttons["onboarding.advance"]
             guard awaitElement(forward, "Forward button before \(name)") else { return }
             forward.waitForStableFrame()
@@ -254,6 +274,105 @@ final class OnboardingFlowUITests: XCTestCase {
             for _ in 0..<20 { app.swipeDown(velocity: .slow) }
             usleep(400_000)
         }
+    }
+
+    // MARK: - §6.10, signed in
+
+    /// The Style DNA result with a real result on it: all six §6.10 sections,
+    /// the honesty fields, and an edit that visibly changes what is shown.
+    ///
+    /// The last assertion is Phase 2's exit criterion stated as a user would
+    /// state it — change your answer, regenerate, see a different result — and
+    /// it is the one thing about this screen that a unit test can prove is
+    /// wired and a UI test can prove is REACHABLE.
+    func testStyleDNAResultShowsEverySectionAndRegenerates() {
+        enterOnboardingSignedIn()
+        walkToStyleDNAResult()
+
+        let headline = app.staticTexts["onboarding.result.identity"]
+        awaitElement(headline, "Result: primary style identity")
+        let before = headline.label
+        XCTAssertFalse(before.isEmpty, "The primary identity headline is empty")
+        capture("41-Onboarding-Result-SignedIn")
+
+        assertEverySectionIsReachable(context: "Signed in")
+        captureWholePage(prefix: "41-Onboarding-Result-SignedIn", screens: 5, includeFirst: false)
+        for _ in 0..<10 { app.swipeDown(velocity: .slow) }
+        usleep(400_000)
+
+        // Edit the input, not the prose. The sheet is §6.5 again, so the
+        // controls are the ones the identity step already established.
+        let edit = app.buttons["onboarding.result.edit"]
+        edit.scrollIntoView(in: app)
+        XCTAssertTrue(edit.exists && edit.isHittable, "The edit control is unreachable")
+        edit.waitForStableFrame()
+        edit.tap()
+
+        awaitElement(app.buttons["onboarding.result.editor.confirm"], "Edit sheet")
+        capture("41b-Onboarding-Result-Editing")
+
+        // Nominate a different primary. The first pick defaulted to primary, so
+        // this is a real change to the input the result is derived from.
+        let newPrimary = app.buttons["onboarding.primary.quiet_luxury"]
+        newPrimary.scrollIntoView(in: app)
+        newPrimary.waitForStableFrame()
+        newPrimary.tap()
+        _ = newPrimary.waitUntilSelected()
+
+        app.buttons["onboarding.result.editor.confirm"].tap()
+
+        // Poll rather than read once: the regenerate is a round trip, and the
+        // headline only changes after it returns.
+        let deadline = Date().addingTimeInterval(timeout)
+        var after = headline.label
+        while after == before, Date() < deadline {
+            usleep(200_000)
+            after = headline.label
+        }
+        capture("41c-Onboarding-Result-Regenerated")
+        XCTAssertNotEqual(
+            after, before,
+            "Regenerating after an edit left the result unchanged, so the user cannot tell it happened"
+        )
+    }
+
+    /// Spec §19 at the largest text size, on the longest screen in the flow.
+    ///
+    /// Every other step was hardened at AX5; this one has more content than any
+    /// of them — six sections, a wrapping palette, a card — and it is the only
+    /// screen whose content length depends on what the server sent, so a layout
+    /// that holds for a rich result can still strand a sparse one.
+    func testStyleDNAResultAtLargestDynamicType() {
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName",
+                                "UICTContentSizeCategoryAccessibilityXXXL"]
+        enterOnboardingSignedIn()
+        walkToStyleDNAResult()
+
+        awaitElement(app.staticTexts["onboarding.result.identity"], "Result: identity at AX5")
+        usleep(700_000)
+        capture("42-Onboarding-Result-AX5")
+
+        assertEverySectionIsReachable(context: "AX5")
+        captureWholePage(prefix: "42-Onboarding-Result-AX5", screens: 20, includeFirst: false)
+
+        // Back to the top, both to prove the page scrolls in both directions at
+        // AX5 and because the controls below depend on being able to get there.
+        for _ in 0..<25 { app.swipeDown(velocity: .slow) }
+        usleep(400_000)
+        XCTAssertTrue(
+            scrollUntilPresent(app.staticTexts["onboarding.result.identity"]),
+            "The identity headline cannot be reached again by scrolling back up at AX5"
+        )
+
+        // The two controls that must survive AX5: the edit affordance, and the
+        // footer's Finish. A result the user can read but cannot act on or leave
+        // is the failure mode this size produces.
+        let edit = app.buttons["onboarding.result.edit"]
+        edit.scrollIntoView(in: app)
+        XCTAssertTrue(edit.exists && edit.isHittable, "The edit control is unreachable at AX5")
+
+        let forward = app.buttons["onboarding.advance"]
+        XCTAssertTrue(forward.exists && forward.isHittable, "Finish is unreachable at AX5")
     }
 
     // MARK: - §6.9 at the largest text size
@@ -343,7 +462,13 @@ final class OnboardingFlowUITests: XCTestCase {
     }
 }
 
-private extension XCUIElement {
+// Internal rather than `private`, which is file-scoped: these three helpers
+// are the accumulated answer to how XCUITest actually behaves against a
+// SwiftUI ScrollView at accessibility text sizes, and every one of them was
+// written after a failure that looked like an app bug and was not.
+// `OnboardingCaptureStepsUITests` needs the same three, and a second copy
+// there would be a second place for that knowledge to rot.
+extension XCUIElement {
     /// Swipes until this element both exists and can be tapped — searching
     /// downward first, then back upward.
     ///
@@ -421,6 +546,129 @@ private extension XCUIElement {
 /// the test class itself stays a readable list of what is being tested rather
 /// than 300 lines of tapping.
 private extension OnboardingFlowUITests {
+
+    // MARK: Reaching §6.10 with a real result on it
+
+    /// Enters onboarding as a SIGNED-IN user, against the in-memory mocks.
+    ///
+    /// Guest mode is the only account-free way into the flow, and a guest has
+    /// no server profile (ADR 0011) — so a guest run of §6.10 can only reach
+    /// the guest outcome, and the six sections that step exists to show would
+    /// have no UI coverage at all. `-astra-mock-backend` is Debug-only and
+    /// swaps the whole dependency graph for `Core/Mocks`, so this still runs on
+    /// a clean simulator with no network and no fixtures.
+    private func enterOnboardingSignedIn() {
+        app.launchArguments += ["-astra-mock-backend"]
+        app.launch()
+        awaitElement(app.buttons["onboarding.begin"], "Intro, signed in")
+    }
+
+    /// Walks §6.3-§6.9 with the minimum input the flow requires, to reach
+    /// §6.10. Only the identity step is answered, because only it is required.
+    private func walkToStyleDNAResult() {
+        app.buttons["onboarding.begin"].tap()
+
+        awaitElement(app.buttons["onboarding.advance"], "Goals")
+        app.buttons["onboarding.advance"].tap()
+
+        awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity")
+
+        // Walk to the far end of the grid and back before tapping anything.
+        //
+        // This is not padding. Tapping the second card straight after the step
+        // appeared failed every time at AX5 — the tap synthesised, the card
+        // never took the `isSelected` trait, and the §6.5 gate stayed shut. At
+        // that text size the grid is one column and several screens tall, so a
+        // card whose top edge is on screen can have its CENTRE — where
+        // XCUITest aims — under the footer or below the fold, and the tap lands
+        // on the chrome instead. Scrolling to the end first means
+        // `selectIdentityCard` reaches each card by scrolling back up to it,
+        // which puts it in the middle of the viewport before it is tapped.
+        // `testMeasurementsAtLargestDynamicType` does the same thing for the
+        // same reason, and this is where that sequence came from.
+        usleep(600_000)
+        app.swipeUp()
+        usleep(400_000)
+        app.buttons["onboarding.identity.creative"].scrollIntoView(in: app)
+
+        for identity in ["smart_casual", "modern_heritage", "quiet_luxury"] {
+            selectIdentityCard(identity)
+        }
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Three identities were tapped but the §6.5 gate is still closed"
+        )
+        app.buttons["onboarding.advance"].tap()
+
+        // Everything between identity and the result is skippable.
+        for step in ["measurements", "appearance", "lifestyle", "quiz", "reference", "firstItems"] {
+            let forward = app.buttons["onboarding.advance"]
+            guard awaitElement(forward, "Forward button on \(step)") else { return }
+            forward.waitForStableFrame()
+            forward.tap()
+            usleep(400_000)
+        }
+    }
+
+    /// A §6.10 section container, matched on any element type.
+    ///
+    /// `descendants(matching: .any)` rather than `app.otherElements[...]`
+    /// because a view carrying `.accessibilityElement(children: .contain)`
+    /// surfaces as whatever type XCUITest infers from its contents, and that is
+    /// not stable across sections — the palette resolves differently from the
+    /// signature list. Matching on the identifier alone is what the test
+    /// actually means.
+    private func resultSection(_ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Scrolls down then back up looking for an element, asserting only that it
+    /// EXISTS.
+    ///
+    /// Separate from `scrollIntoView` because that helper also waits for
+    /// `isHittable`, which a container element with no tap action of its own
+    /// never has to be — the question for a section is whether the user can
+    /// reach it, not whether he can tap it.
+    @discardableResult
+    private func scrollUntilPresent(_ element: XCUIElement, maxSwipes: Int = 14) -> Bool {
+        if element.exists { return true }
+        for _ in 0..<maxSwipes {
+            app.swipeUp(velocity: .slow)
+            usleep(200_000)
+            if element.exists { return true }
+        }
+        for _ in 0..<maxSwipes {
+            app.swipeDown(velocity: .slow)
+            usleep(200_000)
+            if element.exists { return true }
+        }
+        return element.exists
+    }
+
+    /// The six §6.10 sections plus the honesty block, asserted as reachable.
+    ///
+    /// Secondary influences and the palette are checked from the same list as
+    /// the rest deliberately: the point of the assertion is that every bullet
+    /// spec §6.10 lists has somewhere on screen to be, and a section quietly
+    /// dropped during a refactor is invisible to every other test in this file.
+    private func assertEverySectionIsReachable(context: String) {
+        let sections = [
+            "onboarding.result.influences",
+            "onboarding.result.palette",
+            "onboarding.result.silhouette",
+            "onboarding.result.signatures",
+            "onboarding.result.priorities",
+            "onboarding.result.knownInputs",
+            "onboarding.result.openQuestions"
+        ]
+        for identifier in sections {
+            XCTAssertTrue(
+                scrollUntilPresent(resultSection(identifier)),
+                "\(context): §6.10 section not reachable by scrolling — \(identifier)"
+            )
+        }
+    }
+
     private func walkIntro() {
         // §6.3 — Kyra introduction.
         awaitElement(app.buttons["onboarding.begin"], "Intro: begin button")
@@ -579,10 +827,57 @@ private extension OnboardingFlowUITests {
         app.buttons["onboarding.advance"].tap()
     }
 
+    /// §5.1 steps 11 and 12, passed through without answering either.
+    ///
+    /// Deliberately shallow. Both steps have their own suite —
+    /// `OnboardingCaptureStepsUITests` — because the §29 consent gate and the
+    /// guest cap need more assertions than a pass-through walk should carry.
+    /// What this covers is the part only the full walk can: that neither step
+    /// interrupts the sequence, and that both are captured in the same
+    /// review pass as every other screen.
+    private func walkCaptureSteps() {
+        awaitElement(app.buttons["onboarding.advance"], "Reference photo step")
+        usleep(400_000)
+        capture("30d-Onboarding-Reference")
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "The reference photo step is optional but its forward button is disabled"
+        )
+        app.buttons["onboarding.advance"].tap()
+
+        awaitElement(app.buttons["onboarding.firstItems.add"], "First closet items step")
+        usleep(400_000)
+        capture("30e-Onboarding-FirstItems")
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "The first-items step is optional but its forward button is disabled"
+        )
+        app.buttons["onboarding.advance"].tap()
+    }
+
     private func walkResult() {
-        // §6.10 — Result.
+        // §6.10 — Result, as a GUEST. ADR 0011: a guest has no server profile,
+        // so there is no Style DNA to generate and no call to make. What must
+        // be true is that he lands on something coherent — not a spinner that
+        // never resolves and not an error — and that the step's own promise
+        // ("edit anything that's wrong") is still keepable.
         awaitElement(app.buttons["onboarding.advance"], "Result: finish button")
+        awaitElement(app.staticTexts["onboarding.result.guestNotice"], "Result: guest outcome")
         capture("31-Onboarding-Result")
+
+        XCTAssertFalse(
+            app.staticTexts["onboarding.result.loading"].exists,
+            "A guest is left waiting on a generation that can never happen"
+        )
+        XCTAssertFalse(
+            app.buttons["onboarding.result.retry"].exists,
+            "A guest is shown a failure for a call ADR 0011 says must not be made"
+        )
+        let edit = app.buttons["onboarding.result.edit"]
+        edit.scrollIntoView(in: app)
+        XCTAssertTrue(edit.exists, "A guest cannot edit the answers this step says he can edit")
+        for _ in 0..<6 { app.swipeDown(velocity: .slow) }
+        usleep(300_000)
 
         // Finishing must actually leave the flow. This is the one assertion in
         // the suite that covers the §6.10-to-§4 handover, and it is here rather

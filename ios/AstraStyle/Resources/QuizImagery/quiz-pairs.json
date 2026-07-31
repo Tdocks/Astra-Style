@@ -8,13 +8,17 @@
         "id": "tailored",
         "image": "quiz-formality-a",
         "accessibility_description": "A navy blazer with patch pockets over an open white shirt, charcoal flannel trousers, black leather derbies.",
-        "loadings": { "formality": 1.0 }
+        "loadings": {
+          "formality": 1.0
+        }
       },
       "option_b": {
         "id": "relaxed",
         "image": "quiz-formality-b",
         "accessibility_description": "A washed grey sweatshirt, olive cotton trousers turned up at the hem, off-white canvas sneakers.",
-        "loadings": { "formality": -1.0 }
+        "loadings": {
+          "formality": -1.0
+        }
       }
     },
     {
@@ -24,13 +28,17 @@
         "id": "neutral",
         "image": "quiz-colour-a",
         "accessibility_description": "A putty crew-neck knit, stone flat-front trousers, tan suede loafers.",
-        "loadings": { "colour_tolerance": -1.0 }
+        "loadings": {
+          "colour_tolerance": -1.0
+        }
       },
       "option_b": {
         "id": "saturated",
         "image": "quiz-colour-b",
         "accessibility_description": "A burgundy crew-neck knit, forest-green corduroy trousers, tan leather chelsea boots.",
-        "loadings": { "colour_tolerance": 1.0 }
+        "loadings": {
+          "colour_tolerance": 1.0
+        }
       }
     },
     {
@@ -40,13 +48,77 @@
         "id": "close",
         "image": "quiz-silhouette-a",
         "accessibility_description": "A charcoal fine-gauge knit cut close through the sleeve, dark brown trousers narrowing to the ankle, black leather boots.",
-        "loadings": { "silhouette": -1.0 }
+        "loadings": {
+          "silhouette": -1.0
+        }
       },
       "option_b": {
         "id": "loose",
         "image": "quiz-silhouette-b",
         "accessibility_description": "A cream mohair cardigan worn open over a white t-shirt, charcoal wide-leg trousers, off-white sneakers.",
-        "loadings": { "silhouette": 1.0 }
+        "loadings": {
+          "silhouette": 1.0
+        }
+      }
+    },
+    {
+      "id": "texture-01",
+      "priority": 30,
+      "option_a": {
+        "id": "flat",
+        "image": "quiz-texture-1-a",
+        "accessibility_description": "A smooth charcoal fine-gauge knit crew-neck, flat charcoal wool trousers, black leather derbies.",
+        "loadings": {
+          "texture": -1.0
+        }
+      },
+      "option_b": {
+        "id": "pronounced",
+        "image": "quiz-texture-1-b",
+        "accessibility_description": "A chunky charcoal cable-knit crew-neck, charcoal corduroy trousers, black leather derbies.",
+        "loadings": {
+          "texture": 1.0
+        }
+      }
+    },
+    {
+      "id": "logo-01",
+      "priority": 40,
+      "option_a": {
+        "id": "unbranded",
+        "image": "quiz-logo-1-a",
+        "accessibility_description": "A plain navy cotton sweatshirt, mid-grey flat-front trousers, white leather sneakers.",
+        "loadings": {
+          "logo_tolerance": -1.0
+        }
+      },
+      "option_b": {
+        "id": "branded",
+        "image": "quiz-logo-1-b",
+        "accessibility_description": "A navy cotton sweatshirt with a large lettered wordmark across the chest, mid-grey flat-front trousers, white leather sneakers.",
+        "loadings": {
+          "logo_tolerance": 1.0
+        }
+      }
+    },
+    {
+      "id": "logo-02",
+      "priority": 41,
+      "option_a": {
+        "id": "unbranded",
+        "image": "quiz-logo-2-a",
+        "accessibility_description": "A plain black quarter-zip pullover, black flat-front trousers, black leather shoes.",
+        "loadings": {
+          "logo_tolerance": -1.0
+        }
+      },
+      "option_b": {
+        "id": "branded",
+        "image": "quiz-logo-2-b",
+        "accessibility_description": "A black quarter-zip pullover with a large white ringed emblem across the chest, black flat-front trousers, black leather shoes.",
+        "loadings": {
+          "logo_tolerance": 1.0
+        }
       }
     }
   ]

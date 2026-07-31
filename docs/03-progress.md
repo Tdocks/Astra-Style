@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-07-30, at commit `45b4b90c`.
+**Last audited:** 2026-07-31 (Phase 2 onboarding capture steps); everything else 2026-07-30, at commit `45b4b90c`.
 
 This file answers one question: *which of the 178 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -39,15 +39,15 @@ lands data layers, protocols, and models long before the screens that use them.
 | Phase | Tickets | Done | Partial | Not started |
 |---|---|---|---|---|
 | 1 — Foundation | 25 | 13 | 12 | 0 |
-| 2 — Identity | 17 | 9 | 5 | 3 |
+| 2 — Identity | 17 | 12 | 5 | 0 |
 | 3 — Closet | 27 | 2 | 6 | 19 |
 | 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **29** | **49** | **100** |
+| **Total** | **178** | **32** | **49** | **97** |
 
-Read that table carefully before drawing a conclusion from it. 29 of 178 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 32 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, and a large amount of
 Phase 3–7 data-layer work is already applied to production. It also *overstates* readiness in one
@@ -59,12 +59,7 @@ specific way — see **Blockers** below.
 
 Ranked by what stops the next user-visible thing from working.
 
-1. **The Style DNA the server now produces has no screen to appear on.** `P2-ONBOARD-10` is
-   unbuilt: `OnboardingFlowView` renders `OnboardingStubStep` for `.result`, so a user who
-   finishes onboarding never sees the six §6.10 sections `POST /style-dna/generate` returns, and
-   the "edit and regenerate" exit criterion has no control to hang on. This is now the narrowest
-   gap between a working backend and a visible product.
-2. **iOS CI has still never run on a pull request** — but it is no longer red. SwiftLint
+1. **iOS CI has still never run on a pull request** — but it is no longer red. SwiftLint
    `--strict` reported 122 violations across 19 rules (not the 4 rules first estimated); all 122
    are now resolved, 121 in the source and one by a documented `nesting` threshold change in
    `.swiftlint.yml`. With lint passing, the zero-compiler-warnings gate ran for the first time:
@@ -72,13 +67,13 @@ Ranked by what stops the next user-visible thing from working.
    first-party code is clean (0 warnings under `ios/AstraStyle/`). What remains open is the part
    no local run can settle — every commit has gone straight to `main`, so no criterion in
    `P1-INFRA-03` has ever been validated *on a PR*.
-3. **The quiz's missing imagery is a photo shoot, not code.** Three of the required 12–20 pairs
+2. **The quiz's missing imagery is a photo shoot, not code.** Three of the required 12–20 pairs
    exist, so five of the eight preference dimensions return *absent*. Anything downstream that
    assumes eight populated axes — compatibility scoring, Kyra's context packet — will be
    reasoning from three bits. `POST /style-dna/generate` is the one consumer that now handles
    this correctly rather than assuming: an unasked axis contributes nothing and is named in the
    result's `open_questions`, and an axis asked-and-declined is not asked again.
-4. **Terms and Privacy do not exist.** `astrastyle.app` is still NXDOMAIN (re-verified
+3. **Terms and Privacy do not exist.** `astrastyle.app` is still NXDOMAIN (re-verified
    2026-07-30) and no policy text exists anywhere in the repo — registering the domain and writing
    the documents are decisions for a human, not code. What changed is that the app no longer
    *pretends* otherwise: `AstraLegal` now exposes `isPublished` (false) and `URL?` accessors, so
@@ -162,10 +157,18 @@ the dead offline queue) will cost real money later if they stay open.
 
 # PHASE 2 — IDENTITY
 
-**9 Done · 5 Partial · 3 Not started.** In flight. Onboarding §6.3–§6.9 is built and hardened at
-AX5, and as of 2026-07-30 it can finish: `profile` and `style-dna` are deployed and were exercised
-end to end against production with a real JWT. What is still missing is the §6.10 result screen
-(`P2-ONBOARD-10`) that would show the Style DNA the server now produces.
+**12 Done · 5 Partial · 0 Not started.** The onboarding flow is complete end to end. §6.3–§6.10 is
+built and hardened at AX5, `profile` and `style-dna` are deployed and were exercised against
+production with a real JWT, the §6.10 result screen renders what they return, and as of 2026-07-31
+the two §5.1-only steps between the quiz and the result exist as well: `P2-ONBOARD-08` (the
+optional reference photo, behind an on-screen §29 consent gate) and `P2-ONBOARD-09` (first closet
+items, skippable). `OnboardingStep` now has ten cases and the progress indicator reads out of eight
+answerable steps rather than six — the count is derived from `allCases`, so nothing had to be
+edited to follow it.
+
+The five remaining Partial rows are all about depth rather than reach: a missing minimum-selection
+rule, four unprobed quiz dimensions, no SwiftData profile cache, no live stylist adapter, and no
+pgvector ordering test.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -175,10 +178,10 @@ end to end against production with a real JWT. What is still missing is the §6.
 | P2-ONBOARD-04 | Done | `OnboardingMeasurementsView` (610 lines) covers all §6.6 fields; `MeasurementEntry.State` distinguishes `.declined` from `.unanswered`; unit conversion proven by tests plus `check_column_drift.py`. |
 | P2-ONBOARD-05 | Done | All 6 appearance fields carry a `reason:` string; each individually skippable; `OnboardingDraftTests` — "A skipped appearance step is empty rather than a blob of nulls". |
 | P2-ONBOARD-06 | Done | All 10 in-scope §6.8 fields present and mapped (`typical_week` added by `20260730160000`). Climate/location is deliberately not part of this screen's scope — moved to `P4-HOME-05`'s first-use-of-§6.11 prompt; criterion amended 2026-07-30 — see "Acceptance criteria that are wrong, rather than unmet" and `Features/Onboarding/Views/OnboardingLifestyleView.swift`'s header comment. |
-| P2-ONBOARD-07 | Partial | `StyleQuizEngine`/`StyleQuizCatalog`/`StylePreferenceInference` + 35 tests; pairs content-managed in `Resources/QuizImagery/quiz-pairs.json`. **The shipped catalog has 3 pairs, not 12–20**, so only 3 of 8 dimensions get a value. |
-| P2-ONBOARD-08 | Not started | No selfie/reference capture step. `OnboardingStep` has no case; only `AppearanceProfile.swift:46` names the storage path convention. |
-| P2-ONBOARD-09 | Not started | No "add first closet items or skip" step in `OnboardingStep` or `OnboardingFlowView.stepContent`. |
-| P2-ONBOARD-10 | Not started | `OnboardingFlowView.swift:86-91` renders `OnboardingStubStep("Almost there", …)` for `.result`. No result view, none of the 6 §6.10 sections, no regenerate action. |
+| P2-ONBOARD-07 | Partial | `StyleQuizEngine`/`StyleQuizCatalog`/`StylePreferenceInference` + 35 tests; pairs content-managed in `Resources/QuizImagery/quiz-pairs.json`. **The shipped catalog has 6 pairs, not 12–20** (texture and logo tolerance added 2026-07-30), so 4 of 8 dimensions get a value and `texture` sits at `.low` confidence on one pair. The remaining four axes are blocked on generation holding the same model across a pair — see the QuizImagery README. |
+| P2-ONBOARD-08 | Done | `OnboardingStep.reference` (§5.1 step 11, between the quiz and the result) + `Features/Onboarding/Views/OnboardingReferenceView.swift`, `Services/ReferenceImageStore.swift` and `ViewModels/OnboardingViewModel+Reference.swift`. **Both acceptance criteria met.** Skipping does not block completion — the step is skippable like every step except `.identity`, and `OnboardingReferenceTests` asserts a submission with no photo succeeds with `reference_selfie_paths` empty. Consent is shown *before* any picker opens and capture cannot proceed without it: the explanation is a panel on the screen, the acknowledgment is a checkbox, and the picker and camera controls do not exist in the view hierarchy until it is ticked (asserted three ways — `captureRequiresConsent` in unit tests, `testConsentIsRequiredBeforeAnyCaptureControlAppears` and the AX5 variant in `Tests/UITests/OnboardingCaptureStepsUITests.swift`). **The copy stands alone because the legal documents do not exist** — `AstraLegal.isPublished` is false and every URL is nil, so there is no link and the panel says in four plain sections what the photo is for, where it goes, what is never done with it (never used to train a model, nothing measures or identifies the face) and how to remove it, plus one line saying the Privacy Policy is unpublished and that nothing above depends on it. **Nothing is uploaded at capture time.** The image is written to `FileReferenceImageStore` (complete file protection, backup-excluded, user-scoped) and uploaded once during `submit()` to `users/{uid}/references/{uuid}.jpg` in the private `user-content` bucket, lowercased user id — the argument is in `uploadReferenceImageIfNeeded()`'s doc comment; the short version is that ADR 0010's abandoned-upload sweep does not exist, so nothing should be left behind to sweep. A guest uploads nothing at all (ADR 0011) and his copy stays on the device; a failed upload never fails the submission and surfaces a retry on §6.10. 13 unit tests in `Tests/UnitTests/OnboardingReferenceTests.swift`. **Not verified: the camera path.** A simulator has no camera, so `ReferenceCameraPicker` is correctly not offered there and is exercised by nothing. |
+| P2-ONBOARD-09 | Done | `OnboardingStep.firstItems` (§5.1 step 12) + `Features/Onboarding/Views/OnboardingFirstItemsView.swift` and `ViewModels/OnboardingViewModel+FirstItems.swift`. **Both acceptance criteria met.** Skip proceeds straight to §6.10 and on to Home — nothing on the step can disable the footer's forward button, proven by `skippingDoesNotBlockReachingHome`, by `aBrokenBackendStillLetsHimLeave` (a `ClosetRepository` that fails every write still cannot trap the user), and end to end by `OnboardingCaptureStepsUITests.testSkippingFirstItemsStillReachesHome`. The step does not degrade to skip-only: it writes real `closet_items` rows through `ClosetRepository`, so it does not wait on Phase 3 — but the form is deliberately three fields (name, category, colour) because `P3-CLOSET-08` owns the full editor and a second one here would drift. Nothing touches the scanner (`P3-SCAN-*` does not exist). Guest behaviour is the real one: `AppContainer` hands the flow `GuestAwareClosetRepository`, so a guest's items stay local, the 10-item cap is enforced in `GuestClosetRepository` and surfaces here as a typed `GuestClosetError.capReached` that closes the form and explains itself rather than throwing an error dialog — and the step is still skippable at the cap. The remaining allowance is shown before he starts, counted from local storage rather than from this session so a resumed draft agrees with the repository. 12 unit tests in `Tests/UnitTests/OnboardingFirstItemsTests.swift`. |
+| P2-ONBOARD-10 | Done | `Features/Onboarding/Views/OnboardingResultView.swift` + `Features/Onboarding/Components/StyleDNASections.swift` render all six §6.10 sections from the `style-dna/generate` response, plus the three honesty fields (`known_inputs`, `open_questions`, `measured_dimensions`) the six sections cannot keep the step's own promise without. The palette is drawn as swatches resolved through `Core/DesignSystem/Tokens/AstraGarmentColor.swift`, always beside the colour's name (§19: colour is never the sole carrier of meaning) and name-only when this build has no swatch for a word the server sent. **Edit and regenerate edits the INPUT, not the prose** — the §6.5 identity picks, via `updateStyleProfile` then `generateStyleDNA`, the two-call order `ProfileRepository` documents; the argument is in `OnboardingViewModel.regenerate`'s doc comment. Submission moved to the way IN to §6.10 (`loadStyleDNA()`), because the endpoint reads the profile rows rather than taking a body, so generating first returned a null identity for every new user. Three cases pinned by `Tests/UnitTests/StyleDNAResultTests.swift` (15 tests): rich, sparse, and a null `primary_identity` that is never backfilled. Guests reach `.guestPreview` with zero calls (ADR 0011). UI coverage in `Tests/UITests/OnboardingFlowUITests.swift` — every section reachable by scrolling both directions at AX5, and an edit that changes the headline. |
 | P2-ONBOARD-11 | Done | `restore()` reopens at `draft.furthestStepReached`; `FileOnboardingDraftStore` is user-scoped and written on every mutation; routes to `.main` on success. |
 | P2-ONBOARD-12 | Done | `supabase/functions/profile/` (`index.ts`/`handler.ts`/`schema.ts` + 40 Deno tests) serving `POST /profile/complete-onboarding` via `_shared/routing.ts`, deployed to `anutsdzbxycaavmmkewo`. All three criteria verified against production with a real JWT: the call returned **200** with `onboarding_completed_at` set and all four tables written, while a payload carrying a different `user_id` in every document still wrote as the JWT's user (the write goes through `supabase/migrations/20260730190000_complete_onboarding_rpc.sql`, which has no user-id parameter — `auth.uid()` is the only identity source); a malformed enum returns 400, not 500 (`profile/schema_test.ts`). The write is atomic: one `SECURITY INVOKER` plpgsql function, so a failure leaves nothing written rather than a half-populated profile. The §6.9 vector round-trips with absent axes absent and `observations: 0` axes intact, confirmed on the live row. Unauthenticated returns 401; an unknown path under the slug returns 404. |
 | P2-CORE-01 | Partial | `LiveProfileRepository` implements read/upsert for all four tables. **No SwiftData caching** and **no `OfflineMutationQueue` dependency** — both acceptance criteria unmet. |
@@ -300,8 +303,11 @@ design, not evidence of build.
 # PHASE 6 — STUDIO AND COMMERCE
 
 **2 Done · 4 Partial · 19 Not started.** Data layers live in production and the request models are
-complete and spec-accurate; nothing renders them. The image vendor was decided today
-(`docs/15`: OpenAI `gpt-image-1.5`, superseding Higgsfield) ahead of any build.
+complete and spec-accurate; nothing renders them. The image vendor was resolved ahead of any
+build: **OpenAI, called directly with our own key, and nothing else** — Studio on `gpt-image-1.5`,
+quiz imagery and reference generation on `gpt-image-2` (`docs/15` §5, `docs/16` §4). The
+previously-named vendor is dropped outright, so P6-STUDIO-03's provider adapter has one target
+and `docs/10`'s integration detail is history rather than a spec.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -402,11 +408,11 @@ there is one place to look; the roadmap stays a planning document.
 
 | Criterion | Met? | Evidence |
 |---|---|---|
-| New user completes onboarding → Home with `onboarding_completed_at` set | **Yes** | `profile` deployed; `POST /profile/complete-onboarding` returned 200 with a real JWT against production and `profiles.onboarding_completed_at` was set (verified by a subsequent read), with all four tables written in one transaction. `OnboardingViewModel.submit()` clears the draft only on success and routes to `.main`. |
+| New user completes onboarding → Home with `onboarding_completed_at` set | **Yes** | `profile` deployed; `POST /profile/complete-onboarding` returned 200 with a real JWT against production and `profiles.onboarding_completed_at` was set (verified by a subsequent read), with all four tables written in one transaction. `OnboardingViewModel.submit()` clears the draft only on success. Since `P2-ONBOARD-10`, that submission runs on the way INTO §6.10 rather than out of it (the Style DNA endpoint reads the profile rows, so they have to exist first), and routing to `.main` is keyed on `isFinished` — the user tapping Finish — rather than on the submission succeeding, which would otherwise skip the result screen entirely. `OnboardingFlowUITests.testWalkTheWholeFlow` still asserts the hand-off to the tab shell. |
 | Force-quit mid-onboarding resumes at the same step | **Yes** | `restore()` → `furthestStepReached`; `FileOnboardingDraftStore` + `OnboardingDraftTests`. |
 | `POST /style-dna/generate` returns non-placeholder DNA from sparse input | **Yes** | `style-dna` deployed; returned 200 with a real JWT and produced all six §6.10 sections — named garments, a palette modulated by the two measured axes, cut advice from the derived frame axes — from a profile with 2 of 8 preference dimensions scored. Degradation is asserted, not assumed: an identity-only profile still names concrete pieces and lists what is unknown; a profile with no identity and no dress code returns a null identity rather than inventing one (`style-dna/deterministicStylist_test.ts`). |
-| User can edit and regenerate Style DNA and see the result change | **No** | Server side is ready and idempotent (`updateStyleProfile` then `generateStyleDNA`; regenerating an unchanged profile returns an identical document). **Client side is unbuilt**: `.result` renders `OnboardingStubStep`, so there is no result view and no regenerate control — `P2-ONBOARD-10`. |
-| Skipping "add first closet items" does not block reaching Home | **No** | The step does not exist — `OnboardingStep` has no case for it. |
+| User can edit and regenerate Style DNA and see the result change | **Yes** | `OnboardingResultView`'s edit control opens the §6.5 question again; confirming calls `OnboardingViewModel.regenerate`, which writes the edited identity with `updateStyleProfile` and then reads it back with `generateStyleDNA`. `StyleDNAResultTests` asserts the second result differs from the first, that the write carries the columns the generator owns rather than blanking them, and that a failed regenerate keeps the previous result on screen; `OnboardingFlowUITests.testStyleDNAResultShowsEverySectionAndRegenerates` asserts the identity headline actually changes. Editing the generated prose is deliberately not offered — see `OnboardingViewModel.regenerate`'s doc comment for why that would stop Style DNA being a derivation of anything. |
+| Skipping "add first closet items" does not block reaching Home | **Yes** | `OnboardingStep.firstItems` exists and is skippable (`isSkippable` is true for everything except `.identity`). Nothing on the step feeds `canAdvance`: an empty form, a write that fails, and a guest at the 10-item cap all resolve to a message beside the form rather than to a blocked footer. `OnboardingFirstItemsTests.skippingDoesNotBlockReachingHome` and `aBrokenBackendStillLetsHimLeave` pin it at the view-model level; `OnboardingCaptureStepsUITests.testSkippingFirstItemsStillReachesHome` walks a guest from the quiz through both new steps without adding anything and asserts the tab bar appears, and `testFirstItemsAtLargestDynamicType` asserts the forward button is still hittable and enabled at AX5, which is where a footer is most likely to be pushed off screen. |
 | Every §6.7-optional field can be left blank without a validation error | **Yes** | Only `.identity` is non-skippable; per-field skip in appearance; covered by `OnboardingDraftTests`. |
 
 Phases 3–7 exit criteria are not yet assessed — those phases have not started in earnest, and

@@ -2,6 +2,15 @@
 
 > ## ⚠️ VENDOR SUPERSEDED — read this before anything below
 >
+> **Nothing in this document is an instruction. Every vendor-specific line below describes an
+> integration that will not be built.** Higgsfield was dropped entirely on 2026-07-31 (`docs/16`
+> §3.5): no use case routes to it, no adapter is written, `HIGGSFIELD_API_KEY` is not a secret
+> this project sets, and its credit pricing does not model anything. **OpenAI is the only image
+> provider, called directly with Astra's own key, and Style Studio's model is `gpt-image-1.5`**
+> — `docs/08` §3.5 is the live decision record. If you are here looking for what to implement,
+> you are in the wrong document; what survives here is product design and architecture, listed
+> below.
+>
 > **The vendor named in this document is wrong and the capability it assumes does not exist.**
 > `docs/15-image-provider-evaluation.md` measured it: `soul_2` **silently rewrites the prompt**
 > whenever a reference image is attached, discarding the garment list entirely and frequently the
@@ -9,18 +18,38 @@
 > t-shirt instead of the requested outfit. It is not configurable —
 > `enhance_prompt` is rejected as unsupported on that model.
 >
-> **Style Studio now uses OpenAI `gpt-image-1.5`.** Decision recorded in `docs/15` §5.
+> **Style Studio now uses OpenAI `gpt-image-1.5`.** Decision recorded in `docs/15` §5 and
+> `docs/08` §3.5. Note that this is *not* the model the quiz imagery uses (`gpt-image-2`,
+> `docs/16` §4): one provider, one key, two models chosen per task. Studio was briefly moved to
+> `gpt-image-2` on price on 2026-07-31 and moved back the same day when the head-to-head identity
+> measurement in `docs/15` §3a was re-read — worth knowing, because assuming one use case's model
+> result transfers to another is the mistake this whole document exists as a monument to.
 >
 > ### What in this document is DEAD
 >
 > - **§0** — the "two paths" premise. The one-off reference path does not work at all.
+> - **§2.1's `HIGGSFIELD_API_KEY`** — that secret is never set. §25's `IMAGE_PROVIDER_API_KEY`
+>   holds the OpenAI key, and as of 2026-07-31 it is not set on the project either
+>   (`supabase/README.md`). The *shape* of §2.1 — key in an Edge Function, client never calls a
+>   provider — is ADR 0004 and stands.
 > - **§3.1–3.3** — Higgsfield client setup, error mapping, `submitGeneration`/`pollStatus`.
 > - **§3.4 Soul ID training** — rejected outright, and not only on quality. Souls are
 >   account-scoped rather than user-scoped, so thousands of end users' models would share one
 >   seat with no isolation; and a trained Soul **is a persistent derived biometric model** of the
 >   user held indefinitely by a third party, making it the *worst* option for §29 and for
->   right-to-erasure. See `docs/15` §2.
+>   right-to-erasure. See `docs/15` §2. Doubly moot now that the vendor is gone.
 > - **§4** — all `soul_2` prompt construction and the worked examples.
+> - **§7's cost arithmetic** — every figure is denominated in Higgsfield credits at $0.05/credit.
+>   OpenAI prices per image by quality tier instead — for Studio's `gpt-image-1.5` at portrait
+>   1024×1536: low $0.013, medium $0.050, high $0.200 — which also revives the draft-before-hi-res
+>   lever §7.4 retired. `docs/16` §3.5 is the current pricing record for both models; `docs/11`
+>   risk 5's model has **not** been recomputed on either.
+> - **§9's bake-off protocol** — written to compare `soul_2` against alternatives. The idea
+>   (measure before switching, on a fixed prompt set) is sound and `docs/15`/`docs/16` are what it
+>   turned into; the vendor list in it is not a plan.
+> - **§10's `provider text not null default 'higgsfield'`** and the Soul-ID tables around it.
+>   Nothing should be migrated from that block as written.
+> - **§11's open items** — all of them are questions about a vendor nobody is calling.
 >
 > ### What in this document SURVIVES, because it was never vendor-specific
 >
@@ -34,17 +63,20 @@
 >
 > Both were measured, and both fix a real observed failure:
 >
-> 1. **Colour saturation guard.** `gpt-image-1.5` desaturates toward black — navy renders as
->    black, forest green as near-black. Naming the trap explicitly fixes it, at no cost to
->    identity (`docs/15` §3).
+> 1. **Colour saturation guard.** OpenAI desaturates toward black — navy renders as black,
+>    forest green as near-black. Naming the trap explicitly fixes it, at no cost to identity
+>    (`docs/15` §3). Measured on `gpt-image-1.5`, which is the model Studio uses, so this one
+>    transfers without an asterisk.
 > 2. **Cut must be weighted, not buried.** With "wide-leg" as one adjective among four garments,
 >    2 of 18 images honoured it. With cut as the sentence's subject, every image honoured it.
 >    This one is load-bearing for `docs/14` — `FitRules` reasons entirely on the cut axis, and if
 >    Studio cannot render slim versus wide then Kyra's advice sits beside a picture that
 >    contradicts it.
 >
-> Nothing below this box has been edited. It is kept for the architecture and product design,
-> which remain correct, and as the record of a decision that measurement overturned.
+> Apart from this box and three marked notes (§10's schema default, §11's header, and the §7.4
+> resolution note), nothing below has been edited. It is kept for the architecture and product
+> design, which remain correct, and as the record of a decision that measurement overturned.
+> Deleting it would leave the current decision looking like a preference rather than a conclusion.
 
 ---
 
@@ -1153,6 +1185,16 @@ genuinely likely to recur.
 
 ### 7.4 Draft vs. export — the spec's stated rationale doesn't hold for this vendor
 
+> **NOTE 2026-07-31 — this section's conclusion dies with the vendor, and §13's original one
+> comes back.** Everything below is true of Higgsfield's pricing and false of OpenAI's: OpenAI
+> prices per image *by quality tier*, and for Studio's model `gpt-image-1.5` at portrait
+> 1024×1536 that is low $0.013, medium $0.050, high $0.200 — so a cheap draft ahead of an
+> explicit high-tier export is a genuine 4–15× saving per generation, not a no-op. **Treat §13's
+> draft-before-export cost control and `08` §3.3's draft-first bullet as live again.** The "save
+> to lookbook is a retention flag, not a second generation" idea below is worth keeping on its
+> own merits — it avoids paying twice for one image regardless of vendor — but it is no longer a
+> *replacement* for the resolution/quality gate. Pricing source: `docs/16` §3.5.
+
 §13's cost controls call for "lower-cost draft generation before high-resolution export." **That
 rationale does not hold against Higgsfield's actual pricing: `1.5k` and `2k` cost identically
 (§7.6, verified via live preflight), so generating a `1.5k` draft before a `2k` export saves
@@ -1391,9 +1433,12 @@ design. Written for a future migration, not yet applied.
 create table studio_identity_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id),
-  provider text not null default 'higgsfield',
+  -- NOTE 2026-07-31: this default was 'higgsfield'. Do not migrate this block as written —
+  -- the vendor is dropped and the Soul ID product it exists for is rejected (docs/15 §2).
+  -- Left in place, corrected, only so nobody copies a dead vendor name into a migration.
+  provider text not null default 'openai',
   provider_soul_id text,                    -- null until training completes
-  provider_job_id text,                     -- Higgsfield's training job id, for status polling
+  provider_job_id text,                     -- provider's training job id, for status polling
   status text not null check (status in ('queued','training','ready','failed','revoked')),
   training_image_count int not null,
   training_started_at timestamptz,
@@ -1478,6 +1523,16 @@ Account deletion (§15, §29 — full cascade):
 ---
 
 ## 11. Open items for Tyler
+
+> **CLOSED 2026-07-31 — every item below is a question about Higgsfield, and Higgsfield is
+> dropped.** None of them is work to pick up. Two of the underlying questions survive the vendor
+> change and have moved: per-image cost is now `docs/16` §3.5 (OpenAI list prices for both
+> models, and `docs/11` risk 5 has *not* been recomputed on them), and the aspect-ratio default
+> is now bounded by whatever portrait size the OpenAI adapter requests rather than by a vendor's
+> `1.5k`/`2k` presets. The rest — credit cost, `1.5k`/`2k` latency, Higgsfield's
+> account rate limit, Soul ID deletion, Higgsfield's endpoint shapes — died with the integration.
+> The list is kept because "what was still unknown when this was abandoned" is worth reading
+> before anyone writes the OpenAI adapter; several of these questions will recur in a new form.
 
 - ~~Confirm real Higgsfield per-generation credit cost~~ — **resolved.** A live `get_cost`
   preflight against the real Higgsfield API confirmed 0.12 credits exact / 1 credit billed per

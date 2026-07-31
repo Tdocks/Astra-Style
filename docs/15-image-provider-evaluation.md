@@ -1,8 +1,22 @@
 # 15 — Image provider evaluation
 
-**Status:** DECIDED — **OpenAI `gpt-image-1.5`**, resolved 2026-07-30. `docs/08` §3.5 and
-`docs/10` have both been updated to match; `docs/10` is superseded in part (its architecture
-survives, its vendor and prompt sections do not).
+**Status:** DECIDED — **OpenAI, called directly against OpenAI's own API with Astra's own key.**
+Resolved 2026-07-30. One vendor, one key, **two models, split by task**: Style Studio on
+**`gpt-image-1.5`**, quiz imagery (`docs/16`) and reference/figure generation on **`gpt-image-2`**.
+§5 has the reasoning for the split.
+
+On 2026-07-31 Style Studio was briefly moved to `gpt-image-2` on cost grounds and moved back the
+same day, once §3a's head-to-head measurement was re-read. That is recorded rather than tidied
+away, because the reversal is the useful part: cost outvoted a measurement for a few hours and the
+measurement won. `docs/08` §3.5 and `docs/10` have both been updated to match; `docs/10` is
+superseded in part (its architecture survives, its vendor and prompt sections do not).
+
+**Higgsfield is dropped as a vendor, 2026-07-31.** Nothing routes to it any more: Style Studio and
+reference/figure generation went to OpenAI in this document, quiz imagery went to OpenAI in
+`docs/16`. What this document *measured* about Higgsfield stays exactly where it is — the
+prompt-rewriting disqualification in §2, the Soul ID reasoning, the numbers — because that
+evidence is why the decision went this way, and a reader in six months needs to see it. None of it
+is an instruction to call Higgsfield; there is no Higgsfield code path left to write.
 
 Evaluation closed deliberately, not exhaustively. §7 records what was consciously left unrun.
 
@@ -109,6 +123,17 @@ panel, cropping at the neck regardless of instruction.
 Higgsfield **remains the choice for §6.9 quiz imagery** — text-to-image with no reference is a
 different code path, unaffected by the rewriting, and cheapest at ~0.12 credits per generation.
 
+> **SUPERSEDED 2026-07-31 by `docs/16`.** Note what this paragraph actually argues: Higgsfield
+> dodges the bug that disqualified it above, and it is cheap. Neither is a measured quality
+> result — text-to-image was never raced, so §6.9 inherited a vendor by default. When it was
+> raced, `soul_2` failed to honour "no watch" on both frames of an accessory pair, making that
+> axis unbuildable. See `docs/16`.
+>
+> **And with that row gone, so is the vendor (2026-07-31).** Quiz imagery was Higgsfield's last
+> remaining use case in the product. The paragraph above is kept because it records how a vendor
+> got inherited by default rather than chosen — that is the lesson worth carrying — not because
+> anything should still be sent to `soul_2`.
+
 ### Soul ID — rejected without testing, deliberately
 
 Higgsfield's actual identity product trains a Soul on 5–20 photos per user. Rejected on three
@@ -178,16 +203,47 @@ whole person from one photograph. The routes that would close it are multi-refer
 
 ## 5. Decision
 
+All three image use cases run on **OpenAI, called directly with Astra's own API key** — no
+reseller in front of it, per ADR 0004's rule that only an Edge Function ever holds a provider key.
+
 | Use case | Provider | Confidence |
 |---|---|---|
-| Style Studio (§6.17) | **OpenAI `gpt-image-1.5`** | High — resolved by replication at n=3, see §3a |
-| Quiz imagery (§6.9) | **Higgsfield** `soul_2`, text-to-image | High |
-| Reference / figure generation | **OpenAI** | High — only vendor that keeps a body in frame |
+| Style Studio (§6.17) | **OpenAI `gpt-image-1.5`** | High — replication at n=3, §3a. Deliberately NOT `gpt-image-2`; see the note below |
+| Quiz imagery (§6.9) | ~~Higgsfield `soul_2`~~ → **OpenAI `gpt-image-2`** (`docs/16`) | High — decided on measured prompt adherence |
+| Reference / figure generation | **OpenAI `gpt-image-2`** | High — only vendor that keeps a body in frame |
 | Kyra reasoning (§11) | **untested** | — |
 
 Style Studio's prompt must carry an explicit colour-saturation guard ("navy, not black") to
 counter OpenAI's one measured weakness.
 
+**On the model, 2026-07-31 — why Style Studio does NOT follow the quiz to `gpt-image-2`.**
+The vendor changed; the model did not. Higgsfield is dropped and everything now runs on OpenAI
+called directly with our own key — but *which* OpenAI model is a separate question per use case,
+and collapsing the two is the exact mistake that gave §6.9 the wrong vendor for a fortnight.
+
+§3a measured these two models head to head at n=3, and **`gpt-image-1.5` won the axis Style
+Studio exists for**: 78.5% ±1.6 identity retention against `gpt-image-2`'s 74.8% ±2.2, with
+roughly 1.6× tighter per-cell spread, and `gpt-image-2` owning the worst cells in the study — one
+reference at 62% ±8%. For a feature a man runs repeatedly on his own face, a model that is
+occasionally poor is worse than one that is uniformly good.
+
+`docs/16` measured `gpt-image-2` ahead on **negative-instruction adherence in text-to-image with
+no reference attached**. That is a different task from preserving a real person's likeness through
+a reference-conditioned edit, and the result does not transfer. `docs/16`'s own framing of §15's
+numbers as "a floor, because they were taken on an earlier model" was **wrong and is withdrawn**:
+§3a measured both models, and the later one lost.
+
+The price gap does not carry the argument either. At the high tier the difference is $0.200
+against $0.165 per portrait image — **$0.035**. At ten Studio images per subscriber per month that
+is thirty-five cents, against `docs/11` risk 4, whose entire subject is Studio output that "looks
+wrong, unflattering, or uncanny". Buying a measured 3.7-point identity regression for that is a
+bad trade.
+
+So: **Style Studio uses `gpt-image-1.5`. Quiz imagery and reference/figure generation use
+`gpt-image-2`.** Both are OpenAI, both on the same key, and the split is on measured evidence per
+task rather than on a preference for the newer number. If `gpt-image-2` later measures at or above
+`gpt-image-1.5` on §3a's protocol, move Studio then — that re-run, not the vendor, is the open
+question.
 ---
 
 ## 3a. Replication (n=3) and the tier resolution
@@ -274,10 +330,18 @@ Stated plainly, because the conclusions above are only as good as these admit.
 9. **Cost at scale is not modelled.** Notably xAI exposes no seed control, so there is no
    deterministic cache key and every regeneration pays full price — a multiplier on §16's tier
    quota economics rather than a footnote.
-10. **`docs/08` §3.5 and `docs/10` still name Higgsfield** for Style Studio and have not been
-    updated.
+10. ~~**`docs/08` §3.5 and `docs/10` still name Higgsfield** for Style Studio and have not been
+    updated.~~ — **closed 2026-07-31.** `docs/08` §3.5 names OpenAI, and `docs/10` is marked
+    historical in full: its Higgsfield client, prompt construction, credit pricing and open items
+    are records of a dropped integration, not work anyone should pick up.
 11. **Evaluation API keys were live in an ephemeral container** and should be rotated regardless of
-    outcome.
+    outcome. **Two of them are now dead weight (2026-07-31):** the `XAI_API_KEY` and
+    `GEMINI_API_KEY` used for this evaluation have no remaining use — OpenAI is the only image
+    provider — so they should be **revoked at the provider and deleted from the local env files**
+    that still hold them, not left lying around as a convenience. An unused credential in
+    plaintext is a liability with no offsetting benefit; it can only be misused. See
+    `supabase/README.md`'s environment-variable section for the standing record of where provider
+    keys are actually permitted to live.
 
 ---
 

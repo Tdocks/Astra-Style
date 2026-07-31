@@ -5,7 +5,15 @@ Six generations evaluating whether AI imagery is viable for the §6.9 preference
 
 ## What was generated
 
-Higgsfield Soul 2.0 (`text2image_soul_v2`), 1536×2048, style "General", `enhance_prompt: false`.
+**This batch, 2026-07-28:** Higgsfield Soul 2.0 (`text2image_soul_v2`), 1536×2048, style
+"General", `enhance_prompt: false`. Kept as provenance for the six files below, not as an
+instruction — that vendor was dropped on 2026-07-31 (`docs/16` §3.5) and nothing new goes to it.
+
+**New frames go to OpenAI `gpt-image-2`** — text-to-image, portrait 1024×1536, medium quality,
+called directly against OpenAI's API with our own key. Medium because `docs/16` §3.4 found high
+indistinguishable from it on the decisive prompt; 1024×1536 because the pipeline crops the top 7%
+and resizes to 720px wide, so anything larger is thrown away before it ships. The prompt skeleton
+below does not change with the vendor — it is the part that must never move.
 
 | File | Axis | Reads as | Job ID |
 |---|---|---|---|
@@ -45,8 +53,14 @@ Style DNA that looks like a valid one. Any future additions must reuse this skel
 ## Known issues in this batch
 
 1. **Backdrop tone drifts between generations.** `formality-a` reads warmer than `colour-b`.
-   Side by side in a pair it is faintly visible. Fix by pinning the backdrop seed, or by
-   normalising the background channel in post before the assets ship.
+   Side by side in a pair it is faintly visible. Two fixes were proposed here originally — pin
+   the backdrop seed, or normalise in post. **Normalising in post is the one that happens, and it
+   is mandatory rather than optional:** `scripts/build_quiz_imagery.py` does it, and no pair
+   ships without it. Drift on this batch averaged 20.9 luma and reached 33.7; OpenAI measured
+   13.9 mean on the same metric (`docs/16` §3.2) — better, and still visible side by side. The
+   seed route is **untested on OpenAI**: Soul 2.0 rejected the parameter outright, but nobody has
+   checked whether OpenAI accepts a seed or whether one would actually hold the backdrop, so do
+   not assume either way.
 2. **Faces are present in the source files** — the chin and neck are in frame despite the
    prompt. The quiz tile crops the top 7% to remove them, which means *the crop is load-bearing*
    and has to live in the asset pipeline, not in a per-image judgement call.
@@ -57,5 +71,16 @@ Style DNA that looks like a valid one. Any future additions must reuse this skel
 ## Cost shape
 
 These are **static assets generated once**, not per-user generations. A full quiz at spec §6.9
-length needs roughly 16–20 frames. Style Studio's per-user generation (spec §6.17) is a separate
-budget and a separate pipeline; do not conflate the two when estimating.
+length needs roughly 16–20 frames; finishing from what has shipped is 12–28 more. At OpenAI's
+medium tier for portrait 1024×1536 — **$0.041 a frame** — the whole remaining job is **about a
+dollar, once** (`docs/16` §3.5 prices it, including what the same frames would have cost through
+a reseller: about four dollars).
+
+**Do not optimise this number.** The entire spread between the cheapest and most expensive
+plausible way of finishing the quiz is a few dollars, one time, while a single confounded pair
+that ships costs a wrong reading on a style axis for every user who answers it. Spend the
+regeneration; check the hands.
+
+Style Studio's per-user generation (spec §6.17) is a separate budget and a separate pipeline; do
+not conflate the two when estimating. That one is per user, per month, indefinitely, and it is
+where the per-image price genuinely decides things — see `docs/11` risk 5.

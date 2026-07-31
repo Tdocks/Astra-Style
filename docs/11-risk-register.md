@@ -155,25 +155,31 @@ given the product's positioning, and a generation that looks *too* authoritative
 about fit does real harm if a user makes a purchase decision based on a misleading
 visual estimate.
 
-**Update (vendor decided — `docs/10-style-studio-integration.md`): this is no
-longer only a generic, industry-wide concern — there is a specific, verified
-capability gap.** Higgsfield's Soul 2.0/Soul ID (the decided provider, `soul_2`
-model) documents identity preservation as covering "facial structure, hair,
-expression style, and identity features." It does **not** document preservation of
-body proportions or skin tone beyond the face. §13 step 5 requires preserving
-proportions and not beautifying/altering the body without request; §11 forbids
-promising fit from imagery alone. That requirement sits directly on top of a gap
-the vendor has not documented as covered — this is now a confirmed vendor-capability
-mismatch, not a speculative "generative image models are inconsistent" concern.
-`docs/10` §5 lays out the recommended mitigation in full (always attach a
-concurrent reference photo even on the trained-identity path, since Soul ID and a
-reference image are not mutually exclusive in the same `soul_2` call; nudge toward
-half/full-body references over headshots when proportion preservation is on;
-sampled offline proportion-consistency QA rather than a synchronous per-generation
-gate, given the §20 latency budget; and — the piece that actually satisfies the
-disclosure requirement — a body-specific disclaimer distinct from the generic
-"visual estimate" label, since the generic label doesn't tell the user *which* axis
-is uncertain). The mitigation narrows what Astra promises (recognizable face and
+**Update (vendor decided, then replaced — `docs/08` §3.5, `docs/15`): this is no
+longer only a generic, industry-wide concern — there is a specific gap, and it did
+not leave with the vendor.** It surfaced first as a *documentation* gap: the
+originally-decided provider documented identity preservation as covering "facial
+structure, hair, expression style, and identity features" and said nothing about
+body proportions or skin tone below the face. That vendor was dropped on 2026-07-31.
+The replacement — OpenAI `gpt-image-1.5`, on the only remaining image provider — was
+then **measured** on the same axis and is no better: `docs/15` §6.3 records the model
+regressing hard toward an average male build however specifically a build is
+described, with only "compact" and "tall/lean" coming out distinct, and `docs/15`
+§6.2 records that body-type fidelity was never successfully measured at all because
+both attempted metrics failed. The position is therefore worse than "undocumented":
+it is **measured-negative on the provider actually in use, and unmeasured in
+general.** §13 step 5 requires preserving proportions and not beautifying/altering
+the body without request; §11 forbids promising fit from imagery alone. That
+requirement sits on top of a gap no provider has closed.
+
+`docs/10` §5's mitigation still applies with its trained-identity clause struck —
+there is no Soul ID path, that product was rejected on §29 grounds (`docs/15` §2)
+and its vendor is gone: nudge toward half/full-body references over headshots when
+proportion preservation is on; sampled offline proportion-consistency QA rather
+than a synchronous per-generation gate, given the §20 latency budget; and — the
+piece that actually satisfies the disclosure requirement — a body-specific
+disclaimer distinct from the generic "visual estimate" label, since the generic
+label doesn't tell the user *which* axis is uncertain. The mitigation narrows what Astra promises (recognizable face and
 faithful garment rendering; body proportions and skin tone as directional, not
 precise) rather than pretending the gap doesn't exist.
 
@@ -208,14 +214,17 @@ precise) rather than pretending the gap doesn't exist.
   (§13 already specifies this for cost reasons — it also functions as a quality
   gate, since a user can bail before consuming a premium credit on a bad result).
   Build an internal quality-review sample process before enabling a new provider or
-  prompt-template version in production (`docs/10` §9's bake-off protocol is that
-  process, made concrete, including a proportion-honesty scoring criterion
-  specifically because of this gap). Provide an easy, fast "this doesn't look
+  prompt-template version in production — `docs/15` and `docs/16` are what that
+  process turned into in practice (fixed prompts, blind scoring, a measured metric
+  rather than an eyeball), and it should keep a proportion-honesty scoring criterion
+  specifically because of this gap. Provide an easy, fast "this doesn't look
   right, don't count this against my quota" reporting path distinct from ordinary
   retry, both to preserve goodwill and to generate a labeled dataset of bad outputs
-  for provider evaluation. Structurally: always attach a fresh reference photo even
-  on the trained-Soul-ID path (`docs/10` §5.2) so body/skin-tone grounding never
-  depends solely on a capability the vendor hasn't documented as reliable.
+  for provider evaluation. Structurally: every generation is conditioned on a fresh
+  reference photo, since there is no trained-identity path to fall back on and
+  `docs/15` §6.3 measured the model drifting toward an average build — the reference
+  image is the only body and skin-tone grounding in the system, so it is never
+  optional.
 - **Owner-phase:** Phase 6 (Studio and commerce) for the pipeline and quality gates;
   Phase 7 (Hardening) for the disclaimer/labeling audit before launch.
 
@@ -248,7 +257,12 @@ now available for the cost drivers that matter most:
   pin the system prompt + tool schemas (§1.2 of `06-kyra-orchestration.md`: ~1,200
   + ~1,500 = ~2,700 tokens) as a cached prefix.
 - **Embeddings:** `text-embedding-3-small`, $0.02/1M tokens, 1,536 dims.
-- **Style Studio (Higgsfield, decided — `docs/10-style-studio-integration.md`):**
+- **Style Studio** — ⚠️ **every image figure in this section is stale as of 2026-07-31.**
+  It is priced in Higgsfield credits, and Higgsfield has been dropped; OpenAI is now
+  the only image provider — `gpt-image-1.5` for Style Studio — and it prices per
+  image by quality tier, not per credit.
+  **See the update at the end of this section — the model below has not been
+  recomputed.** The original text, on the vendor that was then decided:
   Soul ID training verified at 25 credits ≈ $1.25 → **$0.05/credit**.
   **Per-generation cost is now verified too, via a live `get_cost` preflight run
   directly against the Higgsfield API** — this section previously carried an
@@ -393,7 +407,9 @@ this section: **reasoning cost, driven by conversational volume, is the primary
 lever on subscriber profitability, and Kyra conversation cost is confirmed cheap**
 (roughly $0.01–0.03/turn depending on tool-call chaining and tier routing,
 comfortably below the original $0.02–0.05 placeholder for the realistic majority of
-turns). **Style Studio generation cost is now verified, not assumed — via a live
+turns). **Style Studio generation cost is now verified, not assumed** — as of this
+revision; the vendor it was verified against has since been dropped, so read the
+next subsection before using the figure — **via a live
 `get_cost` preflight against the real Higgsfield API — at $0.05/generation
 (planning rate) regardless of quality tier, and is confirmed small and
 well-characterized at realistic usage (≈$1.21/month) and even at full-quota
@@ -403,6 +419,71 @@ section built on a flagged-but-unverified assumption, is withdrawn. The practica
 implication is now the same one the original entry drew: the number worth watching
 is Kyra turn volume among the heaviest-usage subscribers, not Style Studio pricing,
 which this update closes out as a settled input rather than an open question.
+
+### Update 2026-07-31 — the image-price input changed, and this model has NOT been recomputed
+
+Stated first and plainly, because a half-updated cost model is more dangerous than
+an openly stale one: **the arithmetic above still stands on Higgsfield credits at
+$0.05/generation, and nobody has redone it against OpenAI's prices.** What follows
+is the corrected *input*, not a corrected model. Do not read the totals, margins or
+breakeven turn counts above as current until someone recomputes them.
+
+**The new input.** Image generation is now OpenAI, called directly (`docs/08` §3.5,
+`docs/15` §5, `docs/16` §4), priced per image by quality tier rather than per
+credit — and it is **two models, not one**, which matters here because only one of
+them lands in this section's per-user arithmetic. Portrait 1024×1536, from OpenAI's
+published rates:
+
+| Tier | `gpt-image-1.5` — **Style Studio**, per user per month | `gpt-image-2` — quiz imagery, one-off static assets |
+|---|---|---|
+| Low | $0.013 | $0.005 |
+| Medium | $0.050 | $0.041 |
+| High | $0.200 | $0.165 |
+
+**The column that belongs in this risk model is `gpt-image-1.5`'s.** Style Studio is
+the recurring, per-subscriber cost this section exists to bound. Quiz imagery is a
+one-time content spend of roughly a dollar in total (`brand/quiz-imagery/README.md`)
+and does not scale with subscribers at all; it is listed only so nobody prices
+Studio off the wrong row. Style Studio is on the older model deliberately — it
+retained identity better in a head-to-head measurement, and `docs/15` §5 records why
+that beat a $0.035-per-image saving.
+
+Three qualifications on those numbers, all of which matter for a model built on
+them:
+
+1. **These are list prices with no volume discount assumed.** If a discount is ever
+   negotiated it is upside, not something to plan against.
+2. **The quality tier is now a real cost lever again.** Under the previous vendor
+   `1.5k` and `2k` were priced identically, which is why `docs/10` §7.4 retired the
+   draft-before-export control. On `gpt-image-1.5`, high is ~15× low and 4× medium,
+   so that control is live and worth modelling explicitly rather than assuming one
+   flat per-generation rate as the arithmetic above does.
+3. **Soul ID training — the $1.25 one-off and its ~$0.21/month amortisation — is
+   gone entirely**, not repriced. The product was rejected (`docs/15` §2) and its
+   vendor dropped. That line should come out of the model rather than be converted.
+
+**What is NOT being asserted here.** No new monthly total, margin, or breakeven
+figure. Recomputing honestly needs the per-user generation volumes this section was
+built on *and* a split of those generations across quality tiers, which does not
+exist yet — the 20/month and 60/month figures above were derived under a flat rate
+where the tier split did not matter. Inventing that split to produce a
+tidy-looking number would be exactly the "flagged-but-unverified assumption" failure
+this section has already corrected itself for twice. **This is an input change and a
+flag, nothing more.**
+
+**Where it will bite when it is recomputed.** The annual plan, as always. Net
+revenue is roughly $4.67/month-equivalent on the $79.99 plan at Apple's 30% cut
+against $9.09 on the monthly plan (`docs/09` §5.6), and `docs/09` §5.6 already puts
+reasoning-provider inference *alone* at **28–34% of net revenue on the annual
+plan** versus 14–17% monthly. Image generation lands on top of that, and at high
+tier it is not a rounding error: `docs/16` §3.5 works one illustrative case at ten
+high-tier images a month, which comes to $1.65 there because it prices `gpt-image-2`
+for a like-for-like comparison against the reseller. **Studio's own model is dearer
+than that**, so treat $1.65 as a lower bound on that illustration rather than as
+Studio's number. **Model Style Studio at `gpt-image-1.5`'s rates, model the tier mix
+rather than a flat rate, and treat the annual plan as the binding constraint** — it
+is the plan where the arithmetic gets uncomfortable first, and it is the one this
+section's $12.99 framing does not look at.
 
 - **Likelihood:** M (unchanged from the original entry; the intermediate revision's
   M was correct in grade but for a reason — Style Studio cost uncertainty — that no
@@ -432,12 +513,15 @@ which this update closes out as a settled input rather than an open question.
   turn cap for Premium (graceful degradation — a lower-cost reasoning tier under
   heavy load — rather than a hard wall) as the primary lever against the tail risk
   identified above, since that risk is now confirmed to be where it originally was.
-  The "prefer draft before hi-res" mitigation from `08`/§13 no longer applies to
-  Style Studio specifically for this vendor — `docs/10` §7.4 documents why (1.5k
-  and 2k cost identically for `soul_2`) and repurposes the underlying idea as a
-  storage-retention distinction (save-to-lookbook) instead of a resolution-cost
-  gate; this register's cost mitigation for Style Studio is now the §7.2 quota and
-  burst limiter in `docs/10`, not a resolution tier.
+  **The "prefer draft before hi-res" mitigation from `08`/§13 is live again**
+  (2026-07-31): it had been retired because the previous vendor priced its two
+  resolutions identically, but OpenAI prices by quality tier — on Studio's
+  `gpt-image-1.5`, $0.013 low, $0.050 medium, $0.200 high — so generating cheap
+  first and paying for high only on an image the user chose to keep is a genuine
+  4–15× saving, and it doubles as the quality gate risk 4 wants. Keep the quota and
+  burst limiter from `docs/10` §7.2 as well; the two are complementary, and the tier
+  lever is the one that scales with what a user actually keeps rather than with what
+  they generate.
 - **Owner-phase:** Phase 5 (Kyra) and Phase 6 (Studio) for cost instrumentation and
   rate limiting as those systems are built; Phase 7 (Monetization and hardening) for
   the pricing/quota policy decision once real usage data exists.

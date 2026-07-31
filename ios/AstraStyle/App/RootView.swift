@@ -46,6 +46,20 @@ struct RootView: View {
                                     ?? "anonymous"
                             ),
                             profileRepository: container.profileRepository,
+                            // The guest-aware wrapper, not the live repository:
+                            // §5.1 step 12 writes real closet items, and ADR
+                            // 0011 requires a guest's to stay on the device.
+                            // `GuestAwareClosetRepository` is what makes that a
+                            // property of the dependency graph rather than of
+                            // this call site remembering.
+                            closetRepository: container.closetRepository,
+                            // Scoped exactly like the draft store above, and for
+                            // a sharper version of the same reason: this one
+                            // holds a photograph of somebody's face.
+                            referenceStore: FileReferenceImageStore(
+                                userScope: container.sessionStore.currentSession?.userID.uuidString
+                                    ?? "anonymous"
+                            ),
                             sessionStore: container.sessionStore
                         )
                     )

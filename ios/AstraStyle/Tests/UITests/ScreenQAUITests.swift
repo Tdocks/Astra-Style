@@ -40,7 +40,23 @@ final class ScreenQAUITests: XCTestCase {
 
     /// Generous, because the splash deliberately holds a 450ms floor before
     /// routing (spec §6.1) and a cold launch on CI is slower than on a laptop.
-    private let timeout: TimeInterval = 20
+    /// How long to wait for a screen to appear.
+    ///
+    /// Longer on CI, and the difference is not padding. A GitHub runner is a
+    /// shared, loaded machine booting a cold simulator, and the first test in a
+    /// suite pays for that boot on top of whatever it is actually asserting —
+    /// `testBackPreservesAnswers` failed at 20s on CI with "Never appeared:
+    /// Goals" while passing locally in a fraction of it, having burned 91
+    /// seconds of wall clock getting nowhere.
+    ///
+    /// Raising it everywhere would have been the lazy fix: a local run would
+    /// then take 60s to tell you a screen is genuinely broken, which is the
+    /// feedback loop that matters most and the one worth keeping fast. So the
+    /// developer keeps a tight 20s and CI gets the slack it actually needs.
+    ///
+    /// `CI` is set by GitHub Actions. The test-runner process inherits it from
+    /// `xcodebuild`, so this reads correctly there and is absent locally.
+    private let timeout: TimeInterval = ProcessInfo.processInfo.environment["CI"] == nil ? 20 : 60
 
     // `setUp() async throws` rather than `setUpWithError()`: the throwing
     // synchronous override is nonisolated even on a @MainActor class, so

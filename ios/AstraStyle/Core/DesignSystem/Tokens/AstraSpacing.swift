@@ -65,4 +65,15 @@ public enum AstraRadius {
 public enum AstraSize {
     /// Minimum tap target: 44 × 44 pt.
     public static let minTapTarget: CGFloat = 44
+
+    /// Height of the reference-photo preview on §5.1 step 11.
+    ///
+    /// A fixed height rather than the image's own aspect ratio, so the
+    /// controls beneath it sit in the same place whichever photo was chosen —
+    /// a portrait selfie and a landscape snapshot otherwise move the Remove
+    /// button by several hundred points. Deliberately NOT scaled by Dynamic
+    /// Type: a photograph does not become more legible when the text around
+    /// it grows, and growing it would push the controls off an accessibility
+    /// -size screen for no gain.
+    public static let referencePreviewHeight: CGFloat = 220
 }

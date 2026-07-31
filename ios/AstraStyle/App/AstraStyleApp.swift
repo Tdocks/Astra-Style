@@ -11,7 +11,13 @@ import SwiftUI
 
 @main
 struct AstraStyleApp: App {
-    @State private var appContainer = AppContainer.live()
+    // `preview()` under `-astra-mock-backend` (Debug only — see
+    // AstraFeatureFlags). Selected here rather than inside `live()` so there is
+    // exactly one place that decides which dependency graph the process runs
+    // on, and it is visible at the entry point rather than buried in a factory.
+    @State private var appContainer = AstraFeatureFlags.usesMockBackend
+        ? AppContainer.preview()
+        : AppContainer.live()
     @State private var router = AppRouter()
 
     var body: some Scene {
@@ -54,6 +60,24 @@ struct AstraStyleApp: App {
     }
 
     private func resolveLaunchRoute() async -> AppRouteState {
+        if AstraFeatureFlags.usesMockBackend {
+            // A throwaway signed-in session, adopted rather than restored:
+            // `adopt` overwrites whatever the Keychain held, so this needs no
+            // sign-out first — which matters, because signing out of a
+            // non-guest session makes a network call this mode exists to avoid.
+            // The id is fresh per launch, which also scopes the onboarding
+            // draft to this run and nothing else.
+            try? appContainer.sessionStore.adopt(
+                AuthSession(
+                    userID: UUID(),
+                    accessToken: "mock-backend",
+                    refreshToken: "mock-backend",
+                    expiresAt: .now.addingTimeInterval(3600)
+                )
+            )
+            return .onboarding
+        }
+
         if AstraFeatureFlags.resetsStateOnLaunch {
             // UI-test entry point only (see AstraFeatureFlags). Clears the
             // Keychain session so the sweep starts from Welcome regardless of

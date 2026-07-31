@@ -176,6 +176,11 @@ private actor FailIfCalledProfileRepository: ProfileRepository {
         return SampleData.styleDNA
     }
 
+    func uploadReferenceImage(_ imageData: Data) async throws -> String {
+        recordCall()
+        return "users/guest/references/never.jpg"
+    }
+
     func exportPersonalData() async throws -> URL {
         recordCall()
         return URL(fileURLWithPath: "/dev/null")
@@ -232,6 +237,7 @@ private struct AlwaysFailingProfileRepository: ProfileRepository {
     func updateLifestyleProfile(_ lifestyleProfile: LifestyleProfile) async throws -> LifestyleProfile { throw AstraError.server("boom") }
     func completeOnboarding(_ payload: OnboardingCompletionPayload) async throws -> Profile { throw AstraError.server("boom") }
     func generateStyleDNA() async throws -> StyleDNA { throw AstraError.server("boom") }
+    func uploadReferenceImage(_ imageData: Data) async throws -> String { throw AstraError.server("boom") }
     func exportPersonalData() async throws -> URL { throw AstraError.server("boom") }
 }
 
