@@ -5,9 +5,9 @@ TestFlight. Cloud / Linux agents cannot complete the Apple-side steps —
 signing, App Store Connect, and `xcodebuild archive` need the owner's Mac +
 Apple ID.
 
-**If you are Claude Code on that Mac:** follow the fuller checklist in
-`HANDOFF.md` §12.0 (preconditions, secrets, signing, archive, smoke tests,
-done criteria). This file is the short twin.
+**If you are Claude Code on that Mac:** open **`START_HERE.md` at the repo root**
+first — that is the canonical checklist. `HANDOFF.md` §12.0 is the same content
+with more surrounding context. This file is the short twin.
 
 ## What you get on device
 

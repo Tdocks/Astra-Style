@@ -11,24 +11,28 @@ app can quantify which purchase unlocks the most outfits and build a coherent
 wardrobe over months and years, rather than functioning as a generic shopping app
 or outfit randomizer.
 
+## ▶ Next action (Claude on the owner's Mac)
+
+**[`START_HERE.md`](START_HERE.md)** — cut the internal TestFlight build and put
+Astra Style on the owner's iPhone. That file is the whole checklist. Do not start
+by auditing `HANDOFF.md` landmines or re-litigating older commits.
+
 ## Status
 
-**Phase 3 of 7 — Closet — in progress.** Phase 1 (Foundation) and Phase 2
-(Identity / onboarding → Style DNA) are substantively complete. The Closet
-overview, metrics, filters, item detail, and manual add/edit are usable end to
-end. Scanner has device-side groundwork only (no camera/review UI). Outfit
-intelligence, Kyra, Style Studio, shopping, and subscriptions remain largely
-unbuilt.
+**Phase 3 of 7 — Closet — exit cut for internal TestFlight.** Closet is usable
+end to end (browse, filters, metrics, manual add/edit, free-tier/guest caps,
+offline read cache). Single-item Scanner ships (capture/import → review → save →
+unlock report, offline queue). Batch/receipt/mirror, server cutout, and the live
+OpenAI vision pilot gate remain Partial. Outfit intelligence, Kyra, Style Studio,
+shopping, and subscriptions remain largely unbuilt.
 
 **Per-ticket status for all 178 tickets lives in
-[`docs/03-progress.md`](docs/03-progress.md)** — that file, not this section, is
-the place to look before starting work. It records what is Done, Partial, Not
-started, or genuinely Unverifiable, with evidence for each, and it is enforced by
-`scripts/check_progress.py` in CI so it cannot quietly drift from the code.
+[`docs/03-progress.md`](docs/03-progress.md)** (~45 Done / 52 Partial / 81 Not
+started — trust that file, not this paragraph). Enforced by
+`scripts/check_progress.py` in CI.
 
-A cold-start narrative for a new builder is in [`HANDOFF.md`](HANDOFF.md).
-`docs/01-build-roadmap.md` holds the phase plan and `docs/11-risk-register.md`
-the risks being actively tracked.
+Cold-start narrative: [`HANDOFF.md`](HANDOFF.md). Phase plan:
+`docs/01-build-roadmap.md`. Risks: `docs/11-risk-register.md`.
 
 **Authoritative master spec:** [`docs/00-master-spec.md`](docs/00-master-spec.md).
 Any `Astra_Style_iOS_Master_Build_Spec.md` sitting outside this repo is a frozen
@@ -37,14 +41,15 @@ snapshot — do not treat it as current.
 ## Repo layout
 
 ```
+START_HERE.md    ◀ Claude: open this first — TestFlight cut checklist
+CLAUDE.md        Binding conventions for AI coding agents (points at START_HERE)
+HANDOFF.md       Long cold-start narrative (background; §12.0 = same TF cut)
 docs/            Specs, architecture decisions, roadmap, progress, and ADRs
 ios/             The native iOS app (Swift 6, SwiftUI, XcodeGen-generated project)
 supabase/        Backend: Postgres migrations and Edge Functions
 brand/           Brand assets — logos, reference screenshots, textures
 legal/           Drafted, unpublished legal HTML (deferred to end of build)
 scripts/         CI checkers and quiz-imagery tooling
-CLAUDE.md        Binding conventions for AI coding agents
-HANDOFF.md       Cold-start handoff for a new builder
 README.md        This file
 ```
 

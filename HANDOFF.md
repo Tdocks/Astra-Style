@@ -6,9 +6,14 @@
 
 ### ▶ Do this next (owner asked Claude on the Mac to own it)
 
-**Cut an internal TestFlight build and get Astra Style onto the owner's iPhone.**
+**Stop. Open [`START_HERE.md`](START_HERE.md) at the repo root and follow it.**
 
-Cloud / Linux agents **cannot** do Archive → App Store Connect (no Xcode, no signing identity, no ASC session). That work must run on the owner's Mac with Xcode **26.6** and an Apple ID on the Developer team. Full step-by-step is **§12.0** below; the shorter twin is `docs/12-testflight-cut.md`. Do not start Phase 4 feature work until that build is on TestFlight unless the owner redirects you.
+That file is the complete TestFlight checklist (Archive → App Store Connect →
+internal group → smoke). Same content is mirrored in **§12.0** below and
+`docs/12-testflight-cut.md`. Cloud / Linux agents cannot codesign — this is
+Mac-only. Do **not** start by investigating commit `cc7923cf` ("Pre-build
+groundwork…"); that is an older ancestor, already merged, not unfinished work
+sitting on top of this handoff.
 
 ---
 
@@ -926,6 +931,10 @@ cd supabase/functions && deno task test            # covers _shared + outfits + 
 
 ### 12.0 ▶ TestFlight cut — instructions for Claude on the owner's Mac
 
+> **Canonical copy lives in [`START_HERE.md`](START_HERE.md).** Prefer that file —
+> agents keep missing this section inside a 1000+ line handoff. What follows is
+> the same checklist kept here so deep links to §12.0 still work.
+
 You are running on a **Mac with Xcode 26.6**. Linux/cloud agents already merged the Phase 3 exit to `main` (`86edb74` / PR #12) and **cannot** codesign or talk to App Store Connect. Your job is the Apple-side cut only. Twin doc: `docs/12-testflight-cut.md`.
 
 #### Preconditions (stop and ask the owner if any fail)
@@ -1064,8 +1073,8 @@ These used to be the “pick up next” list; they shipped before/with PR #12 �
 
 ### 13.1 Files to read first, in order
 
-1. `CLAUDE.md`
-2. `HANDOFF.md` §12.0 (if your job is the TestFlight cut) + `docs/12-testflight-cut.md`
+1. **`START_HERE.md`** (TestFlight cut — open this first on the owner's Mac)
+2. `CLAUDE.md`
 3. `docs/00-master-spec.md`
 4. `docs/03-progress.md`
 5. `docs/02-task-breakdown.md` (for the ticket you're picking up)
