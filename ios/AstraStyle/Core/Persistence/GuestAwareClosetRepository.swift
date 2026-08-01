@@ -46,6 +46,10 @@ public struct GuestAwareClosetRepository: ClosetRepository {
         try await active().fetchImages(forItem: itemID)
     }
 
+    public func uploadCapturedImage(_ data: Data) async throws -> String {
+        try await active().uploadCapturedImage(data)
+    }
+
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         try await active().analyzeItem(request)
     }

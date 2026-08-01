@@ -99,6 +99,10 @@ public final class AppContainer {
     /// touching AVFoundation. Live adapter is constructed only here.
     public let captureSession: any CaptureSessionControlling
 
+    /// In-memory drafts handed from capture to review (`ScannerRoute.review`
+    /// carries only a UUID). Cleared when the modal dismisses.
+    public let captureDraftStore: CaptureDraftStore
+
     // MARK: - Cross-cutting infrastructure
 
     public let apiClient: AstraAPIClient
@@ -121,6 +125,7 @@ public final class AppContainer {
         weatherService: WeatherService,
         calendarService: CalendarService,
         captureSession: any CaptureSessionControlling,
+        captureDraftStore: CaptureDraftStore = CaptureDraftStore(),
         apiClient: AstraAPIClient,
         analyticsClient: AnalyticsClient,
         offlineMutationQueue: OfflineMutationQueue,
@@ -140,6 +145,7 @@ public final class AppContainer {
         self.weatherService = weatherService
         self.calendarService = calendarService
         self.captureSession = captureSession
+        self.captureDraftStore = captureDraftStore
         self.apiClient = apiClient
         self.analyticsClient = analyticsClient
         self.offlineMutationQueue = offlineMutationQueue
@@ -206,6 +212,7 @@ extension AppContainer {
             weatherService: LiveWeatherService(),
             calendarService: LiveCalendarService(),
             captureSession: LiveCaptureSessionController(),
+            captureDraftStore: CaptureDraftStore(),
             apiClient: apiClient,
             analyticsClient: analyticsClient,
             offlineMutationQueue: offlineMutationQueue,
@@ -254,6 +261,7 @@ extension AppContainer {
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),
             captureSession: MockCaptureSessionController(isHardwareAvailable: false),
+            captureDraftStore: CaptureDraftStore(),
             apiClient: .previewClient,
             analyticsClient: NoOpAnalyticsClient(),
             offlineMutationQueue: InMemoryOfflineMutationQueue(),

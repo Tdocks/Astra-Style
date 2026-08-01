@@ -18,14 +18,20 @@ public protocol ClosetRepository: Sendable {
     func fetchItem(id: UUID) async throws -> ClosetItem
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage]
 
-    /// Uploads a captured image and returns the server's analysis
-    /// suggestion for review (spec §6.16 "Review screen"). Does not create
-    /// a `ClosetItem` by itself — call `createItem` once the user confirms.
+    /// Uploads prepared capture bytes to `user-content` and returns the
+    /// storage path (P3-SCAN-05). Split from `analyzeItem` so a failed
+    /// analysis retry does not re-upload (and so upload failure can be
+    /// retried without discarding the local draft).
+    func uploadCapturedImage(_ data: Data) async throws -> String
+
+    /// Returns the server's analysis suggestion for review (spec §6.16
+    /// "Review screen"). Does not create a `ClosetItem` by itself — call
+    /// `createItem` once the user confirms.
     ///
-    /// Takes the same request type as the batch call so that a single scan
-    /// and one element of a batch scan are literally the same input — the
-    /// Edge Function's two endpoints then share one element schema, and a
-    /// device hint added for one is available to the other for free.
+    /// When `request.storagePath` is already set (from
+    /// `uploadCapturedImage`), the upload leg is skipped. Takes the same
+    /// request type as the batch call so that a single scan and one
+    /// element of a batch scan share one element schema.
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult
 
     /// Batch variant for the closet scan flow (spec §6.16 "Batch closet

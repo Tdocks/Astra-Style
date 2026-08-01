@@ -499,12 +499,23 @@ public struct ClosetItemAnalysisRequest: Identifiable, Hashable, Sendable {
     /// can retake.
     public let id: UUID
     public var imageData: Data
+    /// When set (from a prior `uploadCapturedImage`), the live repository
+    /// skips the upload leg and sends this path to the Edge Function.
+    /// Keeps analyze-retry from orphaning a second Storage object.
+    public var storagePath: String?
     public var imageType: ClosetImageType
     public var deviceHints: GarmentDeviceHints?
 
-    public init(id: UUID = UUID(), imageData: Data, imageType: ClosetImageType = .front, deviceHints: GarmentDeviceHints? = nil) {
+    public init(
+        id: UUID = UUID(),
+        imageData: Data,
+        storagePath: String? = nil,
+        imageType: ClosetImageType = .front,
+        deviceHints: GarmentDeviceHints? = nil
+    ) {
         self.id = id
         self.imageData = imageData
+        self.storagePath = storagePath
         self.imageType = imageType
         self.deviceHints = deviceHints
     }
