@@ -24,8 +24,8 @@
 //  when the manual test is run, a failure can be attributed rather than
 //  guessed at.
 //
-//  The OCR half of P3-SCAN-03 (§12 step 4) is not tested here because it is
-//  not built here; see `DominantColorExtraction.swift`'s header.
+//  The OCR half of P3-SCAN-03 (§12 step 4) is covered in
+//  `DeviceHintsExtractionTests` via `MockLabelTextRecognizer`, not here.
 //
 
 import CoreGraphics

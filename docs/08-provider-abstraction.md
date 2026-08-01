@@ -329,6 +329,26 @@ Target: item analysis **under 8 seconds total** (§20), which includes the on-de
 - OCR-derived brand-guess accuracy (calibrated against `brandGuess.confidence`) shows a pattern of confident-but-wrong guesses reaching users without the low-confidence marking the system is designed to attach — per §2.1's explicit concern that "a wrong high-confidence brand guess is worse than an honest low-confidence one." This is a P1-severity signal regardless of which vendor is in use.
 - Data retention/training terms change per the same legal-gate logic as §1.5.
 
+### 2.5.1 How to enable the OpenAI vision adapter (operator opt-in)
+
+The live adapter is already wired in `supabase/functions/closet/index.ts` behind an env gate. Default remains the mock.
+
+| Variable | Required for live? | Notes |
+|----------|--------------------|-------|
+| `VISION_ANALYSIS_PROVIDER` | yes — must equal `openai` | Any other value (including unset) → mock |
+| `OPENAI_API_KEY` | yes | Missing key → mock even if provider=`openai` |
+| `OPENAI_VISION_MODEL` | no | Defaults to `gpt-5.6` |
+
+```bash
+supabase secrets set \
+  VISION_ANALYSIS_PROVIDER=openai \
+  OPENAI_API_KEY=sk-... \
+  OPENAI_VISION_MODEL=gpt-5.6
+supabase functions deploy closet
+```
+
+Operator how-to and the pre-launch measurement checklist are duplicated for the deploy surface in `supabase/functions/closet/README.md`. **Flipping these secrets is not the same as completing the §2.5 pilot gate** — measure subcategory accuracy on a labeled consented sample before serving real users.
+
 ---
 
 ## 3. ImageGenerationProvider

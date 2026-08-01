@@ -124,8 +124,10 @@ extension ScannerReviewViewModel {
     }
 
     func deviceHints(from data: Data) -> GarmentDeviceHints? {
-        // Dominant colour only until OCR (P3-SCAN-03) lands. Empty text is
-        // honest — do not invent brand/size on device.
+        // Still-image path only (not the ~10 Hz capture quality stream).
+        // Live Vision adapters may return nil/empty on simulator — colour
+        // falls back to the centre-region prior; text stays empty rather
+        // than inventing brand/size.
         guard let source = CGImageSourceCreateWithData(
             data as CFData,
             [kCGImageSourceShouldCache: false] as CFDictionary
@@ -133,8 +135,11 @@ extension ScannerReviewViewModel {
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             return GarmentDeviceHints(dominantColorsRGB: [], detectedText: [])
         }
-        let hexes = DominantColorExtraction.extract(from: image).prefix(3).map(\.hexRGB)
-        return GarmentDeviceHints(dominantColorsRGB: Array(hexes), detectedText: [])
+        return DeviceHintsExtraction.extract(
+            from: image,
+            regionDetector: LiveVisionGarmentRegionDetector(),
+            textRecognizer: LiveVisionLabelTextRecognizer()
+        )
     }
 
     func trimmedOrNil(_ value: String) -> String? {

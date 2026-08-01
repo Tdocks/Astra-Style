@@ -8,10 +8,10 @@
 //      2. Detect likely garment region.
 //      3. Segment foreground where supported.
 //
-//  This file owns step 1 outright and owns nothing but the SEAM for steps
-//  2–3 (`GarmentRegionDetecting`, at the bottom). That split is deliberate
-//  and is the central design decision of the scanner phase, so it is
-//  written down here rather than left to be inferred:
+//  This file owns step 1 outright and the `GarmentRegionDetecting` protocol
+//  for steps 2–3 (live Vision adapter is a sibling file). That split is
+//  deliberate and is the central design decision of the scanner phase, so
+//  it is written down here rather than left to be inferred:
 //
 //  THE SIMULATOR HAS NO CAMERA. CI runs on `macos-26` simulators, so no
 //  assertion about `AVCaptureSession` can ever run there — P3-SCAN-01's own
@@ -24,13 +24,10 @@
 //  buffer that a test can synthesise. Anything that migrates from here into
 //  the capture controller becomes permanently unverifiable.
 //
-//  WHAT IS DELIBERATELY NOT HERE. Foreground segmentation (step 3) needs
-//  Vision, a real garment photograph, and a human to say whether the mask is
-//  any good — P3-SCAN-02's second criterion is literally "produces a usable
-//  foreground mask", which no synthesised fixture can settle. It is left as
-//  the protocol at the bottom of this file, to be implemented next to the
-//  camera by P3-SCAN-02's device half. Label OCR (step 4) belongs to
-//  P3-SCAN-03 and is not stubbed here at all.
+//  STEPS 2–3 LIVE ADAPTER. `GarmentRegionDetecting` (bottom of this file) is
+//  implemented by `LiveVisionGarmentRegionDetector`. The protocol stays here
+//  so quality / colour code depends on the seam, not on Vision. Label OCR
+//  (step 4) is `LabelTextRecognizing` in its own files — see P3-SCAN-03.
 //
 //  ---------------------------------------------------------------------
 //  CONCURRENCY — why nothing here is `async` and nothing is an actor.
@@ -682,27 +679,26 @@ public struct GarmentRegion: Sendable, Equatable {
 /// Spec §12 steps 2–3: "Detect likely garment region" and "Segment
 /// foreground where supported".
 ///
-/// THIS IS A SEAM, NOT A STUB. There is no implementation in this module and
-/// there deliberately is not going to be one here: the only honest
-/// implementation is a Vision request, Vision needs a real photograph of a
-/// real garment to say anything at all, and P3-SCAN-02's acceptance
-/// criterion for it ("produces a usable foreground mask for a garment
-/// photographed on a neutral background") is a human looking at a cutout.
-/// Putting that behind a protocol means the untestable part is one adapter
-/// next to the camera, and everything on this side of the protocol — the
-/// cropping, the colour extraction, the quality measurement — stays testable
-/// with a synthesised image and a hand-written region.
+/// THIS IS A SEAM. The live Vision adapter is
+/// `LiveVisionGarmentRegionDetector` (foreground instance mask, saliency
+/// fallback). The untestable half stays there on purpose: Vision needs a
+/// real garment photograph, and P3-SCAN-02's acceptance criterion
+/// ("produces a usable foreground mask for a garment photographed on a
+/// neutral background") is a human looking at a cutout. Unit tests inject
+/// `MockGarmentRegionDetector` and assert the consumers
+/// (`DeviceHintsExtraction` → `DominantColorExtraction`) honour the region.
 ///
-/// The three things that change once this is implemented, all of which are
-/// currently documented weaknesses elsewhere in this file and in
-/// `DominantColorExtraction`:
+/// What is deliberately NOT wired yet:
 ///
-/// 1. Exposure and focus get measured over the garment instead of the whole
-///    frame, which retires the white-duvet false positive that
-///    `clippedHighlightBlockingFraction` currently has to be lenient about.
-/// 2. `DominantColorExtraction` stops guessing that the garment is in the
-///    middle of the frame and starts knowing where it is.
-/// 3. The review screen gets its cutout preview (spec §6.16).
+/// 1. **Live capture quality.** Restricting blur/exposure to the garment
+///    would retire the white-duvet false positive that
+///    `clippedHighlightBlockingFraction` is lenient about — but running
+///    Vision on the ~10 Hz quality stream is not safe for the capture
+///    budget. Whole-frame measurement stays until review owns a still.
+/// 2. **Cutout preview** on the review screen (spec §6.16 / P3-SCAN-09).
+///
+/// What IS wired: `DeviceHintsExtraction` optionally takes a detector and
+/// passes its region into `DominantColorExtraction.extract(from:garmentRegion:)`.
 ///
 /// `Sendable` with a synchronous requirement, matching the rest of this
 /// file: the implementation runs wherever the caller already is, so the

@@ -37,6 +37,7 @@ supabase/functions/
       mockVisionAnalysis.ts    Deterministic mock used by default
       openaiVisionAnalysis.ts  Optional live adapter (env-gated; wired only in closet/index.ts)
   closet/                 POST /closet/analyze-item, POST /batch-analyze, GET /batch-status/:id
+    README.md               Env gate for VISION_ANALYSIS_PROVIDER=openai + §2.5 pilot checklist
     index.ts                Deployment entrypoint — THE ONE LINE THAT PICKS THE VISION PROVIDER
     handler.ts               analyze-item (idempotent) + batch enqueue/poll (never sync fan-out)
     schema.ts / mapper.ts    Wire DTOs matching ClosetItemAnalysisResult + provider→wire map
@@ -303,7 +304,14 @@ supabase link --project-ref <your-project-ref>
 # it — outfits does not).
 supabase secrets set STYLIST_PROVIDER_API_KEY=... # only when a function needs it
 
+# Optional: live VisionAnalysisProvider for closet/analyze-item (docs/08 §2.5).
+# Default is mock. Both vars required or the function stays on the mock.
+# Completing this opt-in does NOT close the §2.5 menswear-subcategory pilot
+# gate — see closet/README.md and docs/08 §2.5 / §2.5.1 before real users.
+# supabase secrets set VISION_ANALYSIS_PROVIDER=openai OPENAI_API_KEY=sk-...
+
 supabase functions deploy outfits
+supabase functions deploy closet
 ```
 
 After deploying, repeat the `curl` invocation above against
