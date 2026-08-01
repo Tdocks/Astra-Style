@@ -628,13 +628,79 @@ public struct ClosetItemAnalysisBatchItem: Identifiable, Codable, Hashable, Send
     }
 }
 
-/// The response body of `closet/batch-analyze`.
+/// Enqueue response from `POST /closet/batch-analyze` (job+poll, not sync).
+public struct ClosetItemAnalysisBatchJob: Codable, Hashable, Sendable {
+    public var jobID: UUID
+    public var status: ClosetItemAnalysisBatchJobStatus
+
+    public init(jobID: UUID, status: ClosetItemAnalysisBatchJobStatus) {
+        self.jobID = jobID
+        self.status = status
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case jobID = "job_id"
+        case status
+    }
+}
+
+/// Status vocabulary shared with `generation_status` / Style Studio polls.
+public enum ClosetItemAnalysisBatchJobStatus: String, Codable, Hashable, Sendable {
+    case queued
+    case generating
+    case complete
+    case failed
+
+    public var isTerminal: Bool {
+        switch self {
+        case .complete, .failed: true
+        case .queued, .generating: false
+        }
+    }
+}
+
+/// Poll response from `GET /closet/batch-status/:id`.
+public struct ClosetItemAnalysisBatchJobStatusPayload: Codable, Hashable, Sendable {
+    public var jobID: UUID
+    public var status: ClosetItemAnalysisBatchJobStatus
+    public var results: [ClosetItemAnalysisBatchItem]
+    public var errorMessage: String?
+
+    public init(
+        jobID: UUID,
+        status: ClosetItemAnalysisBatchJobStatus,
+        results: [ClosetItemAnalysisBatchItem] = [],
+        errorMessage: String? = nil
+    ) {
+        self.jobID = jobID
+        self.status = status
+        self.results = results
+        self.errorMessage = errorMessage
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case jobID = "job_id"
+        case status
+        case results
+        case errorMessage = "error_message"
+    }
+
+    public var asBatch: ClosetItemAnalysisBatch {
+        ClosetItemAnalysisBatch(results: results)
+    }
+}
+
+/// The completed batch payload (results keyed by request id).
 ///
 /// An object wrapping `results` rather than a bare top-level array, for two
 /// reasons: a JSON array has nowhere to hang batch-level metadata (a partial
 /// batch will eventually want a request id or a cost/latency record, spec
 /// §14 "Log request ID and latency"), and a top-level array cannot be
 /// extended without breaking every existing decoder.
+///
+/// `POST /closet/batch-analyze` itself no longer returns this synchronously
+/// — it returns `ClosetItemAnalysisBatchJob`. `LiveClosetRepository` polls
+/// `batch-status` and reassembles this type for `batchAnalyzeItems` callers.
 public struct ClosetItemAnalysisBatch: Codable, Hashable, Sendable {
     public var results: [ClosetItemAnalysisBatchItem]
 

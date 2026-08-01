@@ -51,7 +51,7 @@ generate a single outfit against production.
    | `outfits`       | `POST /generate`, `POST /rank`                |
    | `profile`       | `POST /complete-onboarding`                   |
    | `style-dna`     | `POST /generate`                              |
-   | `closet`        | `POST /analyze-item`, `POST /batch-analyze`   |
+   | `closet`        | `POST /analyze-item`, `POST /batch-analyze`, `GET /batch-status/:id` |
    | `daily-brief`   | `POST /generate`                              |
    | `kyra`          | `POST /respond`                               |
    | `products`      | `POST /extract`, `POST /evaluate`             |

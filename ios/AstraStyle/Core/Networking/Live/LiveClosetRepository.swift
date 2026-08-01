@@ -137,6 +137,9 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     }
 
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
+        // `AstraAPIClient` mints and retries under a stable Idempotency-Key
+        // for `.analyzeClosetItem` — see that type's `requiresIdempotencyKey`
+        // and HANDOFF §9.2. Do not wrap this call in a second retry loop.
         try await apiClient.send(
             .analyzeClosetItem,
             body: uploadedElement(for: request),
@@ -151,19 +154,54 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         // Uploads run in submission order rather than concurrently on
         // purpose: the upload leg is bandwidth-bound on a phone, and firing
         // N image uploads at once on a weak connection makes every one of
-        // them slower and the first result later. Concurrency belongs on the
-        // server side of this call (`docs/08` §2.3 recommends the provider's
-        // own batch endpoint), where it does not compete for one uplink.
+        // them slower and the first result later. Analysis concurrency is
+        // the server's job — and even there it is job+poll, one item per
+        // status tick, so the interactive analyze-item path is not starved
+        // (HANDOFF §9.3).
         var elements: [AnalyzeRequestElement] = []
         elements.reserveCapacity(requests.count)
         for request in requests {
             elements.append(try await uploadedElement(for: request))
         }
-        return try await apiClient.send(
+        let job = try await apiClient.send(
             .batchAnalyzeCloset,
             body: BatchRequest(items: elements),
-            as: ClosetItemAnalysisBatch.self
+            as: ClosetItemAnalysisBatchJob.self
         )
+        return try await pollBatchJob(id: job.jobID, expectedCount: requests.count)
+    }
+
+    /// Polls `GET /closet/batch-status/:id` until the job is terminal.
+    ///
+    /// One item is advanced per server poll, so a 5-image batch needs at
+    /// least five successful polls — that is intentional isolate sharing,
+    /// not a client bug. Backoff grows gently so a brief generating gap
+    /// does not hammer the function.
+    private func pollBatchJob(id: UUID, expectedCount: Int) async throws -> ClosetItemAnalysisBatch {
+        var delayNanoseconds: UInt64 = 200_000_000 // 200ms
+        let maxDelayNanoseconds: UInt64 = 2_000_000_000
+        // Worst case: one advance per poll × item count, plus headroom for
+        // transient generating states with no new result.
+        let maxAttempts = max(expectedCount * 3, 6) + 10
+
+        for _ in 0..<maxAttempts {
+            let payload = try await apiClient.send(
+                .batchAnalyzeClosetStatus(id: id),
+                as: ClosetItemAnalysisBatchJobStatusPayload.self
+            )
+            if payload.status == .failed {
+                throw AstraError.server(
+                    payload.errorMessage ?? "Batch analysis failed.",
+                    requestID: nil
+                )
+            }
+            if payload.status.isTerminal {
+                return payload.asBatch
+            }
+            try await Task.sleep(nanoseconds: delayNanoseconds)
+            delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
+        }
+        throw AstraError.server("Batch analysis timed out before completing.", requestID: nil)
     }
 
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {

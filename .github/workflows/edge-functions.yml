@@ -55,22 +55,22 @@ jobs:
       # picture in one CI run instead of fixing issues one push at a time.
       - name: deno check (type check)
         id: check
-        run: deno check _shared/**/*.ts outfits/**/*.ts profile/**/*.ts style-dna/**/*.ts
+        run: deno check _shared/**/*.ts outfits/**/*.ts profile/**/*.ts style-dna/**/*.ts closet/**/*.ts
 
       - name: deno test
         id: test
         if: always() && steps.check.outcome != 'cancelled'
-        run: deno test --allow-env _shared/ outfits/ profile/ style-dna/
+        run: deno test --allow-env _shared/ outfits/ profile/ style-dna/ closet/
 
       - name: deno fmt --check
         id: fmt
         if: always() && steps.check.outcome != 'cancelled'
-        run: deno fmt --check _shared/ outfits/ profile/ style-dna/
+        run: deno fmt --check _shared/ outfits/ profile/ style-dna/ closet/
 
       - name: deno lint
         id: lint
         if: always() && steps.check.outcome != 'cancelled'
-        run: deno lint _shared/ outfits/ profile/ style-dna/
+        run: deno lint _shared/ outfits/ profile/ style-dna/ closet/
 
       - name: Summary
         if: always()
