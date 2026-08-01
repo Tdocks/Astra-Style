@@ -25,6 +25,56 @@
 //  so the field the query lives in is on screen wherever the query has an
 //  effect.
 //
+//  THE VIEW MODE IS SHOWN HERE TOO, AND READS THE SAME KEY.
+//  `@AppStorage("closet.viewMode")` — the same string `ClosetView` uses,
+//  so the two closet screens agree about a choice the user made once. A
+//  man who switches the closet to a compact list and then taps Knitwear
+//  should not be handed a grid; that is the same control undoing itself
+//  that persistence exists to prevent, one screen over. Both screens draw
+//  the toggle rather than only the root, because a preference the user
+//  cannot change from the screen he is looking at is a preference he has
+//  to go somewhere else to fix.
+//
+//  THE FILTER BUTTON IS NOT SHOWN HERE, AND THAT IS THE DECISION, NOT AN
+//  OMISSION. Three things say so, and they agree.
+//
+//  This screen IS spec §6.14's category facet, already applied. Handing
+//  it a panel that opens on the other seven would present a control the
+//  user has learned holds eight — `ClosetFilterOptions.derive` would drop
+//  Category automatically here, since one value covering the whole scope
+//  narrows nothing — so the panel would silently differ between two
+//  screens for a reason nothing on either explains.
+//
+//  Worse, it would be a DIFFERENT filter set. This screen holds its own
+//  `ClosetViewModel` (see above), so a filter applied here is not the one
+//  applied on the root: narrow to navy on the Closet tab, push into Tops,
+//  and the panel opens empty; narrow to navy again, pop back, and there
+//  are two independent navy filters behind one glyph. That is one control
+//  meaning two things, and the fix is a shared filter store, which is a
+//  different ticket with a real design question in it (does popping back
+//  keep the category's filters?) rather than a line of wiring.
+//
+//  It would not even be the first narrowing to behave that way: the
+//  search query does not carry across the push either, for exactly the
+//  same structural reason. But search is a single visible field holding
+//  its own state in plain sight, and a man can see at a glance that it is
+//  empty. A filter set is a count on a glyph, and an empty one looks
+//  identical to no filters at all — so the same structure that is merely
+//  surprising for search is genuinely misleading for filters. Search is
+//  on screen here and does the narrowing that can be done honestly, which
+//  is exactly the position the filter button itself was in before its
+//  panel existed.
+//
+//  THE METRICS ROW IS NOT SHOWN HERE EITHER, and that reasoning holds on
+//  inspection rather than by assertion. Four of its five figures are
+//  whole-closet statements — total items, estimated closet value, average
+//  cost per wear, most and least worn — and `ClosetMetrics.compute(for:)`
+//  takes whatever array it is handed, so scoping it to one category would
+//  produce five correct numbers under five labels that all claim to be
+//  about the closet. Relabelling them per category is a copy change this
+//  screen does not own, and "estimated value of your knitwear" is not a
+//  figure spec §6.14 asks for.
+//
 
 import SwiftUI
 
@@ -35,6 +85,9 @@ public struct ClosetCategoryView: View {
     @State private var isAddingItem = false
     @Environment(AppRouter.self) private var router
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The same key `ClosetView` writes — see this file's header.
+    @AppStorage("closet.viewMode") private var viewMode: ClosetViewMode = .editorialGrid
 
     public init(category: ClothingCategory, viewModel: ClosetViewModel) {
         self.category = category
@@ -72,6 +125,25 @@ public struct ClosetCategoryView: View {
         }
         .navigationTitle(category.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        // IN THE NAVIGATION BAR, NOT IN THE PAGE. This screen has no
+        // editorial title row to hang a control off — the title is the
+        // navigation bar's — and the only other row is the search field,
+        // which would have to give up width to a glyph at exactly the
+        // text sizes it can least afford to. The bar already reserves a
+        // trailing slot, sizes it for Dynamic Type itself, and is where
+        // iOS puts view options on a pushed screen.
+        //
+        // Drawn only when the grid it re-lays out is on screen, for the
+        // same reason it is conditional on the Closet root: a layout
+        // toggle over a skeleton, an error or an empty category changes
+        // nothing the user can see (spec §22).
+        .toolbar {
+            if isShowingGrid {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ClosetViewModeToggle(selection: $viewMode)
+                }
+            }
+        }
         .task {
             await viewModel.onAppear()
         }
@@ -85,6 +157,16 @@ public struct ClosetCategoryView: View {
                 isAddingItem = false
             }
         }
+    }
+
+    /// Whether the category grid is on screen right now — the condition
+    /// the view-mode toggle is drawn under. Mirrors the branch in
+    /// `content` below: the skeleton and the error state are ruled out by
+    /// `hasSearchableContent` (which `emptyReason(for:)` cannot do, since
+    /// it deliberately answers `nil` in both), and the empty states by
+    /// `emptyReason(for:)` itself.
+    private var isShowingGrid: Bool {
+        viewModel.state.hasSearchableContent && viewModel.emptyReason(for: category) == nil
     }
 
     @ViewBuilder
@@ -104,17 +186,55 @@ public struct ClosetCategoryView: View {
                     reason: reason,
                     onScan: { router.startScan() },
                     onAddManually: { isAddingItem = true },
-                    onClearSearch: { viewModel.clearSearch() }
+                    onClearSearch: { viewModel.clearSearch() },
+                    // Unreachable today and deliberately still wired: no
+                    // filter control is presented on this screen (see
+                    // this file's header), so `ClosetViewModel.filters`
+                    // here is always empty and `.noFilterMatches` cannot
+                    // occur. Passing the real recovery rather than an
+                    // empty closure means the day a filter DOES reach
+                    // this screen, the empty state already works instead
+                    // of shipping a button that does nothing.
+                    onClearFilters: { viewModel.clearFilters() }
                 )
             } else {
-                ClosetItemGrid(
-                    items: viewModel.items(in: category),
-                    imageURL: { viewModel.imageURL(for: $0) },
-                    onTileVisible: { viewModel.imageNeeded(for: $0) },
-                    onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
-                )
-                .padding(.horizontal, AstraSpacing.pagePadding)
+                categoryGrid
+                    .padding(.horizontal, AstraSpacing.pagePadding)
             }
+        }
+    }
+
+    /// The category's garments, in whichever of spec §6.14's three
+    /// layouts is selected. The same three-way swap `ClosetView` makes,
+    /// over `items(in:)` instead of the whole closet — all three
+    /// renderers take the same four arguments in the same order, which is
+    /// what makes that a switch rather than three screens.
+    @ViewBuilder
+    private var categoryGrid: some View {
+        switch viewMode {
+        case .editorialGrid:
+            ClosetItemGrid(
+                items: viewModel.items(in: category),
+                imageURL: { viewModel.imageURL(for: $0) },
+                onTileVisible: { viewModel.imageNeeded(for: $0) },
+                onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
+            )
+
+        case .compactList:
+            ClosetCompactList(
+                items: viewModel.items(in: category),
+                imageURL: { viewModel.imageURL(for: $0) },
+                onRowVisible: { viewModel.imageNeeded(for: $0) },
+                onRowTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
+            )
+
+        case .colorSpectrum:
+            ClosetColorSpectrum(
+                items: viewModel.items(in: category),
+                imageURL: { viewModel.imageURL(for: $0) },
+                onTileVisible: { viewModel.imageNeeded(for: $0) },
+                onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
+            )
         }
     }
 }

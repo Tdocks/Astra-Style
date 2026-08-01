@@ -22,13 +22,14 @@
 //  belongs in `Core/DesignSystem`, promoted the way `AstraRemoteImage` and
 //  `AstraTextField` already were.
 //
-//  THREE EMPTY STATES, NOT ONE. An empty closet, a category with nothing
-//  in it, and a search that found nothing are three different facts about
-//  a wardrobe and want three different sentences and three different
-//  actions. Collapsing them into one "Nothing here yet" would tell a man
-//  with forty shirts that his closet is empty because he mistyped a brand.
+//  FOUR EMPTY STATES, NOT ONE. An empty closet, a category with nothing
+//  in it, a search that found nothing, and a filter set that excludes
+//  everything are four different facts about a wardrobe and want four
+//  different sentences and four different actions. Collapsing them into
+//  one "Nothing here yet" would tell a man with forty shirts that his
+//  closet is empty because he mistyped a brand.
 //
-//  TWO OF THE THREE CARRY A SECOND, MANUAL WAY IN — AND THE THIRD MUST
+//  TWO OF THE FOUR CARRY A SECOND, MANUAL WAY IN — AND THE OTHER TWO MUST
 //  NOT. An empty closet and an empty category are both the same fact ("you
 //  own nothing here"), and both used to offer only "Scan", which reaches
 //  a scanner that has not shipped. A screen that says "Add five pieces and
@@ -44,6 +45,23 @@
 //  and the action that fixes his actual problem — Clear Search — would be
 //  competing with it for the eye.
 //
+//  THE FILTER STATE IS THE SAME ARGUMENT, ARRIVED AT FROM THE SAME PLACE,
+//  AND IT IS MORE CLEARLY RIGHT THERE THAN IN THE SEARCH CASE. A man who
+//  has narrowed to navy outerwear in fair condition has told the app, in
+//  eight facets' worth of detail, exactly which garments he owns that he
+//  wants to see. Answering that with a form for a garment he does NOT own
+//  is not just off-topic, it misreads what he said. His closet is full and
+//  he is looking at a scope, not at an absence — so this state gets no
+//  manual add either, and its recovery is the one that puts his own
+//  garments back: turning the filters off.
+//
+//  IT NEEDS ITS OWN CLOSURE RATHER THAN REUSING `onClearSearch`, because
+//  the two clear two different things and neither should silently do the
+//  other's job. A man who cleared his filters and found his query gone
+//  too would have no way to tell which change put the garments back —
+//  `ClosetViewModel.clearFilters()` records the same reasoning from the
+//  other side.
+//
 
 import SwiftUI
 
@@ -52,6 +70,7 @@ struct ClosetEmptyStateView: View {
     let onScan: () -> Void
     let onAddManually: () -> Void
     let onClearSearch: () -> Void
+    let onClearFilters: () -> Void
 
     var body: some View {
         VStack(spacing: AstraSpacing.md) {
@@ -92,11 +111,12 @@ struct ClosetEmptyStateView: View {
     }
 
     /// See this file's header: the two "you own nothing here" states, and
-    /// not the one where the closet is full and the query is wrong.
+    /// neither of the two where the closet is full and it is the
+    /// narrowing that is wrong.
     private var showsManualAdd: Bool {
         switch reason {
         case .closetIsEmpty, .categoryIsEmpty: true
-        case .noSearchMatches: false
+        case .noSearchMatches, .noFilterMatches: false
         }
     }
 
@@ -108,10 +128,16 @@ struct ClosetEmptyStateView: View {
         String(localized: "Type in a piece without using the camera", comment: "VoiceOver hint for the manual add button")
     }
 
+    /// Each state's glyph names the control that produced it, so the
+    /// picture and the button underneath are about the same thing: a
+    /// magnifier for a query, and the header's own filter glyph — the
+    /// same `line.3.horizontal.decrease` `ClosetFilterButton` draws — for
+    /// a filter set.
     private var symbolName: String {
         switch reason {
         case .closetIsEmpty, .categoryIsEmpty: "hanger"
         case .noSearchMatches: "magnifyingglass"
+        case .noFilterMatches: "line.3.horizontal.decrease"
         }
     }
 
@@ -123,6 +149,12 @@ struct ClosetEmptyStateView: View {
             String(localized: "No \(category.displayName) yet", comment: "Closet category empty state title, e.g. 'No Outerwear yet'")
         case .noSearchMatches:
             String(localized: "Nothing matches that", comment: "Closet search empty state title")
+        case .noFilterMatches:
+            // Deliberately not "Nothing matches that" again. Two states
+            // reachable from the same screen, sharing one sentence, would
+            // leave the user unable to tell which of his two narrowings
+            // emptied the grid.
+            String(localized: "No pieces fit those filters", comment: "Closet filter empty state title")
         }
     }
 
@@ -138,6 +170,15 @@ struct ClosetEmptyStateView: View {
             String(localized: "Nothing in this part of your closet yet. Add a piece and it will show up here.", comment: "Closet category empty state")
         case .noSearchMatches(let query):
             String(localized: "Nothing in your closet matches “\(query)”. Try a brand, a colour, or part of a name.", comment: "Closet search found no items")
+        case .noFilterMatches:
+            // Names the reason a set of individually-populated filters can
+            // still return nothing — every facet was offered because some
+            // garment carries it, but no ONE garment carries all of them.
+            // Without that sentence the panel looks broken rather than
+            // strict. The second half points at the cheaper fix first:
+            // reopening the panel undoes one facet, where the button
+            // below undoes all of them.
+            String(localized: "You own pieces in each of those, but none in all of them at once. Drop a filter, or clear them all.", comment: "Closet filters excluded every item")
         }
     }
 
@@ -149,6 +190,8 @@ struct ClosetEmptyStateView: View {
             String(localized: "Scan an Item", comment: "Closet category empty state call to action")
         case .noSearchMatches:
             String(localized: "Clear Search", comment: "Clears the closet search field")
+        case .noFilterMatches:
+            String(localized: "Clear Filters", comment: "Turns every closet filter off")
         }
     }
 
@@ -158,6 +201,8 @@ struct ClosetEmptyStateView: View {
             return onScan
         case .noSearchMatches:
             return onClearSearch
+        case .noFilterMatches:
+            return onClearFilters
         }
     }
 }

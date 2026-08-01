@@ -15,6 +15,14 @@
 //  identical on screen and only show up as a slow closet on a real
 //  connection.
 //
+//  A SECOND SUITE FOLLOWS THE FIRST, for §6.14's metrics row and filter
+//  panel. It is separate because it pins a different kind of thing: not
+//  what this screen shows, but which array it hands to each of the two
+//  pure values beside it — the one decision `ClosetFiltersTests` and
+//  `ClosetMetricsTests` cannot see from where they stand. Its own header
+//  says which four decisions and why each would be reversed by an edit
+//  that looks like a tidy-up.
+//
 
 import Foundation
 import Testing
@@ -357,6 +365,261 @@ struct ClosetViewModelTests {
 
 }
 
+// MARK: - The §6.14 integration: metrics, filter panel, and the search seam
+//
+// The pieces underneath this screen already have suites of their own:
+// `ClosetFiltersTests` proves `apply(to:)` narrows an array the way the
+// eight facets say, and `ClosetMetricsTests` proves `compute(for:)` adds
+// prices up without inventing a currency. Neither can prove the only thing
+// this view model actually decides — WHICH array each of them is handed —
+// and four such decisions currently live nowhere but a comment.
+//
+// Each of them is the kind a later edit reverses while making the code
+// look MORE consistent, which is exactly the sort a comment does not
+// survive: deriving the panel's chips from `visibleItems` "so the panel
+// agrees with the grid", or computing the metrics over `visibleItems` "so
+// the numbers agree with the tiles". Both are one word's difference in the
+// source and neither shows up as a crash.
+//
+// A second suite rather than more tests in the one above: that one is
+// about the tiles and the images, this one is about how three narrowings
+// compose. `type_body_length` and `file_length` are both real ceilings
+// here rather than numbers to raise, which is why each test below carries
+// one behaviour and no ceremony — the file sits close enough to the
+// 560-line limit that a redundant assertion costs something.
+
+@MainActor
+@Suite("ClosetViewModel — spec §6.14 metrics, filters, and the search seam")
+struct ClosetViewModelFilterIntegrationTests {
+
+    // MARK: - The scope the filter panel is built from
+
+    @Test("The panel's scope answers the search field and nothing else, because a scope the user's own taps can move deletes chips from under the finger tapping them")
+    func searchNarrowedItemsIgnoreTheActiveFilters() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+
+        #expect(viewModel.searchNarrowedItems.count == 5)
+
+        // A filter set that visibly moves the grid: two of the five
+        // garments carry this brand, so if the panel's scope were
+        // filter-aware this count would drop to two.
+        viewModel.filters.brands = ["sunspel"]
+        #expect(viewModel.visibleItems.map(\.name) == ["Navy Merino Crewneck", "Ecru Linen Shirt"])
+        #expect(viewModel.searchNarrowedItems.count == 5)
+
+        viewModel.searchText = "navy"
+        #expect(viewModel.searchNarrowedItems.map(\.name) == ["Navy Wool Overcoat", "Navy Merino Crewneck", "Navy Oxford Shirt"])
+        #expect(viewModel.visibleItems.map(\.name) == ["Navy Merino Crewneck"])
+
+        // And it does follow the query, which is the half that must stay
+        // live: the field is behind the sheet, so it can only change
+        // between openings.
+        viewModel.clearFilters()
+        #expect(viewModel.searchNarrowedItems.count == 3)
+
+        // The panel's "Show N items" is this same scope with the pending
+        // facets applied — literally the closure `ClosetView` hands
+        // `ClosetFilterPanelView` — so the number on its button is the
+        // number of garments the grid will hold when the sheet closes.
+        viewModel.filters.categories = [.top]
+        #expect(viewModel.filters.apply(to: viewModel.searchNarrowedItems).count == viewModel.visibleItemCount)
+        #expect(viewModel.visibleItemCount == 2)
+    }
+
+    @Test("The offered chips are derived from the search-narrowed, filter-free closet, so choosing one facet never changes which chips are on offer")
+    func filterOptionsAreDerivedFromTheSearchNarrowedFilterFreeCloset() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+
+        viewModel.searchText = "navy"
+        let offered = viewModel.filterOptions
+
+        // Search-narrowed: Incotex is on the charcoal trousers, which the
+        // query has already excluded, so that chip is not offered — and
+        // the two wear bands offered are the two the navy pieces occupy.
+        #expect(offered.brands.map(\.displayName) == ["Aspesi", "Drake's", "Sunspel"])
+        #expect(offered.wearCounts == [.threeToNine, .tenOrMore])
+
+        // Filter-free: choosing a brand leaves every chip where it was.
+        // Derived from `visibleItems` instead, the brand facet would
+        // collapse to the single value now covering the whole scope and be
+        // dropped altogether as a facet that cannot narrow.
+        viewModel.filters.brands = ["sunspel"]
+        #expect(viewModel.filterOptions == offered)
+
+        // Including when the combination matches nothing at all, which is
+        // the point at which a filter-aware panel would be empty.
+        viewModel.filters.wearCounts = [.tenOrMore]
+        #expect(viewModel.visibleItems.isEmpty)
+        #expect(viewModel.filterOptions == offered)
+    }
+
+    // MARK: - The grid is both narrowings at once
+
+    @Test("The grid is the intersection of the query and the facets, because a man who types a word with a filter on is asking for both at once")
+    func visibleItemsComposeSearchAndFilters() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+
+        viewModel.filters.colors = ["navy"]
+        #expect(viewModel.visibleItems.count == 3)
+        #expect(viewModel.count(in: .top) == 2)
+        #expect(viewModel.count(in: .bottom) == 0)
+
+        // Two garments answer the query, three answer the facet, and one
+        // answers both — so an intersection is a strict subset of either
+        // half and a union would be four.
+        viewModel.searchText = "shirt"
+        #expect(viewModel.searchNarrowedItems.count == 2)
+        #expect(viewModel.visibleItems.map(\.name) == ["Navy Oxford Shirt"])
+        #expect(viewModel.count(in: .top) == 1)
+        #expect(viewModel.visibleItems.allSatisfy { viewModel.searchNarrowedItems.contains($0) })
+    }
+
+    // MARK: - Metrics are about the wardrobe, not about the scope
+
+    @Test("Neither a query nor a facet moves the metrics, because a total that falls when three letters are typed reads as money going missing rather than as a filter working")
+    func metricsAreInvariantToBothNarrowings() async throws {
+        let items = filterableCloset()
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: items))
+        await viewModel.onAppear()
+
+        let wholeCloset = viewModel.metrics
+        let overcoat = try #require(items.first { $0.name == "Navy Wool Overcoat" })
+        let subtotal = try #require(wholeCloset.estimatedValue.subtotals.first)
+        #expect(wholeCloset.totalItems == 5)
+        #expect(subtotal.amount == 1530)
+        #expect(wholeCloset.estimatedValue.isComplete)
+        #expect(wholeCloset.mostWorn.selectableItemID == overcoat.id)
+
+        viewModel.searchText = "navy"
+        #expect(viewModel.visibleItemCount == 3)
+        #expect(viewModel.metrics == wholeCloset)
+
+        viewModel.filters.brands = ["sunspel"]
+        #expect(viewModel.visibleItemCount == 1)
+        #expect(viewModel.metrics == wholeCloset)
+
+        // The counts on the category tiles beside them DO follow both, and
+        // that difference is the decision: a tile is a door and its number
+        // has to be the number of garments behind it, where "estimated
+        // closet value" is a statement about the closet.
+        #expect(viewModel.count(in: .top) == 1)
+    }
+
+    @Test("A garment added while a search is running still counts towards the metrics, because it is genuinely in the closet even though the query is genuinely hiding it")
+    func metricsFollowTheClosetItselfWhenAnItemIsAdded() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+
+        viewModel.searchText = "navy"
+        let beforeAdding = viewModel.metrics
+        #expect(viewModel.visibleItemCount == 3)
+
+        viewModel.insertSavedItem(makeItem(name: "Tan Suede Boots", category: .shoes, brand: "Crockett & Jones", primaryColor: "tan", pricePaid: 400, currency: "GBP"))
+
+        let afterAdding = viewModel.metrics
+        let subtotal = try #require(afterAdding.estimatedValue.subtotals.first)
+        #expect(afterAdding != beforeAdding)
+        #expect(afterAdding.totalItems == 6)
+        #expect(subtotal.amount == 1930)
+        // The grid does not move, because the boots are not navy.
+        #expect(viewModel.visibleItemCount == 3)
+    }
+
+    // MARK: - The fourth reason a grid can be empty
+
+    @Test("A filter set that excludes everything says so, because before this reason existed the screen drew a blank grid with no sentence on it")
+    func filtersThatMatchNothingHaveTheirOwnEmptyReason() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+        #expect(viewModel.emptyReason(for: nil) == nil)
+
+        // Both chips are offered by this closet — it has tops and it has
+        // an Incotex garment, just not one that is both — which is the
+        // combination `ClosetFilterOptions` says the panel cannot rule out.
+        viewModel.filters.categories = [.top]
+        viewModel.filters.brands = ["incotex"]
+        #expect(viewModel.emptyReason(for: nil) == .noFilterMatches)
+
+        viewModel.clearFilters()
+        #expect(viewModel.emptyReason(for: nil) == nil)
+    }
+
+    @Test("With a query and a filter set both active the query names the empty state, and clearing it hands the screen to the filters rather than to nothing at all")
+    func searchOutranksFiltersAndClearingItRevealsTheFilterReason() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+
+        viewModel.filters.categories = [.top]
+        viewModel.filters.brands = ["incotex"]
+        viewModel.searchText = "  tuxedo "
+
+        // Both narrowings could explain this grid. The query wins because
+        // its sentence can quote the typo back, which no sentence about
+        // eight facets can do.
+        #expect(viewModel.emptyReason(for: nil) == .noSearchMatches(query: "tuxedo"))
+
+        // And the recovery it offers is not a dead control when it does
+        // not finish the job: the sentence changes and grows its own Clear
+        // Filters, rather than the same screen coming back.
+        viewModel.clearSearch()
+        #expect(viewModel.isSearching == false)
+        #expect(viewModel.emptyReason(for: nil) == .noFilterMatches)
+
+        viewModel.clearFilters()
+        #expect(viewModel.emptyReason(for: nil) == nil)
+    }
+
+    @Test("A category emptied by the filters is a filter result rather than an empty shelf, because the closet does have tops and clearing the filters brings them back")
+    func categoryScopedEmptyReasonSeparatesFiltersFromAnEmptyCategory() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+
+        #expect(viewModel.emptyReason(for: .shoes) == .categoryIsEmpty(.shoes))
+        #expect(viewModel.emptyReason(for: .top) == nil)
+
+        // The only Incotex garment is a pair of trousers.
+        viewModel.filters.brands = ["incotex"]
+        #expect(viewModel.emptyReason(for: .top) == .noFilterMatches)
+        // The whole-closet grid still has the trousers in it, so it is not
+        // empty and has no reason to give.
+        #expect(viewModel.emptyReason(for: nil) == nil)
+
+        viewModel.clearFilters()
+        #expect(viewModel.count(in: .top) == 3)
+    }
+
+    // MARK: - Two controls, cleared separately
+
+    @Test("Each control clears only itself, so a man who has just been shown a sentence about one narrowing can tell which of the two put his garments back")
+    func clearingEitherControlLeavesTheOtherStanding() async throws {
+        let viewModel = makeViewModel(repository: StubClosetRepository(items: filterableCloset()))
+        await viewModel.onAppear()
+
+        viewModel.searchText = "navy"
+        viewModel.filters.brands = ["sunspel"]
+        #expect(viewModel.visibleItemCount == 1)
+
+        // Clear Filters restores the unfiltered view without touching a
+        // query the user did not ask to undo.
+        viewModel.clearFilters()
+        #expect(viewModel.filters.isEmpty)
+        #expect(viewModel.searchText == "navy")
+        #expect(viewModel.visibleItemCount == 3)
+
+        // And the mirror: emptying the field leaves the facets exactly
+        // where the panel left them.
+        viewModel.filters.brands = ["sunspel"]
+        viewModel.clearSearch()
+        #expect(viewModel.isSearching == false)
+        #expect(viewModel.filters.brands == ["sunspel"])
+        #expect(viewModel.visibleItems.map(\.name) == ["Navy Merino Crewneck", "Ecru Linen Shirt"])
+    }
+
+}
+
 // MARK: - Fixtures
 //
 // At file scope rather than on the suite: they are shared by every test,
@@ -370,7 +633,10 @@ private func makeItem(
     brand: String? = nil,
     subcategory: String? = nil,
     primaryColor: String? = nil,
-    secondaryColors: [String] = []
+    secondaryColors: [String] = [],
+    pricePaid: Decimal? = nil,
+    currency: String? = nil,
+    wearCount: Int = 0
 ) -> ClosetItem {
     ClosetItem(
         id: id,
@@ -380,7 +646,10 @@ private func makeItem(
         category: category,
         subcategory: subcategory,
         primaryColor: primaryColor,
-        secondaryColors: secondaryColors
+        secondaryColors: secondaryColors,
+        pricePaid: pricePaid,
+        currency: currency,
+        wearCount: wearCount
     )
 }
 
@@ -407,6 +676,25 @@ private func mixedCloset() -> [ClosetItem] {
         makeItem(name: "Stone Chinos", category: .bottom, brand: "Incotex", subcategory: "Trousers", primaryColor: "stone"),
         makeItem(name: "Indigo Selvedge Jeans", category: .bottom, subcategory: "Jeans", primaryColor: "indigo"),
         makeItem(name: "Dark Brown Loafers", category: .shoes, brand: "Crockett & Jones", primaryColor: "brown")
+    ]
+}
+
+/// A wardrobe built for the search/filter/metrics seam rather than for the
+/// tiles: three navy pieces spread across two categories, one charcoal
+/// piece the word "navy" excludes, four brands, and a price and a wear
+/// count on every garment so the metrics row has something to be invariant
+/// about.
+///
+/// Every facet used below is one the panel would actually offer for this
+/// closet — a filter combination a test can only reach by hand proves
+/// nothing about a control the user can reach.
+private func filterableCloset() -> [ClosetItem] {
+    [
+        makeItem(name: "Navy Wool Overcoat", category: .outerwear, brand: "Aspesi", subcategory: "Overcoat", primaryColor: "navy", pricePaid: 900, currency: "GBP", wearCount: 12),
+        makeItem(name: "Navy Merino Crewneck", category: .top, brand: "Sunspel", subcategory: "Sweater", primaryColor: "navy", pricePaid: 120, currency: "GBP", wearCount: 5),
+        makeItem(name: "Navy Oxford Shirt", category: .top, brand: "Drake's", subcategory: "Shirt", primaryColor: "navy", secondaryColors: ["white"], pricePaid: 180, currency: "GBP", wearCount: 3),
+        makeItem(name: "Charcoal Flannel Trousers", category: .bottom, brand: "Incotex", subcategory: "Trousers", primaryColor: "charcoal", pricePaid: 240, currency: "GBP", wearCount: 1),
+        makeItem(name: "Ecru Linen Shirt", category: .top, brand: "Sunspel", subcategory: "Shirt", primaryColor: "ecru", pricePaid: 90, currency: "GBP")
     ]
 }
 

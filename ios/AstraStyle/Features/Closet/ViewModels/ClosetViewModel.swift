@@ -11,12 +11,25 @@
 //  in-flight booleans, protocol-only dependencies, and zero networking
 //  anywhere above this file.
 //
-//  SCOPE. This file backs the header, the category tiles and the grids
-//  only. The metrics row and the three view modes, and the filter panel,
-//  are separate tickets. Nothing here needs restructuring to add them:
-//  client-side narrowing already funnels through one place
-//  (`narrowed(_:)`), so a filter set becomes a second predicate beside the
-//  search predicate rather than a new pipeline.
+//  SCOPE. This file backs the header, the category tiles, the grids, the
+//  metrics row and the filter panel. The prediction the first draft of
+//  this header made held: client-side narrowing funnels through one place
+//  (`narrowed(_:)`), so the filter set arrived as a second predicate
+//  beside the search predicate rather than as a new pipeline. Which of
+//  the three view modes is on screen is NOT here — that is a display
+//  preference belonging to the screen that draws it, persisted in
+//  `@AppStorage` by `ClosetView`, and putting it on a view model that
+//  every closet screen builds its own copy of would have made the two
+//  closet screens disagree about a choice the user made once.
+//
+//  THREE DERIVED COLLECTIONS, NOT ONE, AND THE MIDDLE ONE EXISTS FOR THE
+//  PANEL. `allItems` is the closet; `visibleItems` is search AND filters;
+//  `searchNarrowedItems` is search WITHOUT filters, and it is what the
+//  filter panel is built from. The panel's chips and its match count must
+//  both be answered against a scope the user's own filter taps cannot
+//  move, or every tap deletes chips from under his finger — see
+//  `ClosetFilterOptions`'s header, which argues that call-site decision
+//  in full.
 //
 //  WHY `fetchWardrobeScore()` IS NOT CALLED. It throws
 //  `AstraError.unimplemented` unconditionally today — there is no
@@ -162,10 +175,10 @@ public final class ClosetViewModel {
         }
     }
 
-    /// Why a grid has nothing in it. Three genuinely different situations
+    /// Why a grid has nothing in it. Four genuinely different situations
     /// that a single "nothing here" state would flatten into one wrong
     /// sentence — spec §21 fixes the copy for the first of them and it
-    /// does not fit the other two.
+    /// does not fit the other three.
     public enum EmptyReason: Equatable, Sendable {
         /// The whole closet is empty. This is the state spec §21 writes
         /// the copy for.
@@ -175,6 +188,17 @@ public final class ClosetViewModel {
         /// The closet has garments in scope, but none of them match what
         /// the user typed.
         case noSearchMatches(query: String)
+        /// The closet has garments in scope, but the filter set excludes
+        /// every one of them.
+        ///
+        /// Carries no payload, unlike `noSearchMatches`. A query is one
+        /// short string and quoting it back names the mistake ("nothing
+        /// matches 'navy jkt'"); a filter set is up to eight facets and
+        /// any number of values, and a sentence reciting them would be
+        /// longer than the panel that sets them — which the user can
+        /// reopen, where every active facet is already listed with its
+        /// own Clear.
+        case noFilterMatches
     }
 
     public private(set) var state: ViewState = .loading
@@ -190,6 +214,17 @@ public final class ClosetViewModel {
     /// small enough that filtering in memory is both instant and correct
     /// while offline.
     public var searchText: String = ""
+
+    /// Spec §6.14's eight filter facets. `ClosetFilterPanelView` binds
+    /// straight to this and every toggle lands on the screen behind the
+    /// sheet immediately — there is no Apply step and no draft to lose,
+    /// which is why this is a plain `var` rather than something the panel
+    /// has to hand back.
+    ///
+    /// Mutable from outside for that reason alone. Everything derived
+    /// from it below is a computed property, so there is no cache a
+    /// direct write could leave stale.
+    public var filters = ClosetFilters()
 
     /// Resolved, displayable image URLs keyed by `ClosetItem.id`. Absent
     /// means "not resolved yet, or this garment has no photograph" —
@@ -278,6 +313,17 @@ public final class ClosetViewModel {
         searchText = ""
     }
 
+    /// Turns every facet off, leaving the search query alone.
+    ///
+    /// Deliberately not "clear everything": the two narrowings are set by
+    /// two different controls and the man who taps this has been shown a
+    /// sentence about his filters. Wiping his query as well would undo
+    /// something he did not ask to undo, and he would have no way to tell
+    /// which of the two changes put the garments back.
+    public func clearFilters() {
+        filters.clear()
+    }
+
     // MARK: - Adding a garment (spec §6.15's editable fields, manual path)
 
     /// Builds the manual add form's view model, already wired to fold its
@@ -352,21 +398,73 @@ public final class ClosetViewModel {
 
     // MARK: - Derived collections
 
-    /// Every garment in the closet, ignoring the search field.
+    /// Every garment in the closet, ignoring both the search field and
+    /// the filter set.
     public var allItems: [ClosetItem] { state.items }
 
-    /// The closet narrowed by whatever the user has typed. This is the
-    /// single narrowing seam: the filter panel becomes a second predicate
-    /// inside `narrowed(_:)`, not a parallel pipeline.
+    /// The closet narrowed by whatever the user has typed AND by whatever
+    /// he has filtered. This is the single narrowing seam — both
+    /// predicates live inside `narrowed(_:)`, not in parallel pipelines.
     public var visibleItems: [ClosetItem] { narrowed(state.items) }
+
+    /// The closet narrowed by the search query and by nothing else.
+    ///
+    /// THIS IS THE SCOPE THE FILTER PANEL IS BUILT FROM, and it exists
+    /// because neither of the other two collections can do that job.
+    /// `allItems` would offer chips for brands the query has already
+    /// excluded, so a man searching "navy" would be shown every label he
+    /// owns. `visibleItems` would delete the chip he just tapped: the
+    /// moment he selects a brand, every other brand covers zero of the
+    /// remaining garments and vanishes, so the panel empties itself as he
+    /// uses it. Search-narrowed and filter-free is the one scope that
+    /// holds still for as long as the sheet is open, because the only
+    /// control that could move it — the search field — is behind the
+    /// sheet and out of reach.
+    public var searchNarrowedItems: [ClosetItem] { searchNarrowed(state.items) }
+
+    /// Which of spec §6.14's filter values this closet can actually offer,
+    /// derived from `searchNarrowedItems` for the reason argued there and
+    /// in `ClosetFilterOptions`'s own header.
+    public var filterOptions: ClosetFilterOptions {
+        ClosetFilterOptions.derive(from: searchNarrowedItems)
+    }
+
+    /// Spec §6.14's metrics block.
+    ///
+    /// COMPUTED OVER `allItems`, NOT `visibleItems`, AND THAT IS A
+    /// DELIBERATE BREAK WITH THE TILE COUNTS BESIDE IT.
+    /// `count(in:)` two properties down is search-aware, and it has to
+    /// be: a category tile is a DOOR, and a number on a door that is not
+    /// the number of garments behind it is a lie the user discovers by
+    /// tapping. A metric is not a door. Nothing is behind "Estimated
+    /// value" except the figure itself, and the two tiles that do name a
+    /// garment resolve it by id, so they stay reachable whatever the
+    /// query says.
+    ///
+    /// What settles it is what the labels claim. "Estimated closet value"
+    /// is a statement about the wardrobe, and a total that falls from
+    /// £14,000 to £180 because a man typed three letters into a search
+    /// field reads as money going missing rather than as a filter
+    /// working. "Average cost per wear" over a query is an average of
+    /// whatever the query happened to catch, which is not a figure about
+    /// anything. And "Most worn" narrowed to a search is the most-worn
+    /// thing matching that search — a different question, asked under the
+    /// old question's label.
+    ///
+    /// So: counts on navigation controls follow the query; figures about
+    /// the wardrobe do not. Filters are treated identically, for the same
+    /// reason — they are a narrower scope, not a different wardrobe.
+    public var metrics: ClosetMetrics {
+        ClosetMetrics.compute(for: allItems)
+    }
 
     public func items(in category: ClothingCategory) -> [ClosetItem] {
         narrowed(state.items.filter { $0.category == category })
     }
 
-    /// The count shown on a category tile. Reflects the active search, so
-    /// the number on the tile and the number of garments behind it are
-    /// never two different facts.
+    /// The count shown on a category tile. Reflects the active search and
+    /// the active filters, so the number on the tile and the number of
+    /// garments behind it are never two different facts.
     public func count(in category: ClothingCategory) -> Int {
         items(in: category).count
     }
@@ -392,11 +490,62 @@ public final class ClosetViewModel {
         let scoped = category.map { items(in: $0) } ?? visibleItems
         guard scoped.isEmpty else { return nil }
 
-        if isSearching {
+        // A CATEGORY THE MAN OWNS NOTHING IN IS EMPTY FOR THAT REASON, AND
+        // NOT FOR WHATEVER ELSE HAPPENS TO BE SWITCHED ON.
+        //
+        // This is checked before the query and the filter set, because it
+        // is the only one of the three that is true regardless of them.
+        // Reaching Shoes with a filter active used to report
+        // `noFilterMatches` on a closet containing no shoes at all — the
+        // man read "you own pieces in each of those, but none in all of
+        // them at once", pressed Clear Filters, and the grid stayed empty
+        // before finally admitting he owns no shoes. The sentence was
+        // untrue of that scope and the button it came with put nothing
+        // back, which is the dead control spec §22 rules out wearing the
+        // costume of a recovery.
+        if let category, !state.items.contains(where: { $0.category == category }) {
+            return .categoryIsEmpty(category)
+        }
+
+        // PRECEDENCE, WHEN A QUERY AND A FILTER SET COULD BOTH EXPLAIN IT.
+        // The query wins, for two reasons that point the same way.
+        //
+        // It is the more specific act. A typed query is aimed at one
+        // garment, and the sentence it produces can quote the typo back —
+        // "nothing matches 'navy jkt'" names the actual mistake, which no
+        // sentence about a filter set can do. A filter set is a standing
+        // scope the user configured earlier, in a sheet he has since
+        // dismissed; the query is live under his finger in a field that
+        // is still on screen.
+        //
+        // And neither recovery is a dead control when it does not finish
+        // the job. Clearing the query on a screen that is still
+        // filter-empty does not leave the same screen behind: the field
+        // empties, the sentence changes, and the state becomes
+        // `noFilterMatches` with its own Clear Filters underneath it. Two
+        // visible steps, each of which plainly did something (spec §22),
+        // rather than one control that has to guess which of two things
+        // the user meant.
+        //
+        // BUT THE QUERY ONLY WINS WHEN IT COULD ACTUALLY BE THE CAUSE.
+        // Precedence is a rule for the case where BOTH explain the
+        // emptiness, and asking `isSearching` does not test that — it only
+        // asks whether a query exists. A man filtering to Aspesi and then
+        // typing "shirt" over a closet holding two shirts by other houses
+        // was told "Nothing in your closet matches 'shirt'", which is
+        // false, and Clear Search then handed him back garments that are
+        // not shirts. So the branch asks the question it means: does the
+        // query, on its own, empty this scope? If it does not, the filters
+        // did, and the next branch says so.
+        let scopeSource = category.map { category in state.items.filter { $0.category == category } } ?? state.items
+        if isSearching, searchNarrowed(scopeSource).isEmpty {
             return .noSearchMatches(query: trimmedQuery)
         }
-        // A non-empty closet with no active search can only be empty in
-        // scope when that scope is a category.
+        if !filters.isEmpty {
+            return .noFilterMatches
+        }
+        // A non-empty closet with no active search and no active filters
+        // can only be empty in scope when that scope is a category.
         return category.map(EmptyReason.categoryIsEmpty)
     }
 
@@ -538,8 +687,35 @@ public final class ClosetViewModel {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// The one place client-side narrowing happens.
+    /// The one place client-side narrowing happens: filters, then search.
+    ///
+    /// FILTERS FIRST BECAUSE THEY ARE THE CHEAPER PREDICATE, and the two
+    /// commute so the order is free to choose. Both are per-item
+    /// predicates with no cross-item state, so filter-then-search and
+    /// search-then-filter select exactly the same garments in exactly the
+    /// same order; only the amount of work differs.
+    ///
+    /// A filter facet is a `Set.contains` on a value already in hand, the
+    /// chain short-circuits on the first facet a garment fails, and an
+    /// empty filter set returns the very array it was handed without
+    /// touching an element (`ClosetFilters.apply(to:)` guarantees that in
+    /// writing). Search is `localizedCaseInsensitiveContains` — a
+    /// locale-aware Unicode substring search — run over up to five
+    /// strings per garment, and it cannot stop early on a garment that
+    /// matches nothing until it has tried all five. So the cheap
+    /// predicate runs first and the expensive one runs over whatever
+    /// survives it.
     private func narrowed(_ items: [ClosetItem]) -> [ClosetItem] {
+        searchNarrowed(filters.apply(to: items))
+    }
+
+    /// The search half of `narrowed(_:)`, on its own.
+    ///
+    /// Split out rather than inlined because `searchNarrowedItems` — the
+    /// scope the filter panel is built from — needs exactly this and not
+    /// the filtered result. Two callers, one implementation, so the panel
+    /// and the grid can never disagree about what the query means.
+    private func searchNarrowed(_ items: [ClosetItem]) -> [ClosetItem] {
         let query = trimmedQuery
         guard !query.isEmpty else { return items }
         return items.filter { matches($0, query: query) }

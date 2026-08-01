@@ -355,7 +355,15 @@ struct ClosetItemPurchaseSection: View {
                 if let pricePaid = item.pricePaid {
                     ClosetItemFieldRow(
                         label: String(localized: "Price paid", comment: "Garment field"),
-                        value: ClosetItemDetailCopy.currency(pricePaid, code: item.currency ?? ClosetItemDetailCopy.fallbackCurrencyCode)
+                        // Both halves come from `CurrencyFormatting` — the
+                        // one place the "what if the row does not say
+                        // which money it is" rule lives, so this row and
+                        // the closet's estimated value cannot read the
+                        // same garment two ways.
+                        value: CurrencyFormatting.formatted(
+                            pricePaid,
+                            code: CurrencyFormatting.normalizedCurrencyCode(item.currency)
+                        )
                     )
                 }
                 if let retailer = item.retailer, !retailer.isEmpty {
