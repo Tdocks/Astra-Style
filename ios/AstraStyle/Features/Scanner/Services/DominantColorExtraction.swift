@@ -6,13 +6,12 @@
 //
 //      5. Extract dominant colors.
 //
-//  The other half of P3-SCAN-03 is step 4, "OCR label text", and it is NOT
-//  here and not stubbed here: it is a `VNRecognizeTextRequest`, it needs a
-//  real photograph of a real care label to say anything, and its acceptance
-//  criterion ("OCR extracts readable brand/size text from a clear label
-//  photo in manual testing") says "in manual testing" out loud. It belongs
-//  next to the camera, behind a seam of its own, alongside
-//  `GarmentRegionDetecting` in `CaptureQuality.swift`.
+//  The other half of P3-SCAN-03 is step 4, "OCR label text". That lives
+//  behind `LabelTextRecognizing` / `LiveVisionLabelTextRecognizer` and is
+//  composed into `GarmentDeviceHints.detectedText` by
+//  `DeviceHintsExtraction` — not here. Acceptance ("OCR extracts readable
+//  brand/size text from a clear label photo in manual testing") remains
+//  manual; unit tests cover the mock recognizer path only.
 //
 //  Colour extraction is the half that CAN be settled without hardware, and
 //  P3-SCAN-03's second criterion — "Dominant color extraction returns a
@@ -35,21 +34,16 @@
 //  degrades. A wrong hint is worse than no hint.
 //
 //  The real fix is segmentation — mask the background out, extract from the
-//  garment only — and segmentation is `GarmentRegionDetecting`, which is not
-//  implemented yet by design (see that protocol's documentation).
+//  garment only — via `GarmentRegionDetecting` (`LiveVisionGarmentRegionDetector`).
+//  `DeviceHintsExtraction` is the injectable call site that supplies a
+//  detected region into `extract(from:garmentRegion:)`.
 //
-//  So the interim behaviour is stated rather than hidden: extraction runs
-//  over a CENTRE REGION of the frame, because the capture screen's framing
-//  guide (spec §6.16) puts the garment in the middle, and the middle is the
-//  best prior available without a mask. It is a prior and it is wrong
-//  sometimes. Two things follow from admitting that:
-//
-//  - `extract(from:garmentRegion:)` takes a region the moment one exists, so
-//    the day the Vision adapter lands this file needs no change beyond the
-//    call site.
-//  - Pixels that are not fully opaque are skipped, so a caller that already
-//    HAS a mask can apply it to the `CGImage` and get true garment-only
-//    extraction out of this same code path today.
+//  When no region is supplied, extraction still runs over a CENTRE REGION
+//  of the frame, because the capture screen's framing guide (spec §6.16)
+//  puts the garment in the middle. It is a prior and it is wrong sometimes.
+//  Pixels that are not fully opaque are skipped, so a caller that already
+//  HAS a mask can apply it to the `CGImage` and get true garment-only
+//  extraction out of this same code path today.
 //
 //  ---------------------------------------------------------------------
 //  COLOUR GEOMETRY IS BORROWED, NOT REWRITTEN.
