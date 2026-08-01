@@ -429,7 +429,11 @@ struct ClosetItemDetailCopyTests {
 
     @Test("A missing currency falls back to USD rather than to the device locale, because relabelling a recorded amount would misstate what was paid")
     func missingCurrencyFallsBackToUSD() {
-        #expect(ClosetItemDetailCopy.fallbackCurrencyCode == "USD")
+        // Moved out of `ClosetItemDetailCopy` into `CurrencyFormatting`
+        // when the closet metrics row became the second surface needing
+        // it. The assertion is unchanged — the rule is the same rule,
+        // now in one place instead of two.
+        #expect(CurrencyFormatting.fallbackCurrencyCode == "USD")
         let item = makeItem(pricePaid: 100, currency: nil, wearCount: 4)
         guard case .amount(let formatted) = ClosetItemDetailCopy.costPerWear(for: item) else {
             Issue.record("Expected a computable cost per wear for 100 over 4 wears")

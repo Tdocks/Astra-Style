@@ -26,6 +26,28 @@ public enum CostPerWearCalculator {
     /// of each item's individual cost-per-wear — the latter would let a
     /// single never-worn expensive item silently disappear from the
     /// average instead of dragging it up.
+    ///
+    /// PRECONDITION: PASS ONLY GARMENTS THAT HAVE A PRICE. A `nil`
+    /// `pricePaid` contributes 0 to the numerator and its `wearCount`
+    /// contributes in FULL to the denominator, so every unpriced garment
+    /// in the array drags the average down by an amount nothing on screen
+    /// explains. Hand it a whole closet in which half the pieces have no
+    /// price on file and it will report roughly half the true figure,
+    /// confidently and without failing.
+    ///
+    /// The asymmetry is deliberate and is NOT a bug to be fixed here: for
+    /// a caller that has already selected priced garments, `?? 0` is
+    /// unreachable, and `CostPerWearCalculatorTests` pins the current
+    /// behaviour. It is stated rather than corrected because the fix
+    /// belongs at the call site, where the meaning of "the closet's
+    /// average" is decided. `ClosetMetrics.compute(for:)` is the worked
+    /// example: it filters to priced garments first and passes only those.
+    ///
+    /// - Parameter items: Garments that each have a `pricePaid` on file.
+    ///   Entries with a `nil` price are counted in the denominator and not
+    ///   in the numerator; filter them out before calling.
+    /// - Returns: Total spend over total wears, or `nil` when nothing in
+    ///   the array has ever been worn.
     public static func averageCostPerWear(items: [(pricePaid: Decimal?, wearCount: Int)]) -> Decimal? {
         let totalSpend = items.reduce(Decimal.zero) { $0 + ($1.pricePaid ?? 0) }
         let totalWears = items.reduce(0) { $0 + $1.wearCount }

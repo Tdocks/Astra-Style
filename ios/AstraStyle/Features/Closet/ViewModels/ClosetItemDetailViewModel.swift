@@ -398,14 +398,15 @@ public enum CostPerWearDisplay: Equatable, Sendable {
 
 /// Formatting for the item detail screen's derived copy.
 ///
-/// PROMOTION NOTE. `currency(_:code:)` is a general currency formatter and
-/// `Core/Utilities/` is where it belongs, alongside
-/// `DateAndWeatherFormatting.swift` and `MeasurementFormatting.swift` —
-/// there is no currency formatter there today. It lives here because this
-/// ticket does not own that directory. The moment a second surface needs
-/// it (closet metrics' "estimated closet value" and the §6.19 product
-/// decision page both will) it should move to
-/// `Core/Utilities/CurrencyFormatting.swift` rather than be copied.
+/// PROMOTION DONE. This type used to carry `currency(_:code:)` and
+/// `fallbackCurrencyCode`, under a note saying both belonged in
+/// `Core/Utilities/` and should MOVE — not be copied — the moment a
+/// second surface needed them. The closet metrics row was that second
+/// surface, and `Core/Utilities/CurrencyFormatting.swift` is now the one
+/// home: `CurrencyFormatting.formatted(_:code:)` and
+/// `CurrencyFormatting.fallbackCurrencyCode`. Both members are gone from
+/// here rather than deprecated, so there is no second spelling left for
+/// the two surfaces to drift apart on.
 public enum ClosetItemDetailCopy {
 
     /// Which of the three cost-per-wear sentences this item gets.
@@ -415,26 +416,29 @@ public enum ClosetItemDetailCopy {
     /// the price, wears the thing, and the number appears. Leading with
     /// "Not yet worn" would be true, useless, and would hide the field he
     /// could actually fill in.
+    ///
+    /// THE ONE BEHAVIOUR CHANGE THE PROMOTION MADE, AND WHY IT IS THE
+    /// RIGHT ONE. This used to read `item.currency ?? fallbackCurrencyCode`
+    /// and now goes through `CurrencyFormatting.normalizedCurrencyCode`,
+    /// which additionally trims and uppercases and treats a blank string
+    /// as no currency at all. `closet_items.currency` is free text
+    /// written by a form today and by an importer and a scan pipeline
+    /// later, so `"usd"`, `"USD "` and `" "` will all exist in it. Under
+    /// the old rule this screen would have formatted a garment recorded
+    /// as `" "` with a blank currency code while the metrics row totalled
+    /// it as USD — one jacket, two answers, which is precisely the drift
+    /// that moving these members into one file was meant to end. Nothing
+    /// pinned the old reading; `ClosetItemDetailCopyTests` pins the two
+    /// that matter (a recorded code is honoured, a missing one falls back
+    /// to USD and never to the device locale) and both still hold.
     public static func costPerWear(for item: ClosetItem) -> CostPerWearDisplay {
         if let value = CostPerWearCalculator.costPerWear(pricePaid: item.pricePaid, wearCount: item.wearCount) {
-            return .amount(currency(value, code: item.currency ?? Self.fallbackCurrencyCode))
+            return .amount(
+                CurrencyFormatting.formatted(value, code: CurrencyFormatting.normalizedCurrencyCode(item.currency))
+            )
         }
         guard let pricePaid = item.pricePaid, pricePaid >= 0 else { return .noPriceOnFile }
         return .notYetWorn
-    }
-
-    /// `closet_items.currency` is nullable and older rows predate it being
-    /// written at all, so a fallback is required. USD rather than the
-    /// device locale's currency: the number came from somewhere, and
-    /// relabelling a recorded amount as £ because the phone is in London
-    /// would be a quiet, confident lie about what he paid.
-    public static let fallbackCurrencyCode = "USD"
-
-    /// Deliberately does not force two decimal places. `.currency(code:)`
-    /// already uses each currency's own minor-unit count, and a hardcoded
-    /// `.fractionLength(2)` would render ¥1,200 as ¥1,200.00.
-    public static func currency(_ amount: Decimal, code: String) -> String {
-        amount.formatted(.currency(code: code))
     }
 
     /// Purchase date reads as an absolute date — it is a record of a

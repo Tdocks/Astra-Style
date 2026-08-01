@@ -3,11 +3,12 @@
 //  AstraStyle
 //
 //  The Closet tab's root screen (spec §6.14 "Closet overview"): the
-//  header — My Closet, search, scan — the eight category tiles, and the
-//  whole-closet editorial grid beneath them. No network call happens in
-//  this file; everything goes through `ClosetViewModel`.
+//  header — My Closet, add, scan, filter, view mode, search — the eight
+//  category tiles, the metrics row, and the whole-closet grid beneath
+//  them. No network call happens in this file; everything goes through
+//  `ClosetViewModel`.
 //
-//  Every state spec §21 asks for is here: skeleton, loaded, three
+//  Every state spec §21 asks for is here: skeleton, loaded, four
 //  distinct empty states, a recoverable error with a retry that only
 //  appears when retrying can succeed, and an offline banner layered over
 //  content rather than replacing it.
@@ -21,32 +22,56 @@
 //  is already on this page. Nothing is faked, no route is invented, and
 //  the tile does something real the first time it is tapped.
 //
-//  It also happens to be where the rest of §6.14 belongs. The metrics row
-//  and the editorial-grid / compact-list / colour-spectrum toggle are a
-//  later ticket, and both act on exactly this grid: the toggle changes how
-//  the section below renders, the metrics row sits above it. Had "All
-//  items" been a pushed screen, those would have had to live on a screen
-//  the user reaches only by tapping one of eight tiles.
+//  It also happens to be where the rest of §6.14 belongs, and that has
+//  now been collected. The metrics row sits above this grid and the
+//  editorial-grid / compact-list / colour-spectrum toggle changes how it
+//  renders. Had "All items" been a pushed screen, both would have had to
+//  live somewhere the user reaches only by tapping one of eight tiles.
 //
-//  NO FILTER BUTTON YET, DELIBERATELY.
-//  Spec §6.14's header lists one, `ClosetRoute.filters` exists as a
-//  destination, and the panel behind it is a separate ticket that has not
-//  been built. A filter control that opens an apology is a dead button,
-//  which spec §22 rules out by name, so the control is absent rather than
-//  present-and-hollow — a visible gap in §6.14 is easier to see and
-//  cheaper to fix than a control that has taught the user it does nothing.
-//  Search is real today and does the narrowing that can be done honestly.
-//  The filter button lands with the panel, not before it.
+//  THE FILTER BUTTON, AND WHAT IT REPLACED.
+//  This header used to carry a paragraph arguing that §6.14's filter
+//  control had to stay ABSENT, because the panel behind it did not exist
+//  and a control that opens an apology is the dead button spec §22 rules
+//  out by name. That reasoning is discharged rather than overturned:
+//  `ClosetFilterPanelView` is built and tested, so the door to it is
+//  real. The button is here, beside add and scan, and it opens the panel
+//  as a sheet over this screen.
+//
+//  It is drawn CONDITIONALLY, which is the same argument one level down.
+//  A closet that can offer no filter values at all — nothing in it, or a
+//  handful of pieces differing in nothing — puts a panel behind this
+//  button with a sentence and no chips, so the button is not drawn.
+//  `ClosetFilterButton`'s own header states the rule and the half of it
+//  that is easy to drop: `!options.isEmpty || activeFacetCount > 0`. The
+//  second clause is what stops a man who filtered down to two garments
+//  from watching the only control that could undo it disappear along
+//  with the chips.
+//
+//  `ClosetRoute.filters` stays unused. The panel is a sheet over this
+//  screen, not a pushed destination, because it applies as it is tapped
+//  and the closet behind it has to be visible changing — the whole reason
+//  there is no Apply step (see `ClosetFilterPanelView`'s header). Pushing
+//  it would hide the thing it is editing.
+//
+//  THE VIEW MODE IS PERSISTED, NOT HELD.
+//  `@AppStorage` rather than `@State`, under a key
+//  `ClosetCategoryView` reads too. A chosen layout is a preference, and
+//  one that resets on every launch is a control that keeps undoing
+//  itself; one that resets when the user pushes into a category is two
+//  closets that disagree about a choice he made once. `ClosetViewMode`
+//  is written for exactly this — its raw values are a persistence
+//  contract pinned by tests, so renaming a case cannot silently drop
+//  every existing user back to the grid.
 //
 //  AND THE ADD BUTTON PASSES THAT SAME TEST, WHICH IS WHY IT IS HERE.
-//  The rule the filter button is held back by is not "§6.14 lists it" — it
-//  is "does the thing behind it exist". `ClosetItemFormView` and
+//  The rule the filter button was held back by is not "§6.14 lists it" —
+//  it is "does the thing behind it exist". `ClosetItemFormView` and
 //  `ClosetItemFormViewModel.adding(...)` are built, tested and write real
 //  `closet_items` rows, and until this button existed they had no call
 //  site anywhere in the app: the tab's only way in was the scan button,
 //  and `AppRouter.startScan()` reaches a placeholder until the scanner
 //  ships. So the Closet tab shipped with no way to put a garment in it at
-//  all. That is the same §22 failure the filter button is being kept out
+//  all. That is the same §22 failure the filter button was being kept out
 //  to avoid, arrived at from the other direction, and this is the control
 //  that fixes it.
 //
@@ -60,7 +85,30 @@
 //
 //  The same door is repeated in the empty states, which is where it
 //  matters most — see `ClosetEmptyStateView`'s header for which of the
-//  three carry it and which must not.
+//  four carry it and which must not.
+//
+//  THE HEADER ROW HAD TO BE RESTRUCTURED, AND NOT ONLY FOR LARGE TYPE.
+//  It now carries a display-weight title and FOUR glyph controls — add,
+//  scan, filter, view mode. That does not fit on one line, and the first
+//  place it stops fitting is not an accessibility size: at the default
+//  text size on a 320pt-wide phone, four controls at the minimum tap
+//  target leave the serif "My Closet" about a hundred points, so the
+//  title compresses or truncates before Dynamic Type is touched at all.
+//  A branch keyed to `isAccessibilitySize` — the idiom used elsewhere in
+//  this feature — would therefore have fixed the loud half of the problem
+//  and left the quiet half shipping.
+//
+//  So the choice is made by MEASUREMENT rather than by a threshold.
+//  `ViewThatFits` offers the one-line header first and falls back to the
+//  title with the controls on their own row beneath it, which is correct
+//  at every combination of screen width and text size rather than at the
+//  ones someone thought to guess. The fallback row is an
+//  `AstraWrappingHStack`, so at the largest accessibility sizes — where
+//  a 24pt glyph scales past 60 — the four controls wrap onto a second
+//  line instead of running off the edge. Nothing here truncates, scales
+//  text down, or scrolls sideways: those are the three escapes spec §19
+//  rules out, and this feature has already argued each of them down once
+//  (`ClosetMetricsRow`, `AstraWrappingHStack`).
 //
 
 import SwiftUI
@@ -76,6 +124,23 @@ public struct ClosetView: View {
     /// paywall), and this one belongs to this screen and closes back onto
     /// it.
     @State private var isAddingItem = false
+
+    /// Whether the filter panel is up. View state for the same reason
+    /// `isAddingItem` is: it belongs to this screen and closes back onto
+    /// it. The values it edits are NOT view state — they live on the view
+    /// model, because the grid, the category tile counts and the empty
+    /// state all read them.
+    @State private var isFiltering = false
+
+    /// Which of spec §6.14's three layouts the closet is drawn in.
+    ///
+    /// Persisted, and under a key `ClosetCategoryView` also reads — see
+    /// this file's header. The literal key is spelled out in both places
+    /// rather than hoisted into a shared constant only because
+    /// `@AppStorage` needs it at the property wrapper, and a two-screen
+    /// preference with the key visible at both call sites is easier to
+    /// keep honest than one indirection away from either.
+    @AppStorage("closet.viewMode") private var viewMode: ClosetViewMode = .editorialGrid
 
     /// Anchor for the "All items" tile. A constant rather than a `UUID()`
     /// so it survives the view being rebuilt mid-scroll.
@@ -119,22 +184,50 @@ public struct ClosetView: View {
                 isAddingItem = false
             }
         }
+        .sheet(isPresented: $isFiltering) {
+            ClosetFilterPanelView(
+                filters: $viewModel.filters,
+                // Both of these are answered against the SEARCH-NARROWED,
+                // FILTER-FREE closet, which is the scope
+                // `ClosetFilterOptions`'s header asks the presenter for.
+                // Chips then describe garments the screen is actually
+                // showing, and neither the chips nor the count can move
+                // under the user's finger as he taps — the only control
+                // that could move them is the search field, and it is
+                // behind this sheet.
+                options: viewModel.filterOptions,
+                matchCount: { $0.apply(to: viewModel.searchNarrowedItems).count },
+                onDone: { isFiltering = false }
+            )
+        }
     }
 
     // MARK: - Header
 
     private var header: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.md) {
-            HStack(alignment: .firstTextBaseline, spacing: AstraSpacing.sm) {
-                Text(String(localized: "My Closet", comment: "Closet tab title"))
-                    .astraText(.displayL)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+            // See this file's header for why this is measured rather than
+            // branched on a text-size threshold.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: AstraSpacing.sm) {
+                    title
 
-                Spacer(minLength: AstraSpacing.sm)
+                    Spacer(minLength: AstraSpacing.sm)
 
-                addButton
-                scanButton
+                    // A plain `HStack` in THIS candidate on purpose. An
+                    // `AstraWrappingHStack` here would wrap silently to
+                    // fit whatever width it was offered, report that it
+                    // fits, and this candidate would always win — so the
+                    // header would quietly grow a second line of controls
+                    // beside a squeezed title instead of falling back to
+                    // the layout below.
+                    HStack(spacing: AstraSpacing.sm) { headerControls }
+                }
+
+                VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                    title
+                    AstraWrappingHStack(spacing: AstraSpacing.sm) { headerControls }
+                }
             }
 
             if viewModel.state.hasSearchableContent {
@@ -148,6 +241,73 @@ public struct ClosetView: View {
             }
         }
         .padding(.horizontal, AstraSpacing.pagePadding)
+    }
+
+    private var title: some View {
+        Text(String(localized: "My Closet", comment: "Closet tab title"))
+            .astraText(.displayL)
+            .foregroundStyle(AstraColor.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The header controls, in one place so both `ViewThatFits`
+    /// candidates draw the same set in the same order rather than two
+    /// lists that can drift apart.
+    ///
+    /// Order is reading order, and it is the order the two original
+    /// controls already had: the two ways to PUT something in the closet
+    /// first (type it in, photograph it), then the two that change what
+    /// you see of what is already in it (narrow it, re-lay it out). The
+    /// last two are conditional — each is drawn only where it can change
+    /// something, so the row is between two and four controls wide and
+    /// the layout below has to survive all three cases.
+    @ViewBuilder
+    private var headerControls: some View {
+        addButton
+        scanButton
+        filterButton
+        // Only where there is a grid for it to re-lay out. A layout
+        // toggle above a skeleton, an error, or the empty-closet state is
+        // a control that changes nothing visible — the same test the
+        // search field beside it already passes, and the same one §22
+        // applies to every other control on this screen.
+        if isShowingWholeClosetGrid {
+            ClosetViewModeToggle(selection: $viewMode)
+        }
+    }
+
+    /// Whether the whole-closet grid is on screen right now.
+    ///
+    /// Mirrors the branch in `allItemsSection` rather than re-deriving
+    /// it: `hasSearchableContent` is the loaded-and-non-empty test (and
+    /// is what rules out the skeleton and the error state, which
+    /// `emptyReason(for:)` deliberately answers `nil` for), and
+    /// `emptyReason(for: nil) == nil` is the "and something survived the
+    /// narrowing" half.
+    private var isShowingWholeClosetGrid: Bool {
+        viewModel.state.hasSearchableContent && viewModel.emptyReason(for: nil) == nil
+    }
+
+    /// §6.14's filter control, drawn only where it can do something.
+    ///
+    /// The condition is `ClosetFilterButton`'s own documented rule. The
+    /// second clause is the one that matters: filtering down to two
+    /// garments can itself empty the option list, and without it the
+    /// control that undoes the filter would vanish at exactly the moment
+    /// the user needs it.
+    @ViewBuilder
+    private var filterButton: some View {
+        // Derived once per pass and reused, rather than read twice: this
+        // is a walk over the closet per read, and the sheet below reads
+        // it again when it opens.
+        let options = viewModel.filterOptions
+        let activeFacetCount = viewModel.filters.activeFacetCount
+
+        if !options.isEmpty || activeFacetCount > 0 {
+            ClosetFilterButton(activeFacetCount: activeFacetCount) {
+                isFiltering = true
+            }
+        }
     }
 
     /// Opens the manual garment form.
@@ -225,8 +385,28 @@ public struct ClosetView: View {
             emptyState(.closetIsEmpty)
         } else {
             categoryTiles(scrollProxy: scrollProxy)
+            metricsRow
             allItemsSection
         }
+    }
+
+    /// §6.14's metrics, between the category tiles and the grid — which is
+    /// where `ClosetMetricsRow`'s own header places it, and it is the one
+    /// spot on this page where a summary of the whole closet reads as
+    /// context for what is below rather than as a headline above what is
+    /// above.
+    ///
+    /// Its figures cover the WHOLE closet, not the narrowed view; the
+    /// reasoning is on `ClosetViewModel.metrics`. Most worn and least
+    /// worn are the only tiles that name a garment, so they are the only
+    /// ones that lead anywhere, and they push the same item-detail route
+    /// a grid tile does — reached by id, so a garment the current search
+    /// excludes is still reachable from the figure that named it.
+    private var metricsRow: some View {
+        ClosetMetricsRow(metrics: viewModel.metrics) { itemID in
+            router.push(ClosetRoute.itemDetail(itemID: itemID))
+        }
+        .padding(.horizontal, AstraSpacing.pagePadding)
     }
 
     private func categoryTiles(scrollProxy: ScrollViewProxy) -> some View {
@@ -262,14 +442,49 @@ public struct ClosetView: View {
             if let reason = viewModel.emptyReason(for: nil) {
                 emptyState(reason)
             } else {
-                ClosetItemGrid(
-                    items: viewModel.visibleItems,
-                    imageURL: { viewModel.imageURL(for: $0) },
-                    onTileVisible: { viewModel.imageNeeded(for: $0) },
-                    onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
-                )
-                .padding(.horizontal, AstraSpacing.pagePadding)
+                allItemsGrid
+                    .padding(.horizontal, AstraSpacing.pagePadding)
             }
+        }
+    }
+
+    /// The whole-closet section, drawn in whichever of spec §6.14's three
+    /// layouts is selected.
+    ///
+    /// All three take the same four arguments in the same order, which is
+    /// the property `ClosetViewMode`'s header calls the point of the type
+    /// — so this switch chooses a renderer and nothing else. In
+    /// particular none of them filters or sorts what it is handed:
+    /// `ClosetColorSpectrum` re-orders internally, so it gets the closet
+    /// in normal order like the other two, and the image-resolution
+    /// callback is identical in all three so scrolling any of them feeds
+    /// the same coalescing pass.
+    @ViewBuilder
+    private var allItemsGrid: some View {
+        switch viewMode {
+        case .editorialGrid:
+            ClosetItemGrid(
+                items: viewModel.visibleItems,
+                imageURL: { viewModel.imageURL(for: $0) },
+                onTileVisible: { viewModel.imageNeeded(for: $0) },
+                onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
+            )
+
+        case .compactList:
+            ClosetCompactList(
+                items: viewModel.visibleItems,
+                imageURL: { viewModel.imageURL(for: $0) },
+                onRowVisible: { viewModel.imageNeeded(for: $0) },
+                onRowTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
+            )
+
+        case .colorSpectrum:
+            ClosetColorSpectrum(
+                items: viewModel.visibleItems,
+                imageURL: { viewModel.imageURL(for: $0) },
+                onTileVisible: { viewModel.imageNeeded(for: $0) },
+                onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
+            )
         }
     }
 
@@ -278,7 +493,8 @@ public struct ClosetView: View {
             reason: reason,
             onScan: { router.startScan() },
             onAddManually: { isAddingItem = true },
-            onClearSearch: { viewModel.clearSearch() }
+            onClearSearch: { viewModel.clearSearch() },
+            onClearFilters: { viewModel.clearFilters() }
         )
     }
 }
