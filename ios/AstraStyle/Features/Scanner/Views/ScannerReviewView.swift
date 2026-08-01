@@ -24,11 +24,8 @@ struct ScannerReviewView: View {
         .task {
             await viewModel.start()
         }
-        .onChange(of: viewModel.phase) { _, phase in
-            if phase == .saved {
-                onFinished()
-            }
-        }
+        // Dismiss is owned by the post-save unlock report's Continue
+        // control (P3-SCAN-11) — auto-closing here would skip the count.
     }
 
     @ViewBuilder
@@ -43,6 +40,20 @@ struct ScannerReviewView: View {
                     .foregroundStyle(AstraColor.textSecondary)
             }
             .accessibilityElement(children: .combine)
+
+        case .pendingAnalysis:
+            ScrollView {
+                VStack(spacing: AstraSpacing.xl) {
+                    preview
+                    pendingAnalysisBlock
+                    Button(String(localized: "Retake", comment: "Retake queued scan")) {
+                        onRetake()
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("scanner.review.retake")
+                }
+                .padding(.vertical, AstraSpacing.lg)
+            }
 
         case .missingDraft:
             failureBlock(
@@ -76,7 +87,7 @@ struct ScannerReviewView: View {
                 .padding(.vertical, AstraSpacing.lg)
             }
 
-        case .ready, .saved:
+        case .ready:
             ScrollView {
                 VStack(alignment: .leading, spacing: AstraSpacing.xl) {
                     preview
@@ -88,6 +99,12 @@ struct ScannerReviewView: View {
                 }
                 .padding(.vertical, AstraSpacing.lg)
             }
+
+        case .saved:
+            ScannerUnlockReportView(
+                outfitsUnlockedCount: viewModel.outfitsUnlockedCount,
+                onDone: onFinished
+            )
         }
     }
 
@@ -99,6 +116,8 @@ struct ScannerReviewView: View {
             String(localized: "Kyra is reading the garment…", comment: "Scanner analyzing status")
         case .saving:
             String(localized: "Saving to your closet…", comment: "Scanner saving status")
+        case .pendingAnalysis:
+            String(localized: "Queued — Kyra will analyze when you're back online.", comment: "Scanner pending analysis status")
         default:
             String(localized: "Loading…", comment: "Scanner review loading")
         }
@@ -157,6 +176,26 @@ struct ScannerReviewView: View {
         }
         .padding(.horizontal, AstraSpacing.pagePadding)
         .accessibilityIdentifier("scanner.review.ocr")
+    }
+
+    private var pendingAnalysisBlock: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+            Text(String(localized: "Queued", comment: "Scanner queued title"))
+                .astraText(.headline)
+                .foregroundStyle(AstraColor.textPrimary)
+            Text(String(localized: "Kyra will analyze this scan automatically when you're back online. The photo is saved on this device until then.",
+                        comment: "Scanner queued explanation"))
+                .astraText(.callout)
+                .foregroundStyle(AstraColor.textSecondary)
+        }
+        .padding(AstraSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
+                .fill(AstraColor.surfaceElevated)
+        )
+        .padding(.horizontal, AstraSpacing.pagePadding)
+        .accessibilityIdentifier("scanner.review.pendingAnalysis")
     }
 
     // MARK: - Actions

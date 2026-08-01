@@ -18,6 +18,7 @@ public actor AstraReachability {
     private let monitor = NWPathMonitor()
     private var currentStatus: NWPath.Status = .requiresConnection
     private var started = false
+    private var continuations: [UUID: AsyncStream<Bool>.Continuation] = [:]
 
     private init() {}
 
@@ -26,6 +27,18 @@ public actor AstraReachability {
             startIfNeeded()
             return currentStatus != .satisfied
         }
+    }
+
+    public func connectivityUpdates() -> AsyncStream<Bool> {
+        startIfNeeded()
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<Bool>.makeStream()
+        continuations[id] = continuation
+        continuation.yield(currentStatus == .satisfied)
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.removeContinuation(id: id) }
+        }
+        return stream
     }
 
     private func startIfNeeded() {
@@ -39,5 +52,13 @@ public actor AstraReachability {
 
     private func update(status: NWPath.Status) {
         currentStatus = status
+        let isOnline = status == .satisfied
+        for continuation in continuations.values {
+            continuation.yield(isOnline)
+        }
+    }
+
+    private func removeContinuation(id: UUID) {
+        continuations[id] = nil
     }
 }

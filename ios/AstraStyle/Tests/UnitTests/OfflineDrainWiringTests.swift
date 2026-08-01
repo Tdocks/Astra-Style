@@ -30,6 +30,7 @@ struct OfflineDrainWiringTests {
     /// test can express "offline, then online" rather than needing two.
     private actor StubClosetWriter: ClosetWriting {
         private var shouldFail: Bool
+        private var remoteRows: [UUID: ClosetItem] = [:]
         private(set) var created: [UUID] = []
         private(set) var updated: [UUID] = []
         private(set) var archived: [UUID] = []
@@ -42,23 +43,36 @@ struct OfflineDrainWiringTests {
             shouldFail = value
         }
 
+        /// Seeds a remote row so drain's LWW check has something to compare.
+        func seedRemote(_ item: ClosetItem) {
+            remoteRows[item.id] = item
+        }
+
         var appliedIDs: [UUID] { created + updated + archived }
+
+        func fetch(id: UUID) async throws -> ClosetItem? {
+            if shouldFail { throw AstraError.network("offline") }
+            return remoteRows[id]
+        }
 
         func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
             if shouldFail { throw AstraError.network("offline") }
             created.append(item.id)
+            remoteRows[item.id] = item
             return item
         }
 
         func update(_ item: ClosetItem) async throws -> ClosetItem {
             if shouldFail { throw AstraError.network("offline") }
             updated.append(item.id)
+            remoteRows[item.id] = item
             return item
         }
 
         func archive(id: UUID) async throws {
             if shouldFail { throw AstraError.network("offline") }
             archived.append(id)
+            remoteRows[id] = nil
         }
     }
 
@@ -102,14 +116,20 @@ struct OfflineDrainWiringTests {
         let repository = makeRepository(queue: queue, writer: writer)
 
         let first = item("Merino Sweater")
-        let second = item("Chore Coat")
+        var second = item("Chore Coat")
+        second.updatedAt = Date(timeIntervalSince1970: 2_000)
         _ = try await repository.createItem(first, images: [])
         _ = try await repository.updateItem(second)
         #expect(await queue.pendingMutations().count == 2)
 
-        // The network comes back. The next successful call is what flushes
-        // the backlog — this is the behaviour that did not exist before.
+        // The network comes back. Seed an older remote for the update so
+        // last-write-wins applies rather than treating a missing row as a
+        // surfaced conflict (P3-INFRA-01).
         await writer.setShouldFail(false)
+        var olderRemote = second
+        olderRemote.name = "Older remote name"
+        olderRemote.updatedAt = Date(timeIntervalSince1970: 1_000)
+        await writer.seedRemote(olderRemote)
         let third = item("Chukka Boots")
         _ = try await repository.createItem(third, images: [])
 

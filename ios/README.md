@@ -79,7 +79,11 @@ supabase functions deploy        # deploys existing function slugs (see supabase
 
 Every Edge Function needs its own environment variables set via `supabase secrets set` — see spec §25. None of these are ever referenced from this iOS project.
 
-## 6. StoreKit configuration
+## 6. TestFlight (iPhone)
+
+Internal device builds: see **`docs/12-testflight-cut.md`**. Short version — generate the project, set your Development Team in Xcode, Archive → Upload to App Store Connect, add the build to an internal TestFlight group. App Icon lives in `AstraStyle/Resources/Assets.xcassets`.
+
+## 7. StoreKit configuration
 
 For local sandbox testing without hitting App Store Connect:
 
@@ -112,7 +116,7 @@ ios/
       Home/                fully implemented — the reference module
       Onboarding/          Style DNA flow (most complete product flow)
       Closet/              overview, metrics, filters, detail, manual form — usable end to end
-      Scanner/             device-side groundwork only (Services/); no camera/review UI
+      Scanner/             capture → hints → review → save; offline queue; unlock report
       Profile/             guest profile + create-account; signed-in Profile still thin
       Outfits/ Studio/ Kyra/ Shopping/ Discover/ Subscription/
                            README-only — zero Swift files yet

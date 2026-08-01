@@ -19,6 +19,7 @@ public final class ScannerReviewViewModel {
         case loading
         case uploading
         case analyzing
+        case pendingAnalysis
         case ready
         case saving
         case saved
@@ -30,7 +31,8 @@ public final class ScannerReviewViewModel {
         public static func == (lhs: Phase, rhs: Phase) -> Bool {
             switch (lhs, rhs) {
             case (.loading, .loading), (.uploading, .uploading), (.analyzing, .analyzing),
-                 (.ready, .ready), (.saving, .saving), (.saved, .saved), (.missingDraft, .missingDraft):
+                 (.pendingAnalysis, .pendingAnalysis), (.ready, .ready), (.saving, .saving),
+                 (.saved, .saved), (.missingDraft, .missingDraft):
                 true
             case (.uploadFailed(let left), .uploadFailed(let right)),
                  (.analyzeFailed(let left), .analyzeFailed(let right)),
@@ -50,6 +52,8 @@ public final class ScannerReviewViewModel {
         public let draftStore: CaptureDraftStore
         public let closetRepository: ClosetRepository
         public let imageURLResolver: ClosetImageURLResolving
+        public let pendingScanQueue: PendingScanQueue
+        public let networkMonitor: NetworkReachabilityMonitoring
         public let analyticsClient: AnalyticsClient
         public let currentUserID: @Sendable () async -> UUID?
 
@@ -57,12 +61,16 @@ public final class ScannerReviewViewModel {
             draftStore: CaptureDraftStore,
             closetRepository: ClosetRepository,
             imageURLResolver: ClosetImageURLResolving,
+            pendingScanQueue: PendingScanQueue,
+            networkMonitor: NetworkReachabilityMonitoring = SystemNetworkReachabilityMonitor(),
             analyticsClient: AnalyticsClient = NoOpAnalyticsClient(),
             currentUserID: @escaping @Sendable () async -> UUID?
         ) {
             self.draftStore = draftStore
             self.closetRepository = closetRepository
             self.imageURLResolver = imageURLResolver
+            self.pendingScanQueue = pendingScanQueue
+            self.networkMonitor = networkMonitor
             self.analyticsClient = analyticsClient
             self.currentUserID = currentUserID
         }
@@ -77,6 +85,9 @@ public final class ScannerReviewViewModel {
     public internal(set) var storagePath: String?
     public internal(set) var analysis: ClosetItemAnalysisResult?
     public internal(set) var ocrText: String?
+    /// Phase-3 simplified unlock count after a successful save (P3-SCAN-11).
+    /// `nil` until save completes; zero is a real answer ("nothing new yet").
+    public internal(set) var outfitsUnlockedCount: Int?
 
     public var name: String = ""
     public var brand: String = ""
@@ -110,20 +121,30 @@ public final class ScannerReviewViewModel {
     let draftStore: CaptureDraftStore
     let closetRepository: ClosetRepository
     let imageURLResolver: ClosetImageURLResolving
+    let pendingScanQueue: PendingScanQueue
+    let networkMonitor: NetworkReachabilityMonitoring
     let analyticsClient: AnalyticsClient
     let currentUserID: @Sendable () async -> UUID?
     var originalSuggestions: ClosetItemAnalysisResult?
+    @ObservationIgnored var connectivityTask: Task<Void, Never>?
 
     public init(draftID: UUID, dependencies: Dependencies) {
         self.draftID = draftID
         self.draftStore = dependencies.draftStore
         self.closetRepository = dependencies.closetRepository
         self.imageURLResolver = dependencies.imageURLResolver
+        self.pendingScanQueue = dependencies.pendingScanQueue
+        self.networkMonitor = dependencies.networkMonitor
         self.analyticsClient = dependencies.analyticsClient
         self.currentUserID = dependencies.currentUserID
     }
 
+    deinit {
+        connectivityTask?.cancel()
+    }
+
     public func start() async {
+        startConnectivityObservation()
         guard let draft = draftStore.draft(id: draftID) else {
             phase = .missingDraft
             return
@@ -138,25 +159,44 @@ public final class ScannerReviewViewModel {
         }
 
         if storagePath == nil {
-            await upload(data: draft.prepared.data)
-            guard case .analyzing = phase else { return }
+            if await networkMonitor.isOffline() {
+                await enqueuePendingAnalysis(data: draft.prepared.data, deviceHints: draft.deviceHints)
+                return
+            }
+            if let error = await upload(data: draft.prepared.data) {
+                if shouldQueueForReconnect(error) {
+                    await enqueuePendingAnalysis(data: draft.prepared.data, deviceHints: draft.deviceHints)
+                }
+                return
+            }
         } else {
             phase = .analyzing
         }
-        await analyze(imageData: draft.prepared.data)
+        if let error = await analyze(imageData: draft.prepared.data), shouldQueueForReconnect(error) {
+            await enqueuePendingAnalysis(data: draft.prepared.data, deviceHints: draft.deviceHints)
+        }
     }
 
     public func retryUpload() async {
         guard let data = localPreviewData else { return }
-        await upload(data: data)
+        if let error = await upload(data: data) {
+            if shouldQueueForReconnect(error) {
+                await enqueuePendingAnalysis(data: data, deviceHints: draftStore.draft(id: draftID)?.deviceHints)
+            }
+            return
+        }
         guard case .analyzing = phase else { return }
-        await analyze(imageData: data)
+        if let error = await analyze(imageData: data), shouldQueueForReconnect(error) {
+            await enqueuePendingAnalysis(data: data, deviceHints: draftStore.draft(id: draftID)?.deviceHints)
+        }
     }
 
     public func retryAnalyze() async {
         guard let data = localPreviewData else { return }
         phase = .analyzing
-        await analyze(imageData: data)
+        if let error = await analyze(imageData: data), shouldQueueForReconnect(error) {
+            await enqueuePendingAnalysis(data: data, deviceHints: draftStore.draft(id: draftID)?.deviceHints)
+        }
     }
 
     public func save() async {
@@ -195,6 +235,14 @@ public final class ScannerReviewViewModel {
             if corrected > 0 {
                 analyticsClient.log(.scanCorrected(fieldsCorrectedCount: corrected))
             }
+            // P3-SCAN-11: complementary partners already owned, not the
+            // Phase-4 purchase-unlock algorithm. Fail closed to 0 if the
+            // closet cannot be read — never invent a marketing number.
+            let closet = (try? await closetRepository.fetchItems()) ?? []
+            outfitsUnlockedCount = ScanOutfitUnlockEstimator.newlyUnlockedCount(
+                adding: item,
+                to: closet
+            )
             draftStore.remove(id: draftID)
             AstraHaptics.success()
             phase = .saved

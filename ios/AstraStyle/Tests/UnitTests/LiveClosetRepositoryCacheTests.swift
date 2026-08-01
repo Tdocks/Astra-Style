@@ -15,6 +15,7 @@ import Testing
 struct LiveClosetRepositoryCacheTests {
 
     private actor StubClosetWriter: ClosetWriting {
+        func fetch(id: UUID) async throws -> ClosetItem? { nil }
         func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem { item }
         func update(_ item: ClosetItem) async throws -> ClosetItem { item }
         func archive(id: UUID) async throws {}

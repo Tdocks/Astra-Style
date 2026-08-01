@@ -28,8 +28,7 @@ struct ScannerReviewViewModelTests {
             draftID: draft.id,
             store: store,
             repository: repository,
-            resolver: resolver,
-            userID: userID
+            seams: ReviewTestSeams(resolver: resolver, userID: userID)
         )
 
         await model.start()
@@ -42,6 +41,11 @@ struct ScannerReviewViewModelTests {
         #expect(model.brand == "Uniqlo")
 
         model.brand = "Drake's"
+        // Seed complementary partners so P3-SCAN-11 reports a real count.
+        repository.seedItems = [
+            ClosetItem(id: UUID(), userID: userID, name: "Chinos", category: .bottom),
+            ClosetItem(id: UUID(), userID: userID, name: "Sneakers", category: .shoes)
+        ]
         await model.save()
 
         #expect(model.phase == .saved)
@@ -50,9 +54,10 @@ struct ScannerReviewViewModelTests {
         #expect(saved.name == "Cotton Crewneck Sweater")
         #expect(repository.lastImages?.first?.storagePath == model.storagePath)
         #expect(store.draft(id: draft.id) == nil)
+        #expect(model.outfitsUnlockedCount == 2)
     }
 
-    @Test("Upload failure keeps the local draft and retry re-invokes upload")
+    @Test("Non-network upload failure keeps the local draft and retry re-invokes upload")
     func uploadFailureIsRetryable() async throws {
         let jpeg = try #require(fixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
@@ -61,7 +66,7 @@ struct ScannerReviewViewModelTests {
         store.put(draft)
 
         let repository = ReviewMockClosetRepository()
-        repository.uploadShouldFail = true
+        repository.uploadError = AstraError.server("upload failed")
         let model = makeModel(draftID: draft.id, store: store, repository: repository)
 
         await model.start()
@@ -72,7 +77,7 @@ struct ScannerReviewViewModelTests {
         #expect(model.localPreviewData != nil)
         #expect(repository.analyzeCount == 0)
 
-        repository.uploadShouldFail = false
+        repository.uploadError = nil
         await model.retryUpload()
         #expect(model.phase == .ready)
         #expect(repository.uploadCount == 2)
@@ -88,7 +93,7 @@ struct ScannerReviewViewModelTests {
         store.put(draft)
 
         let repository = ReviewMockClosetRepository()
-        repository.analyzeShouldFail = true
+        repository.analyzeError = AstraError.provider("analyze failed")
         let model = makeModel(draftID: draft.id, store: store, repository: repository)
 
         await model.start()
@@ -98,12 +103,83 @@ struct ScannerReviewViewModelTests {
         }
         #expect(repository.uploadCount == 1)
 
-        repository.analyzeShouldFail = false
+        repository.analyzeError = nil
         await model.retryAnalyze()
         #expect(model.phase == .ready)
         #expect(repository.uploadCount == 1)
         #expect(repository.analyzeCount == 2)
         #expect(repository.lastAnalyzeStoragePath != nil)
+    }
+
+    @Test("Offline start queues the JPEG locally without uploading")
+    func offlineStartQueuesPendingScan() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let hints = GarmentDeviceHints(
+            dominantColorsRGB: ["#112233"],
+            detectedText: ["SIZE M"],
+            approximateCategory: .top
+        )
+        let draft = CaptureDraft(prepared: prepared, deviceHints: hints)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        let queue = InMemoryPendingScanQueue()
+        let monitor = FlippingNetworkMonitor(isOnline: false)
+        let model = makeModel(
+            draftID: draft.id,
+            store: store,
+            repository: repository,
+            seams: ReviewTestSeams(pendingScanQueue: queue, networkMonitor: monitor)
+        )
+
+        await model.start()
+
+        #expect(model.phase == .pendingAnalysis)
+        #expect(model.canSave == false)
+        #expect(model.localPreviewData == prepared.data)
+        #expect(repository.uploadCount == 0)
+        #expect(repository.analyzeCount == 0)
+
+        let pending = await queue.pendingScans()
+        #expect(pending.count == 1)
+        #expect(pending.first?.id == draft.id)
+        #expect(pending.first?.jpegData == prepared.data)
+        #expect(pending.first?.deviceHints == hints)
+        #expect(pending.first?.attemptCount == 0)
+    }
+
+    @Test("Queued offline scan uploads and analyzes automatically when connectivity returns")
+    func queuedScanAnalyzesOnReconnect() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        let queue = InMemoryPendingScanQueue()
+        let monitor = FlippingNetworkMonitor(isOnline: false)
+        let model = makeModel(
+            draftID: draft.id,
+            store: store,
+            repository: repository,
+            seams: ReviewTestSeams(pendingScanQueue: queue, networkMonitor: monitor)
+        )
+
+        await model.start()
+        #expect(model.phase == .pendingAnalysis)
+
+        monitor.setOnline(true)
+        try await waitUntilReady(model)
+
+        #expect(model.phase == .ready)
+        #expect(repository.uploadCount == 1)
+        #expect(repository.analyzeCount == 1)
+        #expect(await queue.pendingScans().isEmpty)
+        #expect(store.draft(id: draft.id)?.analysis == MockClosetRepository.cannedAnalysis)
+        #expect(model.canSave)
     }
 
     @Test("Missing draft surfaces missingDraft rather than crashing")
@@ -121,19 +197,29 @@ struct ScannerReviewViewModelTests {
         draftID: UUID,
         store: CaptureDraftStore,
         repository: ClosetRepository,
-        resolver: ClosetImageURLResolving = ReviewMockURLResolver(),
-        userID: UUID = UUID()
+        seams: ReviewTestSeams = ReviewTestSeams()
     ) -> ScannerReviewViewModel {
         ScannerReviewViewModel(
             draftID: draftID,
             dependencies: .init(
                 draftStore: store,
                 closetRepository: repository,
-                imageURLResolver: resolver,
-                currentUserID: { userID }
+                imageURLResolver: seams.resolver,
+                pendingScanQueue: seams.pendingScanQueue,
+                networkMonitor: seams.networkMonitor,
+                currentUserID: { seams.userID }
             )
         )
     }
+}
+
+/// Optional test doubles for `makeModel`, bundled so the factory stays
+/// under SwiftLint's `function_parameter_count` (5).
+private struct ReviewTestSeams {
+    var resolver: ClosetImageURLResolving = ReviewMockURLResolver()
+    var pendingScanQueue: PendingScanQueue = InMemoryPendingScanQueue()
+    var networkMonitor: NetworkReachabilityMonitoring = StaticNetworkReachabilityMonitor(offline: false)
+    var userID = UUID()
 }
 
 // MARK: - Fixtures / doubles
@@ -145,17 +231,33 @@ private func fixtureJPEG() -> Data? {
     return ScannerImageFixtures.jpegData(from: image, includeMetadata: false)
 }
 
+@MainActor
+private func waitUntilReady(_ model: ScannerReviewViewModel) async throws {
+    for _ in 0..<40 {
+        if model.phase == .ready { return }
+        try await Task.sleep(for: .milliseconds(25))
+    }
+    Issue.record("Expected ready, got \(model.phase)")
+}
+
 private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
     var uploadCount = 0
     var analyzeCount = 0
-    var uploadShouldFail = false
-    var analyzeShouldFail = false
+    var uploadError: AstraError?
+    var analyzeError: AstraError?
     var lastCreated: ClosetItem?
     var lastImages: [ClosetItemImage]?
     var lastAnalyzeStoragePath: String?
+    var seedItems: [ClosetItem] = []
     private var uploadedPath: String?
 
-    func fetchItems() async throws -> [ClosetItem] { [] }
+    func fetchItems() async throws -> [ClosetItem] {
+        var items = seedItems
+        if let lastCreated {
+            items.append(lastCreated)
+        }
+        return items
+    }
     func fetchItem(id: UUID) async throws -> ClosetItem {
         throw AstraError.server("not found")
     }
@@ -164,8 +266,8 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     func uploadCapturedImage(_ data: Data) async throws -> String {
         uploadCount += 1
         _ = data
-        if uploadShouldFail {
-            throw AstraError.network("upload failed")
+        if let uploadError {
+            throw uploadError
         }
         let path = "users/test/closet/\(UUID().uuidString.lowercased()).jpg"
         uploadedPath = path
@@ -175,8 +277,8 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         analyzeCount += 1
         lastAnalyzeStoragePath = request.storagePath
-        if analyzeShouldFail {
-            throw AstraError.provider("analyze failed")
+        if let analyzeError {
+            throw analyzeError
         }
         return MockClosetRepository.cannedAnalysis
     }
@@ -201,6 +303,64 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     }
     func fetchWardrobeScore() async throws -> WardrobeScore {
         throw AstraError.unimplemented("n/a")
+    }
+}
+
+private final class FlippingNetworkMonitor: NetworkReachabilityMonitoring, @unchecked Sendable {
+    private struct State {
+        var isOnline: Bool
+        var continuations: [UUID: AsyncStream<Bool>.Continuation] = [:]
+    }
+
+    private let lock = NSLock()
+    private var state: State
+
+    init(isOnline: Bool) {
+        state = State(isOnline: isOnline)
+    }
+
+    func isOffline() async -> Bool {
+        !currentOnlineState()
+    }
+
+    func connectivityUpdates() -> AsyncStream<Bool> {
+        AsyncStream { continuation in
+            let id = UUID()
+            let isOnline = withState { state in
+                state.continuations[id] = continuation
+                return state.isOnline
+            }
+            continuation.yield(isOnline)
+            continuation.onTermination = { [weak self] _ in
+                self?.removeContinuation(id: id)
+            }
+        }
+    }
+
+    func setOnline(_ isOnline: Bool) {
+        let continuations = withState { state in
+            state.isOnline = isOnline
+            return Array(state.continuations.values)
+        }
+        for continuation in continuations {
+            continuation.yield(isOnline)
+        }
+    }
+
+    private func currentOnlineState() -> Bool {
+        withState { $0.isOnline }
+    }
+
+    private func removeContinuation(id: UUID) {
+        _ = withState { state in
+            state.continuations[id] = nil
+        }
+    }
+
+    private func withState<Value>(_ body: (inout State) -> Value) -> Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&state)
     }
 }
 

@@ -115,8 +115,11 @@ struct ScannerDestinationView: View {
             ScannerCaptureView(
                 viewModel: captureViewModel,
                 captureSession: container.captureSession,
-                onContinue: { prepared in
-                    let draft = CaptureDraft(prepared: prepared)
+                onContinue: { ready in
+                    let draft = CaptureDraft(
+                        prepared: ready.prepared,
+                        deviceHints: ready.deviceHints
+                    )
                     container.captureDraftStore.put(draft)
                     path.append(.review(capturedImageID: draft.id))
                 }
@@ -127,7 +130,9 @@ struct ScannerDestinationView: View {
                 .task {
                     if captureViewModel == nil {
                         captureViewModel = ScannerCaptureViewModel(
-                            captureSession: container.captureSession
+                            captureSession: container.captureSession,
+                            regionDetector: LiveVisionGarmentRegionDetector(),
+                            textRecognizer: LiveVisionLabelTextRecognizer()
                         )
                     }
                 }
@@ -145,6 +150,7 @@ struct ScannerDestinationView: View {
                         dismiss()
                     },
                     onRetake: {
+                        Task { await container.pendingScanQueue.remove(id: draftID) }
                         container.captureDraftStore.remove(id: draftID)
                         self.reviewViewModel = nil
                         if path.isEmpty {
@@ -168,6 +174,8 @@ struct ScannerDestinationView: View {
                         draftStore: container.captureDraftStore,
                         closetRepository: container.closetRepository,
                         imageURLResolver: container.closetImageURLResolver,
+                        pendingScanQueue: container.pendingScanQueue,
+                        networkMonitor: container.networkMonitor,
                         analyticsClient: container.analyticsClient,
                         currentUserID: { await container.sessionStore.currentUserID() }
                     )
