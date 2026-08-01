@@ -37,7 +37,12 @@ struct ClosetDestinationView: View {
                 category: category,
                 viewModel: ClosetViewModel(
                     closetRepository: container.closetRepository,
-                    imageURLResolver: container.closetImageURLResolver
+                    imageURLResolver: container.closetImageURLResolver,
+                    // Same provider the Closet root gets — this screen's
+                    // empty state also presents the add form, and a nil
+                    // provider makes every save fail as `.auth`.
+                    currentUserID: { await container.sessionStore.currentUserID() },
+                    analyticsClient: container.analyticsClient
                 )
             )
 

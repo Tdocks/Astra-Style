@@ -655,9 +655,7 @@ private struct ClosetFormNotice: View {
     var body: some View {
         let tint = failure.isRecoverable ? AstraColor.destructive : AstraColor.warningAmber
         VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            Text(failure.isRecoverable
-                 ? String(localized: "That didn't save.", comment: "Closet form failure headline")
-                 : String(localized: "That's the guest limit.", comment: "Closet form guest cap headline"))
+            Text(headline)
                 .astraText(.headline)
                 .foregroundStyle(tint)
                 .fixedSize(horizontal: false, vertical: true)
@@ -672,6 +670,17 @@ private struct ClosetFormNotice: View {
         .overlay(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous).strokeBorder(tint, lineWidth: 1))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("closet.form.notice")
+    }
+
+    private var headline: String {
+        switch failure {
+        case .guestCapReached:
+            String(localized: "That's the guest limit.", comment: "Closet form guest cap headline")
+        case .freeTierCapReached:
+            String(localized: "That's the free-plan limit.", comment: "Closet form free-tier cap headline")
+        case .failed:
+            String(localized: "That didn't save.", comment: "Closet form failure headline")
+        }
     }
 }
 

@@ -95,6 +95,10 @@ struct ClosetGridTile: View {
         .accessibilityLabel(Text(accessibilityLabel))
         .accessibilityHint(Text(String(localized: "Opens this piece", comment: "VoiceOver hint on a closet grid tile")))
         .accessibilityAddTraits(.isButton)
+        // Stable id for UI tests (P3-TEST-02) that assert a newly saved
+        // garment appears in the grid — VoiceOver still uses the composed
+        // label above; this identifier is for automation only.
+        .accessibilityIdentifier("closet.grid.item.\(item.id.uuidString.lowercased())")
         .onAppear(perform: onVisible)
     }
 

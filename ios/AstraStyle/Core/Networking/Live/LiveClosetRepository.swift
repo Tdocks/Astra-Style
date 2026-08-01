@@ -8,11 +8,16 @@
 //  Edge Functions are called with the resulting storage path, rather than
 //  shipping raw image bytes through the JSON envelope.
 //
-//  Offline behaviour (spec §7 "Local edits queue for sync"), stated
-//  precisely, because the previous version of this comment was not true:
+//  Offline behaviour (spec §7 "Local edits queue for sync" / "Cached
+//  closet … remain viewable"), stated precisely:
 //
 //  * `createItem` and `updateItem` fall back to `OfflineMutationQueue` when
 //    the write fails, and return the local value so the UI stays consistent.
+//  * Successful reads and writes refresh `ClosetItemCaching`
+//    (`PersistedClosetItem` via `SwiftDataClosetItemCache`). A failed
+//    `fetchItems` serves the last cached active closet when one exists, so
+//    an authenticated offline cold start shows garments rather than only
+//    an error state.
 //  * `archiveItem`, `markWorn` and `updateLaundryState` do NOT queue yet —
 //    the queue's payload is an encoded `ClosetItem`, and those three only
 //    have an id (or need a read-modify-write) at the point of failure.
@@ -32,6 +37,12 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     private let supabase: SupabaseClient
     private let offlineQueue: OfflineMutationQueue
     private let writer: any ClosetWriting
+    private let cache: ClosetItemCaching
+    private let currentUserID: @Sendable () async -> UUID?
+    /// Test seam: when non-nil, `fetchItems` uses this instead of Postgrest
+    /// so cache write-through / offline fallback can be asserted without a
+    /// live Supabase project.
+    private let activeItemsFetcher: (@Sendable () async throws -> [ClosetItem])?
 
     /// Guards against two concurrent drains replaying the same mutation
     /// twice. `drain(apply:)` suspends inside the queue actor while `apply`
@@ -44,38 +55,59 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     public convenience init(
         apiClient: AstraAPIClient,
         offlineQueue: OfflineMutationQueue,
+        cache: ClosetItemCaching,
         supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)
     ) {
         self.init(
             apiClient: apiClient,
             offlineQueue: offlineQueue,
             supabase: supabase,
-            writer: SupabaseClosetWriter(supabase: supabase)
+            writer: SupabaseClosetWriter(supabase: supabase),
+            cache: cache,
+            currentUserID: {
+                // Lowercased elsewhere for Storage paths; UUID equality does
+                // not care about string casing, so the session id is used as-is.
+                try? await supabase.auth.session.user.id
+            }
         )
     }
 
-    /// Internal so tests can substitute the writer and drive the offline
-    /// queueing/replay behaviour without a live Supabase project.
+    /// Internal so tests can substitute the writer, cache, and fetcher and
+    /// drive offline / cache behaviour without a live Supabase project.
     init(
         apiClient: AstraAPIClient,
         offlineQueue: OfflineMutationQueue,
         supabase: SupabaseClient,
-        writer: any ClosetWriting
+        writer: any ClosetWriting,
+        cache: ClosetItemCaching = InMemoryClosetItemCache(),
+        currentUserID: @escaping @Sendable () async -> UUID? = { nil },
+        activeItemsFetcher: (@Sendable () async throws -> [ClosetItem])? = nil
     ) {
         self.apiClient = apiClient
         self.offlineQueue = offlineQueue
         self.supabase = supabase
         self.writer = writer
+        self.cache = cache
+        self.currentUserID = currentUserID
+        self.activeItemsFetcher = activeItemsFetcher
     }
 
     public func fetchItems() async throws -> [ClosetItem] {
         do {
-            let items: [ClosetItem] = try await supabase.from("closet_items")
-                .select()
-                .is("archived_at", value: nil)
-                .order("created_at", ascending: false)
-                .execute()
-                .value
+            let items: [ClosetItem]
+            if let activeItemsFetcher {
+                items = try await activeItemsFetcher()
+            } else {
+                items = try await supabase.from("closet_items")
+                    .select()
+                    .is("archived_at", value: nil)
+                    .order("created_at", ascending: false)
+                    .execute()
+                    .value
+            }
+            if let userID = await currentUserID() {
+                await cache.replaceAll(items, for: userID)
+            }
             // A successful read is the cheapest reliable signal that the
             // network is back, and the closet list is the screen a returning
             // user lands on — so it is the natural moment to flush anything
@@ -83,14 +115,31 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
             await drainPendingMutations()
             return items
         } catch {
+            if let userID = await currentUserID() {
+                let cached = await cache.items(for: userID).filter { !$0.isArchived }
+                if !cached.isEmpty {
+                    return cached
+                }
+            }
             throw AstraError.network("Couldn't load your closet. Showing your last saved copy if available.")
         }
     }
 
     public func fetchItem(id: UUID) async throws -> ClosetItem {
         do {
-            return try await supabase.from("closet_items").select().eq("id", value: id).single().execute().value
+            let item: ClosetItem = try await supabase.from("closet_items")
+                .select()
+                .eq("id", value: id)
+                .single()
+                .execute()
+                .value
+            await cache.upsert(item)
+            return item
         } catch {
+            if let userID = await currentUserID(),
+               let cached = await cache.items(for: userID).first(where: { $0.id == id }) {
+                return cached
+            }
             throw AstraError.server("Couldn't load that item.")
         }
     }
@@ -217,10 +266,15 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         do {
             let created = try await writer.create(item, images: images)
+            await cache.upsert(created)
             await drainPendingMutations()
             return created
         } catch {
             try await queueMutation(.create, item: item)
+            // Keep the offline cold-start cache coherent with what the UI
+            // just accepted locally — otherwise a relaunch before reconnect
+            // would hide a garment the user already "saved".
+            await cache.upsert(item)
             return item
         }
     }
@@ -228,10 +282,12 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     public func updateItem(_ item: ClosetItem) async throws -> ClosetItem {
         do {
             let updated = try await writer.update(item)
+            await cache.upsert(updated)
             await drainPendingMutations()
             return updated
         } catch {
             try await queueMutation(.update, item: item)
+            await cache.upsert(item)
             return item
         }
     }
@@ -241,6 +297,9 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     public func archiveItem(id: UUID) async throws {
         do {
             try await writer.archive(id: id)
+            if let userID = await currentUserID() {
+                await cache.archive(id: id, for: userID, archivedAt: .now)
+            }
             await drainPendingMutations()
         } catch {
             throw AstraError.network("Couldn't archive that item while offline. It will sync when you're back online.")
