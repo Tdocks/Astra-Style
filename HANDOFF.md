@@ -798,4 +798,337 @@ Current counts:
 
 | Phase | Tickets | Done | Partial | Not started |
 |---|---|---|---|---|
-| 1 — Foundation | 25 | 13 
+| 1 — Foundation | 25 | 13 | 12 | 0 |
+| 2 — Identity | 17 | 12 | 5 | 0 |
+| 3 — Closet | 27 | 5 | 9 | 13 |
+| 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
+| 5 — Kyra | 22 | 1 | 3 | 18 |
+| 6 — Studio and commerce | 25 | 2 | 4 | 19 |
+| 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
+| **Total** | **178** | **35** | **52** | **91** |
+
+The discipline, quoted:
+
+> *"A hand-maintained status file is accurate the day it is written and quietly wrong a week later, which is worse than having none because people trust it."*
+> *"When you finish a ticket, update its row in the same commit. A status change with no corresponding code change is a lie in the making."*
+> *"'Partial' is the most common status and that is expected, not a failure."*
+
+**To update it correctly:** flip the status, rewrite the Evidence cell to cite what now does (or still doesn't) substantiate the claim, and if counts moved, update **both** the phase's own count line **and** the global summary table — that mismatch is the single most common failure `check_progress.py` catches.
+
+**A row that overclaims is worse than a Partial.** This is the file's whole purpose.
+
+One thing `check_progress.py` does **not** check: each phase section opens with a free-text `**X Done · Y Partial · Z Not started.**` sentence, and the checker only validates the machine-readable summary table against the rows. Phase 3's prose sentence had drifted (it read 5/7/15 against a real 5/9/13) and was corrected alongside this handoff — but nothing stops it drifting again, so update the sentence, the phase table row and the global total together.
+
+### 10.2 The amendment log
+
+`docs/03-progress.md` has a section for **criteria that are wrong rather than unmet**, with the rationale: *"A criterion that can never pass quietly trains its reader to stop trusting criteria at all, so each has been corrected at its source rather than left open."* Six are logged. If you meet a criterion that cannot pass, correct it at source and record it there — don't leave it hanging.
+
+### 10.3 Commit style
+
+Long, structured, narrative bodies. A representative subject: `"Scanner groundwork: fix the analysis contract, build the testable half"`. Bodies consistently: (1) name the tickets and their status delta, (2) use all-caps section headers inside the body for distinct concerns, (3) explain **why**, citing measured numbers, (4) close with a verification line stating lint/build/test results verbatim, (5) end with a `Phase N: X done / Y partial / Z not started -> ...` delta.
+
+Trailers on AI-assisted commits: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` and `Claude-Session: <url>`.
+
+### 10.4 Skipped tests are the backlog
+
+There are **14** deliberately skipped tests, and they are the project's backlog in disguise. Each names the missing infrastructure and the ticket prefix expected to close it.
+
+`Tests/UITests/AstraStyleUITests.swift` — 7 `XCTSkip`s, one per §22 flow: `testCompleteOnboarding`, `testAddGarment`, `testGenerateOutfit`, `testMarkOutfitWorn`, `testAskKyra`, `testOpenPaywallAndRestorePurchases`, `testDeleteAccount`.
+
+`Tests/UnitTests/PendingIntegrationRequirementsTests.swift` — 7 `.disabled(reason:)`: `authLifecycle`, `closetUploadAndSync`, `dailyBriefGeneration`, `productEvaluation`, `studioJobPolling`, `storeKitSandboxPurchase`, `snapshotTestsNotYetConfigured`.
+
+Both files carry an explicit instruction, and it matters:
+
+> *"They were previously written as `Issue.record`/`XCTFail` bodies; that made the iOS job permanently red, which hid real regressions instead of highlighting these. **Do not delete them to make CI green**; replace them with real tests — dropping the skip at that point, not before — as their dependencies land."*
+
+The choice of `.disabled(reason:)` over `withKnownIssue` is also deliberate: *"`withKnownIssue` is for a test that genuinely RUNS and genuinely fails. None of these bodies contain a single assertion — there is nothing to run, so there is no known issue to observe, only work that has not started."*
+
+This is also why SwiftLint's `todo` rule is off — **there are zero TODO comments in this codebase by convention.**
+
+### 10.5 Testing conventions
+
+- **Swift Testing** for unit/integration (`import Testing`, `@Suite`, `@Test`, `#expect`, `try #require`). **XCTest** for UI only (Swift Testing has no UI driver). 39 of the 40 files in `Tests/UnitTests/` import `Testing`, and **zero** import XCTest — the one exception, `ScannerImageFixtures.swift`, is a fixture-data helper with no tests of its own.
+- Tests live centrally in `Tests/UnitTests/` and `Tests/UITests/`, **not** per-feature.
+- Style: a header citing the spec section or criterion it satisfies; `@Suite` named for the type plus the spec reference; **`@Test` descriptions written as full prose sentences stating the behaviour AND the reason** (e.g. *"Returns nil when never worn, rather than treating it as free or infinite"*); private `makeItem(...)` fixture helpers inside the suite; `try #require(...)` instead of unwrapping.
+- XCUITest classes need `@MainActor` (every `XCUIApplication` member is main-actor-isolated in the iOS 26 SDK; 85 warnings without it, and warnings fail the build).
+- CI-aware timeout convention: `ProcessInfo.processInfo.environment["CI"] == nil ? 20 : 60`.
+- **There is no fixture-image mechanism and no test-asset bundle.** Neither test target declares `resources:`. The Scanner tests synthesise their fixtures in code (`ScannerImageFixtures.swift`) — follow that pattern rather than committing binary assets.
+- **No snapshot-testing harness exists**, despite ADR 0012 calling for one. `snapshotTestsNotYetConfigured` is the placeholder.
+
+---
+
+## 11. Local dev setup
+
+**Install:**
+
+```bash
+# Xcode 26.6 exactly — CI pins it and it matches the owner's machine.
+# (ios/README.md says "Xcode 16 or later"; that line is stale.)
+brew install xcodegen
+brew install swiftlint
+brew install supabase/tap/supabase      # only if touching the backend
+# Deno 2.9.4 (CI pins it via denoland/setup-deno@v2) — only for Edge Functions
+# psql — only for scripts/run-rls-tests.sh or seed-slice.sh
+```
+
+**Create what isn't checked in:**
+
+```bash
+cd ios
+cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig   # then fill in real values
+```
+
+`Config/Secrets.xcconfig` holds `SUPABASE_URL` and `SUPABASE_ANON_KEY` — **and nothing else ever**. Watch the xcconfig footgun: `//` starts a comment, so a URL must be written `https:/$()/...`. `Config/Base.xcconfig` documents it.
+
+Also not checked in: the `.xcodeproj` (generated), `supabase/config.toml` (run `supabase init`), and a StoreKit Configuration file for sandbox subscription testing (two products matching `AstraProductID`: `com.astrastyle.app.premium.monthly` $12.99, `...annual` $79.99).
+
+**From clone to green:**
+
+```bash
+cd ios && xcodegen generate && cd ..
+
+swiftlint --strict --config .swiftlint.yml
+python3 scripts/check_ui_conventions.py
+python3 scripts/check_contrast.py
+python3 scripts/check_column_drift.py
+python3 scripts/check_schema_drift.py
+python3 scripts/check_progress.py
+
+UDID=$(python3 scripts/resolve_ios_simulator.py)
+xcodebuild -project ios/AstraStyle.xcodeproj -scheme AstraStyle -destination "id=$UDID" build 2>&1 \
+  | tee /tmp/build.log | tail -3
+grep "warning:" /tmp/build.log | grep "ios/AstraStyle/"      # must print nothing
+
+xcodebuild -project ios/AstraStyle.xcodeproj -scheme AstraStyle -destination "id=$UDID" \
+  -only-testing:AstraStyleTests test                          # unit only, ~20s
+xcodebuild -project ios/AstraStyle.xcodeproj -scheme AstraStyle -destination "id=$UDID" test
+                                                              # full suite, UI tests add ~20 min
+```
+
+Backend, if needed:
+
+```bash
+supabase login
+supabase link --project-ref <ref>
+scripts/apply-migrations.sh --project-ref <ref>    # guarded; forces you to re-type the ref
+scripts/deploy-functions.sh --project-ref <ref>
+scripts/verify-deployment.sh --project-ref <ref>   # four real post-deploy checks
+cd supabase/functions && deno task test            # covers _shared + outfits + profile + style-dna
+```
+
+**Expected baseline as of this handoff:** trust the latest green `iOS` workflow on `main` (PR #12 was green before merge). Local file counts and suite totals drift; do not treat older “525 tests / 262 files” numbers in this file as current.
+
+---
+
+## 12. Where to pick up
+
+**Immediate owner request:** get a build on the owner's iPhone via **internal TestFlight**. Feature work after that should follow Phase 3 leftovers → Phase 4, not invent a new path.
+
+### 12.0 ▶ TestFlight cut — instructions for Claude on the owner's Mac
+
+You are running on a **Mac with Xcode 26.6**. Linux/cloud agents already merged the Phase 3 exit to `main` (`86edb74` / PR #12) and **cannot** codesign or talk to App Store Connect. Your job is the Apple-side cut only. Twin doc: `docs/12-testflight-cut.md`.
+
+#### Preconditions (stop and ask the owner if any fail)
+
+- Active **Apple Developer Program** membership; owner signed into Xcode with the right Apple ID.
+- App Store Connect app **Astra Style** exists (or create it) with bundle id **`com.astrastyle.app`** (see `ios/project.yml`).
+- App ID has **Sign in with Apple** capability.
+- An **internal TestFlight** group exists and includes the owner's Apple ID.
+- Repo clone is current: `git checkout main && git pull`.
+- `brew install xcodegen` if needed.
+
+#### A. Secrets + generate the project
+
+```bash
+cd <repo>/ios
+test -f Config/Secrets.xcconfig || cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
+# Ensure SUPABASE_URL + SUPABASE_ANON_KEY are filled.
+# xcconfig footgun: write URLs as https:/$()/anutsdzbxycaavmmkewo.supabase.co
+# (project ref from earlier handoffs — confirm with owner if unsure).
+xcodegen generate
+open AstraStyle.xcodeproj
+```
+
+#### B. Signing (Xcode UI — once per machine/team)
+
+AstraStyle target → **Signing & Capabilities**:
+
+- Team = owner's Personal Team / org
+- Automatically manage signing = ON
+- Bundle identifier = `com.astrastyle.app`
+- Confirm **AppIcon** resolves (`Resources/Assets.xcassets` — marble 1024)
+
+Do **not** commit `Secrets.xcconfig`, provisioning profiles, or `.p12` keys.
+
+#### C. Build number
+
+ASC rejects duplicate `CFBundleVersion`. Before each upload, bump `CURRENT_PROJECT_VERSION` in `ios/project.yml` (currently `"1"`; `MARKETING_VERSION` is `"1.0.0"`). Re-run `xcodegen generate` after editing. Commit the bump on a tiny branch/PR or direct-to-main per §0 convention — do not leave the archive on a dirty tree with an uncommitted version you already uploaded.
+
+#### D. Archive and upload (preferred: Xcode Organizer)
+
+1. Scheme **AstraStyle**, destination **Any iOS Device (arm64)** (not a simulator).
+2. **Product → Archive**. Wait for Organizer.
+3. **Distribute App → App Store Connect → Upload**.
+4. Defaults are fine for first internal cut (bitcode N/A; strip Swift symbols as Xcode suggests).
+5. When ASC finishes processing, App Store Connect → TestFlight → add the build to the **internal** group → enable for the owner.
+6. On the iPhone: TestFlight app → install **Astra Style**.
+
+CLI alternative if you prefer scriptable archive (still needs a signed team on the Mac):
+
+```bash
+cd <repo>/ios
+xcodegen generate
+xcodebuild archive \
+  -project AstraStyle.xcodeproj \
+  -scheme AstraStyle \
+  -configuration Release \
+  -archivePath build/AstraStyle.xcarchive \
+  -destination 'generic/platform=iOS'
+# Then distribute via Organizer / Transporter / `xcodebuild -exportArchive`
+# with an ExportOptions.plist pointed at app-store distribution.
+```
+
+If Apple ID 2FA or "agree to new license" interrupts, **hand that click to the owner** — do not invent credentials or store app-specific passwords in the repo.
+
+#### E. Optional — live vision for the phone build
+
+Default Edge Function vision provider is **mock**. For real garment suggestions on device:
+
+```bash
+supabase login   # if needed
+supabase link --project-ref anutsdzbxycaavmmkewo   # confirm ref with owner
+supabase secrets set VISION_ANALYSIS_PROVIDER=openai OPENAI_API_KEY=sk-...
+supabase functions deploy closet
+```
+
+Read `supabase/functions/closet/README.md` and `docs/08-provider-abstraction.md` §2.5 / §2.5.1 before inviting anyone else. Do not put `OPENAI_API_KEY` in iOS secrets.
+
+#### F. Smoke checklist on the iPhone (report results to the owner)
+
+1. Guest or Sign in with Apple → Home / Closet reachable.
+2. Manual add a garment → appears under category; detail wear count 0.
+3. Scan or **Import** a shirt → editable review → Save → unlock copy → **Done**.
+4. Airplane mode: Closet still shows cached items; start a scan → queued analysis copy; reconnect → analyze completes without re-capture.
+5. Closet filters / metrics / mark worn — no crash.
+
+#### G. Done criteria for this review
+
+- Build visible in TestFlight internal group.
+- Owner can launch the app on a physical iPhone.
+- Smoke checklist results written back (pass/fail per step + any crash logs).
+- If upload failed: paste the exact Organizer / `xcodebuild` error; common fixes are missing Sign in with Apple capability, wrong team, or stale build number.
+
+**Out of scope for the TestFlight cut:** Fastlane/Match automation, ASC privacy nutrition labels, subscription products, public TestFlight, Phase 4 outfit generation.
+
+---
+
+### 12.1 What just landed (2026-08-01, `86edb74` / PR #12)
+
+Phase 3 exit for an internal phone cut:
+
+- Closet CRUD + free-tier 30-cap + guest 10-cap + offline read cache + `testAddGarment`
+- Scanner single-item loop: capture/import → device hints → upload → analyze → review → save → unlock report
+- Offline: LWW closet conflict on drain; pending scan queue that analyzes on reconnect
+- App Icon + AccentColor asset catalog; `docs/12-testflight-cut.md`
+
+Honest Phase 3 leftovers (do **not** block the TF cut): device Vision QA (`P3-SCAN-01`–`04` Partial), live OpenAI pilot gate (`P3-SCAN-07` Partial), batch/receipt/mirror (`P3-SCAN-08`/`12`), server cutout (`P3-SCAN-10`).
+
+### 12.2 After TestFlight is on the phone — recommended next engineering
+
+Only start this after §12.0 is done (or the owner explicitly prioritizes code over the phone build).
+
+1. **Stale Scanner/Closet READMEs** — they still under/over-claim; align with `docs/03-progress.md`.
+2. **Live vision pilot** — run docs/08 §2.5 gate against real menswear photos; flip `VISION_ANALYSIS_PROVIDER=openai` only after the gate.
+3. **P3-SCAN-10** server background-removal fallback (load-bearing for messy real rooms — see Phase 3 risks in `docs/01-build-roadmap.md`).
+4. **Phase 4** outfit intelligence per `docs/01-build-roadmap.md` / `docs/02-task-breakdown.md` — do not jump to Kyra/Studio screens while Daily Brief still lacks real outfit generation.
+5. **`silhouette-2` quiz imagery** — still blocked on the owner’s OpenAI billing hard limit if not yet raised.
+
+### 12.3 Phase 3 debts that are already Done (do not rebuild)
+
+These used to be the “pick up next” list; they shipped before/with PR #12 — verify in `docs/03-progress.md` before rewriting:
+
+- `P3-SCAN-05` / `P3-SCAN-06` / `P3-SCAN-09` / `P3-SCAN-11`
+- `P3-CLOSET-02` offline read cache, `P3-CLOSET-11` free-tier cap, `P3-TEST-02` UI test
+- `P3-INFRA-01` LWW conflict, `P3-INFRA-02` pending scan queue
+- `closet` Edge Function + OpenAI adapter **code** (pilot gate still unrun)
+
+### 12.4 Housekeeping worth doing early (non-blocking)
+
+- Reconcile capture corpus count comments in `CaptureQuality.swift` (34 vs 36).
+- Fold `MeasurementFormatting.formattedPrice` into `CurrencyFormatting` carefully (locale fallback behaviour differs — not a pure move).
+- Consider CI→TestFlight later **only with an ADR** (Fastlane/Match is a new dependency) and ASC API key secrets — not required for the first internal cut.
+
+---
+
+## 13. Quick reference
+
+### 13.1 Files to read first, in order
+
+1. `CLAUDE.md`
+2. `HANDOFF.md` §12.0 (if your job is the TestFlight cut) + `docs/12-testflight-cut.md`
+3. `docs/00-master-spec.md`
+4. `docs/03-progress.md`
+5. `docs/02-task-breakdown.md` (for the ticket you're picking up)
+6. The relevant `docs/adr/000X-*.md`
+7. `.github/workflows/ios.yml` and the six `scripts/check_*.py` — so you know what will reject you before you write code that trips it
+8. `Features/Home/ViewModels/HomeViewModel.swift` — the pattern everything else copies
+
+### 13.2 Endpoints and their deployment state
+
+| Endpoint | Method | Slug | Function dir |
+|---|---|---|---|
+| `profile/complete-onboarding` | POST | `profile` | ✅ built |
+| `style-dna/generate` | POST | `style-dna` | ✅ built |
+| `outfits/generate` | POST | `outfits` | ✅ built |
+| `outfits/rank` | POST | `outfits` | ⚠️ dir exists, route not built |
+| `closet/analyze-item` | POST | `closet` | ❌ |
+| `closet/batch-analyze` | POST | `closet` | ❌ |
+| `daily-brief/generate` | POST | `daily-brief` | ❌ |
+| `kyra/respond` | POST | `kyra` | ❌ |
+| `products/extract` | POST | `products` | ❌ |
+| `products/evaluate` | POST | `products` | ❌ |
+| `studio/generate` | POST | `studio` | ❌ |
+| `studio/status/{uuid}` | GET | `studio` | ❌ |
+| `packing/generate` | POST | `packing` | ❌ |
+| `subscriptions/sync` | POST | `subscriptions` | ❌ |
+| `app-store/webhook` | POST | `app-store` | ❌ (auths by shared secret, not JWT) |
+| `account` | DELETE | `account` | ❌ (runbook is the migration header) |
+
+### 13.3 Repository protocols
+
+| Protocol | Conformances |
+|---|---|
+| `AuthRepository` | Live, Mock |
+| `ClosetRepository` | Live, **Guest**, **GuestAware** (the one injected), Mock |
+| `ClosetImageURLResolving` | Live, Mock |
+| `OutfitRepository` | Live, Mock |
+| `KyraRepository` | Live, Mock |
+| `ProfileRepository` | Live, Mock |
+| `ShoppingRepository` | Live, Mock |
+| `StudioRepository` | Live, Mock (simulates queued→generating→complete across polls) |
+| `SubscriptionRepository` | Live, Mock |
+| `CalendarService` | Live (EventKit), Mock |
+| `WeatherService` | Live (WeatherKit + CoreLocation), Mock |
+
+`fetchWardrobeScore()` throws `AstraError.unimplemented` unconditionally — there is no `wardrobe_scores` table and no conforming `WardrobeScoring` implementation. **`ClosetViewModel` deliberately never calls it**, because *"calling it to render a score would put a permanent, unwinnable error on the closet's first screen."*
+
+### 13.4 Things that will silently do the wrong thing
+
+| If you… | …this happens |
+|---|---|
+| Build a storage path from `UUID.uuidString` | Every object 403s under RLS, silently |
+| Add a `CodingKey` with no matching column | `check_column_drift.py` fails — or, if it slips through, an Optional property decodes `nil` forever with no error |
+| Add a Swift `enum: String` without classifying it | `check_schema_drift.py` hard-fails |
+| Pass a whole closet to `averageCostPerWear` | Silently deflated average (numerator over priced items, denominator over all) |
+| Assign `onSaved` on a form view model built by a factory | You drop the factory's own handler; the save succeeds and the screen doesn't update |
+| Invent a new server error `category` | It collapses to `.server` on the client rather than failing loudly |
+| Read `BUILD SUCCEEDED` and stop | Warnings shipped; CI's grep will catch it, you won't |
+| Trust a module `README.md` for status | Several are stale in both directions |
+
+---
+
+## 14. The house style, in one paragraph
+
+Every non-obvious decision carries a comment saying **why**, not what — and those comments are the project's real design record, quoted throughout this document because they are better than any summary of them. Thresholds are measured against real data and the measurement is written down. A gap is named rather than filled with a plausible substitute. A control that cannot do anything is removed rather than disabled. A test that cannot run is skipped **with a reason naming the ticket that will close it**, never deleted to make CI green. A status row that overclaims is worse than one that says Partial. And when something turns out to be wrong — the vendor choice, the DTO shape, an acceptance criterion, a threshold that took four passes — it gets corrected at the source, with the reversal recorded, rather than quietly patched over.
+
+Match that and you'll fit in fine.
