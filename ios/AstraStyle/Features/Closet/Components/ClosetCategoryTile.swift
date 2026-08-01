@@ -25,7 +25,7 @@ struct ClosetCategoryTile: View {
     let count: Int
     /// Stable automation id (P3-TEST-02). Optional so previews need not
     /// invent a wardrobe category raw value they do not have.
-    var accessibilityIdentifier: String? = nil
+    var accessibilityIdentifier: String?
     let action: () -> Void
 
     var body: some View {
