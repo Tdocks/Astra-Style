@@ -5,6 +5,14 @@ working on this codebase. It is a set of binding conventions, not background
 reading — follow it by default, and deviate only with a documented reason (an ADR
 for architectural deviations, a code comment for local ones).
 
+> ## ▶ CURRENT TASK (owner's Mac / Claude Code)
+>
+> **Open [`START_HERE.md`](START_HERE.md) at the repo root and do that job.**
+> It is the TestFlight cut onto the owner's iPhone — Archive → App Store Connect →
+> internal TestFlight. Self-contained checklist. Do not hunt through `HANDOFF.md`
+> first; that file is background. `cc7923cf` ("Pre-build groundwork…") is an
+> **old** ancestor, not new unfinished work.
+
 ## What Astra Style is
 
 Astra Style is a native iOS app (Swift 6, SwiftUI, iOS 18+) that acts as a premium
@@ -18,6 +26,8 @@ provider.
 
 ## Document hierarchy — read this before touching anything
 
+0. **Right now: [`START_HERE.md`](START_HERE.md).** Owner-requested next action
+   (TestFlight). Finish that before picking Phase 4 tickets unless redirected.
 1. **`docs/00-master-spec.md` is the source of truth.** Every screen, data model,
    endpoint, and requirement in this codebase traces back to it. If you're unsure
    what a feature should do, the answer is in there — read the relevant section

@@ -1,6 +1,8 @@
 # Astra Style — iOS
 
-Native iPhone app for Astra Style, a premium personal-stylist and wardrobe operating system for men, with an AI companion named Kyra. iOS 18+, Swift 6, SwiftUI, SwiftData, Supabase. See `/docs/00-master-spec.md` for the full product/technical specification this codebase implements. Per-ticket status lives in `/docs/03-progress.md`; a cold-start narrative is in `/HANDOFF.md`.
+Native iPhone app for Astra Style, a premium personal-stylist and wardrobe operating system for men, with an AI companion named Kyra. iOS 18+, Swift 6, SwiftUI, SwiftData, Supabase. See `/docs/00-master-spec.md` for the full product/technical specification this codebase implements. Per-ticket status lives in `/docs/03-progress.md`.
+
+**Claude on the owner's Mac right now:** open **`/START_HERE.md`** (repo root) and cut the internal TestFlight build. Do not start from this README or from digging through `HANDOFF.md`.
 
 ## Prerequisites
 
