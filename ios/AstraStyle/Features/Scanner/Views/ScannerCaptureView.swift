@@ -20,6 +20,8 @@ import SwiftUI
 struct ScannerCaptureView: View {
     let viewModel: ScannerCaptureViewModel
     let captureSession: any CaptureSessionControlling
+    /// Called when the user confirms a prepared draft and wants review.
+    var onContinue: ((CapturePreparation.Prepared) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var pickedItem: PhotosPickerItem?
@@ -177,7 +179,7 @@ struct ScannerCaptureView: View {
         }
     }
 
-    // MARK: - Draft confirmation (honest gap before P3-SCAN-09)
+    // MARK: - Draft confirmation → review (P3-SCAN-09)
 
     private func draftConfirmation(_ prepared: CapturePreparation.Prepared) -> some View {
         VStack(spacing: AstraSpacing.xl) {
@@ -197,8 +199,8 @@ struct ScannerCaptureView: View {
                     .astraText(.title2)
                     .foregroundStyle(AstraColor.textPrimary)
 
-                Text(String(localized: "Review and cataloguing come next — that screen is not built yet. Retake if you want a cleaner shot, or close and keep this for later.",
-                             comment: "Honest gap copy: review screen not built"))
+                Text(String(localized: "Next, check what Kyra reads from the photo and correct anything before it lands in your closet.",
+                             comment: "Capture draft continues to review"))
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)
                     .multilineTextAlignment(.center)
@@ -206,16 +208,17 @@ struct ScannerCaptureView: View {
             }
 
             VStack(spacing: AstraSpacing.md) {
+                Button(String(localized: "Continue", comment: "Continue from capture to review")) {
+                    onContinue?(prepared)
+                }
+                .buttonStyle(.astraPrimary)
+                .accessibilityIdentifier("scanner.capture.continue")
+
                 Button(String(localized: "Retake", comment: "Retake scanner photo")) {
                     Task { await viewModel.retake() }
                 }
-                .buttonStyle(.astraPrimary)
-                .accessibilityIdentifier("scanner.capture.retake")
-
-                Button(String(localized: "Close", comment: "Close scanner after draft")) {
-                    dismiss()
-                }
                 .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("scanner.capture.retake")
             }
             .padding(.horizontal, AstraSpacing.pagePadding)
 

@@ -56,6 +56,11 @@ public actor MockClosetRepository: ClosetRepository {
     /// additionally names `size` at a confidence the client would consider
     /// fine (0.74), exercising the server-declares-it-anyway half of the
     /// marking rule that a purely computed predicate would miss.
+    public func uploadCapturedImage(_ data: Data) async throws -> String {
+        _ = data
+        return "users/preview/closet/\(UUID().uuidString.lowercased()).jpg"
+    }
+
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         Self.cannedAnalysis
     }

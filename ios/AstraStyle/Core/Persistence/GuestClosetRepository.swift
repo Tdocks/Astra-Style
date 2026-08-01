@@ -64,6 +64,12 @@ public struct GuestClosetRepository: ClosetRepository {
         []
     }
 
+    public func uploadCapturedImage(_ data: Data) async throws -> String {
+        // Guest photo bytes never reach Supabase Storage (ADR 0011).
+        _ = data
+        throw AstraError.validation("Scanning isn't available in guest mode yet. Create an account to scan items.")
+    }
+
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         // Analysis requires uploading the image to a Vision Edge Function,
         // which would put guest photo bytes on Supabase — exactly what

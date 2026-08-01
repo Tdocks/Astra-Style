@@ -260,6 +260,11 @@ private actor ThrowingWardrobeScoreClosetRepository: ClosetRepository {
         return item
     }
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
+    func uploadCapturedImage(_ data: Data) async throws -> String {
+        _ = data
+        return "users/test/closet/stub.jpg"
+    }
+
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.validation("unused")
     }

@@ -97,6 +97,11 @@ private actor StubClosetRepository: ClosetRepository {
 
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
 
+    func uploadCapturedImage(_ data: Data) async throws -> String {
+        _ = data
+        return "users/test/closet/stub.jpg"
+    }
+
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError(category: .unknown, message: "not used by the slice — no camera/Vision in the slice")
     }

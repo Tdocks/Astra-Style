@@ -6,9 +6,8 @@
 //  flow (spec §4). Composition root for scanner screens — view models are
 //  built here from `AppContainer`, never inside a leaf view.
 //
-//  This PR ships single-item capture (+ Photos import). Batch, receipt,
-//  mirror, and review are answered honestly rather than with dead chrome
-//  that pretends they work (spec §22).
+//  Single-item capture pushes review onto an internal NavigationPath so
+//  Retake can pop without dismissing the modal.
 //
 
 import SwiftUI
@@ -18,18 +17,21 @@ struct ScannerDestinationView: View {
     let container: AppContainer
 
     @Environment(\.dismiss) private var dismiss
+    @State private var path: [ScannerRoute] = []
     @State private var captureViewModel: ScannerCaptureViewModel?
+    @State private var reviewViewModel: ScannerReviewViewModel?
 
     var body: some View {
-        NavigationStack {
-            content
+        NavigationStack(path: $path) {
+            rootContent
+                .navigationDestination(for: ScannerRoute.self) { destination in
+                    destinationContent(destination)
+                }
                 .toolbar {
-                    // Single-item capture owns its own Close control. Other
-                    // modes are honest placeholders and still need a way out
-                    // (spec §22 — no dead ends).
-                    if routeNeedsChromeClose {
+                    if showsChromeClose {
                         ToolbarItem(placement: .cancellationAction) {
                             Button(String(localized: "Close", comment: "Dismiss scanner modal")) {
+                                container.captureDraftStore.removeAll()
                                 dismiss()
                             }
                             .foregroundStyle(AstraColor.textSecondary)
@@ -38,36 +40,26 @@ struct ScannerDestinationView: View {
                 }
         }
         .presentationBackground(AstraColor.backgroundPrimary)
+        .onDisappear {
+            container.captureDraftStore.removeAll()
+        }
     }
 
-    private var routeNeedsChromeClose: Bool {
+    private var showsChromeClose: Bool {
         switch route {
-        case .singleItem: false
-        case .batchCloset, .receiptLabel, .outfitMirror, .review: true
+        case .singleItem:
+            // Capture root owns its Close toolbar; pushed review adds its own.
+            false
+        case .batchCloset, .receiptLabel, .outfitMirror, .review:
+            true
         }
     }
 
     @ViewBuilder
-    private var content: some View {
+    private var rootContent: some View {
         switch route {
         case .singleItem:
-            if let captureViewModel {
-                ScannerCaptureView(
-                    viewModel: captureViewModel,
-                    captureSession: container.captureSession
-                )
-            } else {
-                ProgressView()
-                    .tint(AstraColor.accentChampagne)
-                    .task {
-                        if captureViewModel == nil {
-                            captureViewModel = ScannerCaptureViewModel(
-                                captureSession: container.captureSession
-                            )
-                        }
-                    }
-            }
-
+            captureRoot
         case .batchCloset:
             FeaturePlaceholderView(
                 title: String(localized: "Batch Closet Scan", comment: "Scanner batch mode title"),
@@ -75,7 +67,6 @@ struct ScannerDestinationView: View {
                                 comment: "Honest gap: batch capture mode"),
                 systemImage: "square.stack.3d.up"
             )
-
         case .receiptLabel:
             FeaturePlaceholderView(
                 title: String(localized: "Scan a Label", comment: "Scanner receipt/label mode title"),
@@ -83,7 +74,6 @@ struct ScannerDestinationView: View {
                                 comment: "Honest gap: receipt/label mode"),
                 systemImage: "doc.text.viewfinder"
             )
-
         case .outfitMirror:
             FeaturePlaceholderView(
                 title: String(localized: "Mirror Photo", comment: "Scanner outfit mirror mode title"),
@@ -91,14 +81,98 @@ struct ScannerDestinationView: View {
                                 comment: "Honest gap: outfit mirror mode"),
                 systemImage: "person.crop.rectangle"
             )
+        case .review(let id):
+            reviewScreen(draftID: id)
+        }
+    }
 
-        case .review:
+    @ViewBuilder
+    private func destinationContent(_ destination: ScannerRoute) -> some View {
+        switch destination {
+        case .review(let id):
+            reviewScreen(draftID: id)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(String(localized: "Close", comment: "Dismiss scanner from review")) {
+                            container.captureDraftStore.removeAll()
+                            dismiss()
+                        }
+                        .foregroundStyle(AstraColor.textSecondary)
+                    }
+                }
+        default:
             FeaturePlaceholderView(
-                title: String(localized: "Review Scan", comment: "Scanner review title"),
-                message: String(localized: "Check what Kyra read from the photo and correct anything before it lands in your closet. That screen is not built yet.",
-                                comment: "Honest gap: review screen"),
-                systemImage: "checklist"
+                title: String(localized: "Scan", comment: "Generic scanner placeholder"),
+                message: String(localized: "That capture mode is not built yet.", comment: "Generic scanner gap"),
+                systemImage: "viewfinder"
             )
+        }
+    }
+
+    @ViewBuilder
+    private var captureRoot: some View {
+        if let captureViewModel {
+            ScannerCaptureView(
+                viewModel: captureViewModel,
+                captureSession: container.captureSession,
+                onContinue: { prepared in
+                    let draft = CaptureDraft(prepared: prepared)
+                    container.captureDraftStore.put(draft)
+                    path.append(.review(capturedImageID: draft.id))
+                }
+            )
+        } else {
+            ProgressView()
+                .tint(AstraColor.accentChampagne)
+                .task {
+                    if captureViewModel == nil {
+                        captureViewModel = ScannerCaptureViewModel(
+                            captureSession: container.captureSession
+                        )
+                    }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func reviewScreen(draftID: UUID) -> some View {
+        Group {
+            if let reviewViewModel {
+                ScannerReviewView(
+                    viewModel: reviewViewModel,
+                    onFinished: {
+                        container.captureDraftStore.removeAll()
+                        dismiss()
+                    },
+                    onRetake: {
+                        container.captureDraftStore.remove(id: draftID)
+                        self.reviewViewModel = nil
+                        if path.isEmpty {
+                            dismiss()
+                        } else {
+                            path.removeLast()
+                            Task { await captureViewModel?.retake() }
+                        }
+                    }
+                )
+            } else {
+                ProgressView()
+                    .tint(AstraColor.accentChampagne)
+            }
+        }
+        .task(id: draftID) {
+            if reviewViewModel?.draftID != draftID {
+                reviewViewModel = ScannerReviewViewModel(
+                    draftID: draftID,
+                    dependencies: .init(
+                        draftStore: container.captureDraftStore,
+                        closetRepository: container.closetRepository,
+                        imageURLResolver: container.closetImageURLResolver,
+                        analyticsClient: container.analyticsClient,
+                        currentUserID: { await container.sessionStore.currentUserID() }
+                    )
+                )
+            }
         }
     }
 }

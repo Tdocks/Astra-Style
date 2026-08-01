@@ -86,6 +86,11 @@ private actor StubClosetRepository: ClosetRepository {
     func fetchItems() async throws -> [ClosetItem] { [] }
     func fetchItem(id: UUID) async throws -> ClosetItem { throw StubUnexpectedError() }
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
+    func uploadCapturedImage(_ data: Data) async throws -> String {
+        _ = data
+        return "users/test/closet/stub.jpg"
+    }
+
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw StubUnexpectedError()
     }

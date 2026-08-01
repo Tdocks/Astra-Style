@@ -128,12 +128,22 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     }
 
     private func uploadedElement(for request: ClosetItemAnalysisRequest) async throws -> AnalyzeRequestElement {
-        AnalyzeRequestElement(
+        let path: String
+        if let existing = request.storagePath, !existing.isEmpty {
+            path = existing
+        } else {
+            path = try await uploadCapturedImage(request.imageData)
+        }
+        return AnalyzeRequestElement(
             requestID: request.id,
-            storagePath: try await uploadCaptured(imageData: request.imageData),
+            storagePath: path,
             imageType: request.imageType,
             deviceHints: request.deviceHints
         )
+    }
+
+    public func uploadCapturedImage(_ data: Data) async throws -> String {
+        try await uploadCaptured(imageData: data)
     }
 
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
