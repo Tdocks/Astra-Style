@@ -125,7 +125,7 @@ extension LiveVisionGarmentRegionDetector {
 
         // Foreground masks from Vision are typically one-channel float32 or
         // one-channel uint8. Handle both; anything else is treated as absent.
-        let extents: (minX: Int, minY: Int, maxX: Int, maxY: Int)?
+        let extents: MaskExtents?
         if format == kCVPixelFormatType_OneComponent32Float {
             extents = maskExtents(
                 width: width, height: height, bytesPerRow: bytesPerRow, base: base
@@ -151,28 +151,32 @@ extension LiveVisionGarmentRegionDetector {
         )
     }
 
+    private struct MaskExtents {
+        var minX: Int
+        var minY: Int
+        var maxX: Int
+        var maxY: Int
+    }
+
     private static func maskExtents(
         width: Int,
         height: Int,
         bytesPerRow: Int,
         base: UnsafeMutableRawPointer,
         isForeground: (UnsafeRawPointer, Int) -> Bool
-    ) -> (minX: Int, minY: Int, maxX: Int, maxY: Int)? {
-        var minX = width
-        var minY = height
-        var maxX = -1
-        var maxY = -1
+    ) -> MaskExtents? {
+        var extents = MaskExtents(minX: width, minY: height, maxX: -1, maxY: -1)
         for y in 0..<height {
             let row = UnsafeRawPointer(base.advanced(by: y * bytesPerRow))
             for x in 0..<width where isForeground(row, x) {
-                minX = min(minX, x)
-                minY = min(minY, y)
-                maxX = max(maxX, x)
-                maxY = max(maxY, y)
+                extents.minX = min(extents.minX, x)
+                extents.minY = min(extents.minY, y)
+                extents.maxX = max(extents.maxX, x)
+                extents.maxY = max(extents.maxY, y)
             }
         }
-        guard maxX >= minX, maxY >= minY else { return nil }
-        return (minX, minY, maxX, maxY)
+        guard extents.maxX >= extents.minX, extents.maxY >= extents.minY else { return nil }
+        return extents
     }
 
     /// Vision normalized rect (origin bottom-left) → CGImage normalized (origin top-left).
