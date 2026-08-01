@@ -219,7 +219,7 @@ private struct ReviewTestSeams {
     var resolver: ClosetImageURLResolving = ReviewMockURLResolver()
     var pendingScanQueue: PendingScanQueue = InMemoryPendingScanQueue()
     var networkMonitor: NetworkReachabilityMonitoring = StaticNetworkReachabilityMonitor(offline: false)
-    var userID: UUID = UUID()
+    var userID = UUID()
 }
 
 // MARK: - Fixtures / doubles
