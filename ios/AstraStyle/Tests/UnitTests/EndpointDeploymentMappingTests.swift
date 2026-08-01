@@ -61,6 +61,7 @@ struct EndpointDeploymentMappingTests {
         .generateStyleDNA,
         .analyzeClosetItem,
         .batchAnalyzeCloset,
+        .batchAnalyzeClosetStatus(id: UUID()),
         .generateOutfits,
         .rankOutfits,
         .generateDailyBrief,
@@ -81,7 +82,7 @@ struct EndpointDeploymentMappingTests {
     private static func assertCovered(_ endpoint: AstraEndpoint) {
         switch endpoint {
         case .completeOnboarding, .generateStyleDNA, .analyzeClosetItem,
-             .batchAnalyzeCloset, .generateOutfits, .rankOutfits,
+             .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
              .evaluateProduct, .generateStudio, .studioStatus,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,
@@ -169,12 +170,23 @@ struct EndpointDeploymentMappingTests {
         // `outfits` shipped with the vertical slice; `profile` and
         // `style-dna` landed with Phase 2 (P2-ONBOARD-12, P2-CORE-02), which
         // is what makes onboarding completable at all.
-        let requiredNow: Set<String> = ["outfits", "profile", "style-dna"]
+        let requiredNow: Set<String> = ["outfits", "profile", "style-dna", "closet"]
         for slug in requiredNow {
             #expect(
                 functionDirectories.contains(slug),
                 "supabase/functions/\(slug)/ is missing, but the client builds URLs whose first segment is '\(slug)'. Those calls 404 in production without it."
             )
         }
+    }
+
+    @Test("Paid closet analysis endpoints require an Idempotency-Key and use a non-default retry policy")
+    func closetAnalysisRetryAndIdempotencyContract() {
+        #expect(AstraEndpoint.analyzeClosetItem.requiresIdempotencyKey)
+        #expect(AstraEndpoint.batchAnalyzeCloset.requiresIdempotencyKey)
+        #expect(!AstraEndpoint.batchAnalyzeClosetStatus(id: UUID()).requiresIdempotencyKey)
+        #expect(AstraEndpoint.analyzeClosetItem.retryPolicy == .paidProvider)
+        #expect(AstraEndpoint.batchAnalyzeCloset.retryPolicy == .batchJob)
+        #expect(AstraEndpoint.batchAnalyzeClosetStatus(id: UUID()).method == .get)
+        #expect(AstraEndpoint.batchAnalyzeClosetStatus(id: UUID()).path.hasPrefix("closet/batch-status/"))
     }
 }

@@ -1,9 +1,11 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-01 (pre-build groundwork: blocker-list and evidence prose corrected to
-match Done rows; no ticket status flips); 2026-08-01 (Phase 3 closet: `P3-CLOSET-03`, `-04`,
-`-05`, verified against a full build and test run); 2026-07-31 (Phase 2 onboarding capture
-steps, and the §6.9 quiz imagery); everything else 2026-07-30, at commit `45b4b90c`.
+**Last audited:** 2026-08-01 (`closet` Edge Function: `P3-SCAN-07`/`-08` Partial — mock
+`VisionAnalysisProvider`, analyze-item idempotency, batch job+poll); 2026-08-01 (pre-build
+groundwork: blocker-list and evidence prose corrected to match Done rows); 2026-08-01 (Phase 3
+closet: `P3-CLOSET-03`, `-04`, `-05`, verified against a full build and test run); 2026-07-31
+(Phase 2 onboarding capture steps, and the §6.9 quiz imagery); everything else 2026-07-30, at
+commit `45b4b90c`.
 
 This file answers one question: *which of the 178 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -43,12 +45,12 @@ lands data layers, protocols, and models long before the screens that use them.
 |---|---|---|---|---|
 | 1 — Foundation | 25 | 13 | 12 | 0 |
 | 2 — Identity | 17 | 12 | 5 | 0 |
-| 3 — Closet | 27 | 5 | 9 | 13 |
+| 3 — Closet | 27 | 5 | 11 | 11 |
 | 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **35** | **52** | **91** |
+| **Total** | **178** | **35** | **54** | **89** |
 
 Read that table carefully before drawing a conclusion from it. 35 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -208,11 +210,13 @@ pgvector ordering test.
 
 # PHASE 3 — CLOSET
 
-**5 Done · 9 Partial · 13 Not started.** Split cleanly in two. The CLOSET half is now substantially
+**5 Done · 11 Partial · 11 Not started.** Split cleanly in two. The CLOSET half is now substantially
 real UI: overview, category screen, item detail, manual add, item actions, metrics, three view
 modes and the filter panel all ship and are reachable, on a data layer that is applied to
-production. The SCAN half is untouched — no camera, no Vision, no server-side analysis — which is
-why `P3-CLOSET-03` is still Partial and why the closet's only working way in is typing.
+production. The SCAN half still has no camera or on-device Vision UI, but the server leg is no
+longer absent: `supabase/functions/closet/` serves analyze-item (idempotent) and batch-analyze
+as job+poll behind a mock `VisionAnalysisProvider`. The closet's only working way in remains
+typing until `P3-SCAN-01`/`-09` land.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -222,8 +226,8 @@ why `P3-CLOSET-03` is still Partial and why the closet's only working way in is 
 | P3-SCAN-04 | Partial | `Features/Scanner/Services/CapturePreparation.swift`. `Data` in, `Data` out: resize to `docs/08` §2.3's 1024px longest-edge cap through ImageIO, re-encode at JPEG q0.72 (chosen from a measured sweep -- 48 KB at q0.50, 95 KB at q0.72, 145 KB at q0.90), metadata dropped by construction rather than by a strip pass. A sibling of `ImageDownsampling` and not an extension of it: that utility returns a `UIImage` with no re-encoding step for steps 6-7 to live in, and its `scale` multiplier would make a pixel cap unenforceable. **Criterion 1 is met and automated** -- `Tests/UnitTests/CapturePreparationTests.swift` builds a capture carrying EXIF, GPS, TIFF and an orientation tag, then asserts through `CGImageSourceCopyPropertiesAtIndex` that GPS, TIFF and orientation are gone and no identifying EXIF key survives. The honest claim is "nothing identifying the person, place, time or device", not "no metadata": ImageIO writes its own `{JFIF}` block and a three-key `{Exif}` block (`ColorSpace`, `PixelXDimension`, `PixelYDimension`), so the test asserts on keys rather than on a block's absence. Orientation is asserted **baked into the pixels** -- a stripped orientation tag on an unrotated image would ship every garment sideways. **Criterion 2 is half met:** 18.2x mean reduction measured on simulated 12 MP captures (1.4-1.75 MB to 76-99 KB); "without visible quality loss in the review screen" is a human judgement on a real device and there is no review screen yet (`P3-SCAN-09`). Nothing calls it: `P3-SCAN-05`'s `uploadCaptured()` still takes raw bytes. |
 | P3-SCAN-05 | Partial | `LiveClosetRepository.uploadCaptured()` now targets the bucket that exists (`user-content`) and lowercases the user id in the path — the storage policies compare `(storage.foldername(name))[2]` to `auth.uid()::text`, which Postgres renders lowercase while Swift's `UUID.uuidString` is uppercase, so the original would have been rejected by RLS even after the bucket name was corrected. Still Partial: no signed-URL read path, and nothing calls it yet (no scan UI — see P3-SCAN-01). |
 | P3-SCAN-06 | Not started | Zero `PhotosPicker`/`PhotosUI` hits. |
-| P3-SCAN-07 | Not started | No `supabase/functions/closet/`. Client protocol method targets a nonexistent function. |
-| P3-SCAN-08 | Not started | `batchAnalyzeItems` defined client-side only; no server function. |
+| P3-SCAN-07 | Partial | `supabase/functions/closet/` serves `POST /analyze-item` with `VisionAnalysisProvider` behind a protocol (`_shared/providers/visionAnalysis.ts`), defaulting to `MockVisionAnalysisProvider`; live OpenAI adapter exists in `openaiVisionAnalysis.ts` and is constructed only from `closet/index.ts` when `VISION_ANALYSIS_PROVIDER=openai` + `OPENAI_API_KEY` are set. Wire DTO matches `ClosetItemAnalysisResult` (per-field confidence + `fields_below_confidence_threshold`). Idempotency: required `Idempotency-Key` header, durable store in `closet_analysis_idempotency` (`20260801120000_closet_analysis_jobs.sql`), iOS client reuses one key across retries (`AstraAPIClient` + `AstraEndpoint.requiresIdempotencyKey`). Deno tests in `closet/handler_test.ts` / `schema_test.ts`; Swift coverage in `EndpointDeploymentMappingTests` + `AstraAPIClientIdempotencyTests`. **Not Done:** P95 <8s against a representative image set is unmeasured; docs/08 §2.5 menswear-subcategory pilot gate has not been run; default deploy still uses the mock, not a live adapter. |
+| P3-SCAN-08 | Partial | `POST /closet/batch-analyze` enqueues a `closet_analysis_jobs` row and returns `{job_id,status}` (HTTP 202) without analysing synchronously; `GET /closet/batch-status/:id` advances **one item per poll** and returns per-item outcomes keyed by client `request_id`. A failure on one item does not fail the batch. iOS: `AstraEndpoint.batchAnalyzeClosetStatus`, `LiveClosetRepository.batchAnalyzeItems` uploads then polls to a `ClosetItemAnalysisBatch`. Cross-user isolation covered in `closet/handler_test.ts` (attacker-supplied `user_id` ignored; other user's job → 404; other user's storage path rejected). **Not Done:** not yet exercised end-to-end against a live Supabase project with five real uploads; mock provider only. |
 | P3-SCAN-09 | Not started | No review screen. `Features/Scanner/` holds services only, no `Views/`. (`Features/Closet/` is no longer empty — that half of this note was stale; it now ships the overview, category, detail and form screens.) |
 | P3-SCAN-10 | Not started | No server-side background removal. |
 | P3-SCAN-11 | Not started | No unlock-count logic; `HomeBriefData.purchaseOpportunity` is hardcoded `nil`. |

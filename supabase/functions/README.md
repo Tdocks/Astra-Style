@@ -30,9 +30,16 @@ supabase/functions/
     supabaseClient.ts        Caller-scoped (never service-role) Supabase client factory
     time.ts                  ISO-8601 normalization for timestamps on the wire
     validation.ts            Small schema-validation helpers (UUID, string, int range, ...)
-    providers/               Spec §8's provider protocols — INTERFACES ONLY, no vendor SDK
+    providers/               Spec §8's provider protocols — interfaces + adapters
       types.ts                 Shared request envelope, error taxonomy, model tiers
       stylistReasoning.ts      StylistReasoningProvider (docs/08 §1)
+      visionAnalysis.ts        VisionAnalysisProvider (docs/08 §2)
+      mockVisionAnalysis.ts    Deterministic mock used by default
+      openaiVisionAnalysis.ts  Optional live adapter (env-gated; wired only in closet/index.ts)
+  closet/                 POST /closet/analyze-item, POST /batch-analyze, GET /batch-status/:id
+    index.ts                Deployment entrypoint — THE ONE LINE THAT PICKS THE VISION PROVIDER
+    handler.ts               analyze-item (idempotent) + batch enqueue/poll (never sync fan-out)
+    schema.ts / mapper.ts    Wire DTOs matching ClosetItemAnalysisResult + provider→wire map
   outfits/                POST /outfits/generate (and, in Phase 4, POST /outfits/rank)
     index.ts                Deployment entrypoint (Deno.serve + createRouter + wiring)
     handler.ts               Testable request handler for /generate (all deps injected)

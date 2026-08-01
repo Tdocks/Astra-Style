@@ -15,6 +15,9 @@ public enum AstraEndpoint: Sendable, Equatable {
     case generateStyleDNA
     case analyzeClosetItem
     case batchAnalyzeCloset
+    /// Poll endpoint for `batchAnalyzeCloset` jobs (HANDOFF §9.3 — batch is
+    /// job+poll, never an in-request fan-out on the shared `closet` isolate).
+    case batchAnalyzeClosetStatus(id: UUID)
     case generateOutfits
     case rankOutfits
     case generateDailyBrief
@@ -31,7 +34,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// HTTP method for the endpoint.
     public var method: HTTPMethod {
         switch self {
-        case .studioStatus:
+        case .studioStatus, .batchAnalyzeClosetStatus:
             .get
         case .deleteAccount:
             .delete
@@ -48,6 +51,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .generateStyleDNA: "style-dna/generate"
         case .analyzeClosetItem: "closet/analyze-item"
         case .batchAnalyzeCloset: "closet/batch-analyze"
+        case .batchAnalyzeClosetStatus(let id): "closet/batch-status/\(id.uuidString.lowercased())"
         case .generateOutfits: "outfits/generate"
         case .rankOutfits: "outfits/rank"
         case .generateDailyBrief: "daily-brief/generate"
@@ -68,6 +72,36 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// (spec §14 "Validate JWT" applies to user-initiated calls).
     public var requiresAuthentication: Bool {
         self != .appStoreWebhook
+    }
+
+    /// Paid / quota-bearing calls must send a stable `Idempotency-Key` so a
+    /// mobile retry cannot double-charge (docs/08 §0.1, HANDOFF §9.2).
+    public var requiresIdempotencyKey: Bool {
+        switch self {
+        case .analyzeClosetItem, .batchAnalyzeCloset, .generateStudio:
+            true
+        default:
+            false
+        }
+    }
+
+    /// Per-endpoint retry policy. Vision analysis may retry 5xx only because
+    /// the matching Edge Function is idempotent under `Idempotency-Key`;
+    /// endpoints without that guarantee stay on the conservative default.
+    public var retryPolicy: AstraRetryPolicy {
+        switch self {
+        case .analyzeClosetItem:
+            // Same attempt budget as `.default`, but named so a future
+            // tightening of the vision budget is a one-line change here
+            // rather than a silent share with unrelated endpoints.
+            .paidProvider
+        case .batchAnalyzeCloset, .batchAnalyzeClosetStatus:
+            // Enqueue/poll are cheap; status polls are frequent and should
+            // not stampede the isolate after a blip.
+            .batchJob
+        default:
+            .default
+        }
     }
 }
 

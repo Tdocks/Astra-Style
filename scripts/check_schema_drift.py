@@ -126,6 +126,10 @@ ENUM_MAPPING: dict[str, str] = {
     "KyraMessageRole": "kyra_message_role",
     "StyleMemoryType": "memory_type",
     "StudioGenerationStatus": "generation_status",
+    # Batch analysis jobs reuse the same generation_status state machine as
+    # studio_generations (queued/generating/complete/failed) — see
+    # 20260801120000_closet_analysis_jobs.sql.
+    "ClosetItemAnalysisBatchJobStatus": "generation_status",
     "SubscriptionStatus": "subscription_status",
     "SubscriptionEnvironment": "subscription_environment",
     "SubscriptionTier": "subscription_tier",

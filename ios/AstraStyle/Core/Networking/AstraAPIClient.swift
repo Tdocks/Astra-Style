@@ -84,23 +84,36 @@ public final class AstraAPIClient: @unchecked Sendable {
 
     /// Performs a request against an Edge Function with a typed request
     /// body, applying retry-with-backoff for retryable failures.
+    ///
+    /// When `endpoint.requiresIdempotencyKey` is true, one key is minted for
+    /// the logical call and reused on every retry attempt — that is what
+    /// makes a 5xx retry of `closet/analyze-item` safe against double
+    /// vision billing (HANDOFF §9.2).
     public func send<Body: Encodable & Sendable, Payload: Decodable & Sendable>(
         _ endpoint: AstraEndpoint,
         body: Body,
         as payloadType: Payload.Type
     ) async throws -> Payload {
         let requestID = UUID().uuidString
+        let idempotencyKey = endpoint.requiresIdempotencyKey ? UUID().uuidString : nil
+        let policy = endpoint.retryPolicy == .default ? retryPolicy : endpoint.retryPolicy
 
         var attempt = 0
         while true {
             do {
-                return try await performOnce(endpoint, body: body, requestID: requestID, as: payloadType)
+                return try await performOnce(
+                    endpoint,
+                    body: body,
+                    requestID: requestID,
+                    idempotencyKey: idempotencyKey,
+                    as: payloadType
+                )
             } catch let error as AstraError {
                 attempt += 1
-                guard error.isRetryable, attempt <= retryPolicy.maxAttempts else {
+                guard error.isRetryable, attempt <= policy.maxAttempts else {
                     throw error
                 }
-                let delay = retryPolicy.delay(forAttempt: attempt)
+                let delay = policy.delay(forAttempt: attempt)
                 try await Task.sleep(for: .seconds(delay))
                 continue
             }
@@ -111,9 +124,15 @@ public final class AstraAPIClient: @unchecked Sendable {
         _ endpoint: AstraEndpoint,
         body: Body,
         requestID: String,
+        idempotencyKey: String?,
         as payloadType: Payload.Type
     ) async throws -> Payload {
-        let request = try await makeRequest(endpoint, body: body, requestID: requestID)
+        let request = try await makeRequest(
+            endpoint,
+            body: body,
+            requestID: requestID,
+            idempotencyKey: idempotencyKey
+        )
 
         let data: Data
         let response: URLResponse
@@ -141,7 +160,8 @@ public final class AstraAPIClient: @unchecked Sendable {
     private func makeRequest<Body: Encodable & Sendable>(
         _ endpoint: AstraEndpoint,
         body: Body,
-        requestID: String
+        requestID: String,
+        idempotencyKey: String?
     ) async throws -> URLRequest {
         let url = environment.edgeFunctionsBaseURL.appendingPathComponent(endpoint.path)
         var request = URLRequest(url: url)
@@ -149,6 +169,9 @@ public final class AstraAPIClient: @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(requestID, forHTTPHeaderField: "X-Request-Id")
         request.setValue(environment.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        if let idempotencyKey {
+            request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+        }
 
         if endpoint.requiresAuthentication {
             guard let token = await tokenProviderBox.provider?.currentAccessToken() else {
@@ -267,7 +290,7 @@ private final class TokenProviderBox: @unchecked Sendable {
 
 /// Exponential backoff with jitter, per spec §14 implied resilience
 /// requirements around unreliable mobile networks.
-public struct AstraRetryPolicy: Sendable {
+public struct AstraRetryPolicy: Sendable, Equatable {
     public let maxAttempts: Int
     public let baseDelay: Double
     public let maxDelay: Double
@@ -280,6 +303,10 @@ public struct AstraRetryPolicy: Sendable {
 
     public static let `default` = AstraRetryPolicy(maxAttempts: 3, baseDelay: 0.5, maxDelay: 8.0)
     public static let none = AstraRetryPolicy(maxAttempts: 0, baseDelay: 0, maxDelay: 0)
+    /// Paid provider calls that are server-idempotent under `Idempotency-Key`.
+    public static let paidProvider = AstraRetryPolicy(maxAttempts: 3, baseDelay: 0.75, maxDelay: 8.0)
+    /// Batch enqueue + status poll — fewer, slower retries to avoid poll stampedes.
+    public static let batchJob = AstraRetryPolicy(maxAttempts: 2, baseDelay: 0.5, maxDelay: 4.0)
 
     func delay(forAttempt attempt: Int) -> Double {
         let exponential = baseDelay * pow(2.0, Double(attempt - 1))
