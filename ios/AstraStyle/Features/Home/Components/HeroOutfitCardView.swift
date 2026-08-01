@@ -66,28 +66,15 @@ struct HeroOutfitCardView: View {
     }
 
     private var heroImage: some View {
-        RoundedRectangle(cornerRadius: AstraSpacing.cardRadius, style: .continuous)
-            .fill(AstraColor.surfaceElevated)
-            .aspectRatio(4.0 / 5.0, contentMode: .fit)
-            .overlay {
-                if let url = outfit.heroImageURL ?? outfit.generatedPreviewURL {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        default:
-                            Image(systemName: "hanger")
-                                .astraIcon(.feature)
-                                .foregroundStyle(AstraColor.textMuted)
-                        }
-                    }
-                } else {
-                    Image(systemName: "hanger")
-                        .astraIcon(.feature)
-                        .foregroundStyle(AstraColor.textMuted)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: AstraSpacing.cardRadius, style: .continuous))
+        // `thumbnail: nil` — full-resolution decode. This is the largest
+        // image on the screen, and downsampling it to a grid tile's 220 px
+        // would be visibly soft. The closet grid passes `.closetGridTile`
+        // instead; see AstraRemoteImage's header.
+        AstraRemoteImage(
+            url: outfit.heroImageURL ?? outfit.generatedPreviewURL,
+            aspectRatio: 4.0 / 5.0,
+            accessibilityDescription: String(localized: "Editorial preview of \(outfit.name)", comment: "Accessibility description of an outfit's hero image")
+        )
             .overlay(alignment: .bottomLeading) {
                 // Spec §11/§13 guardrail + CLAUDE.md "every generated image carries the
                 // estimate badge": `heroImageURL` is a real/curated asset and never gets the
@@ -97,8 +84,6 @@ struct HeroOutfitCardView: View {
                         .padding(AstraSpacing.sm)
                 }
             }
-            .accessibilityLabel(Text("Editorial preview of \(outfit.name)"))
-            .accessibilityAddTraits(.isImage)
     }
 
     private var actionRow: some View {

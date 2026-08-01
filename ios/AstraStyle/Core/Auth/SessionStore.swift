@@ -71,6 +71,27 @@ public final class SessionStore: AstraAuthTokenProviding {
         }
     }
 
+    /// The current session's user id, guest or real — `nil` only when
+    /// nobody is signed in.
+    ///
+    /// Deliberately a sibling of `currentGuestUserID()` rather than a
+    /// generalisation of it: that one answers "which local guest bucket
+    /// does this belong to" and returns `nil` for a real account *on
+    /// purpose*, so a signed-in user can never be handed guest storage.
+    /// This one answers a different question — "whose row is this" — which
+    /// is what writing a `closet_items` row needs before it has decided
+    /// where the row goes. Which store it goes to stays
+    /// `GuestAwareClosetRepository`'s decision, taken from
+    /// `currentIsGuest()`, so a guest's id still lands on a local row and
+    /// a real account's on a Postgres one.
+    ///
+    /// `nonisolated` for the same reason as its two neighbours: it is
+    /// captured in `@Sendable` closures handed to repositories and view
+    /// models that are not on the main actor.
+    public nonisolated func currentUserID() async -> UUID? {
+        await MainActor.run { self.currentSession?.userID }
+    }
+
     // MARK: - Session lifecycle
 
     /// Restores a session from Keychain, refreshing it against Supabase if
