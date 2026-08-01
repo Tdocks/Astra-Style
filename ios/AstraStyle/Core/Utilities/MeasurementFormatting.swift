@@ -4,9 +4,12 @@
 //
 //  Converts the raw `Double` measurement fields on `BodyProfile`
 //  (spec §9 — stored in whichever unit `Profile.units` indicates) into
-//  user-facing strings, and formats currency for prices, all Dynamic-Type
-//  and locale safe by going through `Foundation.FormatStyle` rather than
-//  hand-built strings.
+//  user-facing strings, Dynamic-Type and locale safe by going through
+//  `Foundation.FormatStyle` rather than hand-built strings.
+//
+//  Money formatting lives in `CurrencyFormatting` — do not add a second
+//  spelling here. The old helpers used the device locale as a currency
+//  fallback, which quietly relabelled amounts; that rule is rejected.
 //
 
 import Foundation
@@ -35,19 +38,5 @@ public enum MeasurementFormatting {
             ? Measurement(value: value, unit: .pounds)
             : Measurement(value: value, unit: .kilograms)
         return measurement.formatted(.measurement(width: .abbreviated, usage: .personWeight))
-    }
-
-    public static func formattedPrice(_ value: Decimal?, currencyCode: String?) -> String? {
-        guard let value else { return nil }
-        return value.formatted(.currency(code: currencyCode ?? Locale.current.currency?.identifier ?? "USD"))
-    }
-
-    /// e.g. "$42 / wear" for the closet item detail and Product Decision
-    /// Page (spec §6.15, §6.19).
-    public static func formattedCostPerWear(_ value: Decimal?, currencyCode: String?) -> String {
-        guard let value, let formattedPrice = formattedPrice(value, currencyCode: currencyCode) else {
-            return String(localized: "Not enough wears yet", comment: "Cost-per-wear placeholder")
-        }
-        return String(localized: "\(formattedPrice) / wear", comment: "Cost-per-wear value, e.g. $42 / wear")
     }
 }

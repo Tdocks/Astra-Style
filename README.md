@@ -13,11 +13,12 @@ or outfit randomizer.
 
 ## Status
 
-**Phase 2 of 7 — Identity — in progress.** Phase 1 (Foundation) is substantively
-complete: auth, guest mode, the design system, navigation, the repository layer,
-and a Postgres schema with row-level security applied to production. Onboarding
-is built through the style-preference quiz. The app does not yet have a closet,
-outfit intelligence, Kyra, Style Studio, or subscriptions.
+**Phase 3 of 7 — Closet — in progress.** Phase 1 (Foundation) and Phase 2
+(Identity / onboarding → Style DNA) are substantively complete. The Closet
+overview, metrics, filters, item detail, and manual add/edit are usable end to
+end. Scanner has device-side groundwork only (no camera/review UI). Outfit
+intelligence, Kyra, Style Studio, shopping, and subscriptions remain largely
+unbuilt.
 
 **Per-ticket status for all 178 tickets lives in
 [`docs/03-progress.md`](docs/03-progress.md)** — that file, not this section, is
@@ -25,17 +26,25 @@ the place to look before starting work. It records what is Done, Partial, Not
 started, or genuinely Unverifiable, with evidence for each, and it is enforced by
 `scripts/check_progress.py` in CI so it cannot quietly drift from the code.
 
+A cold-start narrative for a new builder is in [`HANDOFF.md`](HANDOFF.md).
 `docs/01-build-roadmap.md` holds the phase plan and `docs/11-risk-register.md`
 the risks being actively tracked.
+
+**Authoritative master spec:** [`docs/00-master-spec.md`](docs/00-master-spec.md).
+Any `Astra_Style_iOS_Master_Build_Spec.md` sitting outside this repo is a frozen
+snapshot — do not treat it as current.
 
 ## Repo layout
 
 ```
-docs/            Specs, architecture decisions, roadmap, and task breakdown
+docs/            Specs, architecture decisions, roadmap, progress, and ADRs
 ios/             The native iOS app (Swift 6, SwiftUI, XcodeGen-generated project)
 supabase/        Backend: Postgres migrations and Edge Functions
 brand/           Brand assets — logos, reference screenshots, textures
-CLAUDE.md        Conventions for AI coding agents working in this repo
+legal/           Drafted, unpublished legal HTML (deferred to end of build)
+scripts/         CI checkers and quiz-imagery tooling
+CLAUDE.md        Binding conventions for AI coding agents
+HANDOFF.md       Cold-start handoff for a new builder
 README.md        This file
 ```
 
@@ -50,7 +59,7 @@ xcodegen generate
 
 # 2. Configure secrets. Copy the template and fill in your local values —
 #    Config/Secrets.xcconfig is gitignored and must never be committed.
-cp Config/Secrets.xcconfig.example Config/Secrets.xcconfig
+cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
 #    Required: SUPABASE_URL, SUPABASE_ANON_KEY (see docs/00-master-spec.md §25 —
 #    the app never receives provider API keys or the Supabase service-role key).
 

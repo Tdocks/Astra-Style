@@ -229,7 +229,7 @@ extension ClosetMetricsRow {
                 // second "/ wear" string: the sentence already has a
                 // localisation key on the item detail screen, and two keys
                 // for one sentence is two things to keep in step.
-                figure(MeasurementFormatting.formattedCostPerWear(value, currencyCode: currencyCode))
+                figure(CurrencyFormatting.formattedCostPerWear(value, currencyCode: currencyCode))
             case .noPricesOnFile:
                 state(String(localized: "No prices on file", comment: "Average cost per wear is undefined because no garment has a purchase price"))
             case .notYetWorn:

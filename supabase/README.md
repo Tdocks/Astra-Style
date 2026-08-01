@@ -45,7 +45,7 @@ convention and are applied strictly in filename (timestamp) order:
 | 8 | `20260728100700_planning.sql` | `occasions`, `daily_briefs` |
 | 9 | `20260728100800_studio_and_subscriptions.sql` | `studio_generations`, `subscriptions` |
 | 10 | `20260728100900_rls_policies.sql` | Row Level Security on every user-owned table |
-| 11 | `20260728101000_storage_buckets.sql` | The `user-content` private bucket + storage RLS |
+| 11 | `20260728101000_storage_buckets.sql` | The `user-content` private bucket + storage RLS (see **UUID casing trap** below) |
 | 12 | `20260728101100_indexes_and_search.sql` | btree/GIN/HNSW indexes |
 | 13 | `20260728101200_functions_and_triggers.sql` | `updated_at` triggers, `handle_new_user`, soft-delete RPCs |
 | 14 | `20260728101300_account_deletion.sql` | The account-deletion job (table + functions) |
@@ -134,6 +134,22 @@ Edge Function using the service-role key must drive those two API calls.
   migration that undoes it (see "migrations are append-only" convention
   referenced in `docs/adr/0002-supabase-as-backend.md`) rather than editing
   or deleting an already-pushed migration file.
+
+## Storage path convention — UUID casing trap
+
+Object keys under `user-content` look like
+`users/{user_id}/closet/...` (and `references/`, `studio/`). Storage RLS
+compares the `{user_id}` path segment to `(auth.uid())::text`, which
+Postgres renders in **lowercase**.
+
+Swift's `UUID.uuidString` is **uppercase**. Building a storage path with it
+unchanged makes every upload/select fail with a silent **403** — the policy
+simply does not match, and neither Storage nor the client names the cause.
+
+**Always lowercase the UUID segment** before writing or signing a path
+(`.uuidString.lowercased()`). The iOS upload helpers already do this; Edge
+Functions that invent paths must do the same. Do not "fix" a 403 by
+widening the RLS policy.
 
 ## Environment variables (§25 of the master spec)
 

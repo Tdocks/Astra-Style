@@ -1,8 +1,9 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-01 (Phase 3 closet: `P3-CLOSET-03`, `-04`, `-05`, verified against a full
-build and test run); 2026-07-31 (Phase 2 onboarding capture steps, and the §6.9 quiz imagery);
-everything else 2026-07-30, at commit `45b4b90c`.
+**Last audited:** 2026-08-01 (pre-build groundwork: blocker-list and evidence prose corrected to
+match Done rows; no ticket status flips); 2026-08-01 (Phase 3 closet: `P3-CLOSET-03`, `-04`,
+`-05`, verified against a full build and test run); 2026-07-31 (Phase 2 onboarding capture
+steps, and the §6.9 quiz imagery); everything else 2026-07-30, at commit `45b4b90c`.
 
 This file answers one question: *which of the 178 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -49,11 +50,12 @@ lands data layers, protocols, and models long before the screens that use them.
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
 | **Total** | **178** | **35** | **52** | **91** |
 
-Read that table carefully before drawing a conclusion from it. 32 of 178 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 35 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
-rows are missing one narrow criterion rather than the bulk of the work, and a large amount of
-Phase 3–7 data-layer work is already applied to production. It also *overstates* readiness in one
-specific way — see **Blockers** below.
+rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
+largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
+already applied to production. It also *overstates* readiness in one specific way — see
+**Blockers** below.
 
 ---
 
@@ -61,14 +63,13 @@ specific way — see **Blockers** below.
 
 Ranked by what stops the next user-visible thing from working.
 
-1. **iOS CI has still never run on a pull request** — but it is no longer red. SwiftLint
-   `--strict` reported 122 violations across 19 rules (not the 4 rules first estimated); all 122
-   are now resolved, 121 in the source and one by a documented `nesting` threshold change in
-   `.swiftlint.yml`. With lint passing, the zero-compiler-warnings gate ran for the first time:
-   reproduced locally with the same scoped build-log grep `.github/workflows/ios.yml` uses, and
-   first-party code is clean (0 warnings under `ios/AstraStyle/`). What remains open is the part
-   no local run can settle — every commit has gone straight to `main`, so no criterion in
-   `P1-INFRA-03` has ever been validated *on a PR*.
+1. **iOS CI's negative case is still unproven.** SwiftLint `--strict` and the zero-compiler-
+   warnings gate are green locally and on real PRs: **#3 and #4** opened, ran the full
+   `ios.yml` job green, and merged (#5 closed without merging; its content landed on `main`).
+   First-party code is clean (0 warnings under `ios/AstraStyle/`). What remains open for
+   `P1-INFRA-03` is the negative case — no PR has yet been made to *fail* on a warning or a
+   lint violation — and the working convention moved to committing directly to `main` on
+   2026-08-01, so further positive PR validation may not arrive soon.
 2. **The quiz covers all eight dimensions now; one of them is a pair short.** The §6.9
    imagery was regenerated from scratch on 2026-07-31 against a single canonical reference
    figure, and the shipped catalog holds **15 pairs** — inside §6.9's 12–20, with every one of
@@ -156,7 +157,7 @@ the dead offline queue) will cost real money later if they stay open.
 | P1-DS-01 | Partial | `Tokens/AstraColor.swift` covers every §3 token in both schemes via a `UIColor` trait provider, and now matches spec §3 exactly — the three deliberately-revised hex values (`textMuted` both schemes, light `accentChampagne`) were ported into spec §3 itself 2026-07-30, cross-referenced to `docs/07-design-system.md`'s contrast analysis. **No Asset Catalog exists in the repo at all** (no `.xcassets`, and therefore no app icon) — that part is genuinely unmet. `surfaceMarble` returns `backgroundPrimary`. |
 | P1-DS-02 | Done | `Tokens/AstraTypography.swift` — all 9 styles at exact §3 sizes, correct serif/sans split, `micro` uppercase + 1.5 tracking, `@ScaledMetric(relativeTo:)` throughout. |
 | P1-DS-03 | Partial | `AstraSpacing`/`AstraRadius`/`AstraSize` all correct and referenced by name. **No lint rule flags raw point values** — `.swiftlint.yml` has only the sparkle and ticket-id custom rules. |
-| P1-DS-04 | Partial | `AstraButton`/`AstraCard`/`AstraChip` on tokens with 44pt minimum targets. **`AstraTextField` does not exist** (8 raw `TextField` call sites). **No destructive button variant.** No per-component previews — only 4 whole-page gallery previews. |
+| P1-DS-04 | Partial | `AstraButton`/`AstraCard`/`AstraChip` on tokens with 44pt minimum targets. **`AstraTextField` exists** (`Core/DesignSystem/Components/AstraTextField.swift`) and is used by Closet forms. **No destructive button variant.** No per-component previews — only 4 whole-page gallery previews. |
 | P1-DS-05 | Partial | `AstraMarble` (procedural, not an asset) + `LaunchingView`; session restore bounded by `withDeadline(.milliseconds(1400))`. Marble used at exactly 3 sites, none behind dense text. The "measured, not estimated" 1.4 s criterion has no measurement artifact. |
 | P1-DS-06 | Partial | `AstraMotion` — 220 ms standard, springs, Reduce-Motion-aware `.astraAnimation`, haptics mapped per §3 and used at 12 onboarding sites. **No matched-geometry hero helper exists**, and **`AstraMotion.breathing` has zero call sites**, so the Reduce-Motion criterion has nothing to assert against. |
 | P1-AUTH-01 | Done | `AppleSignInCoordinator` + SHA-256 nonce; `handle_new_user()` trigger deployed; cancellation maps to `AstraError.cancelled`. Live round-trip is a deliberate §22 placeholder. |
@@ -291,7 +292,7 @@ design, not evidence of build.
 | Ticket | Status | Evidence |
 |---|---|---|
 | P5-KYRA-01 | Done | `20260728100500_feedback_and_memory.sql` creates `kyra_threads`/`kyra_messages`/`style_memories` with embeddings; cross-user RLS asserted and run in CI. |
-| P5-KYRA-02 | Not started | No `supabase/functions/kyra/`; `EndpointDeploymentMappingTests` pins `requiredNow = ["outfits"]`. |
+| P5-KYRA-02 | Not started | No `supabase/functions/kyra/`; `EndpointDeploymentMappingTests` pins `requiredNow = ["outfits", "profile", "style-dna"]` (Kyra is not among them). |
 | P5-KYRA-03 | Not started | No server code. Token budget and truncation order are design-only in `docs/06` §1. |
 | P5-KYRA-04 | Not started | No `search_closet` tool; schema exists only as documentation. |
 | P5-KYRA-05 | Not started | No `rank_outfits` tool wiring. |
@@ -416,7 +417,7 @@ there is one place to look; the roadmap stays a planning document.
 | 4 profile tables with RLS returning zero rows cross-user, not an error | **Yes** | `20_rls_isolation_tests.sql`; RLS workflow green. |
 | Storage buckets private; unsigned URL returns 403 | Partial | Live bucket is private with 4 path-scoped policies. No automated test — CI Postgres has no `storage` schema. |
 | 5 tab items navigate independently and preserve position | **Yes** | `AppRouter` 5 path arrays + `TabNavigationStateTests`. |
-| CI runs on every PR and fails on a warning or lint violation | **No** | Zero PRs have ever existed; iOS CI is red on `main` at SwiftLint, so the warning gate has never run. |
+| CI runs on every PR and fails on a warning or lint violation | **Partial** | PRs #3/#4 ran `ios.yml` green (lint + warning gate). Negative case (PR fails on a deliberate warning/lint) still unproven; convention is now direct-to-`main`. |
 | No service-role or provider key anywhere in the iOS target | **Yes** | Grep of target and config finds none; `Secrets.xcconfig` holds only URL + anon key, gitignored. |
 
 ### Phase 2
@@ -430,8 +431,10 @@ there is one place to look; the roadmap stays a planning document.
 | Skipping "add first closet items" does not block reaching Home | **Yes** | `OnboardingStep.firstItems` exists and is skippable (`isSkippable` is true for everything except `.identity`). Nothing on the step feeds `canAdvance`: an empty form, a write that fails, and a guest at the 10-item cap all resolve to a message beside the form rather than to a blocked footer. `OnboardingFirstItemsTests.skippingDoesNotBlockReachingHome` and `aBrokenBackendStillLetsHimLeave` pin it at the view-model level; `OnboardingCaptureStepsUITests.testSkippingFirstItemsStillReachesHome` walks a guest from the quiz through both new steps without adding anything and asserts the tab bar appears, and `testFirstItemsAtLargestDynamicType` asserts the forward button is still hittable and enabled at AX5, which is where a footer is most likely to be pushed off screen. |
 | Every §6.7-optional field can be left blank without a validation error | **Yes** | Only `.identity` is non-skippable; per-field skip in appearance; covered by `OnboardingDraftTests`. |
 
-Phases 3–7 exit criteria are not yet assessed — those phases have not started in earnest, and
-assessing them now would produce a wall of "No" with no information in it.
+Phases 4–7 exit criteria are not yet assessed in full. Phase 3 (Closet) is underway — overview,
+metrics, filters, detail, and manual form are usable; Scanner UI and the `closet` Edge Function
+are the remaining block. Assessing Phases 4–7 now would still produce a wall of "No" with little
+information in it.
 
 ---
 

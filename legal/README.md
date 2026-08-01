@@ -219,7 +219,7 @@ reality again before publishing, because several are one ticket away from changi
 | Retention sweeps (abandoned reference images at 24h, Studio outputs at 30d) | ADR 0010 policy; **no scheduled job exists**. Nothing expires on its own today. | — |
 | Style-memory inspect/delete UI | Not built. | — |
 | Shopping / affiliate features | No affiliate network integrated, catalogue empty, `Features/Shopping/` has no Swift files. | — |
-| Style Studio, Kyra, Scanner, Closet, Subscription UI | No Swift files in those feature directories. Only Onboarding, Home, a guest Profile and the Slice demo exist. The documents describe the service as designed; a reviewer should know how much of it is not yet shipping. | — |
+| Feature UI maturity (for counsel / reviewers) | **Built and shipping in-app:** Onboarding → Style DNA, Home, Closet (overview/metrics/filters/detail/manual form), guest Profile. **Groundwork only:** Scanner (`Services/` — no camera/review UI). **README-only (zero Swift):** Outfits, Studio, Kyra, Shopping, Discover, Subscription. The documents describe the service as designed; a reviewer should know how much of it is not yet shipping. | — |
 
 ## Source of every factual claim
 

@@ -1,15 +1,15 @@
 # Astra Style — iOS
 
-Native iPhone app for Astra Style, a premium personal-stylist and wardrobe operating system for men, with an AI companion named Kyra. iOS 18+, Swift 6, SwiftUI, SwiftData, Supabase. See `/docs/00-master-spec.md` for the full product/technical specification this codebase implements.
+Native iPhone app for Astra Style, a premium personal-stylist and wardrobe operating system for men, with an AI companion named Kyra. iOS 18+, Swift 6, SwiftUI, SwiftData, Supabase. See `/docs/00-master-spec.md` for the full product/technical specification this codebase implements. Per-ticket status lives in `/docs/03-progress.md`; a cold-start narrative is in `/HANDOFF.md`.
 
 ## Prerequisites
 
-- macOS with Xcode 16 or later (iOS 18 SDK, Swift 6 toolchain).
+- macOS with **Xcode 26.6** exactly (CI pins it; matches the owner's machine). The line "Xcode 16 or later" that once lived here is stale.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
 - A Supabase project (or access to the shared dev project) for `SUPABASE_URL` / `SUPABASE_ANON_KEY`.
 - CocoaPods is **not** used — dependencies are Swift Package Manager only (see `project.yml`'s `packages:` section, currently `supabase-swift`).
 
-This repository does not include a Swift toolchain or Xcode, and the project has never been opened in Xcode or compiled — see "Verification status" below for exactly what was and wasn't checked.
+The project builds and tests. Trust `docs/03-progress.md` for what is Done vs Partial, not directory names under `Features/`.
 
 ## 1. Generate the Xcode project
 
@@ -21,7 +21,7 @@ xcodegen generate
 open AstraStyle.xcodeproj
 ```
 
-Re-run `xcodegen generate` any time `project.yml` changes, or any time you add/remove/rename a file or folder under `AstraStyle/` — XcodeGen's `sources:` entry in `project.yml` walks the directory tree automatically, so this is the only file-management step required (no manual "Add Files to project" in Xcode).
+Re-run `xcodegen generate` any time `project.yml` changes, or any time you add/remove/rename a *directory* under `AstraStyle/`. New files under an existing directory are picked up by the recursive glob without a project edit.
 
 ## 2. Configure secrets
 
@@ -45,26 +45,39 @@ Select the `AstraStyle` scheme and a simulator or device running iOS 18+, then C
 
 ## 4. Test
 
+Prefer a UDID from the resolver (hardcoded device names break when the runner's runtimes change):
+
 ```bash
-xcodebuild test -project AstraStyle.xcodeproj -scheme AstraStyle -destination 'platform=iOS Simulator,name=iPhone 16'
+xcodebuild test -project AstraStyle.xcodeproj -scheme AstraStyle \
+  -destination "id=$(python3 ../scripts/resolve_ios_simulator.py)"
 ```
 
-or Cmd-U in Xcode. Unit tests use **Swift Testing** (`import Testing`, `@Test`, `#expect`) per iOS 18's minimum deployment target; UI tests use **XCUITest**, which Swift Testing doesn't cover.
+or Cmd-U in Xcode. Unit tests use **Swift Testing** (`import Testing`, `@Test`, `#expect`); UI tests use **XCUITest**.
 
-Every test in `Tests/UnitTests/PendingIntegrationRequirementsTests.swift` and in `Tests/UITests/AstraStyleUITests.swift` is an **explicitly skipped placeholder** for a spec §22 requirement that needs real backend/StoreKit/UI infrastructure this scaffold doesn't have yet (a live Supabase project, deployed Edge Functions, a StoreKit sandbox tester, and the still-scaffolded feature screens themselves). The unit ones carry Swift Testing's `.disabled(reason:)`; the UI ones `throw XCTSkip(...)`. Each skip reason names the spec requirement and the ticket prefix expected to close it, so the gap is reported rather than silently missing — and the suite can still be green, which is what makes a genuine failure worth reading. They were previously written as `Issue.record`/`XCTFail` bodies; that made the iOS job permanently red, which hid real regressions instead of highlighting these. Do not delete them to make CI green; replace them with real tests — dropping the skip at that point, not before — as their dependencies land.
+`BUILD SUCCEEDED` from `xcodebuild` does **not** mean the warning gate passed — CI greps the build log for first-party warnings. Local equivalent:
+
+```bash
+xcodebuild -project AstraStyle.xcodeproj -scheme AstraStyle \
+  -destination "id=$(python3 ../scripts/resolve_ios_simulator.py)" build 2>&1 \
+  | grep "warning:" | grep "ios/AstraStyle/"
+```
+
+It must print nothing. Also run `swiftlint --strict` and the Python checkers under `scripts/` before pushing.
+
+Several UI / integration tests remain deliberately skipped (`XCTSkip` / `.disabled`) with reasons naming the ticket that will close them. Do not delete skips to make CI green; replace them with real tests when their dependencies land.
 
 ## 5. Supabase setup (backend)
 
-This directory is the iOS client only. The Postgres schema, RLS policies, and Edge Functions live under `/supabase/` at the repo root (migrations, `supabase/functions/`). Broadly:
+This directory is the iOS client only. The Postgres schema, RLS policies, and Edge Functions live under `/supabase/` at the repo root. Broadly:
 
 ```bash
 supabase login
 supabase link --project-ref <your-project-ref>
 supabase db push                 # applies migrations
-supabase functions deploy        # deploys the 16 Edge Functions in spec §14
+supabase functions deploy        # deploys existing function slugs (see supabase/README.md)
 ```
 
-Every Edge Function needs its own environment variables set via `supabase secrets set` — see spec §25 for the full list (`SUPABASE_SERVICE_ROLE_KEY`, `STYLIST_PROVIDER_API_KEY`, `VISION_PROVIDER_API_KEY`, `IMAGE_PROVIDER_API_KEY`, `EMBEDDING_PROVIDER_API_KEY`, `WEATHER_PROVIDER_KEY_IF_USED`, `AFFILIATE_PROVIDER_KEYS`, `APP_STORE_SHARED_CONFIGURATION`). None of these are ever referenced from this iOS project.
+Every Edge Function needs its own environment variables set via `supabase secrets set` — see spec §25. None of these are ever referenced from this iOS project.
 
 ## 6. StoreKit configuration
 
@@ -84,25 +97,30 @@ ios/
   AstraStyle/
     App/                   @main entry, root routing, tab shell, DI container
     Core/
-      DesignSystem/        owned by a separate workstream — tokens/components
+      DesignSystem/        tokens and components (AstraColor, AstraTypography, …)
       Networking/          AstraAPIClient, typed endpoints, Live/ repository adapters
       Persistence/         SwiftData cache models + offline mutation queue
       Auth/                SessionStore, Keychain-backed session persistence
       Analytics/           typed AnalyticsEvent enum + AnalyticsClient protocol
       Utilities/           formatting, cost-per-wear, image downsampling, reachability
-      Mocks/                in-memory repository conformances + sample wardrobe data
+      Mocks/               in-memory repository conformances + sample wardrobe data
     Domain/
-      Models/               Codable value types mirroring spec §9's tables
-      Repositories/          protocol-only — Auth/Profile/Closet/Outfit/Kyra/Studio/Shopping/Subscription + Weather/Calendar services
-      Services/               CompatibilityScoring, WardrobeScoring, OfflineMutationQueue protocols
-    Features/                 one folder per spec §4 tab + supporting flows; each has its own README
-      Home/                    fully implemented — the reference module every other feature is patterned after
-      Onboarding/ Closet/ Scanner/ Outfits/ Studio/ Kyra/ Shopping/ Discover/ Profile/ Subscription/
-                               scaffolded (folder structure + README only) — see docs/02-task-breakdown.md
-    Resources/                 Info.plist, asset catalog, entitlements
+      Models/              Codable value types mirroring spec §9's tables
+      Repositories/        protocol-only seams
+      Services/            CompatibilityScoring, WardrobeScoring, OfflineMutationQueue
+    Features/
+      Home/                fully implemented — the reference module
+      Onboarding/          Style DNA flow (most complete product flow)
+      Closet/              overview, metrics, filters, detail, manual form — usable end to end
+      Scanner/             device-side groundwork only (Services/); no camera/review UI
+      Profile/             guest profile + create-account; signed-in Profile still thin
+      Outfits/ Studio/ Kyra/ Shopping/ Discover/ Subscription/
+                           README-only — zero Swift files yet
+      Slice/               DEBUG vertical slice; throwaway — do not copy as a pattern
+    Resources/             Info.plist, entitlements, QuizImagery
     Tests/
-      UnitTests/               Swift Testing
-      UITests/                 XCUITest
+      UnitTests/           Swift Testing
+      UITests/             XCUITest
 ```
 
 ## Code quality bar
@@ -111,24 +129,10 @@ ios/
 - No force unwraps, no `try!`, anywhere in the codebase.
 - No network calls in `View` bodies — every repository call happens inside a view model or a `Services/` façade, never a `Views/` file.
 - Every public protocol has a doc comment explaining what it's for and which spec section governs it.
-- No hardcoded user-facing strings — every string goes through `String(localized:)` in a String-Catalog-ready form (literal text doubles as the extraction key, matching Xcode's `.xcstrings` workflow).
-
-## Verification status (read this before trusting anything above)
-
-**No Swift toolchain is available in the environment that produced this scaffold** (`which swift swiftc xcodebuild xcodegen` all returned nothing). Nothing in this repository has been compiled, and no claim of "it builds" should be inferred from its presence. What *was* verified:
-
-- `project.yml` parses as valid YAML (`python3 -c "import yaml; yaml.safe_load(open('project.yml'))"`).
-- A manual, file-by-file review pass for: obviously missing `import` statements, force unwraps / `try!`, Swift 6 actor-isolation mistakes (e.g. a `@MainActor`-isolated type conforming to a `Sendable` protocol, `@ModelActor` usage for SwiftData off-main-thread access), naming consistency against the `AstraColor` / `AstraTypography` / `AstraSpacing` / `AstraMotion` / `AstraCard` / `AstraButton` / `AstraTheme` API this codebase assumes (see below), and `CodingKeys` completeness against spec §9's column lists.
-
-Before the first real build, expect to fix:
-
-1. **DesignSystem API mismatches.** This codebase was built against an *assumed* API for `AstraColor` (color tokens as static `Color` properties matching spec §3's names exactly), `AstraTypography` (static `Font` properties: `displayXL/L`, `title1/2`, `headline`, `body`, `callout`, `caption`, `micro`), `AstraSpacing` (a 4pt scale: `xxs/xs/sm/md/lg/xl` plus named constants `pagePadding`, `cardRadius`, `buttonRadius`), `AstraMotion` (e.g. `AstraMotion.standard` as an `Animation`), and `AstraCard`/`AstraButton` as simple wrapping components (`AstraButton(title:isLoading:action:)`). DesignSystem is owned by a separate workstream building concurrently — reconcile the real API against every call site once it lands.
-2. **`supabase-swift` API surface.** `Core/Networking/Live/*.swift` and `Core/Auth/SessionStore.swift` were written against the general shape of `supabase-swift`'s `SupabaseClient` (`.auth.signInWithIdToken`, `.auth.verifyOTP`, `.auth.refreshSession`, `.from(...).select()/.insert()/.update()/.execute().value`, `.storage.from(...).upload/.createSignedURL`) from memory, not against the installed package — check these compile once SPM resolves the real dependency, especially method signatures that vary between major versions.
-3. **WeatherKit/EventKit/CoreLocation entitlements.** `LiveWeatherService` uses WeatherKit and the iOS 17+ `CLLocationUpdate.liveUpdates()` async API; WeatherKit requires the WeatherKit capability enabled in the Apple Developer portal and added to the app's entitlements (not currently in `AstraStyle.entitlements` — add it there).
+- No hardcoded colours/fonts/spacing — use `Astra*` tokens. User-facing strings go through `String(localized:)`.
 
 ## Spec ambiguities encountered
 
 - **§6.7 Appearance profile** (skin undertone, hair color, facial hair, glasses, tattoo visibility, reference selfies) has no corresponding table in §9's authoritative data model. `Domain/Models` does not invent one; `Features/Onboarding/README.md` flags this.
-- **Wishlist** (spec §5.5, §6.18 "Add to wishlist") has no table in §9 either. `LiveShoppingRepository` assumes a `wishlist_items` join table (`user_id`, `product_candidate_id`, `purchased_at`) — reasonable, but not spec-authoritative; confirm against the real schema/migrations under `/supabase/`.
-- **Personal data export** (§29) has no corresponding endpoint in §14's 16-endpoint list. `LiveProfileRepository.exportPersonalData()` assumes a signed Storage URL convention (`exports/users/{id}/export-latest.json`) rather than inventing a 17th endpoint.
-- **Discover and Profile's owning tickets** are ambiguous against the nine ID prefixes given (P1-CORE, P2-ONBOARD, P3-CLOSET, P3-SCAN, P4-OUTFIT, P5-KYRA, P6-STUDIO, P6-SHOP, P7-SUB) — neither module maps cleanly onto one. Each module's README records a best guess and flags it for confirmation once `docs/02-task-breakdown.md` is finalized.
+- **Wishlist** (spec §5.5, §6.18 "Add to wishlist") has no table in §9 either. `LiveShoppingRepository` assumes a `wishlist_items` join table — confirm against migrations under `/supabase/`.
+- **Personal data export** (§29) has no corresponding endpoint in §14's endpoint list. `LiveProfileRepository.exportPersonalData()` assumes a signed Storage URL convention rather than inventing a new endpoint.

@@ -8,9 +8,9 @@ quiz's questions lives in Swift.
 here, add a stanza to `quiz-pairs.json`, rebuild. No Swift is touched, no project file is
 edited, and nothing needs to know how many pairs there are.
 
-## Current state: 15 pairs, and all 8 dimensions produce a reading
+## Current state: 15 pairs (30 frames), and all 8 dimensions produce a reading
 
-14 is inside spec §6.9's 12–20 and leaves headroom under `StyleQuizEngine.maximumComparisons`.
+15 is inside spec §6.9's 12–20 and leaves headroom under `StyleQuizEngine.maximumComparisons`.
 The whole set was regenerated from scratch on 2026-07-31; nothing from the first batch survives
 here or in `brand/quiz-imagery/`.
 
@@ -23,7 +23,8 @@ here or in `brand/quiz-imagery/`.
 | `silhouette-01` | Silhouette | Close-cut navy fine knit, slim tapered navy trouser, black boot | Oversized navy knit, wide-leg navy trouser, black boot |
 | `texture-01` | Texture | Smooth charcoal fine-gauge merino, flat worsted trouser | Chunky charcoal cable knit, charcoal corduroy trouser |
 | `texture-02` | Texture | Smooth navy fine-gauge merino, flat navy wool trouser | Chunky navy cable knit, navy corduroy trouser |
-| `logo-02` | Logo tolerance | Plain black quarter-zip | Same, with a white ringed chest emblem |
+| `logo-01` | Logo tolerance | Plain black crew-neck sweatshirt | Same, with Astra monogram composited on the left chest |
+| `logo-02` | Logo tolerance | Plain black quarter-zip | Same, with Astra monogram composited on the left chest |
 | `trend-01` | Trend tolerance | Classic navy single-breasted blazer, straight-leg trouser, oxford | Unstructured double-breasted blazer, pleated cropped trouser, lug-soled loafer |
 | `trend-02` | Trend tolerance | Beige cotton gabardine trench | Beige technical nylon trench, taped seams, drawcord hem |
 | `accessory-01` | Accessory preference | Oxford shirt and navy trouser, bare wrists, no belt | Same outfit with belt, steel watch, silk neck scarf |
@@ -31,12 +32,13 @@ here or in `brand/quiz-imagery/`.
 | `contrast-01` | Contrast preference | Mid-grey knit, mid-grey trouser, mid-grey sneaker | Near-white knit, near-black trouser, black sneaker |
 | `contrast-02` | Contrast preference | Mid-blue chambray, mid-blue trouser, mid-blue loafer | Pale ice-blue shirt, deep navy trouser, deep navy loafer |
 
-Six axes have two pairs, which is the bar at which `StylePreferenceInference` will report
+Seven axes have two pairs, which is the bar at which `StylePreferenceInference` will report
 `.moderate` confidence on agreeing answers and Kyra is allowed to say the preference out loud.
-**`silhouette` have one pair each, so they sit at `.low` confidence
-permanently** — a single forced choice gives a direction and nothing else, no matter how clean
-the photograph is. Those two axes produce a reading, and the reading is not statable. The two
-pairs that would fix it are described under "Two pairs are missing" below.
+**`silhouette` has one pair, so it sits at `.low` confidence permanently** — a single forced
+choice gives a direction and nothing else, no matter how clean the photograph is. That axis
+produces a reading, and the reading is not statable. The pair that would fix it is described
+under "One pair is missing" below. Both logo pairs ship; their branded frames are **composited**
+(`scripts/composite_quiz_logo.py`), not regenerated.
 
 ## Every frame is the same man, and that is the point
 
@@ -44,11 +46,11 @@ This is the technique, and it matters more than any individual frame.
 
 The frames are not generated independently. `scripts/generate_quiz_imagery.py` generates **one
 canonical figure** — a headless man in a plain mid-grey base layer, saved as
-`brand/quiz-imagery/_reference-figure.png` — and then dresses him. Every one of the 28 shipped
-frames was produced by passing that figure to OpenAI's `/v1/images/edits` with a prompt whose
-first sentence says to keep the same man, the same backdrop, the same lighting and the same
-framing, and to change only the clothing. Read that script's header; the reasoning is there in
-full and it is short.
+`brand/quiz-imagery/_reference-figure.png` — and then dresses him. The garment photographs were
+produced by passing that figure to OpenAI's `/v1/images/edits` with a prompt whose first sentence
+says to keep the same man, the same backdrop, the same lighting and the same framing, and to
+change only the clothing. Logo "b" frames are then composited from their plain partners. Read
+that script's header; the reasoning is there in full and it is short.
 
 The first batch was text-to-image, one prompt per frame, and the generator returned a different
 person each time. Skin tone visibly changed between the two halves of three of ten candidate
@@ -71,26 +73,17 @@ What the change bought, measured:
 - **Hands are clean** across the set, checked at full resolution. That is a property of this
   batch, not a guarantee about the model, and it is the first thing to re-check on anything new.
 
-## Two pairs are missing, and each was rejected for a reason worth keeping
+## One pair is missing, and it was rejected for a reason worth keeping
 
-Both were generated and both were thrown away rather than shipped. Their prompts are already
-fixed and committed in `scripts/generate_quiz_imagery.py`; **both regenerations are blocked on an
-OpenAI billing hard limit** (`billing_hard_limit_reached`), not on an unresolved question. Once
-the limit is raised:
+`silhouette-2` was generated and thrown away rather than shipped. Its prompt is already fixed and
+committed in `scripts/generate_quiz_imagery.py`; **regeneration is blocked on an OpenAI billing
+hard limit** (`billing_hard_limit_reached`), not on an unresolved question. Once the limit is
+raised:
 
 ```sh
-python3 scripts/generate_quiz_imagery.py --pair logo-1 --pair silhouette-2
-python3 scripts/build_quiz_imagery.py --pair logo-1 --pair silhouette-2
+python3 scripts/generate_quiz_imagery.py --pair silhouette-2
+python3 scripts/build_quiz_imagery.py --pair silhouette-2
 ```
-
-**`logo-1-b` came back wearing "HILFIGER" across the chest.** A real trademark on a garment we
-generated and would ship inside the app is unshippable, so the file was **deleted from the repo
-entirely** rather than left unreferenced — an unreferenced file is one careless manifest edit
-away from shipping. The prompt now asks for an abstract emblem of three stacked white chevrons,
-explicitly containing no letters and no words. The lesson generalises: **asking this model for a
-wordmark makes it reach for a real brand.** The same failure produced a circled "G" reading as a
-luxury house's mark on an earlier attempt at `logo-02`. Carry the logo axis with non-letterform
-emblems.
 
 **`silhouette-2-b` came back short-sleeved while its partner was long-sleeved.** Sleeve length
 then sits in the frame alongside volume — two variables in a pair whose entire job is to isolate
@@ -98,10 +91,16 @@ one. The prompt now says "long-sleeved" and "with the sleeves down to the wrist"
 rejected `silhouette-2` frames are still on disk in `brand/quiz-imagery/` as candidates; they are
 not in this directory and are not in the manifest, so nothing can render them.
 
+**Logo history (shipped via compositing, not regeneration).** An earlier `logo-1-b` came back
+wearing "HILFIGER" across the chest — unshippable; the file was deleted. The logo axis now ships
+both pairs with Astra's monogram composited onto the plain frame (`scripts/composite_quiz_logo.py`).
+Lesson: **asking this model for a wordmark makes it reach for a real brand.** Carry the axis with
+a mark that is not a third-party trademark and does not invite brand preference as a confound.
+
 ## Absent is honest; a confounded reading is not
 
 The manifest supports an option loading on several axes at once, and a well-designed pair can
-legitimately do that. **None of the 14 here do**, deliberately.
+legitimately do that. **None of the 15 here do**, deliberately.
 
 Look at `colour-01`: option B is not only more saturated, it is corduroy against a smooth knit.
 Declaring a texture loading on it would harvest a second "measurement" per photograph — and it
@@ -118,17 +117,17 @@ downstream from a real one.
 
 ## What is still genuinely at risk
 
-- **Two axes are at one pair and therefore at `.low` confidence permanently.** Not a defect in
-  the imagery; a shortfall in coverage, fixed by the two regenerations above and by nothing else.
+- **`silhouette` is at one pair and therefore at `.low` confidence permanently.** Not a defect in
+  the imagery; a shortfall in coverage, fixed by regenerating `silhouette-2` and by nothing else.
 - **No blinded human rating.** Nobody has confirmed these read as *photographs of clothes* rather
   than as renders to a real user. Same gap `docs/16` §5 records.
 - **One man throughout is a coverage question as well as a control.** The instrument now shows
   every user the same build and the same skin tone. That is the right trade for measurement — the
   alternative reintroduces the confound the whole technique exists to remove — but it should be a
   recorded decision rather than a side effect nobody noticed.
-- **The invented emblems are invented, not cleared.** `logo-02`'s concentric rings and
-  `logo-1-b`'s pending chevrons are abstract by construction, and a generated mark can still land
-  near a real one. Worth a second opinion before this ships to the App Store.
+- **The logo mark is Astra's monogram.** That removes third-party trademark risk and brand-preference
+  confounding; it is still worth a second opinion before App Store submission that the mark reads
+  as "a logo" rather than as noise.
 - **Texture is the axis most likely to regress.** Chunky fabrics genuinely have more volume than
   fine ones, so surface drags tone and cut along with it. Both texture pairs hold here; that is a
   result about these frames, not a property of the model.

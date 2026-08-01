@@ -132,4 +132,37 @@ struct TabNavigationStateTests {
         // not a reason to throw away where the user was.
         #expect(router.homePath.count == 1)
     }
+
+    @Test("startScan opens the scanner when the guest gate is off")
+    func startScanPresentsScannerForSignedInUsers() {
+        let router = AppRouter()
+        router.blocksGuestScan = false
+
+        router.startScan(mode: .batchCloset)
+
+        guard case .scanner(let mode) = router.presentedModal else {
+            Issue.record("Expected scanner modal for a signed-in startScan")
+            return
+        }
+        #expect(mode == .batchCloset)
+    }
+
+    @Test("startScan opens create-account for guests, never the scanner")
+    func startScanGatesGuestsBeforeScanner() {
+        let router = AppRouter()
+        router.blocksGuestScan = true
+
+        router.startScan()
+
+        guard case .createAccount(let reason) = router.presentedModal else {
+            Issue.record("Expected create-account modal for a guest startScan")
+            return
+        }
+        #expect(reason == .scanningRequiresAccount)
+        // Inverse of the signed-in path: a guest who reaches a camera (or
+        // today's placeholder) has already been sold a dead button.
+        if case .scanner = router.presentedModal {
+            Issue.record("Guest startScan must not present the scanner modal")
+        }
+    }
 }

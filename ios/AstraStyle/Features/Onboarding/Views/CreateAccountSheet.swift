@@ -131,6 +131,8 @@ struct CreateAccountSheet: View {
         switch reason {
         case .closetCapReached:
             String(localized: "You've reached the 10-item guest limit")
+        case .scanningRequiresAccount:
+            String(localized: "Scanning needs an account")
         case .guestUpgrade:
             String(localized: "Create your account")
         }
@@ -140,6 +142,8 @@ struct CreateAccountSheet: View {
         switch reason {
         case .closetCapReached:
             String(localized: "Create an account to keep every piece you've added, sync your closet across devices, and add more.")
+        case .scanningRequiresAccount:
+            String(localized: "Create an account to scan garments into your closet. You can still add pieces manually as a guest.")
         case .guestUpgrade:
             String(localized: "Keep what you've built as a guest and unlock everything Astra Style offers.")
         }

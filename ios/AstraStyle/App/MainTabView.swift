@@ -36,6 +36,16 @@ struct MainTabView: View {
         .sheet(item: $router.presentedModal) { modal in
             modalContent(for: modal)
         }
+        // Keep the scan gate in lockstep with the session. A guest who
+        // upgrades mid-session must be able to scan without relaunching;
+        // a signed-in user who somehow becomes a guest must not keep the
+        // open path. `startScan` reads this flag — call sites stay dumb.
+        .onAppear {
+            router.blocksGuestScan = container.sessionStore.isGuest
+        }
+        .onChange(of: container.sessionStore.isGuest) { _, isGuest in
+            router.blocksGuestScan = isGuest
+        }
     }
 
     @ViewBuilder

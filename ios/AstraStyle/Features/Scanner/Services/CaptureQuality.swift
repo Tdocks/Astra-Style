@@ -260,10 +260,13 @@ public enum CaptureQuality {
     /// analysing.
     ///
     /// MEASURED, NOT GUESSED, and the measurement is repeatable: this exact
-    /// code was run over the 34 garment photographs in `brand/quiz-imagery`
-    /// (1024 × 1536 editorial shots of real menswear — the only corpus of
-    /// clothing photography in this repo), then over the same photographs
-    /// blurred by a separable box blur of known radius. At
+    /// code was run over the **34 garment / editorial photographs** in
+    /// `brand/quiz-imagery` (non-`_` PNGs — axis-pair frames and bakeoff
+    /// candidates; the directory also holds 2 auxiliaries,
+    /// `_reference-figure.png` and `_astra-mark.png`, which are not part of
+    /// this calibration set). 1024 × 1536 editorial shots of real menswear —
+    /// the only corpus of clothing photography in this repo — then over the
+    /// same photographs blurred by a separable box blur of known radius. At
     /// `analysisLongestEdge`, in variance units:
     ///
     ///     sharp                        122 … 309   (median 178)
@@ -318,13 +321,14 @@ public enum CaptureQuality {
     // half stops BRIGHTER than a correct exposure. Each constant states the
     // stop offset it corresponds to so the arithmetic can be re-checked.
     //
-    // CALIBRATED AGAINST THE SAME 36-PHOTOGRAPH CORPUS as the focus
-    // thresholds (`brand/quiz-imagery`). Every one of them measures a mean
-    // between 0.331 and 0.549, a clipped fraction of at most 0.0001, and a
-    // crushed fraction of at most 0.014 — so the acceptable band below
-    // (0.28 … 0.80 mean) contains the whole corpus with margin at both ends,
-    // and no threshold here is set so tight that ordinary garment
-    // photography trips it.
+    // CALIBRATED AGAINST THE SAME 34-PHOTOGRAPH GARMENT CORPUS as the focus
+    // thresholds (`brand/quiz-imagery` non-`_` PNGs; see blur comments above —
+    // not the 36-file directory total that includes two auxiliaries). Every
+    // one of them measures a mean between 0.331 and 0.549, a clipped fraction
+    // of at most 0.0001, and a crushed fraction of at most 0.014 — so the
+    // acceptable band below (0.28 … 0.80 mean) contains the whole corpus with
+    // margin at both ends, and no threshold here is set so tight that ordinary
+    // garment photography trips it.
     // ---------------------------------------------------------------
 
     /// The 18% grey metering reference, sRGB-encoded: `0.18 ^ (1/2.2)`.

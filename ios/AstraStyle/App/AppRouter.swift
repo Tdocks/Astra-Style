@@ -217,6 +217,13 @@ public final class AppRouter {
     /// at a time.
     public var presentedModal: AppModalRoute?
 
+    /// When true, `startScan` opens the create-account sheet instead of the
+    /// scanner. Wired from the session in `MainTabView` so every Closet/Home
+    /// scan button shares one choke point — a guest must never reach the
+    /// camera (ADR 0011; spec §22). Defaults false so unit tests that only
+    /// exercise navigation stay unchanged.
+    public var blocksGuestScan: Bool = false
+
     public init() {}
 
     /// Where a freshly authenticated session goes next.
@@ -296,6 +303,14 @@ public final class AppRouter {
     }
 
     public func startScan(mode: ScannerRoute = .singleItem) {
+        // Gate BEFORE the scanner modal. Guest analyze paths already throw
+        // with zero network I/O, but opening a camera (or today's
+        // placeholder that pretends one exists) is still a dead button once
+        // the user has spent effort capturing — the exact §22 failure.
+        if blocksGuestScan {
+            presentModal(.createAccount(reason: .scanningRequiresAccount))
+            return
+        }
         presentModal(.scanner(mode))
     }
 

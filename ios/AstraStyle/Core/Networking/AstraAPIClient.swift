@@ -201,11 +201,15 @@ public final class AstraAPIClient: @unchecked Sendable {
                     requestID: requestID
                 )
         default:
-            throw AstraError.server(
-                "Unexpected response (\(statusCode)).",
-                statusCode: statusCode,
-                requestID: requestID
-            )
+            // Prefer the server's envelope when present — a mis-routed slug
+            // often returns 404 with a careful message (ADR 0013). Swallowing
+            // it as "Unexpected response (404)." hides the only clue.
+            throw serverEnvelopeError()
+                ?? AstraError.server(
+                    "Unexpected response (\(statusCode)).",
+                    statusCode: statusCode,
+                    requestID: requestID
+                )
         }
     }
 

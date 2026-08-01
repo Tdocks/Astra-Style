@@ -18,4 +18,8 @@ public enum CreateAccountReason: Sendable, Equatable {
     /// A guest's closet write was rejected by `GuestClosetError.capReached`
     /// (spec §6.2 "Local closet capped at 10 items").
     case closetCapReached
+    /// A guest tapped Scan. Scanning needs an account (and eventually a
+    /// camera + Edge Function); opening the scanner modal would be a
+    /// dead end once that UI lands (spec §22; ADR 0011).
+    case scanningRequiresAccount
 }

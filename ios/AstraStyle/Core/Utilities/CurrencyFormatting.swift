@@ -23,20 +23,10 @@
 //  `??`, so a row storing `"usd"` or `"  "` reads the same on that screen
 //  as it does in the closet total.
 //
-//  `MeasurementFormatting.formattedPrice(_:currencyCode:)` IS STILL A
-//  SECOND SPELLING, AND IS DELIBERATELY LEFT WHERE IT IS. Folding it in
-//  would be a behaviour change rather than a move: its fallback for a
-//  missing code is the DEVICE LOCALE's currency, which relabels a recorded
-//  amount as £ because the phone happens to be in London — the exact rule
-//  `fallbackCurrencyCode` below exists to rule out. Changing it is a
-//  decision about what those screens should display, not a refactor, and
-//  nothing in this ticket's scope reads it.
-//
-//  What makes that cheap to leave: `formattedPrice` has no call site
-//  outside its own file today. Its only caller is
-//  `MeasurementFormatting.formattedCostPerWear`, which has no call sites
-//  at all. So the reconciliation, whenever it happens, is a decision about
-//  one rule and a deletion — not a migration of live screens.
+//  `MeasurementFormatting` used to carry a second money spelling whose
+//  missing-code fallback was the DEVICE LOCALE's currency. That is the
+//  exact rule `fallbackCurrencyCode` exists to rule out. Those helpers are
+//  gone; cost-per-wear lives here and uses the USD labelling fallback.
 //
 
 import Foundation
@@ -76,5 +66,20 @@ public enum CurrencyFormatting {
     /// hardcoded `.fractionLength(2)` would render ¥1,200 as ¥1,200.00.
     public static func formatted(_ amount: Decimal, code: String) -> String {
         amount.formatted(.currency(code: code))
+    }
+
+    /// e.g. "$42 / wear" for closet metrics and item detail (spec §6.15).
+    ///
+    /// A nil amount means "not enough wears yet" rather than "$0 / wear".
+    /// A nil or blank currency code uses `fallbackCurrencyCode` (USD) — never
+    /// the device locale — so a London phone does not quietly relabel a
+    /// dollar amount as pounds.
+    public static func formattedCostPerWear(_ value: Decimal?, currencyCode: String?) -> String {
+        guard let value else {
+            return String(localized: "Not enough wears yet", comment: "Cost-per-wear placeholder")
+        }
+        let code = normalizedCurrencyCode(currencyCode)
+        let price = formatted(value, code: code)
+        return String(localized: "\(price) / wear", comment: "Cost-per-wear value, e.g. $42 / wear")
     }
 }
