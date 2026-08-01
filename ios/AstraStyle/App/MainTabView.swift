@@ -205,12 +205,8 @@ struct MainTabView: View {
     @ViewBuilder
     private func modalContent(for modal: AppModalRoute) -> some View {
         switch modal {
-        case .scanner:
-            FeaturePlaceholderView(
-                title: String(localized: "Scan an Item"),
-                message: String(localized: "Point your camera at a garment and Kyra will catalog it for you."),
-                systemImage: "viewfinder"
-            )
+        case .scanner(let mode):
+            ScannerDestinationView(route: mode, container: container)
         case .paywall:
             FeaturePlaceholderView(
                 title: String(localized: "Astra Style Premium"),

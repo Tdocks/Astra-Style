@@ -94,6 +94,11 @@ public final class AppContainer {
     public let weatherService: WeatherService
     public let calendarService: CalendarService
 
+    /// Camera session for the scanner modal (P3-SCAN-01). Protocol-typed so
+    /// previews and unit tests inject `MockCaptureSessionController` without
+    /// touching AVFoundation. Live adapter is constructed only here.
+    public let captureSession: any CaptureSessionControlling
+
     // MARK: - Cross-cutting infrastructure
 
     public let apiClient: AstraAPIClient
@@ -115,6 +120,7 @@ public final class AppContainer {
         guestMigrationService: GuestMigrationService,
         weatherService: WeatherService,
         calendarService: CalendarService,
+        captureSession: any CaptureSessionControlling,
         apiClient: AstraAPIClient,
         analyticsClient: AnalyticsClient,
         offlineMutationQueue: OfflineMutationQueue,
@@ -133,6 +139,7 @@ public final class AppContainer {
         self.guestMigrationService = guestMigrationService
         self.weatherService = weatherService
         self.calendarService = calendarService
+        self.captureSession = captureSession
         self.apiClient = apiClient
         self.analyticsClient = analyticsClient
         self.offlineMutationQueue = offlineMutationQueue
@@ -198,6 +205,7 @@ extension AppContainer {
             guestMigrationService: guestMigrationService,
             weatherService: LiveWeatherService(),
             calendarService: LiveCalendarService(),
+            captureSession: LiveCaptureSessionController(),
             apiClient: apiClient,
             analyticsClient: analyticsClient,
             offlineMutationQueue: offlineMutationQueue,
@@ -245,6 +253,7 @@ extension AppContainer {
             guestMigrationService: guestMigrationService,
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),
+            captureSession: MockCaptureSessionController(isHardwareAvailable: false),
             apiClient: .previewClient,
             analyticsClient: NoOpAnalyticsClient(),
             offlineMutationQueue: InMemoryOfflineMutationQueue(),
