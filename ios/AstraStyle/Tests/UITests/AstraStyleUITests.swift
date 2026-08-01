@@ -77,32 +77,47 @@ final class AstraStyleUITests: XCTestCase {
     /// walking §6.3–§6.10. Asserts the saved name appears in the closet
     /// grid and that detail shows a wear count of 0.
     func testAddGarment() throws {
+        launchMockCloset()
+        let closetTitle = app.staticTexts["My Closet"].firstMatch
+        awaitElement(closetTitle, "Closet root")
+
+        let itemName = "UI Test Oxford \(Int(Date().timeIntervalSince1970))"
+        submitManualGarment(named: itemName)
+
+        // LazyVGrid below category tiles is off-screen — open Tops instead.
+        awaitElement(closetTitle, "Closet root after save")
+        let topsTile = app.buttons["Tops"].firstMatch
+        awaitElement(topsTile, "Tops category tile after save")
+        topsTile.tap()
+
+        let newTile = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", itemName)
+        ).firstMatch
+        XCTAssertTrue(
+            newTile.waitForExistence(timeout: timeout),
+            "Saved garment '\(itemName)' did not appear in the Tops grid"
+        )
+        assertZeroWearCount(forTile: newTile, itemName: itemName)
+    }
+
+    private func launchMockCloset() {
         app.launchArguments += [
             "-astra-mock-backend",
             "-astra-skip-onboarding"
         ]
         app.launch()
-
         awaitElement(app.tabBars.firstMatch, "Main tab bar under mock backend")
         let closetTab = app.tabBars.buttons["Closet"]
         awaitElement(closetTab, "Closet tab")
         closetTab.tap()
+    }
 
-        let closetTitle = app.staticTexts["My Closet"].firstMatch
-        awaitElement(closetTitle, "Closet root")
-
+    private func submitManualGarment(named itemName: String) {
         let addButton = app.buttons["closet.header.addManually"]
         awaitElement(addButton, "Manual add button")
         addButton.tap()
+        awaitElement(app.descendants(matching: .any)["closet.form.header"], "Add garment form")
 
-        let formHeader = app.descendants(matching: .any)["closet.form.header"]
-        awaitElement(formHeader, "Add garment form")
-
-        // Unique per run so a re-run against a sticky simulator state cannot
-        // match a leftover SampleData name by accident.
-        let itemName = "UI Test Oxford \(Int(Date().timeIntervalSince1970))"
-        // `AstraTextField` / `AstraButton` wrappers surface as whichever
-        // accessibility type XCUITest infers — match on identifier alone.
         let nameField = app.descendants(matching: .any)["closet.form.name"]
         awaitElement(nameField, "Name field")
         nameField.tap()
@@ -116,34 +131,14 @@ final class AstraStyleUITests: XCTestCase {
         awaitElement(submit, "Add garment submit")
         XCTAssertTrue(submit.isEnabled, "Submit should enable once name and category are set")
         submit.tap()
+    }
 
-        // Sheet dismisses on save. The whole-closet editorial grid is a
-        // LazyVGrid below the category tiles — off-screen cells are not in
-        // the accessibility tree — so open Tops (the category we just
-        // chose) where the new garment is at the front of a short list.
-        awaitElement(closetTitle, "Closet root after save")
-        let topsTile = app.buttons["Tops"].firstMatch
-        awaitElement(topsTile, "Tops category tile after save")
-        topsTile.tap()
-
-        let newTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", itemName)
-        ).firstMatch
-        XCTAssertTrue(
-            newTile.waitForExistence(timeout: timeout),
-            "Saved garment '\(itemName)' did not appear in the Tops grid"
-        )
-
-        // Wear count of 0 and an editable, non-placeholder name live on
-        // item detail — the grid only shows name/brand. The wear row is a
-        // combined accessibility element (label "Worn", value "0 wears").
+    private func assertZeroWearCount(forTile newTile: XCUIElement, itemName: String) {
         newTile.tap()
         awaitElement(app.staticTexts[itemName].firstMatch, "Item detail name")
-
         let wornRow = app.descendants(matching: .any).matching(
             NSPredicate(format: "label == %@ AND value CONTAINS[c] %@", "Worn", "0 wear")
         ).firstMatch
-        // Detail scrolls; bring the Wear section into view if needed.
         var swipes = 0
         while !wornRow.exists && swipes < 6 {
             app.swipeUp(velocity: .slow)
