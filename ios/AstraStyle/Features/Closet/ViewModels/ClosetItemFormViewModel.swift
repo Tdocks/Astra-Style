@@ -84,26 +84,28 @@ public final class ClosetItemFormViewModel {
         case editing(ClosetItem)
     }
 
-    /// The three things a submit can actually fail with, and the reason
-    /// they are one type with two cases rather than a bare `AstraError`.
+    /// The things a submit can actually fail with, and the reason cap
+    /// cases are distinct from a bare `AstraError`.
     ///
-    /// `GuestClosetError.capReached` is a permanent fact about this
-    /// session, not a transient failure with a retry — the eleventh guest
-    /// item will be refused every time it is offered. `AstraError` is the
-    /// opposite: a network drop is worth trying again. Rendering both as
-    /// "something went wrong" would put a retry button in front of a
-    /// condition retrying cannot clear, which is spec §22's dead-button
-    /// bar failed by a different route. Same split, and the same reason,
-    /// as `OnboardingViewModel.AddItemState.guestCapReached`.
+    /// `GuestClosetError.capReached` and `FreeTierClosetError.capReached`
+    /// are permanent facts about this session/tier, not transient failures
+    /// with a retry — the next item past the limit will be refused every
+    /// time it is offered. `AstraError` is the opposite: a network drop is
+    /// worth trying again. Rendering both as "something went wrong" would
+    /// put a retry button in front of a condition retrying cannot clear,
+    /// which is spec §22's dead-button bar failed by a different route.
+    /// Same split, and the same reason, as
+    /// `OnboardingViewModel.AddItemState.guestCapReached`.
     public enum Failure: Equatable, Sendable {
         case guestCapReached(limit: Int)
+        case freeTierCapReached(limit: Int)
         case failed(AstraError)
 
         /// What to put on screen.
         ///
-        /// The cap case re-derives its copy from `GuestClosetError` rather
-        /// than restating it, so the sentence a guest reads here and the
-        /// sentence he reads anywhere else cannot drift.
+        /// Cap cases re-derive copy from their typed errors rather than
+        /// restating it, so the sentence a user reads here and the sentence
+        /// he reads anywhere else cannot drift.
         /// `localizedDescription` and not `errorDescription` only because
         /// the latter is `String?` and the alternative would be a `??`
         /// fallback string that can never be reached — dead copy is still
@@ -112,6 +114,8 @@ public final class ClosetItemFormViewModel {
             switch self {
             case .guestCapReached(let limit):
                 GuestClosetError.capReached(limit: limit).localizedDescription
+            case .freeTierCapReached(let limit):
+                FreeTierClosetError.capReached(limit: limit).localizedDescription
             case .failed(let error):
                 // `AstraError.message` is already user-facing (see that
                 // type's header); rendering it directly is correct.
@@ -123,7 +127,7 @@ public final class ClosetItemFormViewModel {
         /// keeps offering its submit button.
         public var isRecoverable: Bool {
             switch self {
-            case .guestCapReached: false
+            case .guestCapReached, .freeTierCapReached: false
             case .failed: true
             }
         }
@@ -321,6 +325,11 @@ public final class ClosetItemFormViewModel {
             case .capReached(let limit):
                 failure = .guestCapReached(limit: limit)
             }
+        } catch let error as FreeTierClosetError {
+            switch error {
+            case .capReached(let limit):
+                failure = .freeTierCapReached(limit: limit)
+            }
         } catch let error as AstraError {
             failure = .failed(error)
         } catch {
@@ -445,6 +454,9 @@ public extension ClosetItemFormViewModel {
     var blockingReason: String? {
         if case .guestCapReached(let limit) = failure {
             return Failure.guestCapReached(limit: limit).message
+        }
+        if case .freeTierCapReached(let limit) = failure {
+            return Failure.freeTierCapReached(limit: limit).message
         }
         let needsName = trimmedName.isEmpty
         let needsCategory = category == nil

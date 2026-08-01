@@ -75,7 +75,11 @@ struct AstraStyleApp: App {
                     expiresAt: .now.addingTimeInterval(3600)
                 )
             )
-            return .onboarding
+            // Respect `-astra-skip-onboarding` the same way Apple / email /
+            // guest auth do via `AppRouter.postAuthenticationRoute`, so UI
+            // tests can reach the Closet tab against mocks without walking
+            // §6.3–§6.10 first (P3-TEST-02).
+            return AppRouter.postAuthenticationRoute
         }
 
         if AstraFeatureFlags.resetsStateOnLaunch {

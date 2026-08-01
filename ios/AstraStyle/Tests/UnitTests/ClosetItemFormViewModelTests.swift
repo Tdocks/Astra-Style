@@ -31,8 +31,9 @@ import Testing
 private enum StubOutcome: Sendable {
     case succeed
     case guestCap(limit: Int)
+    case freeTierCap(limit: Int)
     case astra(AstraError)
-    /// Something that is neither of the two typed failures — the case the
+    /// Something that is neither of the typed failures — the case the
     /// view model has to wrap itself.
     case unexpected
 }
@@ -74,6 +75,7 @@ private actor StubClosetRepository: ClosetRepository {
         switch outcome {
         case .succeed: return
         case .guestCap(let limit): throw GuestClosetError.capReached(limit: limit)
+        case .freeTierCap(let limit): throw FreeTierClosetError.capReached(limit: limit)
         case .astra(let error): throw error
         case .unexpected: throw StubUnexpectedError()
         }
@@ -516,6 +518,24 @@ extension ClosetItemFormViewModelTests {
         #expect(model.name == "The eleventh piece")
         #expect(model.category == .outerwear)
         #expect(model.brand == "Barbour")
+    }
+
+    @Test("The free-tier cap surfaces its own explanation, not a generic failure")
+    func freeTierCapSurfacesItsOwnMessage() async throws {
+        let limit = FreeTierLimits.maxClosetItems
+        let repository = StubClosetRepository(outcome: .freeTierCap(limit: limit))
+        let model = makeAdding(repository: repository)
+        model.name = "The thirty-first piece"
+        model.category = .top
+
+        await model.submit()
+
+        let failure = try #require(model.failure)
+        #expect(failure == .freeTierCapReached(limit: limit))
+        #expect(failure.message == FreeTierClosetError.capReached(limit: limit).localizedDescription)
+        #expect(!failure.isRecoverable)
+        #expect(!model.canSubmit)
+        #expect(model.blockingReason == failure.message)
     }
 
     @Test("An AstraError is shown as written, because its message is already the copy for the user")

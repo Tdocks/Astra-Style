@@ -6,30 +6,13 @@
 //  needs `XCTest`/`XCUIApplication` even in an otherwise Swift-Testing
 //  codebase, per the build instructions).
 //
-//  Every test below is an unwritten placeholder: the screens they need to
-//  drive (onboarding, closet, outfit generation, Kyra, paywall, account
-//  deletion) are still `FeaturePlaceholderView` stand-ins (see
-//  MainTabView.swift / each feature's README). Each `XCTSkip` names the real
-//  assertion the test should make once its feature module lands, so the gap
+//  Flows that are not yet built remain `XCTSkip` placeholders so the gap
 //  shows up in Xcode/CI's test report rather than being silently missing.
+//  Written bodies (today: `testAddGarment`) launch against
+//  `-astra-mock-backend` and assert real Closet behaviour.
 //
-//  These were originally `XCTFail("Not implemented: …")` bodies — deliberate
-//  failures, chosen so the gap would be unmissable. They are now `XCTSkip`
-//  with the same messages, verbatim, for one reason: a suite that can never
-//  be green is a suite nobody reads. Seven permanent red tests do not
-//  communicate "seven flows are unwritten", they communicate "this job is
-//  always red", and they make every OTHER failure — a real regression, the
-//  P1-INFRA-03 requirement that CI fails on a warning or lint violation —
-//  unverifiable, because the job was already failing. A skip carrying the
-//  identical message says exactly the same thing without spending the signal,
-//  and the day someone writes a body it starts counting as a real test.
-//
-//  `XCTSkip`, not `XCTExpectFailure`: `XCTExpectFailure` is for a WRITTEN
-//  test that currently fails, and it fails the run if the failure stops
-//  occurring. There is nothing written here to expect a failure from — a body
-//  whose only statement is "not implemented" is honestly a skip.
-//
-//  DO NOT delete these to make CI green — a deleted flow is an invisible one.
+//  DO NOT delete the remaining skips to make CI green — a deleted flow is
+//  an invisible one.
 //
 
 import XCTest
@@ -47,18 +30,34 @@ final class AstraStyleUITests: XCTestCase {
     // own isolation in the iOS 26 SDK.
     private lazy var app = XCUIApplication()
 
+    /// How long to wait for a screen to appear. Longer on CI — same rationale
+    /// as `OnboardingFlowUITests`.
+    private let timeout: TimeInterval = ProcessInfo.processInfo.environment["CI"] == nil ? 20 : 60
+
     // Async overrides inherit the class's @MainActor isolation; the throwing
     // synchronous ones do not (see ScreenQAUITests for the full note).
     override func setUp() async throws {
         continueAfterFailure = false
-        app.launchArguments += ["-UITestMode", "1"]
+        app.launchArguments += [
+            "-UITestMode", "1",
+            "-AppleLanguages", "(en)",
+            "-AppleLocale", "en_US"
+        ]
     }
 
-    // Each test throws its skip BEFORE `app.launch()`. Launching a simulator
-    // only to abandon it costs ~10s per test and proves nothing, since no
-    // assertion follows it; the launch belongs in whichever commit writes the
-    // body. `app` is still configured in `setUp` above so that the launch
-    // arguments stay attached to the flow they describe.
+    @discardableResult
+    private func awaitElement(
+        _ element: XCUIElement,
+        _ description: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        let found = element.waitForExistence(timeout: timeout)
+        if !found {
+            XCTFail("Never appeared: \(description)", file: file, line: line)
+        }
+        return found
+    }
 
     /// Spec §22 "Complete onboarding". Owner: P2-ONBOARD.
     func testCompleteOnboarding() throws {
@@ -71,14 +70,100 @@ final class AstraStyleUITests: XCTestCase {
         )
     }
 
-    /// Spec §22 "Add a garment". Owner: P3-CLOSET / P3-SCAN.
+    /// Spec §22 "Add a garment" / P3-TEST-02 — manual entry via ClosetItemForm.
+    ///
+    /// Runs against `-astra-mock-backend` (in-memory `MockClosetRepository`)
+    /// plus `-astra-skip-onboarding` so the Closet tab is reachable without
+    /// walking §6.3–§6.10. Asserts the saved name appears in the closet
+    /// grid and that detail shows a wear count of 0.
     func testAddGarment() throws {
-        throw XCTSkip(
-            """
-            Not implemented: drive the scan flow (or manual entry) to completion and assert the new \
-            item appears in the Closet grid with a non-empty wear count of 0 and an editable, \
-            non-placeholder name. Owner: P3-CLOSET / P3-SCAN.
-            """
+        launchMockCloset()
+        let closetTitle = app.staticTexts["My Closet"].firstMatch
+        awaitElement(closetTitle, "Closet root")
+
+        let itemName = "UI Test Oxford \(Int(Date().timeIntervalSince1970))"
+        submitManualGarment(named: itemName)
+
+        // The sheet must be gone before we tap Tops — while it is up,
+        // XCUITest can hit the form's Tops *chip* (`closet.form.category.top`)
+        // instead of the closet category tile (that was the prior CI miss).
+        let formHeader = app.descendants(matching: .any)["closet.form.header"]
+        XCTAssertTrue(
+            formHeader.waitForNonExistence(timeout: timeout),
+            "Add-garment sheet did not dismiss after submit — save likely failed"
+        )
+        awaitElement(closetTitle, "Closet root after save")
+
+        // LazyVGrid below category tiles is off-screen — open Tops instead.
+        let topsTile = app.descendants(matching: .any)["closet.category.top"]
+        awaitElement(topsTile, "Tops category tile after save")
+        topsTile.tap()
+
+        let newTile = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                "closet.grid.item.",
+                itemName
+            )
+        ).firstMatch
+        XCTAssertTrue(
+            newTile.waitForExistence(timeout: timeout),
+            "Saved garment '\(itemName)' did not appear in the Tops grid"
+        )
+        assertZeroWearCount(forTile: newTile, itemName: itemName)
+    }
+
+    private func launchMockCloset() {
+        app.launchArguments += [
+            "-astra-mock-backend",
+            "-astra-skip-onboarding"
+        ]
+        app.launch()
+        awaitElement(app.tabBars.firstMatch, "Main tab bar under mock backend")
+        let closetTab = app.tabBars.buttons["Closet"]
+        awaitElement(closetTab, "Closet tab")
+        closetTab.tap()
+    }
+
+    private func submitManualGarment(named itemName: String) {
+        let addButton = app.buttons["closet.header.addManually"]
+        awaitElement(addButton, "Manual add button")
+        addButton.tap()
+        awaitElement(app.descendants(matching: .any)["closet.form.header"], "Add garment form")
+
+        // Category first, while the keyboard is down — same lesson as
+        // `OnboardingCaptureStepsUITests.testAddingAFirstItemAsAGuest`.
+        let categoryChip = app.descendants(matching: .any)["closet.form.category.top"]
+        awaitElement(categoryChip, "Tops category chip")
+        categoryChip.tap()
+
+        let nameField = app.descendants(matching: .any)["closet.form.name"]
+        awaitElement(nameField, "Name field")
+        nameField.tap()
+        // Trailing newline resigns focus so the submit control is not
+        // obscured by the keyboard when we tap it.
+        nameField.typeText(itemName + "\n")
+
+        let submit = app.descendants(matching: .any)["closet.form.submit"]
+        awaitElement(submit, "Add garment submit")
+        XCTAssertTrue(submit.isEnabled, "Submit should enable once name and category are set")
+        submit.tap()
+    }
+
+    private func assertZeroWearCount(forTile newTile: XCUIElement, itemName: String) {
+        newTile.tap()
+        awaitElement(app.staticTexts[itemName].firstMatch, "Item detail name")
+        let wornRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == %@ AND value CONTAINS[c] %@", "Worn", "0 wear")
+        ).firstMatch
+        var swipes = 0
+        while !wornRow.exists && swipes < 6 {
+            app.swipeUp(velocity: .slow)
+            swipes += 1
+        }
+        XCTAssertTrue(
+            wornRow.waitForExistence(timeout: timeout),
+            "Expected a wear count of 0 on the newly added garment"
         )
     }
 

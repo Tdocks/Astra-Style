@@ -20,6 +20,7 @@
 import Foundation
 import Observation
 import Supabase
+import SwiftData
 
 /// The single dependency-injection root for Astra Style.
 ///
@@ -171,33 +172,20 @@ extension AppContainer {
         // this session" instead of bricking the app.
         let modelContainer = (try? AstraModelContainer.live()) ?? AstraModelContainer.preview()
         let offlineMutationQueue = SwiftDataOfflineMutationQueue(modelContainer: modelContainer)
-
-        // Guest mode (spec §6.2; ADR 0011): `liveClosetRepository` is kept
-        // as its own reference — not just reachable through
-        // `guestAwareClosetRepository` below — because migration must
-        // always write through the real, network-backed repository even
-        // while the session mid-migration is still technically a guest.
-        let guestClosetStore = SwiftDataGuestClosetStore(modelContainer: modelContainer)
-        let liveClosetRepository = LiveClosetRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue)
-        let guestClosetRepository = GuestClosetRepository(
-            store: guestClosetStore,
-            currentGuestUserID: { await sessionStore.currentGuestUserID() }
-        )
-        let guestAwareClosetRepository = GuestAwareClosetRepository(
-            isGuest: { await sessionStore.currentIsGuest() },
-            guestRepository: guestClosetRepository,
-            liveRepository: liveClosetRepository
-        )
-        let guestMigrationService = LiveGuestMigrationService(
-            closetRepository: liveClosetRepository,
-            guestClosetStore: guestClosetStore
+        let subscriptionRepository = LiveSubscriptionRepository(apiClient: apiClient)
+        let closetStack = makeLiveClosetStack(
+            apiClient: apiClient,
+            sessionStore: sessionStore,
+            offlineMutationQueue: offlineMutationQueue,
+            modelContainer: modelContainer,
+            subscriptionRepository: subscriptionRepository
         )
 
         return AppContainer(
             sessionStore: sessionStore,
             authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
             profileRepository: LiveProfileRepository(apiClient: apiClient),
-            closetRepository: guestAwareClosetRepository,
+            closetRepository: closetStack.guestAware,
             // Not guest-aware, and does not need to be: a guest's closet
             // has no storage paths to resolve (GuestClosetRepository
             // returns `[]` from `fetchImages`), so this is never reached
@@ -207,17 +195,61 @@ extension AppContainer {
             kyraRepository: LiveKyraRepository(apiClient: apiClient),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
             shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
-            subscriptionRepository: LiveSubscriptionRepository(apiClient: apiClient),
-            guestMigrationService: guestMigrationService,
+            subscriptionRepository: subscriptionRepository,
+            guestMigrationService: closetStack.migration,
             weatherService: LiveWeatherService(),
             calendarService: LiveCalendarService(),
             captureSession: LiveCaptureSessionController(),
-            captureDraftStore: CaptureDraftStore(),
             apiClient: apiClient,
             analyticsClient: analyticsClient,
             offlineMutationQueue: offlineMutationQueue,
             settings: AppSettings()
         )
+    }
+
+    /// Guest mode (spec §6.2; ADR 0011) + free-tier 30-cap (spec §16).
+    /// Migration writes through the capped live repository so guest→account
+    /// imports share the same 30-item check as feature creates.
+    private static func makeLiveClosetStack(
+        apiClient: AstraAPIClient,
+        sessionStore: SessionStore,
+        offlineMutationQueue: OfflineMutationQueue,
+        modelContainer: ModelContainer,
+        subscriptionRepository: SubscriptionRepository
+    ) -> (guestAware: ClosetRepository, migration: GuestMigrationService) {
+        let guestClosetStore = SwiftDataGuestClosetStore(modelContainer: modelContainer)
+        let liveClosetRepository = LiveClosetRepository(
+            apiClient: apiClient,
+            offlineQueue: offlineMutationQueue,
+            cache: SwiftDataClosetItemCache(modelContainer: modelContainer)
+        )
+        let freeTierCappedClosetRepository = FreeTierCappedClosetRepository(
+            base: liveClosetRepository,
+            isEntitledToPremium: {
+                // Fail closed to free-tier limits when subscription lookup
+                // errors — uncapping on a network blip would let a free
+                // account past 30 until the next launch.
+                do {
+                    return try await subscriptionRepository.fetchCurrentSubscription().isEntitledToPremium
+                } catch {
+                    return false
+                }
+            }
+        )
+        let guestClosetRepository = GuestClosetRepository(
+            store: guestClosetStore,
+            currentGuestUserID: { await sessionStore.currentGuestUserID() }
+        )
+        let guestAware = GuestAwareClosetRepository(
+            isGuest: { await sessionStore.currentIsGuest() },
+            guestRepository: guestClosetRepository,
+            liveRepository: freeTierCappedClosetRepository
+        )
+        let migration = LiveGuestMigrationService(
+            closetRepository: freeTierCappedClosetRepository,
+            guestClosetStore: guestClosetStore
+        )
+        return (guestAware, migration)
     }
 
     /// Preview / early-UI dependency graph. Every dependency is an
@@ -232,6 +264,18 @@ extension AppContainer {
 
         let mockClosetRepository = MockClosetRepository()
         let guestClosetStore = InMemoryGuestClosetStore()
+        // Preview / `-astra-mock-backend` seeds an active Premium
+        // subscription so closet UI tests are not blocked by the free
+        // 30-item cap while exercising add flows against SampleData's
+        // ~25-item wardrobe. Free-tier enforcement is covered by unit
+        // tests with an explicit non-entitled fixture.
+        let subscriptionRepository = MockSubscriptionRepository(status: .active)
+        let freeTierCappedClosetRepository = FreeTierCappedClosetRepository(
+            base: mockClosetRepository,
+            isEntitledToPremium: {
+                (try? await subscriptionRepository.fetchCurrentSubscription())?.isEntitledToPremium ?? false
+            }
+        )
         let guestClosetRepository = GuestClosetRepository(
             store: guestClosetStore,
             currentGuestUserID: { await sessionStore.currentGuestUserID() }
@@ -239,10 +283,10 @@ extension AppContainer {
         let guestAwareClosetRepository = GuestAwareClosetRepository(
             isGuest: { await sessionStore.currentIsGuest() },
             guestRepository: guestClosetRepository,
-            liveRepository: mockClosetRepository
+            liveRepository: freeTierCappedClosetRepository
         )
         let guestMigrationService = LiveGuestMigrationService(
-            closetRepository: mockClosetRepository,
+            closetRepository: freeTierCappedClosetRepository,
             guestClosetStore: guestClosetStore
         )
 
@@ -256,7 +300,7 @@ extension AppContainer {
             kyraRepository: MockKyraRepository(),
             studioRepository: MockStudioRepository(),
             shoppingRepository: MockShoppingRepository(),
-            subscriptionRepository: MockSubscriptionRepository(),
+            subscriptionRepository: subscriptionRepository,
             guestMigrationService: guestMigrationService,
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),

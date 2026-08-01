@@ -118,8 +118,12 @@ struct GuestClosetRepositoryTests {
         #expect(liveItems.isEmpty)
     }
 
-    @Test("A non-guest session routes straight through to the live repository, uncapped")
+    @Test("A non-guest session routes straight through to the live repository")
     func nonGuestRoutesToLiveRepository() async throws {
+        // GuestAware itself does not apply the free-tier 30-item cap —
+        // `FreeTierCappedClosetRepository` wraps the live path in
+        // `AppContainer` (see FreeTierClosetCapTests). This test only
+        // proves guest vs live routing.
         let guestRepository = GuestClosetRepository(store: InMemoryGuestClosetStore(), currentGuestUserID: { UUID() })
         let liveRepository = MockClosetRepository(items: [])
         let repository = GuestAwareClosetRepository(

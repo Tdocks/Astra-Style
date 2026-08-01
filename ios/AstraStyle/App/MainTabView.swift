@@ -107,7 +107,13 @@ struct MainTabView: View {
             ClosetView(
                 viewModel: ClosetViewModel(
                     closetRepository: container.closetRepository,
-                    imageURLResolver: container.closetImageURLResolver
+                    imageURLResolver: container.closetImageURLResolver,
+                    // Without this, `makeAddItemViewModel` builds a form that
+                    // fails every submit as `.auth` — the sheet stays up and
+                    // P3-TEST-02's post-save "Tops" tap hits the form's
+                    // category chip instead of the closet tile.
+                    currentUserID: { await container.sessionStore.currentUserID() },
+                    analyticsClient: container.analyticsClient
                 )
             )
             .navigationDestination(for: ClosetRoute.self) { route in
