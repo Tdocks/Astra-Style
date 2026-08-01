@@ -108,33 +108,61 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         }
     }
 
-    public func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
-        let storagePath = try await uploadCaptured(imageData: imageData)
-        struct Request: Encodable, Sendable {
-            let storagePath: String
-            let imageType: ClosetImageType
-            enum CodingKeys: String, CodingKey { case storagePath = "storage_path", imageType = "image_type" }
+    /// The wire element both analyze endpoints take: the uploaded object's
+    /// path plus the correlation id the server must echo back. Image bytes
+    /// go to Storage, never into the JSON body (`docs/08` §2's
+    /// `imageStoragePath`, "signed, private Supabase Storage path — never a
+    /// public URL").
+    private struct AnalyzeRequestElement: Encodable, Sendable {
+        let requestID: UUID
+        let storagePath: String
+        let imageType: ClosetImageType
+        let deviceHints: GarmentDeviceHints?
+
+        enum CodingKeys: String, CodingKey {
+            case requestID = "request_id"
+            case storagePath = "storage_path"
+            case imageType = "image_type"
+            case deviceHints = "device_hints"
         }
-        return try await apiClient.send(
+    }
+
+    private func uploadedElement(for request: ClosetItemAnalysisRequest) async throws -> AnalyzeRequestElement {
+        AnalyzeRequestElement(
+            requestID: request.id,
+            storagePath: try await uploadCaptured(imageData: request.imageData),
+            imageType: request.imageType,
+            deviceHints: request.deviceHints
+        )
+    }
+
+    public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
+        try await apiClient.send(
             .analyzeClosetItem,
-            body: Request(storagePath: storagePath, imageType: imageType),
+            body: uploadedElement(for: request),
             as: ClosetItemAnalysisResult.self
         )
     }
 
-    public func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] {
-        var storagePaths: [String] = []
-        for imageData in imageDataList {
-            storagePaths.append(try await uploadCaptured(imageData: imageData))
+    public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        struct BatchRequest: Encodable, Sendable {
+            let items: [AnalyzeRequestElement]
         }
-        struct Request: Encodable, Sendable {
-            let storagePaths: [String]
-            enum CodingKeys: String, CodingKey { case storagePaths = "storage_paths" }
+        // Uploads run in submission order rather than concurrently on
+        // purpose: the upload leg is bandwidth-bound on a phone, and firing
+        // N image uploads at once on a weak connection makes every one of
+        // them slower and the first result later. Concurrency belongs on the
+        // server side of this call (`docs/08` §2.3 recommends the provider's
+        // own batch endpoint), where it does not compete for one uplink.
+        var elements: [AnalyzeRequestElement] = []
+        elements.reserveCapacity(requests.count)
+        for request in requests {
+            elements.append(try await uploadedElement(for: request))
         }
         return try await apiClient.send(
             .batchAnalyzeCloset,
-            body: Request(storagePaths: storagePaths),
-            as: [ClosetItemAnalysisResult].self
+            body: BatchRequest(items: elements),
+            as: ClosetItemAnalysisBatch.self
         )
     }
 

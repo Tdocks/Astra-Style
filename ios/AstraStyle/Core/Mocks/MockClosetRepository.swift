@@ -10,9 +10,21 @@ import Foundation
 
 public actor MockClosetRepository: ClosetRepository {
     private var items: [UUID: ClosetItem]
+    private let previewBatchFailureIndex: Int?
 
-    public init(items: [ClosetItem] = SampleData.closetItems) {
+    /// - Parameter previewBatchFailureIndex: which submission index of a
+    ///   batch scan comes back failed. This exists for the same reason the
+    ///   canned analysis below sets brand confidence to 0.52: the review
+    ///   screen's degraded paths have to be reachable under
+    ///   `-astra-mock-backend` without a server, or they get built against
+    ///   nothing and only get looked at once real analysis is wired up. The
+    ///   default (index 3) leaves single captures and small batches entirely
+    ///   successful while making the five-image batch the scan flow is
+    ///   designed around show four successes and one failure. Pass `nil` for
+    ///   an all-successful batch.
+    public init(items: [ClosetItem] = SampleData.closetItems, previewBatchFailureIndex: Int? = 3) {
         self.items = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        self.previewBatchFailureIndex = previewBatchFailureIndex
     }
 
     public func fetchItems() async throws -> [ClosetItem] {
@@ -32,28 +44,86 @@ public actor MockClosetRepository: ClosetRepository {
         ]
     }
 
-    public func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
+    /// The canned analysis the mock backend serves.
+    ///
+    /// The confidences are chosen, not arbitrary. Brand sits at 0.52 and the
+    /// nylon in the material list at 0.41 — both below
+    /// `AnalysisConfidence.lowConfidenceThreshold` — so that the review
+    /// screen's low-confidence marking is visible under
+    /// `-astra-mock-backend` with no server: one whole-field marker (brand)
+    /// and one single-chip marker inside an otherwise confident list, which
+    /// are two different pieces of UI. `fieldsBelowConfidenceThreshold`
+    /// additionally names `size` at a confidence the client would consider
+    /// fine (0.74), exercising the server-declares-it-anyway half of the
+    /// marking rule that a purely computed predicate would miss.
+    public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
+        Self.cannedAnalysis
+    }
+
+    /// `nonisolated static` so the batch fan-out's child tasks can build it
+    /// without hopping back onto this actor — the fixture depends on nothing
+    /// mutable, so serialising N copies of it through the actor would be a
+    /// bottleneck invented purely to satisfy isolation.
+    nonisolated static var cannedAnalysis: ClosetItemAnalysisResult {
         ClosetItemAnalysisResult(
-            suggestedName: FieldSuggestion(value: "Cotton Crewneck Sweater", confidence: 0.88),
-            suggestedBrand: FieldSuggestion(value: "Uniqlo", confidence: 0.52),
-            suggestedCategory: FieldSuggestion(value: .top, confidence: 0.95),
-            suggestedSubcategory: FieldSuggestion(value: "Sweater", confidence: 0.81),
-            suggestedPrimaryColor: FieldSuggestion(value: "navy", confidence: 0.9),
-            suggestedPattern: FieldSuggestion(value: .solid, confidence: 0.93),
-            suggestedMaterial: ["cotton"],
-            suggestedCondition: FieldSuggestion(value: .good, confidence: 0.7)
+            name: FieldSuggestion(value: "Cotton Crewneck Sweater", confidence: 0.88),
+            brand: FieldSuggestion(value: "Uniqlo", confidence: 0.52),
+            category: FieldSuggestion(value: .top, confidence: 0.95),
+            subcategory: FieldSuggestion(value: "Sweater", confidence: 0.81),
+            primaryColor: FieldSuggestion(value: "navy", confidence: 0.9),
+            secondaryColors: [FieldSuggestion(value: "cream", confidence: 0.66)],
+            pattern: FieldSuggestion(value: .solid, confidence: 0.93),
+            material: [
+                FieldSuggestion(value: "cotton", confidence: 0.91),
+                FieldSuggestion(value: "nylon", confidence: 0.41)
+            ],
+            size: FieldSuggestion(value: "M", confidence: 0.74),
+            fit: FieldSuggestion(value: .regular, confidence: 0.68),
+            condition: FieldSuggestion(value: .good, confidence: 0.7),
+            seasonality: [
+                FieldSuggestion(value: .fall, confidence: 0.83),
+                FieldSuggestion(value: .winter, confidence: 0.79)
+            ],
+            formalityScore: FieldSuggestion(value: 35, confidence: 0.77),
+            warmthScore: FieldSuggestion(value: 62, confidence: 0.72),
+            waterResistanceScore: FieldSuggestion(value: 10, confidence: 0.64),
+            ocrText: "100% COTTON\nMADE IN VIETNAM\nSIZE M",
+            fieldsBelowConfidenceThreshold: [.size]
         )
     }
 
-    public func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] {
-        try await withThrowingTaskGroup(of: ClosetItemAnalysisResult.self) { group in
-            for data in imageDataList {
-                group.addTask { try await self.analyzeItem(imageData: data, imageType: .front) }
+    public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        // The previous implementation appended `withThrowingTaskGroup`
+        // results in completion order and returned a bare array, so the
+        // caller's Nth photo could receive the Mth photo's analysis — a
+        // silent mis-attribution, not a crash. The group now carries each
+        // request's id with its outcome, and the batch is reassembled in
+        // submission order so preview output is stable run to run. Nothing
+        // downstream should depend on that order (`ClosetItemAnalysisBatch`
+        // is looked up by id), but a mock that shuffles its own output every
+        // run makes every screenshot and snapshot diff noise.
+        let failureIndex = previewBatchFailureIndex
+        let outcomes = await withTaskGroup(of: (UUID, ClosetItemAnalysisOutcome).self) { group in
+            for (index, request) in requests.enumerated() {
+                let requestID = request.id
+                group.addTask {
+                    if index == failureIndex {
+                        let failure = ClosetItemAnalysisFailure(reason: .imageUnusable, message: "Preview fixture: this capture is deliberately unusable.")
+                        return (requestID, .failed(failure))
+                    }
+                    return (requestID, .analyzed(Self.cannedAnalysis))
+                }
             }
-            var results: [ClosetItemAnalysisResult] = []
-            for try await result in group { results.append(result) }
-            return results
+            var collected: [UUID: ClosetItemAnalysisOutcome] = [:]
+            for await (id, outcome) in group { collected[id] = outcome }
+            return collected
         }
+
+        return ClosetItemAnalysisBatch(
+            results: requests.compactMap { request in
+                outcomes[request.id].map { ClosetItemAnalysisBatchItem(id: request.id, outcome: $0) }
+            }
+        )
     }
 
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {

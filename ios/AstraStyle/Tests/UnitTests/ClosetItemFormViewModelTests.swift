@@ -86,10 +86,10 @@ private actor StubClosetRepository: ClosetRepository {
     func fetchItems() async throws -> [ClosetItem] { [] }
     func fetchItem(id: UUID) async throws -> ClosetItem { throw StubUnexpectedError() }
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
-    func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
+    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw StubUnexpectedError()
     }
-    func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] {
+    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
         throw StubUnexpectedError()
     }
     func archiveItem(id: UUID) async throws { throw StubUnexpectedError() }

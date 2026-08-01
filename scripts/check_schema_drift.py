@@ -79,6 +79,20 @@ EXTRA_SWIFT_FILES = [
     # strings. Listing the file means a rename here has to be classified below
     # rather than sailing past a checker that never opened the file.
     REPO_ROOT / "ios/AstraStyle/Domain/Models/StylePreferenceVector.swift",
+    # The scan-analysis contract (spec §12). Its two String-backed enums are
+    # wire vocabulary rather than column types -- both are values the Edge
+    # Function emits inside a JSON body -- but they are exactly as
+    # rename-sensitive as a column-backed enum, and the failure mode is worse
+    # (a renamed case decodes to a fallback instead of erroring). Listing the
+    # file forces a rename to be classified below rather than sailing past.
+    REPO_ROOT / "ios/AstraStyle/Domain/Models/ClosetItemAnalysisResult.swift",
+    # The device-side capture-quality verdict (spec §12 step 1). Its one
+    # String-backed enum is neither a column nor a wire value today -- it is
+    # read by the capture screen and by whatever logs a rejected capture --
+    # but it is the vocabulary a queued offline scan would carry if the
+    # reason a capture was flagged is ever persisted, and listing the file
+    # means that decision has to be made here rather than by accident.
+    REPO_ROOT / "ios/AstraStyle/Features/Scanner/Services/CaptureQuality.swift",
 ]
 EXTRA_SQL_FILES = [
     REPO_ROOT / "supabase/migrations/20260729120000_frame_profile.sql",
@@ -160,6 +174,25 @@ NO_DB_COUNTERPART: dict[str, str] = {
     "LaundryCadence": (
         "lifestyle_profiles.laundry_cadence is `text` by explicit migration comment "
         "(\"cadence phrasing ... is naturally free-form input rather than a small closed set\")."
+    ),
+    "AnalysisField": (
+        "field names inside the analyze/batch-analyze Edge Function response "
+        "(`fields_below_confidence_threshold`), not a persisted column. The raw values "
+        "deliberately equal ClosetItemAnalysisResult's own CodingKeys, so a rename here "
+        "is a wire-format change and must be made on both sides of that response."
+    ),
+    "ClosetItemAnalysisFailureReason": (
+        "the `reason` of a per-item failure in the batch-analyze response. Never stored -- "
+        "a failed scan produces no closet_items row at all, which is the point of the "
+        "per-item outcome shape."
+    ),
+    "CaptureQualityIssue": (
+        "the device-side reason a capture was warned about or refused (spec §12 step 1). "
+        "Never persisted and never sent: a capture that trips this is retaken, so no row and "
+        "no request is ever created from it. Related to but deliberately NOT the same "
+        "vocabulary as ClosetItemAnalysisFailureReason.imageUnusable -- that one is the "
+        "server's post-hoc verdict on an image it already received, this one is the device's "
+        "pre-flight verdict on a frame nobody has uploaded."
     ),
 }
 

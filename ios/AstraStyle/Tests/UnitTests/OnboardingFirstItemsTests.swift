@@ -20,10 +20,10 @@ private actor FailingClosetRepository: ClosetRepository {
     func fetchItems() async throws -> [ClosetItem] { throw AstraError.network("offline") }
     func fetchItem(id: UUID) async throws -> ClosetItem { throw AstraError.network("offline") }
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
-    func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
+    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.network("offline")
     }
-    func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] {
+    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
         throw AstraError.network("offline")
     }
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {

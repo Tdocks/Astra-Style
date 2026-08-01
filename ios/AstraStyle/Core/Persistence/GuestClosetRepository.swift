@@ -64,7 +64,7 @@ public struct GuestClosetRepository: ClosetRepository {
         []
     }
 
-    public func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
+    public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         // Analysis requires uploading the image to a Vision Edge Function,
         // which would put guest photo bytes on Supabase — exactly what
         // ADR 0011 rules out for guest mode ("no cloud sync"). Refuse
@@ -73,7 +73,11 @@ public struct GuestClosetRepository: ClosetRepository {
         throw AstraError.validation("Scanning isn't available in guest mode yet. Create an account to scan items.")
     }
 
-    public func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] {
+    public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        // Throws rather than returning a batch of per-item failures: this is
+        // not "these five photos failed", it is "this capability does not
+        // exist for this session", and rendering it as five retryable item
+        // failures would offer the guest a retry that can never succeed.
         throw AstraError.validation("Scanning isn't available in guest mode yet. Create an account to scan items.")
     }
 

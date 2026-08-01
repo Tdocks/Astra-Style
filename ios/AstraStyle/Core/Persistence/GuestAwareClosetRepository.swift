@@ -46,12 +46,12 @@ public struct GuestAwareClosetRepository: ClosetRepository {
         try await active().fetchImages(forItem: itemID)
     }
 
-    public func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
-        try await active().analyzeItem(imageData: imageData, imageType: imageType)
+    public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
+        try await active().analyzeItem(request)
     }
 
-    public func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] {
-        try await active().batchAnalyzeItems(imageDataList: imageDataList)
+    public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        try await active().batchAnalyzeItems(requests)
     }
 
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {

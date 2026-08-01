@@ -141,10 +141,10 @@ private actor FailingAfterNClosetRepository: ClosetRepository {
     func fetchItems() async throws -> [ClosetItem] { createdItems }
     func fetchItem(id: UUID) async throws -> ClosetItem { throw AstraError.server("Not implemented in this test double.") }
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
-    func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
+    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.server("Not implemented in this test double.")
     }
-    func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] { [] }
+    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch { ClosetItemAnalysisBatch(results: []) }
 
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         guard successesRemaining > 0 else {

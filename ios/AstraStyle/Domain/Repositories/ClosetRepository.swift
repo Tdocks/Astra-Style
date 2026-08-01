@@ -21,11 +21,22 @@ public protocol ClosetRepository: Sendable {
     /// Uploads a captured image and returns the server's analysis
     /// suggestion for review (spec §6.16 "Review screen"). Does not create
     /// a `ClosetItem` by itself — call `createItem` once the user confirms.
-    func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult
+    ///
+    /// Takes the same request type as the batch call so that a single scan
+    /// and one element of a batch scan are literally the same input — the
+    /// Edge Function's two endpoints then share one element schema, and a
+    /// device hint added for one is available to the other for free.
+    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult
 
     /// Batch variant for the closet scan flow (spec §6.16 "Batch closet
     /// scan").
-    func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult]
+    ///
+    /// Returns a batch keyed by `ClosetItemAnalysisRequest.id`, not an array
+    /// of successes. Throwing on the first bad item would fail the whole
+    /// batch, and returning `[ClosetItemAnalysisResult]` cannot express
+    /// "item 3 failed" at all — one image failing must cost the user that
+    /// one image, not the other four.
+    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch
 
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem
     func updateItem(_ item: ClosetItem) async throws -> ClosetItem

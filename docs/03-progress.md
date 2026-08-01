@@ -42,12 +42,12 @@ lands data layers, protocols, and models long before the screens that use them.
 |---|---|---|---|---|
 | 1 — Foundation | 25 | 13 | 12 | 0 |
 | 2 — Identity | 17 | 12 | 5 | 0 |
-| 3 — Closet | 27 | 5 | 7 | 15 |
+| 3 — Closet | 27 | 5 | 9 | 13 |
 | 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **35** | **50** | **93** |
+| **Total** | **178** | **35** | **52** | **91** |
 
 Read that table carefully before drawing a conclusion from it. 32 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -215,9 +215,9 @@ why `P3-CLOSET-03` is still Partial and why the closet's only working way in is 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P3-SCAN-01 | Not started | No `AVFoundation`/camera code anywhere; `Features/Scanner/` holds only `README.md`. |
-| P3-SCAN-02 | Not started | No Vision-based blur/exposure/segmentation code (zero `VNDetect` hits). |
+| P3-SCAN-02 | Partial | `Features/Scanner/Services/CaptureQuality.swift`. §12 step 1 is complete as pure nonisolated functions over a `Sendable` `LuminancePlane`: variance-of-Laplacian focus and histogram exposure, returning per-dimension severities (`acceptable`/`warning`/`blocking`) plus the one instruction to show. Every entry point is synchronous and nonisolated on purpose — that is what lets a capture queue hand it a non-`Sendable` `CGImage` without `@unchecked Sendable`, because a sync nonisolated call runs in the caller's isolation domain. Thresholds are measured rather than taken from literature: the 36 garment photographs in `brand/quiz-imagery` score 122-309, a radius-1 blur scores 44-73 and radius-2 scores 16-26, so warn=90 and block=30 sit in the two gaps; exposure is stated in sRGB-**encoded** space with stop offsets, because a naive "mean < 0.18" rejects frames 1.5 stops brighter than correct. Over-exposure blocks only on clipped fraction **and** high mean together — a dark garment on a white duvet is half near-white and blocking on clipping alone would refuse an ordinary photo. 33 tests in `Tests/UnitTests/CaptureQualityTests.swift` against synthesised fixtures. **Neither acceptance criterion is met.** The 20-sample manual blur set needs a device and has not been run. §12 steps 2-3 (garment region, foreground segmentation) are deliberately **not implemented** — only the `GarmentRegionDetecting` seam exists, because a Vision mask cannot be verified on a simulator and the point of this ticket was to keep the untestable half thin. Nothing consumes it yet: there is no capture screen (`P3-SCAN-01`). |
 | P3-SCAN-03 | Not started | No OCR or dominant-colour extraction. |
-| P3-SCAN-04 | Not started | No resize/compress/EXIF-strip pipeline. |
+| P3-SCAN-04 | Partial | `Features/Scanner/Services/CapturePreparation.swift`. `Data` in, `Data` out: resize to `docs/08` §2.3's 1024px longest-edge cap through ImageIO, re-encode at JPEG q0.72 (chosen from a measured sweep -- 48 KB at q0.50, 95 KB at q0.72, 145 KB at q0.90), metadata dropped by construction rather than by a strip pass. A sibling of `ImageDownsampling` and not an extension of it: that utility returns a `UIImage` with no re-encoding step for steps 6-7 to live in, and its `scale` multiplier would make a pixel cap unenforceable. **Criterion 1 is met and automated** -- `Tests/UnitTests/CapturePreparationTests.swift` builds a capture carrying EXIF, GPS, TIFF and an orientation tag, then asserts through `CGImageSourceCopyPropertiesAtIndex` that GPS, TIFF and orientation are gone and no identifying EXIF key survives. The honest claim is "nothing identifying the person, place, time or device", not "no metadata": ImageIO writes its own `{JFIF}` block and a three-key `{Exif}` block (`ColorSpace`, `PixelXDimension`, `PixelYDimension`), so the test asserts on keys rather than on a block's absence. Orientation is asserted **baked into the pixels** -- a stripped orientation tag on an unrotated image would ship every garment sideways. **Criterion 2 is half met:** 18.2x mean reduction measured on simulated 12 MP captures (1.4-1.75 MB to 76-99 KB); "without visible quality loss in the review screen" is a human judgement on a real device and there is no review screen yet (`P3-SCAN-09`). Nothing calls it: `P3-SCAN-05`'s `uploadCaptured()` still takes raw bytes. |
 | P3-SCAN-05 | Partial | `LiveClosetRepository.uploadCaptured()` now targets the bucket that exists (`user-content`) and lowercases the user id in the path — the storage policies compare `(storage.foldername(name))[2]` to `auth.uid()::text`, which Postgres renders lowercase while Swift's `UUID.uuidString` is uppercase, so the original would have been rejected by RLS even after the bucket name was corrected. Still Partial: no signed-URL read path, and nothing calls it yet (no scan UI — see P3-SCAN-01). |
 | P3-SCAN-06 | Not started | Zero `PhotosPicker`/`PhotosUI` hits. |
 | P3-SCAN-07 | Not started | No `supabase/functions/closet/`. Client protocol method targets a nonexistent function. |

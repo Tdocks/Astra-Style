@@ -757,11 +757,11 @@ private actor StubClosetRepository: ClosetRepository {
         return imagesByItemID[itemID] ?? []
     }
 
-    func analyzeItem(imageData: Data, imageType: ClosetImageType) async throws -> ClosetItemAnalysisResult {
+    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.unimplemented("Scanning is not part of this screen.")
     }
 
-    func batchAnalyzeItems(imageDataList: [Data]) async throws -> [ClosetItemAnalysisResult] {
+    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
         throw AstraError.unimplemented("Scanning is not part of this screen.")
     }
 

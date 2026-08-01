@@ -86,7 +86,7 @@ struct GuestClosetRepositoryTests {
         let repository = GuestClosetRepository(store: InMemoryGuestClosetStore(), currentGuestUserID: { UUID() })
 
         await expectThrowsAstraValidationError {
-            _ = try await repository.analyzeItem(imageData: Data(), imageType: .front)
+            _ = try await repository.analyzeItem(ClosetItemAnalysisRequest(imageData: Data()))
         }
     }
 
