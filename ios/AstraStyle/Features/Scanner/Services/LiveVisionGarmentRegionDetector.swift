@@ -123,45 +123,56 @@ extension LiveVisionGarmentRegionDetector {
         let bytesPerRow = CVPixelBufferGetBytesPerRow(mask)
         let format = CVPixelBufferGetPixelFormatType(mask)
 
+        // Foreground masks from Vision are typically one-channel float32 or
+        // one-channel uint8. Handle both; anything else is treated as absent.
+        let extents: (minX: Int, minY: Int, maxX: Int, maxY: Int)?
+        if format == kCVPixelFormatType_OneComponent32Float {
+            extents = maskExtents(
+                width: width, height: height, bytesPerRow: bytesPerRow, base: base
+            ) { row, x in
+                row.assumingMemoryBound(to: Float32.self)[x] > 0.1
+            }
+        } else {
+            extents = maskExtents(
+                width: width, height: height, bytesPerRow: bytesPerRow, base: base
+            ) { row, x in
+                row.assumingMemoryBound(to: UInt8.self)[x] > 16
+            }
+        }
+
+        guard let extents else { return nil }
+        let pixelWidth = Double(extents.maxX - extents.minX + 1)
+        let pixelHeight = Double(extents.maxY - extents.minY + 1)
+        return CGRect(
+            x: Double(extents.minX) / Double(width),
+            y: Double(extents.minY) / Double(height),
+            width: pixelWidth / Double(width),
+            height: pixelHeight / Double(height)
+        )
+    }
+
+    private static func maskExtents(
+        width: Int,
+        height: Int,
+        bytesPerRow: Int,
+        base: UnsafeMutableRawPointer,
+        isForeground: (UnsafeRawPointer, Int) -> Bool
+    ) -> (minX: Int, minY: Int, maxX: Int, maxY: Int)? {
         var minX = width
         var minY = height
         var maxX = -1
         var maxY = -1
-
-        // Foreground masks from Vision are typically one-channel float32 or
-        // one-channel uint8. Handle both; anything else is treated as absent.
-        if format == kCVPixelFormatType_OneComponent32Float {
-            for y in 0..<height {
-                let row = base.advanced(by: y * bytesPerRow).assumingMemoryBound(to: Float32.self)
-                for x in 0..<width where row[x] > 0.1 {
-                    if x < minX { minX = x }
-                    if y < minY { minY = y }
-                    if x > maxX { maxX = x }
-                    if y > maxY { maxY = y }
-                }
-            }
-        } else {
-            for y in 0..<height {
-                let row = base.advanced(by: y * bytesPerRow).assumingMemoryBound(to: UInt8.self)
-                for x in 0..<width where row[x] > 16 {
-                    if x < minX { minX = x }
-                    if y < minY { minY = y }
-                    if x > maxX { maxX = x }
-                    if y > maxY { maxY = y }
-                }
+        for y in 0..<height {
+            let row = UnsafeRawPointer(base.advanced(by: y * bytesPerRow))
+            for x in 0..<width where isForeground(row, x) {
+                minX = min(minX, x)
+                minY = min(minY, y)
+                maxX = max(maxX, x)
+                maxY = max(maxY, y)
             }
         }
-
         guard maxX >= minX, maxY >= minY else { return nil }
-
-        let pixelWidth = Double(maxX - minX + 1)
-        let pixelHeight = Double(maxY - minY + 1)
-        return CGRect(
-            x: Double(minX) / Double(width),
-            y: Double(minY) / Double(height),
-            width: pixelWidth / Double(width),
-            height: pixelHeight / Double(height)
-        )
+        return (minX, minY, maxX, maxY)
     }
 
     /// Vision normalized rect (origin bottom-left) → CGImage normalized (origin top-left).
