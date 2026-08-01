@@ -67,7 +67,7 @@ extension ScannerReviewViewModel {
         ocrText = result.ocrText
         name = result.name?.value ?? ""
         brand = result.brand?.value ?? ""
-        category = result.category?.value ?? .top
+        category = result.category.value
         subcategory = result.subcategory?.value ?? ""
         primaryColor = result.primaryColor?.value ?? ""
         secondaryColorsText = result.secondaryColors.map(\.value).joined(separator: ", ")
@@ -109,7 +109,7 @@ extension ScannerReviewViewModel {
         let checks: [Bool] = [
             name != (original.name?.value ?? ""),
             brand != (original.brand?.value ?? ""),
-            category != (original.category?.value ?? .top),
+            category != original.category.value,
             subcategory != (original.subcategory?.value ?? ""),
             primaryColor != (original.primaryColor?.value ?? ""),
             splitList(secondaryColorsText) != original.secondaryColors.map(\.value),
