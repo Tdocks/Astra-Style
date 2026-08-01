@@ -63,6 +63,18 @@ public final class AppContainer {
     /// them is a server-side change with no app release.
     public let profileRepository: ProfileRepository
     public let closetRepository: ClosetRepository
+
+    /// Signs `user-content` storage paths so closet surfaces can display
+    /// photos (spec §15's private bucket).
+    ///
+    /// Its own dependency rather than a method on `ClosetRepository`
+    /// because it is not a repository: it owns no table, performs no
+    /// mutation, and its whole behaviour is a caching policy over Storage.
+    /// Folding it into `ClosetRepository` would also force
+    /// `GuestClosetRepository` to implement a signing call that ADR 0011
+    /// says a guest must never make.
+    public let closetImageURLResolver: ClosetImageURLResolving
+
     public let outfitRepository: OutfitRepository
     public let kyraRepository: KyraRepository
     public let studioRepository: StudioRepository
@@ -94,6 +106,7 @@ public final class AppContainer {
         authRepository: AuthRepository,
         profileRepository: ProfileRepository,
         closetRepository: ClosetRepository,
+        closetImageURLResolver: ClosetImageURLResolving,
         outfitRepository: OutfitRepository,
         kyraRepository: KyraRepository,
         studioRepository: StudioRepository,
@@ -111,6 +124,7 @@ public final class AppContainer {
         self.authRepository = authRepository
         self.profileRepository = profileRepository
         self.closetRepository = closetRepository
+        self.closetImageURLResolver = closetImageURLResolver
         self.outfitRepository = outfitRepository
         self.kyraRepository = kyraRepository
         self.studioRepository = studioRepository
@@ -171,6 +185,11 @@ extension AppContainer {
             authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
             profileRepository: LiveProfileRepository(apiClient: apiClient),
             closetRepository: guestAwareClosetRepository,
+            // Not guest-aware, and does not need to be: a guest's closet
+            // has no storage paths to resolve (GuestClosetRepository
+            // returns `[]` from `fetchImages`), so this is never reached
+            // on a guest session.
+            closetImageURLResolver: LiveClosetImageURLResolver(),
             outfitRepository: LiveOutfitRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue),
             kyraRepository: LiveKyraRepository(apiClient: apiClient),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
@@ -217,6 +236,7 @@ extension AppContainer {
             authRepository: MockAuthRepository(sessionStore: sessionStore),
             profileRepository: MockProfileRepository(),
             closetRepository: guestAwareClosetRepository,
+            closetImageURLResolver: MockClosetImageURLResolver(),
             outfitRepository: MockOutfitRepository(),
             kyraRepository: MockKyraRepository(),
             studioRepository: MockStudioRepository(),

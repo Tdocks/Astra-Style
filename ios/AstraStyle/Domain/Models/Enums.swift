@@ -50,7 +50,7 @@ public enum ClothingCategory: String, Codable, CaseIterable, Sendable {
 
 /// Whether a closet item is clean, mid-cycle, or unavailable to wear today
 /// (spec §26; drives the Home "Laundry/availability alert" module, §6.11).
-public enum LaundryState: String, Codable, Sendable {
+public enum LaundryState: String, Codable, CaseIterable, Sendable, Identifiable {
     case clean
     case wornOnce = "worn_once"
     case laundry
@@ -69,7 +69,7 @@ public enum KyraVerdict: String, Codable, Sendable {
 
 /// Whether an owned item is currently available to be worn (distinct from
 /// `LaundryState`, which tracks the wash cycle specifically).
-public enum AvailabilityState: String, Codable, CaseIterable, Sendable {
+public enum AvailabilityState: String, Codable, CaseIterable, Sendable, Identifiable {
     case available
     case inLaundry = "in_laundry"
     case inAlteration = "in_alteration"
@@ -80,7 +80,7 @@ public enum AvailabilityState: String, Codable, CaseIterable, Sendable {
 }
 
 /// Self-reported or inferred physical condition (spec §6.15 item detail).
-public enum ItemCondition: String, Codable, CaseIterable, Sendable {
+public enum ItemCondition: String, Codable, CaseIterable, Sendable, Identifiable {
     case newWithTags = "new_with_tags"
     case likeNew = "like_new"
     case good
@@ -110,7 +110,7 @@ public enum ItemFit: String, Codable, CaseIterable, Sendable, Identifiable {
     }
 }
 
-public enum GarmentPattern: String, Codable, CaseIterable, Sendable {
+public enum GarmentPattern: String, Codable, CaseIterable, Sendable, Identifiable {
     case solid
     case stripe
     case check
@@ -124,7 +124,7 @@ public enum GarmentPattern: String, Codable, CaseIterable, Sendable {
 
 /// A single season tag; `closet_items.seasonality` stores an array of
 /// these (spec §9).
-public enum Season: String, Codable, CaseIterable, Sendable {
+public enum Season: String, Codable, CaseIterable, Sendable, Identifiable {
     case spring
     case summer
     case fall
@@ -589,6 +589,139 @@ public extension LaundryCadence {
         case .biweekly: String(localized: "Every couple of weeks", comment: "Laundry cadence")
         case .monthly: String(localized: "Monthly", comment: "Laundry cadence")
         case .asNeeded: String(localized: "When I run out", comment: "Laundry cadence")
+        }
+    }
+}
+
+// MARK: - Closet display names
+//
+// The five enums below are what the Closet grid, the item detail sheet and
+// the add/edit form put in front of the user, and until now none of them had
+// a label — so every one of those screens would have rendered its raw value:
+// "worn_once", "in_alteration", "new_with_tags", "all_season". Same failure
+// the lifestyle block above was written to fix, one screen later.
+//
+// The copy rule for all five: this is a man reading about his own clothes,
+// so the label is what he would say out loud about a garment, not what the
+// column stores. "In the wash" over "Laundry"; "At the tailor" over
+// "In alteration". The raw values are fixed by Postgres (see the note at
+// the top of this file) and are deliberately NOT the thing being read.
+
+public extension LaundryState {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// "Worn once" is the case that earns the whole enum: it is the state a
+    /// man is actually in most mornings — the shirt is not dirty and not
+    /// fresh — and naming it honestly is what lets Kyra suggest it again
+    /// without the app pretending it was never worn.
+    var displayName: String {
+        switch self {
+        case .clean: String(localized: "Clean", comment: "Laundry state")
+        case .wornOnce: String(localized: "Worn once", comment: "Laundry state")
+        case .laundry: String(localized: "In the wash", comment: "Laundry state")
+        case .unavailable: String(localized: "Unavailable", comment: "Laundry state")
+        }
+    }
+}
+
+public extension AvailabilityState {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// Deliberately overlaps `LaundryState.laundry` in wording ("In the
+    /// wash") because the two enums genuinely describe the same real-world
+    /// situation from different columns, and inventing a second phrase for
+    /// it — "In laundry" — would read as a distinction the user is meant to
+    /// understand when there isn't one.
+    ///
+    /// "At the tailor" rather than "In alteration": one is where the jacket
+    /// is, the other is a process noun. The first is the sentence a man
+    /// would say.
+    var displayName: String {
+        switch self {
+        case .available: String(localized: "Available", comment: "Item availability")
+        case .inLaundry: String(localized: "In the wash", comment: "Item availability")
+        case .inAlteration: String(localized: "At the tailor", comment: "Item availability")
+        case .packedForTravel: String(localized: "Packed", comment: "Item availability")
+        case .lentOut: String(localized: "Lent out", comment: "Item availability")
+        case .lost: String(localized: "Lost", comment: "Item availability")
+        case .unavailable: String(localized: "Unavailable", comment: "Item availability")
+        }
+    }
+}
+
+public extension ItemCondition {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// Resale vocabulary ("new with tags", "like new") rather than a 1-5
+    /// quality rating, because this is a field the user sets himself and
+    /// those are the terms he has already sorted his own wardrobe with on
+    /// eBay, Vinted and Grailed. A rating scale would need a legend; these
+    /// don't.
+    ///
+    /// `.worn` reads "Well worn", not "Worn" — `LaundryState.wornOnce` is
+    /// two lines away in the same form and "Worn" next to "Worn once" is
+    /// two different questions answered with the same word.
+    var displayName: String {
+        switch self {
+        case .newWithTags: String(localized: "New with tags", comment: "Item condition")
+        case .likeNew: String(localized: "Like new", comment: "Item condition")
+        case .good: String(localized: "Good", comment: "Item condition")
+        case .fair: String(localized: "Fair", comment: "Item condition")
+        case .worn: String(localized: "Well worn", comment: "Item condition")
+        }
+    }
+}
+
+public extension GarmentPattern {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// Adjectives, not nouns — "Striped", not "Stripe" — because every one
+    /// of these is read in a phrase about a garment ("Striped · Cotton ·
+    /// Navy"), never as a category name on its own. `.check` and `.plaid`
+    /// stay as nouns since "Checked" and "Plaided" are not how either is
+    /// said; they're already used adjectivally ("a check shirt").
+    var displayName: String {
+        switch self {
+        case .solid: String(localized: "Solid", comment: "Garment pattern")
+        case .stripe: String(localized: "Striped", comment: "Garment pattern")
+        case .check: String(localized: "Check", comment: "Garment pattern")
+        case .plaid: String(localized: "Plaid", comment: "Garment pattern")
+        case .floral: String(localized: "Floral", comment: "Garment pattern")
+        case .print: String(localized: "Print", comment: "Garment pattern")
+        case .textured: String(localized: "Textured", comment: "Garment pattern")
+        case .camo: String(localized: "Camo", comment: "Garment pattern")
+        case .other: String(localized: "Other", comment: "Garment pattern")
+        }
+    }
+}
+
+public extension Season {
+    var id: String { rawValue }
+
+    /// User-facing label.
+    ///
+    /// Two cases where the label deliberately does not track the raw value:
+    ///
+    /// * `.fall` renders "Autumn". The raw value is fixed by the Postgres
+    ///   enum and is not up for renaming, but the app's copy is British
+    ///   English throughout ("Trousers", "taking up") and "Fall" in that
+    ///   register reads as an American import.
+    /// * `.allSeason` renders "All year". "All-season" is a tyre.
+    var displayName: String {
+        switch self {
+        case .spring: String(localized: "Spring", comment: "Season")
+        case .summer: String(localized: "Summer", comment: "Season")
+        case .fall: String(localized: "Autumn", comment: "Season")
+        case .winter: String(localized: "Winter", comment: "Season")
+        case .allSeason: String(localized: "All year", comment: "Season")
         }
     }
 }

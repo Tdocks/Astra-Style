@@ -25,6 +25,13 @@ struct DesignSystemGallery: View {
                 buttonSection
                 cardSection
                 chipSection
+                // Split into its own view rather than two more `private var`
+                // sections here: the input components are the only ones in the
+                // gallery that need their own editable state, and four more
+                // `@State` properties on `DesignSystemGallery` push it past
+                // SwiftLint's `type_body_length`. Keeping their state next to
+                // them is also just where it belongs.
+                DesignSystemInputGallery()
                 scoreMeterSection
                 sectionHeaderSection
                 generatedImageBadgeSection
@@ -222,6 +229,92 @@ struct DesignSystemGallery: View {
                 RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
                     .fill(AstraColor.backgroundSecondary)
                     .frame(height: 220)
+            }
+        }
+    }
+}
+
+/// The input components, with the editable state they need.
+///
+/// Their own view rather than two more sections on `DesignSystemGallery`:
+/// these are the only components in the gallery that need editable state,
+/// four more `@State` properties would push that type past SwiftLint's
+/// `type_body_length`, and the state belongs next to the fields it drives.
+private struct DesignSystemInputGallery: View {
+    @State private var fieldText = "Navy Merino Sweater"
+    @State private var fieldNotes = ""
+    @State private var fieldError = ""
+    @State private var pricePaid: Decimal? = 129
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xxl) {
+            textFieldSection
+            remoteImageSection
+        }
+    }
+
+    // MARK: Text fields
+
+    private var textFieldSection: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.md) {
+            AstraSectionHeader(title: "Text Fields", eyebrow: "Components")
+            AstraTextField(
+                "Name",
+                text: $fieldText,
+                placeholder: "e.g. Navy Merino Sweater",
+                isRequired: true
+            )
+            AstraTextField(
+                "Notes",
+                text: $fieldNotes,
+                placeholder: "Anything worth remembering about this piece",
+                footnote: "Only you see this.",
+                axis: .vertical
+            )
+            // The error state is rendered with an empty binding on purpose:
+            // "required and empty" is the combination the add/edit form will
+            // actually show, and it is the one where the label, the marker
+            // and the error all have to coexist without colliding at AX5.
+            AstraTextField(
+                "Brand",
+                text: $fieldError,
+                placeholder: "e.g. Sunspel",
+                footnote: "Helps Kyra recognise the cut.",
+                errorText: "Add a brand, or leave the field empty.",
+                isRequired: true
+            )
+            AstraDecimalField(
+                "Price paid",
+                value: $pricePaid,
+                placeholder: "0",
+                footnote: "Used for cost per wear. Never for a verdict.",
+                currencyCode: "GBP"
+            )
+        }
+    }
+
+    // MARK: Remote image
+
+    private var remoteImageSection: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+            AstraSectionHeader(title: "Remote Image", eyebrow: "Components")
+            // Both tiles resolve to nothing — there is no bundled garment
+            // photography in the repo. That makes this preview a check of
+            // the state that matters most: the no-photo fallback must read
+            // as "no photo", never as a broken image, and must look
+            // identical whether the URL was absent or the load failed.
+            HStack(spacing: AstraSpacing.sm) {
+                AstraRemoteImage(
+                    url: nil,
+                    aspectRatio: 4.0 / 5.0,
+                    accessibilityDescription: "Editorial preview, no photo yet"
+                )
+                AstraRemoteImage(
+                    url: URL(string: "https://images.astrastyle.invalid/missing.jpg"),
+                    aspectRatio: 4.0 / 5.0,
+                    thumbnail: .closetGridTile,
+                    accessibilityDescription: "Editorial preview, photo unavailable"
+                )
             }
         }
     }

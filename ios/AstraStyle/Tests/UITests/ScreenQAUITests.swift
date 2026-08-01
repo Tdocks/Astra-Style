@@ -209,8 +209,13 @@ final class ScreenQAUITests: XCTestCase {
 
         app.tabBars.buttons["Closet"].tap()
         usleep(400_000)
-        let closetAnchor = app.staticTexts["Closet"].firstMatch
-        XCTAssertTrue(closetAnchor.exists, "Closet root did not render")
+        // "My Closet" is the real screen's title (spec §6.14). This used to
+        // anchor on "Closet", which was the `FeaturePlaceholderView` title
+        // AND the tab bar item's label — so the assertion passed on the tab
+        // button whether or not the screen behind it rendered at all. A tab
+        // label is not evidence that a tab's content loaded.
+        let closetAnchor = app.staticTexts["My Closet"].firstMatch
+        awaitElement(closetAnchor, "Closet root")
 
         for tab in ["Home", "Studio", "Discover", "Profile"] {
             app.tabBars.buttons[tab].tap()

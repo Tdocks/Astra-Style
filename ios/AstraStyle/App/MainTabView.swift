@@ -94,17 +94,14 @@ struct MainTabView: View {
         // project bindings at all.
         @Bindable var router = router
         NavigationStack(path: $router.closetPath) {
-            FeaturePlaceholderView(
-                title: String(localized: "Closet"),
-                message: String(localized: "Everything you own, in one place. Scan your first few pieces and Kyra can start building real outfits."),
-                systemImage: "square.grid.2x2"
-            )
-            .navigationDestination(for: ClosetRoute.self) { _ in
-                FeaturePlaceholderView(
-                    title: String(localized: "Closet"),
-                    message: String(localized: "Detail screen placeholder — see Features/Closet/README.md."),
-                    systemImage: "square.grid.2x2"
+            ClosetView(
+                viewModel: ClosetViewModel(
+                    closetRepository: container.closetRepository,
+                    imageURLResolver: container.closetImageURLResolver
                 )
+            )
+            .navigationDestination(for: ClosetRoute.self) { route in
+                ClosetDestinationView(route: route, container: container)
             }
         }
     }
