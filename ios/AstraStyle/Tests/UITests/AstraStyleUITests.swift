@@ -101,16 +101,18 @@ final class AstraStyleUITests: XCTestCase {
         // Unique per run so a re-run against a sticky simulator state cannot
         // match a leftover SampleData name by accident.
         let itemName = "UI Test Oxford \(Int(Date().timeIntervalSince1970))"
-        let nameField = app.textFields["closet.form.name"]
+        // `AstraTextField` / `AstraButton` wrappers surface as whichever
+        // accessibility type XCUITest infers — match on identifier alone.
+        let nameField = app.descendants(matching: .any)["closet.form.name"]
         awaitElement(nameField, "Name field")
         nameField.tap()
         nameField.typeText(itemName)
 
-        let categoryChip = app.buttons["closet.form.category.top"]
+        let categoryChip = app.descendants(matching: .any)["closet.form.category.top"]
         awaitElement(categoryChip, "Tops category chip")
         categoryChip.tap()
 
-        let submit = app.buttons["closet.form.submit"]
+        let submit = app.descendants(matching: .any)["closet.form.submit"]
         awaitElement(submit, "Add garment submit")
         XCTAssertTrue(submit.isEnabled, "Submit should enable once name and category are set")
         submit.tap()
