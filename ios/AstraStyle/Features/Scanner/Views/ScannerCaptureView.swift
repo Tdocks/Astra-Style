@@ -21,7 +21,7 @@ struct ScannerCaptureView: View {
     let viewModel: ScannerCaptureViewModel
     let captureSession: any CaptureSessionControlling
     /// Called when the user confirms a prepared draft and wants review.
-    var onContinue: ((CapturePreparation.Prepared) -> Void)?
+    var onContinue: ((PreparedCapture) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var pickedItem: PhotosPickerItem?
@@ -39,8 +39,8 @@ struct ScannerCaptureView: View {
             case .capturing, .preparing:
                 captureChrome
 
-            case .draftReady(let prepared):
-                draftConfirmation(prepared)
+            case .draftReady(let ready):
+                draftConfirmation(ready)
 
             case .failed(let error):
                 failureState(error)
@@ -181,9 +181,9 @@ struct ScannerCaptureView: View {
 
     // MARK: - Draft confirmation → review (P3-SCAN-09)
 
-    private func draftConfirmation(_ prepared: CapturePreparation.Prepared) -> some View {
+    private func draftConfirmation(_ ready: PreparedCapture) -> some View {
         VStack(spacing: AstraSpacing.xl) {
-            if let image = UIImage(data: prepared.data) {
+            if let image = UIImage(data: ready.prepared.data) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
@@ -209,7 +209,7 @@ struct ScannerCaptureView: View {
 
             VStack(spacing: AstraSpacing.md) {
                 Button(String(localized: "Continue", comment: "Continue from capture to review")) {
-                    onContinue?(prepared)
+                    onContinue?(ready)
                 }
                 .buttonStyle(.astraPrimary)
                 .accessibilityIdentifier("scanner.capture.continue")

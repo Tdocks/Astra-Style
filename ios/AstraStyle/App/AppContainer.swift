@@ -103,12 +103,15 @@ public final class AppContainer {
     /// In-memory drafts handed from capture to review (`ScannerRoute.review`
     /// carries only a UUID). Cleared when the modal dismisses.
     public let captureDraftStore: CaptureDraftStore
+    /// Durable queue for JPEGs captured while offline, before analysis runs.
+    public let pendingScanQueue: PendingScanQueue
 
     // MARK: - Cross-cutting infrastructure
 
     public let apiClient: AstraAPIClient
     public let analyticsClient: AnalyticsClient
     public let offlineMutationQueue: OfflineMutationQueue
+    public let networkMonitor: NetworkReachabilityMonitoring
     public let settings: AppSettings
 
     public init(
@@ -127,9 +130,11 @@ public final class AppContainer {
         calendarService: CalendarService,
         captureSession: any CaptureSessionControlling,
         captureDraftStore: CaptureDraftStore = CaptureDraftStore(),
+        pendingScanQueue: PendingScanQueue,
         apiClient: AstraAPIClient,
         analyticsClient: AnalyticsClient,
         offlineMutationQueue: OfflineMutationQueue,
+        networkMonitor: NetworkReachabilityMonitoring,
         settings: AppSettings
     ) {
         self.sessionStore = sessionStore
@@ -147,9 +152,11 @@ public final class AppContainer {
         self.calendarService = calendarService
         self.captureSession = captureSession
         self.captureDraftStore = captureDraftStore
+        self.pendingScanQueue = pendingScanQueue
         self.apiClient = apiClient
         self.analyticsClient = analyticsClient
         self.offlineMutationQueue = offlineMutationQueue
+        self.networkMonitor = networkMonitor
         self.settings = settings
     }
 }
@@ -172,6 +179,8 @@ extension AppContainer {
         // this session" instead of bricking the app.
         let modelContainer = (try? AstraModelContainer.live()) ?? AstraModelContainer.preview()
         let offlineMutationQueue = SwiftDataOfflineMutationQueue(modelContainer: modelContainer)
+        let pendingScanQueue = SwiftDataPendingScanQueue(modelContainer: modelContainer)
+        let networkMonitor = SystemNetworkReachabilityMonitor()
         let subscriptionRepository = LiveSubscriptionRepository(apiClient: apiClient)
         let closetStack = makeLiveClosetStack(
             apiClient: apiClient,
@@ -200,9 +209,11 @@ extension AppContainer {
             weatherService: LiveWeatherService(),
             calendarService: LiveCalendarService(),
             captureSession: LiveCaptureSessionController(),
+            pendingScanQueue: pendingScanQueue,
             apiClient: apiClient,
             analyticsClient: analyticsClient,
             offlineMutationQueue: offlineMutationQueue,
+            networkMonitor: networkMonitor,
             settings: AppSettings()
         )
     }
@@ -306,9 +317,11 @@ extension AppContainer {
             calendarService: MockCalendarService(),
             captureSession: MockCaptureSessionController(isHardwareAvailable: false),
             captureDraftStore: CaptureDraftStore(),
+            pendingScanQueue: InMemoryPendingScanQueue(),
             apiClient: .previewClient,
             analyticsClient: NoOpAnalyticsClient(),
             offlineMutationQueue: InMemoryOfflineMutationQueue(),
+            networkMonitor: StaticNetworkReachabilityMonitor(offline: false),
             settings: AppSettings()
         )
     }

@@ -3,7 +3,8 @@ import Foundation
 import ImageIO
 
 extension ScannerReviewViewModel {
-    func upload(data: Data) async {
+    @discardableResult
+    func upload(data: Data) async -> AstraError? {
         phase = .uploading
         do {
             let path = try await closetRepository.uploadCapturedImage(data)
@@ -21,23 +22,30 @@ extension ScannerReviewViewModel {
                 }
             }
             phase = .analyzing
+            return nil
         } catch {
             let astra = (error as? AstraError) ?? AstraError.network(
                 String(localized: "Couldn't upload that photo. Check your connection and try again.",
                        comment: "Scanner upload failure")
             )
             phase = .uploadFailed(astra)
+            return astra
         }
     }
 
-    func analyze(imageData: Data) async {
+    @discardableResult
+    func analyze(imageData: Data) async -> AstraError? {
         do {
+            // Prefer hints captured before review (P3-SCAN-06). Re-extract
+            // only when the draft has none — Retake / older drafts.
+            let hints = draftStore.draft(id: draftID)?.deviceHints
+                ?? deviceHints(from: imageData)
             var request = ClosetItemAnalysisRequest(
                 id: draftID,
                 imageData: imageData,
                 storagePath: storagePath,
                 imageType: .front,
-                deviceHints: deviceHints(from: imageData)
+                deviceHints: hints
             )
             // Prefer empty imageData on the wire path once uploaded — the
             // repository skips upload when storagePath is set; keep bytes
@@ -52,13 +60,80 @@ extension ScannerReviewViewModel {
                 draftStore.update(draft)
             }
             phase = .ready
+            return nil
         } catch {
             let astra = (error as? AstraError) ?? AstraError.provider(
                 String(localized: "Kyra couldn't read that photo. Try again.",
                        comment: "Scanner analyze failure")
             )
             phase = .analyzeFailed(astra)
+            return astra
         }
+    }
+
+    func enqueuePendingAnalysis(data: Data, deviceHints: GarmentDeviceHints?) async {
+        localPreviewData = data
+        await pendingScanQueue.enqueue(
+            PendingScan(
+                id: draftID,
+                jpegData: data,
+                deviceHints: deviceHints,
+                enqueuedAt: .now
+            )
+        )
+        phase = .pendingAnalysis
+    }
+
+    func startConnectivityObservation() {
+        guard connectivityTask == nil else { return }
+        let updates = networkMonitor.connectivityUpdates()
+        connectivityTask = Task { [weak self] in
+            for await isOnline in updates where isOnline {
+                await self?.resumePendingAnalysisIfNeeded()
+            }
+        }
+    }
+
+    func resumePendingAnalysisIfNeeded() async {
+        guard phase == .pendingAnalysis else { return }
+        guard !(await networkMonitor.isOffline()) else { return }
+        let pending = await pendingScanQueue.pendingScans()
+        guard let scan = pending.first(where: { $0.id == draftID }) else { return }
+
+        localPreviewData = scan.jpegData
+        if var draft = draftStore.draft(id: draftID) {
+            draft.deviceHints = scan.deviceHints
+            draftStore.update(draft)
+        }
+
+        if storagePath == nil {
+            let previousStoragePath = storagePath
+            if let uploadError = await upload(data: scan.jpegData) {
+                await handleQueuedReconnectFailure(uploadError, restoringStoragePath: previousStoragePath)
+                return
+            }
+        } else {
+            phase = .analyzing
+        }
+
+        if let analyzeError = await analyze(imageData: scan.jpegData) {
+            await handleQueuedReconnectFailure(analyzeError, restoringStoragePath: storagePath)
+            return
+        }
+
+        await pendingScanQueue.remove(id: scan.id)
+    }
+
+    func handleQueuedReconnectFailure(_ error: AstraError, restoringStoragePath path: String?) async {
+        if shouldQueueForReconnect(error) {
+            storagePath = path
+            await pendingScanQueue.incrementAttemptCount(id: draftID)
+            phase = .pendingAnalysis
+        }
+    }
+
+    func shouldQueueForReconnect(_ error: AstraError) -> Bool {
+        error.category == .network
     }
 
     func applyAnalysis(_ result: ClosetItemAnalysisResult) {

@@ -30,8 +30,9 @@ public final class ScannerCaptureViewModel {
         case capturing
         /// Preparing a still / import through `CapturePreparation`.
         case preparing
-        /// Local draft ready; review screen is not built yet.
-        case draftReady(CapturePreparation.Prepared)
+        /// Local draft ready — prepared JPEG plus optional device hints
+        /// (region / OCR / colour) so review does not re-run Vision.
+        case draftReady(PreparedCapture)
         case failed(AstraError)
 
         public static func == (lhs: Phase, rhs: Phase) -> Bool {
@@ -71,6 +72,11 @@ public final class ScannerCaptureViewModel {
     }
 
     private let captureSession: any CaptureSessionControlling
+    /// Still-image Vision seams for P3-SCAN-06. Optional so unit tests that
+    /// only care about prepare can omit them; production injects live
+    /// adapters from `ScannerDestinationView`.
+    private let regionDetector: (any GarmentRegionDetecting)?
+    private let textRecognizer: (any LabelTextRecognizing)?
     private var qualityTask: Task<Void, Never>?
     private var consecutiveAcceptableFrames = 0
     private var hasAutoCapturedThisSession = false
@@ -82,10 +88,14 @@ public final class ScannerCaptureViewModel {
 
     public init(
         captureSession: any CaptureSessionControlling,
-        autoCaptureEnabled: Bool = true
+        autoCaptureEnabled: Bool = true,
+        regionDetector: (any GarmentRegionDetecting)? = nil,
+        textRecognizer: (any LabelTextRecognizing)? = nil
     ) {
         self.captureSession = captureSession
         self.autoCaptureEnabled = autoCaptureEnabled
+        self.regionDetector = regionDetector
+        self.textRecognizer = textRecognizer
     }
 
     // MARK: - Lifecycle
@@ -142,8 +152,9 @@ public final class ScannerCaptureViewModel {
         do {
             let jpeg = try await captureSession.captureStillJPEG()
             let prepared = try CapturePreparation.prepareForUpload(jpeg)
+            let ready = finishPreparation(prepared)
             AstraHaptics.success()
-            phase = .draftReady(prepared)
+            phase = .draftReady(ready)
             captureSession.stop()
             qualityTask?.cancel()
             qualityTask = nil
@@ -154,24 +165,26 @@ public final class ScannerCaptureViewModel {
         }
     }
 
-    /// PhotosUI import path (P3-SCAN-06): same quality + prepare pipeline as
-    /// the shutter. Permission is requested by the system picker itself when
-    /// the user taps Import — never earlier (spec §7).
+    /// PhotosUI import path (P3-SCAN-06): same blur / prepare / region /
+    /// OCR / colour pipeline as the shutter before review. Permission is
+    /// requested by the system picker itself when the user taps Import —
+    /// never earlier (spec §7).
     public func importImageData(_ data: Data) async {
         guard !isCapturingStill else { return }
         phase = .preparing
 
         // Evaluate quality on the import so a visibly bad photo gets the
         // same guidance a live frame would — then still prepare it; the
-        // future review screen is where the user decides to keep or retake.
+        // review screen is where the user decides to keep or retake.
         if let image = cgImage(from: data), let verdict = CaptureQuality.evaluate(image) {
             latestVerdict = verdict
         }
 
         do {
             let prepared = try CapturePreparation.prepareForUpload(data)
+            let ready = finishPreparation(prepared)
             AstraHaptics.success()
-            phase = .draftReady(prepared)
+            phase = .draftReady(ready)
             captureSession.stop()
             qualityTask?.cancel()
             qualityTask = nil
@@ -183,6 +196,21 @@ public final class ScannerCaptureViewModel {
                        comment: "Scanner import preparation failure")
             ))
         }
+    }
+
+    /// Runs device-side region / OCR / colour on the prepared still.
+    /// Deliberately NOT on the ~10 Hz quality stream — Vision there is
+    /// outside the capture budget (see CaptureQuality header).
+    private func finishPreparation(_ prepared: CapturePreparation.Prepared) -> PreparedCapture {
+        guard let image = cgImage(from: prepared.data) else {
+            return PreparedCapture(prepared: prepared, deviceHints: nil)
+        }
+        let hints = DeviceHintsExtraction.extract(
+            from: image,
+            regionDetector: regionDetector,
+            textRecognizer: textRecognizer
+        )
+        return PreparedCapture(prepared: prepared, deviceHints: hints)
     }
 
     public func retake() async {

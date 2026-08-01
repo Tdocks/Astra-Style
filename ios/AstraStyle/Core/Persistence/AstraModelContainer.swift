@@ -18,7 +18,8 @@ public enum AstraModelContainer {
         PersistedClosetItem.self,
         PersistedOutfit.self,
         PersistedDailyBrief.self,
-        PersistedOfflineMutation.self
+        PersistedOfflineMutation.self,
+        PersistedPendingScan.self
     ])
 
     /// The production, on-disk container.
