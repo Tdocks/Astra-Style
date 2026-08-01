@@ -24,12 +24,12 @@ struct ScannerReviewViewModelTests {
         let repository = ReviewMockClosetRepository()
         let resolver = ReviewMockURLResolver()
         let userID = UUID()
-        let model = ScannerReviewViewModel(
+        let model = makeModel(
             draftID: draft.id,
-            draftStore: store,
-            closetRepository: repository,
-            imageURLResolver: resolver,
-            currentUserID: { userID }
+            store: store,
+            repository: repository,
+            resolver: resolver,
+            userID: userID
         )
 
         await model.start()
@@ -62,13 +62,7 @@ struct ScannerReviewViewModelTests {
 
         let repository = ReviewMockClosetRepository()
         repository.uploadShouldFail = true
-        let model = ScannerReviewViewModel(
-            draftID: draft.id,
-            draftStore: store,
-            closetRepository: repository,
-            imageURLResolver: ReviewMockURLResolver(),
-            currentUserID: { UUID() }
-        )
+        let model = makeModel(draftID: draft.id, store: store, repository: repository)
 
         await model.start()
         guard case .uploadFailed = model.phase else {
@@ -95,13 +89,7 @@ struct ScannerReviewViewModelTests {
 
         let repository = ReviewMockClosetRepository()
         repository.analyzeShouldFail = true
-        let model = ScannerReviewViewModel(
-            draftID: draft.id,
-            draftStore: store,
-            closetRepository: repository,
-            imageURLResolver: ReviewMockURLResolver(),
-            currentUserID: { UUID() }
-        )
+        let model = makeModel(draftID: draft.id, store: store, repository: repository)
 
         await model.start()
         guard case .analyzeFailed = model.phase else {
@@ -120,15 +108,31 @@ struct ScannerReviewViewModelTests {
 
     @Test("Missing draft surfaces missingDraft rather than crashing")
     func missingDraftFailsClosed() async {
-        let model = ScannerReviewViewModel(
+        let model = makeModel(
             draftID: UUID(),
-            draftStore: CaptureDraftStore(),
-            closetRepository: ReviewMockClosetRepository(),
-            imageURLResolver: ReviewMockURLResolver(),
-            currentUserID: { UUID() }
+            store: CaptureDraftStore(),
+            repository: ReviewMockClosetRepository()
         )
         await model.start()
         #expect(model.phase == .missingDraft)
+    }
+
+    private func makeModel(
+        draftID: UUID,
+        store: CaptureDraftStore,
+        repository: ClosetRepository,
+        resolver: ClosetImageURLResolving = ReviewMockURLResolver(),
+        userID: UUID = UUID()
+    ) -> ScannerReviewViewModel {
+        ScannerReviewViewModel(
+            draftID: draftID,
+            dependencies: .init(
+                draftStore: store,
+                closetRepository: repository,
+                imageURLResolver: resolver,
+                currentUserID: { userID }
+            )
+        )
     }
 }
 

@@ -164,11 +164,13 @@ struct ScannerDestinationView: View {
             if reviewViewModel?.draftID != draftID {
                 reviewViewModel = ScannerReviewViewModel(
                     draftID: draftID,
-                    draftStore: container.captureDraftStore,
-                    closetRepository: container.closetRepository,
-                    imageURLResolver: container.closetImageURLResolver,
-                    analyticsClient: container.analyticsClient,
-                    currentUserID: { await container.sessionStore.currentUserID() }
+                    dependencies: .init(
+                        draftStore: container.captureDraftStore,
+                        closetRepository: container.closetRepository,
+                        imageURLResolver: container.closetImageURLResolver,
+                        analyticsClient: container.analyticsClient,
+                        currentUserID: { await container.sessionStore.currentUserID() }
+                    )
                 )
             }
         }

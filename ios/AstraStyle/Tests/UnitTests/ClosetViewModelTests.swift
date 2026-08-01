@@ -758,31 +758,19 @@ private actor StubClosetRepository: ClosetRepository {
     }
 
     func uploadCapturedImage(_ data: Data) async throws -> String {
-        _ = data
-        return "users/test/closet/stub.jpg"
+        _ = data; return "users/test/closet/stub.jpg"
     }
-
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.unimplemented("Scanning is not part of this screen.")
     }
-
     func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
         throw AstraError.unimplemented("Scanning is not part of this screen.")
     }
-
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem { item }
-
     func updateItem(_ item: ClosetItem) async throws -> ClosetItem { item }
-
     func archiveItem(id: UUID) async throws {}
-
-    func markWorn(id: UUID, wornAt: Date) async throws -> ClosetItem {
-        try await fetchItem(id: id)
-    }
-
-    func updateLaundryState(id: UUID, state: LaundryState) async throws -> ClosetItem {
-        try await fetchItem(id: id)
-    }
+    func markWorn(id: UUID, wornAt: Date) async throws -> ClosetItem { try await fetchItem(id: id) }
+    func updateLaundryState(id: UUID, state: LaundryState) async throws -> ClosetItem { try await fetchItem(id: id) }
 
     /// Throws the way the live repository throws today, and counts the
     /// call so a test can assert the closet overview never makes it.

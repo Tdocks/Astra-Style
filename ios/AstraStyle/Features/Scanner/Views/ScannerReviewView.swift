@@ -70,7 +70,7 @@ struct ScannerReviewView: View {
             ScrollView {
                 VStack(spacing: AstraSpacing.xl) {
                     failureBanner(error.errorDescription ?? String(localized: "Couldn't save.", comment: "Save failed fallback"))
-                    reviewForm
+                    ScannerReviewFormView(viewModel: viewModel)
                     saveControls
                 }
                 .padding(.vertical, AstraSpacing.lg)
@@ -80,7 +80,7 @@ struct ScannerReviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AstraSpacing.xl) {
                     preview
-                    reviewForm
+                    ScannerReviewFormView(viewModel: viewModel)
                     if let ocr = viewModel.ocrText, !ocr.isEmpty {
                         ocrBlock(ocr)
                     }
@@ -142,183 +142,6 @@ struct ScannerReviewView: View {
             RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
                 .fill(AstraColor.backgroundSecondary)
                 .frame(height: 200)
-        }
-    }
-
-    // MARK: - Form
-
-    private var reviewForm: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.md) {
-            AstraTextField(
-                String(localized: "Name", comment: "Scan review name"),
-                text: $viewModel.name,
-                placeholder: String(localized: "e.g. Navy Crewneck", comment: "Scan review name placeholder"),
-                footnote: viewModel.lowConfidenceFootnote(.name),
-                isRequired: true
-            )
-            .accessibilityIdentifier("scanner.review.name")
-
-            AstraTextField(
-                String(localized: "Brand", comment: "Scan review brand"),
-                text: $viewModel.brand,
-                placeholder: String(localized: "Optional", comment: "Optional field placeholder"),
-                footnote: viewModel.lowConfidenceFootnote(.brand)
-            )
-            .accessibilityIdentifier("scanner.review.brand")
-
-            categoryPicker
-
-            AstraTextField(
-                String(localized: "Subtype", comment: "Scan review subcategory"),
-                text: $viewModel.subcategory,
-                footnote: viewModel.lowConfidenceFootnote(.subcategory)
-            )
-
-            AstraTextField(
-                String(localized: "Primary colour", comment: "Scan review primary color"),
-                text: $viewModel.primaryColor,
-                footnote: viewModel.lowConfidenceFootnote(.primaryColor)
-            )
-
-            AstraTextField(
-                String(localized: "Secondary colours", comment: "Scan review secondary colors"),
-                text: $viewModel.secondaryColorsText,
-                placeholder: String(localized: "Comma-separated", comment: "List field hint"),
-                footnote: viewModel.lowConfidenceFootnote(.secondaryColors)
-            )
-
-            AstraTextField(
-                String(localized: "Material", comment: "Scan review material"),
-                text: $viewModel.materialText,
-                placeholder: String(localized: "Comma-separated", comment: "List field hint"),
-                footnote: viewModel.lowConfidenceFootnote(.material)
-            )
-
-            AstraTextField(
-                String(localized: "Size", comment: "Scan review size"),
-                text: $viewModel.size,
-                footnote: viewModel.lowConfidenceFootnote(.size)
-            )
-
-            patternPicker
-            fitPicker
-            conditionPicker
-            seasonalityPicker
-        }
-        .padding(.horizontal, AstraSpacing.pagePadding)
-    }
-
-    private var categoryPicker: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            Text(String(localized: "Category", comment: "Scan review category"))
-                .astraText(.caption)
-                .foregroundStyle(AstraColor.textSecondary)
-            if viewModel.isLowConfidence(.category) {
-                Text(viewModel.lowConfidenceFootnote(.category) ?? "")
-                    .astraText(.caption)
-                    .foregroundStyle(AstraColor.warningAmber)
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AstraSpacing.sm) {
-                    ForEach(ClothingCategory.allCases, id: \.self) { option in
-                        AstraChip(option.displayName, isSelected: viewModel.category == option) {
-                            viewModel.category = option
-                            AstraHaptics.selection()
-                        }
-                    }
-                }
-            }
-            .accessibilityIdentifier("scanner.review.category")
-        }
-    }
-
-    private var patternPicker: some View {
-        optionalEnumChips(
-            title: String(localized: "Pattern", comment: "Scan review pattern"),
-            selection: $viewModel.pattern,
-            options: GarmentPattern.allCases,
-            titleFor: { $0.displayName },
-            lowConfidence: viewModel.isLowConfidence(.pattern),
-            footnote: viewModel.lowConfidenceFootnote(.pattern)
-        )
-    }
-
-    private var fitPicker: some View {
-        optionalEnumChips(
-            title: String(localized: "Fit", comment: "Scan review fit"),
-            selection: $viewModel.fit,
-            options: ItemFit.allCases,
-            titleFor: { $0.displayName },
-            lowConfidence: viewModel.isLowConfidence(.fit),
-            footnote: viewModel.lowConfidenceFootnote(.fit)
-        )
-    }
-
-    private var conditionPicker: some View {
-        optionalEnumChips(
-            title: String(localized: "Condition", comment: "Scan review condition"),
-            selection: $viewModel.condition,
-            options: ItemCondition.allCases,
-            titleFor: { $0.displayName },
-            lowConfidence: viewModel.isLowConfidence(.condition),
-            footnote: viewModel.lowConfidenceFootnote(.condition)
-        )
-    }
-
-    private var seasonalityPicker: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            Text(String(localized: "Season", comment: "Scan review seasonality"))
-                .astraText(.caption)
-                .foregroundStyle(AstraColor.textSecondary)
-            if viewModel.isLowConfidence(.seasonality) {
-                Text(viewModel.lowConfidenceFootnote(.seasonality) ?? "")
-                    .astraText(.caption)
-                    .foregroundStyle(AstraColor.warningAmber)
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AstraSpacing.sm) {
-                    ForEach(Season.allCases, id: \.self) { season in
-                        AstraChip(season.displayName, isSelected: viewModel.seasonality.contains(season)) {
-                            if viewModel.seasonality.contains(season) {
-                                viewModel.seasonality.remove(season)
-                            } else {
-                                viewModel.seasonality.insert(season)
-                            }
-                            AstraHaptics.selection()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func optionalEnumChips<Value: Hashable>(
-        title: String,
-        selection: Binding<Value?>,
-        options: [Value],
-        titleFor: @escaping (Value) -> String,
-        lowConfidence: Bool,
-        footnote: String?
-    ) -> some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            Text(title)
-                .astraText(.caption)
-                .foregroundStyle(AstraColor.textSecondary)
-            if lowConfidence, let footnote, !footnote.isEmpty {
-                Text(footnote)
-                    .astraText(.caption)
-                    .foregroundStyle(AstraColor.warningAmber)
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AstraSpacing.sm) {
-                    ForEach(options, id: \.self) { option in
-                        AstraChip(titleFor(option), isSelected: selection.wrappedValue == option) {
-                            selection.wrappedValue = selection.wrappedValue == option ? nil : option
-                            AstraHaptics.selection()
-                        }
-                    }
-                }
-            }
         }
     }
 

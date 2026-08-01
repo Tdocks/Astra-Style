@@ -8,9 +8,7 @@
 //  `createItem` — never the raw suggestions alone.
 //
 
-import CoreGraphics
 import Foundation
-import ImageIO
 import Observation
 
 @MainActor
@@ -34,25 +32,52 @@ public final class ScannerReviewViewModel {
             case (.loading, .loading), (.uploading, .uploading), (.analyzing, .analyzing),
                  (.ready, .ready), (.saving, .saving), (.saved, .saved), (.missingDraft, .missingDraft):
                 true
-            case (.uploadFailed(let a), .uploadFailed(let b)),
-                 (.analyzeFailed(let a), .analyzeFailed(let b)),
-                 (.saveFailed(let a), .saveFailed(let b)):
-                a == b
+            case (.uploadFailed(let left), .uploadFailed(let right)),
+                 (.analyzeFailed(let left), .analyzeFailed(let right)),
+                 (.saveFailed(let left), .saveFailed(let right)):
+                left == right
             default:
                 false
             }
         }
     }
 
-    public private(set) var phase: Phase = .loading
-    public private(set) var draftID: UUID
-    public private(set) var localPreviewData: Data?
-    public private(set) var signedPreviewURL: URL?
-    public private(set) var storagePath: String?
-    public private(set) var analysis: ClosetItemAnalysisResult?
-    public private(set) var ocrText: String?
+    /// Bundles repository seams so `init` stays under SwiftLint's
+    /// `function_parameter_count` (5) without dropping a real dependency.
+    /// Not `Sendable`: `CaptureDraftStore` is `@MainActor` and this bundle
+    /// is only constructed on the main actor at the review destination.
+    public struct Dependencies {
+        public let draftStore: CaptureDraftStore
+        public let closetRepository: ClosetRepository
+        public let imageURLResolver: ClosetImageURLResolving
+        public let analyticsClient: AnalyticsClient
+        public let currentUserID: @Sendable () async -> UUID?
 
-    // Editable fields
+        public init(
+            draftStore: CaptureDraftStore,
+            closetRepository: ClosetRepository,
+            imageURLResolver: ClosetImageURLResolving,
+            analyticsClient: AnalyticsClient = NoOpAnalyticsClient(),
+            currentUserID: @escaping @Sendable () async -> UUID?
+        ) {
+            self.draftStore = draftStore
+            self.closetRepository = closetRepository
+            self.imageURLResolver = imageURLResolver
+            self.analyticsClient = analyticsClient
+            self.currentUserID = currentUserID
+        }
+    }
+
+    // `internal(set)` so pipeline helpers in `ScannerReviewViewModel+Pipeline`
+    // can mutate phase/paths without living in this file (type_body_length).
+    public internal(set) var phase: Phase = .loading
+    public private(set) var draftID: UUID
+    public internal(set) var localPreviewData: Data?
+    public internal(set) var signedPreviewURL: URL?
+    public internal(set) var storagePath: String?
+    public internal(set) var analysis: ClosetItemAnalysisResult?
+    public internal(set) var ocrText: String?
+
     public var name: String = ""
     public var brand: String = ""
     public var category: ClothingCategory = .top
@@ -82,30 +107,21 @@ public final class ScannerReviewViewModel {
         return nil
     }
 
-    private let draftStore: CaptureDraftStore
-    private let closetRepository: ClosetRepository
-    private let imageURLResolver: ClosetImageURLResolving
-    private let analyticsClient: AnalyticsClient
-    private let currentUserID: () async -> UUID?
-    private var originalSuggestions: ClosetItemAnalysisResult?
+    let draftStore: CaptureDraftStore
+    let closetRepository: ClosetRepository
+    let imageURLResolver: ClosetImageURLResolving
+    let analyticsClient: AnalyticsClient
+    let currentUserID: @Sendable () async -> UUID?
+    var originalSuggestions: ClosetItemAnalysisResult?
 
-    public init(
-        draftID: UUID,
-        draftStore: CaptureDraftStore,
-        closetRepository: ClosetRepository,
-        imageURLResolver: ClosetImageURLResolving,
-        analyticsClient: AnalyticsClient = NoOpAnalyticsClient(),
-        currentUserID: @escaping () async -> UUID?
-    ) {
+    public init(draftID: UUID, dependencies: Dependencies) {
         self.draftID = draftID
-        self.draftStore = draftStore
-        self.closetRepository = closetRepository
-        self.imageURLResolver = imageURLResolver
-        self.analyticsClient = analyticsClient
-        self.currentUserID = currentUserID
+        self.draftStore = dependencies.draftStore
+        self.closetRepository = dependencies.closetRepository
+        self.imageURLResolver = dependencies.imageURLResolver
+        self.analyticsClient = dependencies.analyticsClient
+        self.currentUserID = dependencies.currentUserID
     }
-
-    // MARK: - Pipeline
 
     public func start() async {
         guard let draft = draftStore.draft(id: draftID) else {
@@ -199,152 +215,5 @@ public final class ScannerReviewViewModel {
         guard isLowConfidence(field) else { return nil }
         return String(localized: "Kyra isn’t sure — check this.",
                       comment: "Low-confidence field footnote on scan review")
-    }
-
-    // MARK: - Private pipeline
-
-    private func upload(data: Data) async {
-        phase = .uploading
-        do {
-            let path = try await closetRepository.uploadCapturedImage(data)
-            storagePath = path
-            var draft = draftStore.draft(id: draftID)
-            draft?.storagePath = path
-            if let draft { draftStore.update(draft) }
-
-            // P3-SCAN-05: prove the path is readable via a user-scoped signed URL.
-            if let url = try? await imageURLResolver.resolve(storagePath: path) {
-                signedPreviewURL = url
-                if var updated = draftStore.draft(id: draftID) {
-                    updated.signedPreviewURL = url
-                    draftStore.update(updated)
-                }
-            }
-            phase = .analyzing
-        } catch {
-            let astra = (error as? AstraError) ?? AstraError.network(
-                String(localized: "Couldn't upload that photo. Check your connection and try again.",
-                       comment: "Scanner upload failure")
-            )
-            phase = .uploadFailed(astra)
-        }
-    }
-
-    private func analyze(imageData: Data) async {
-        do {
-            var request = ClosetItemAnalysisRequest(
-                id: draftID,
-                imageData: imageData,
-                storagePath: storagePath,
-                imageType: .front,
-                deviceHints: deviceHints(from: imageData)
-            )
-            // Prefer empty imageData on the wire path once uploaded — the
-            // repository skips upload when storagePath is set; keep bytes
-            // locally for preview only.
-            if storagePath != nil {
-                request.imageData = Data()
-            }
-            let result = try await closetRepository.analyzeItem(request)
-            applyAnalysis(result)
-            if var draft = draftStore.draft(id: draftID) {
-                draft.analysis = result
-                draftStore.update(draft)
-            }
-            phase = .ready
-        } catch {
-            let astra = (error as? AstraError) ?? AstraError.provider(
-                String(localized: "Kyra couldn't read that photo. Try again.",
-                       comment: "Scanner analyze failure")
-            )
-            phase = .analyzeFailed(astra)
-        }
-    }
-
-    private func applyAnalysis(_ result: ClosetItemAnalysisResult) {
-        analysis = result
-        originalSuggestions = result
-        ocrText = result.ocrText
-        name = result.name?.value ?? ""
-        brand = result.brand?.value ?? ""
-        category = result.category?.value ?? .top
-        subcategory = result.subcategory?.value ?? ""
-        primaryColor = result.primaryColor?.value ?? ""
-        secondaryColorsText = result.secondaryColors.map(\.value).joined(separator: ", ")
-        pattern = result.pattern?.value
-        materialText = result.material.map(\.value).joined(separator: ", ")
-        size = result.size?.value ?? ""
-        fit = result.fit?.value
-        condition = result.condition?.value
-        seasonality = Set(result.seasonality.map(\.value))
-        formalityScoreText = result.formalityScore.map { String($0.value) } ?? ""
-        warmthScoreText = result.warmthScore.map { String($0.value) } ?? ""
-        waterResistanceScoreText = result.waterResistanceScore.map { String($0.value) } ?? ""
-    }
-
-    private func buildItem(id: UUID, userID: UUID) -> ClosetItem {
-        ClosetItem(
-            id: id,
-            userID: userID,
-            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            brand: trimmedOrNil(brand),
-            category: category,
-            subcategory: trimmedOrNil(subcategory),
-            primaryColor: trimmedOrNil(primaryColor),
-            secondaryColors: splitList(secondaryColorsText),
-            pattern: pattern,
-            material: splitList(materialText),
-            size: trimmedOrNil(size),
-            fit: fit,
-            condition: condition,
-            seasonality: Array(seasonality).sorted { $0.rawValue < $1.rawValue },
-            formalityScore: Int(formalityScoreText),
-            warmthScore: Int(warmthScoreText),
-            waterResistanceScore: Int(waterResistanceScoreText)
-        )
-    }
-
-    private func fieldsCorrectedCount() -> Int {
-        guard let original = originalSuggestions else { return 0 }
-        var count = 0
-        if name != (original.name?.value ?? "") { count += 1 }
-        if brand != (original.brand?.value ?? "") { count += 1 }
-        if category != (original.category?.value ?? .top) { count += 1 }
-        if subcategory != (original.subcategory?.value ?? "") { count += 1 }
-        if primaryColor != (original.primaryColor?.value ?? "") { count += 1 }
-        if splitList(secondaryColorsText) != original.secondaryColors.map(\.value) { count += 1 }
-        if pattern != original.pattern?.value { count += 1 }
-        if splitList(materialText) != original.material.map(\.value) { count += 1 }
-        if size != (original.size?.value ?? "") { count += 1 }
-        if fit != original.fit?.value { count += 1 }
-        if condition != original.condition?.value { count += 1 }
-        if Set(seasonality) != Set(original.seasonality.map(\.value)) { count += 1 }
-        return count
-    }
-
-    private func deviceHints(from data: Data) -> GarmentDeviceHints? {
-        // Dominant colour only until OCR (P3-SCAN-03) lands. Empty text is
-        // honest — do not invent brand/size on device.
-        guard let source = CGImageSourceCreateWithData(
-            data as CFData,
-            [kCGImageSourceShouldCache: false] as CFDictionary
-        ),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-            return GarmentDeviceHints(dominantColorsRGB: [], detectedText: [])
-        }
-        let hexes = DominantColorExtraction.extract(from: image).prefix(3).map(\.hexRGB)
-        return GarmentDeviceHints(dominantColorsRGB: Array(hexes), detectedText: [])
-    }
-
-    private func trimmedOrNil(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func splitList(_ value: String) -> [String] {
-        value
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
     }
 }
