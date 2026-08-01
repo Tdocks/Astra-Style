@@ -20,6 +20,7 @@
 import Foundation
 import Observation
 import Supabase
+import SwiftData
 
 /// The single dependency-injection root for Astra Style.
 ///
@@ -171,21 +172,56 @@ extension AppContainer {
         // this session" instead of bricking the app.
         let modelContainer = (try? AstraModelContainer.live()) ?? AstraModelContainer.preview()
         let offlineMutationQueue = SwiftDataOfflineMutationQueue(modelContainer: modelContainer)
-        let closetItemCache = SwiftDataClosetItemCache(modelContainer: modelContainer)
         let subscriptionRepository = LiveSubscriptionRepository(apiClient: apiClient)
+        let closetStack = makeLiveClosetStack(
+            apiClient: apiClient,
+            sessionStore: sessionStore,
+            offlineMutationQueue: offlineMutationQueue,
+            modelContainer: modelContainer,
+            subscriptionRepository: subscriptionRepository
+        )
 
-        // Guest mode (spec §6.2; ADR 0011): `liveClosetRepository` is kept
-        // as its own reference — not just reachable through
-        // `guestAwareClosetRepository` below — because migration must
-        // always write through the real, network-backed repository even
-        // while the session mid-migration is still technically a guest.
-        // Free-tier capping wraps that live path so migration and feature
-        // writes share the §16 30-item check.
+        return AppContainer(
+            sessionStore: sessionStore,
+            authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
+            profileRepository: LiveProfileRepository(apiClient: apiClient),
+            closetRepository: closetStack.guestAware,
+            // Not guest-aware, and does not need to be: a guest's closet
+            // has no storage paths to resolve (GuestClosetRepository
+            // returns `[]` from `fetchImages`), so this is never reached
+            // on a guest session.
+            closetImageURLResolver: LiveClosetImageURLResolver(),
+            outfitRepository: LiveOutfitRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue),
+            kyraRepository: LiveKyraRepository(apiClient: apiClient),
+            studioRepository: LiveStudioRepository(apiClient: apiClient),
+            shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
+            subscriptionRepository: subscriptionRepository,
+            guestMigrationService: closetStack.migration,
+            weatherService: LiveWeatherService(),
+            calendarService: LiveCalendarService(),
+            captureSession: LiveCaptureSessionController(),
+            apiClient: apiClient,
+            analyticsClient: analyticsClient,
+            offlineMutationQueue: offlineMutationQueue,
+            settings: AppSettings()
+        )
+    }
+
+    /// Guest mode (spec §6.2; ADR 0011) + free-tier 30-cap (spec §16).
+    /// Migration writes through the capped live repository so guest→account
+    /// imports share the same 30-item check as feature creates.
+    private static func makeLiveClosetStack(
+        apiClient: AstraAPIClient,
+        sessionStore: SessionStore,
+        offlineMutationQueue: OfflineMutationQueue,
+        modelContainer: ModelContainer,
+        subscriptionRepository: SubscriptionRepository
+    ) -> (guestAware: ClosetRepository, migration: GuestMigrationService) {
         let guestClosetStore = SwiftDataGuestClosetStore(modelContainer: modelContainer)
         let liveClosetRepository = LiveClosetRepository(
             apiClient: apiClient,
             offlineQueue: offlineMutationQueue,
-            cache: closetItemCache
+            cache: SwiftDataClosetItemCache(modelContainer: modelContainer)
         )
         let freeTierCappedClosetRepository = FreeTierCappedClosetRepository(
             base: liveClosetRepository,
@@ -204,41 +240,16 @@ extension AppContainer {
             store: guestClosetStore,
             currentGuestUserID: { await sessionStore.currentGuestUserID() }
         )
-        let guestAwareClosetRepository = GuestAwareClosetRepository(
+        let guestAware = GuestAwareClosetRepository(
             isGuest: { await sessionStore.currentIsGuest() },
             guestRepository: guestClosetRepository,
             liveRepository: freeTierCappedClosetRepository
         )
-        let guestMigrationService = LiveGuestMigrationService(
+        let migration = LiveGuestMigrationService(
             closetRepository: freeTierCappedClosetRepository,
             guestClosetStore: guestClosetStore
         )
-
-        return AppContainer(
-            sessionStore: sessionStore,
-            authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
-            profileRepository: LiveProfileRepository(apiClient: apiClient),
-            closetRepository: guestAwareClosetRepository,
-            // Not guest-aware, and does not need to be: a guest's closet
-            // has no storage paths to resolve (GuestClosetRepository
-            // returns `[]` from `fetchImages`), so this is never reached
-            // on a guest session.
-            closetImageURLResolver: LiveClosetImageURLResolver(),
-            outfitRepository: LiveOutfitRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue),
-            kyraRepository: LiveKyraRepository(apiClient: apiClient),
-            studioRepository: LiveStudioRepository(apiClient: apiClient),
-            shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
-            subscriptionRepository: subscriptionRepository,
-            guestMigrationService: guestMigrationService,
-            weatherService: LiveWeatherService(),
-            calendarService: LiveCalendarService(),
-            captureSession: LiveCaptureSessionController(),
-            captureDraftStore: CaptureDraftStore(),
-            apiClient: apiClient,
-            analyticsClient: analyticsClient,
-            offlineMutationQueue: offlineMutationQueue,
-            settings: AppSettings()
-        )
+        return (guestAware, migration)
     }
 
     /// Preview / early-UI dependency graph. Every dependency is an
