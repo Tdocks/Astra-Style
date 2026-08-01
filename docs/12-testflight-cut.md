@@ -1,8 +1,13 @@
 # 12 — TestFlight cut (internal iPhone)
 
-How to put the current `main` (or this Phase 3 exit branch) on your iPhone via
-TestFlight. The cloud agent cannot complete the Apple-side steps for you —
-signing, App Store Connect, and `xcodebuild archive` need your Mac + Apple ID.
+How to put current `main` (`86edb74`+, Phase 3 exit) on the owner's iPhone via
+TestFlight. Cloud / Linux agents cannot complete the Apple-side steps —
+signing, App Store Connect, and `xcodebuild archive` need the owner's Mac +
+Apple ID.
+
+**If you are Claude Code on that Mac:** follow the fuller checklist in
+`HANDOFF.md` §12.0 (preconditions, secrets, signing, archive, smoke tests,
+done criteria). This file is the short twin.
 
 ## What you get on device
 
