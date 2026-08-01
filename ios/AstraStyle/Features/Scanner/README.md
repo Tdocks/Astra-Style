@@ -2,29 +2,28 @@
 
 Owns garment capture and the device-side half of the computer vision pipeline (spec §6.16, §12).
 
-> **Status:** groundwork only. This directory has **no** `Views/` or `ViewModels/`. Camera UI, capture modes, guidance overlays, and the review screen are **not built**. Trust `docs/03-progress.md` (`P3-SCAN-*`) for ticket status.
+> **Status:** capture screen ships for single-item mode (camera + Photos import). Review, Vision segmentation, OCR, and analyze-on-capture are **not** built. Trust `docs/03-progress.md` (`P3-SCAN-*`) for ticket status.
 
-## What this module will own (when built)
+## What this module owns today
 
-- Camera capture UI for the modes in §6.16: single item, batch closet scan, receipt/label, full outfit mirror photo.
-- Camera guidance: edge detection, lighting indicator, background quality, blur warning, optional auto capture.
-- The review screen: segmented cutout, suggested metadata with per-field confidence indicators, user correction — every inferred field must remain editable and low-confidence fields must be visibly marked (§12 "User verification").
-- Device-side preprocessing before upload: blur/exposure detection, garment region detection, on-device segmentation where supported, OCR of label text, dominant color extraction, resize/compress, metadata stripping (§12 "Device-side").
+- Single-item capture UI: full-bleed preview, framing guide, quality guidance banner, shutter, Photos import (`Views/ScannerCaptureView.swift`).
+- Capture view model + modal routing (`ViewModels/`, `Routing/ScannerDestinationView.swift`).
+- Protocol-fronted camera session (`CaptureSessionControlling`) with live AVFoundation and mock adapters — quality judgement stays in pure functions.
+- Device-side preprocessing already shipped as pure services: blur/exposure (`CaptureQuality`), resize/compress/metadata-strip (`CapturePreparation`), dominant color (`DominantColorExtraction`).
+
+## What is deliberately not here yet
+
+- Review screen with confidence chips and corrections (`P3-SCAN-09`).
+- Vision garment-region / foreground mask (`P3-SCAN-02` device half — seam only).
+- Label OCR (`P3-SCAN-03`).
+- Batch / receipt / mirror capture modes (`P3-SCAN-12`) — modal routes answer honestly.
+- Upload + analyze from the capture screen (`P3-SCAN-05` / wiring to `-07`).
 
 ## Governing spec sections
 
-§6.16 (screen spec), §12 (full CV pipeline, device- and server-side), §7 (camera permission requested only when scanning; new scans can be captured and queued offline), §14 (`POST /closet/analyze-item`, `POST /closet/batch-analyze`), §20 (target: item analysis under 8 seconds).
+§6.16 (screen spec), §12 (full CV pipeline, device- and server-side), §7 (camera permission only when scanning; Photos only when importing), §14 (`POST /closet/analyze-item`, `POST /closet/batch-analyze`), §20 (target: item analysis under 8 seconds).
 
-## What already exists
-
-**In this module (`Services/` only):**
-
-- `CaptureQuality.swift` — blur + exposure verdicts; thresholds measured against `brand/quiz-imagery` garment photographs.
-- `CapturePreparation.swift` — resize to the §12 / `docs/08` upload cap, JPEG re-encode, metadata stripped by construction.
-- `DominantColorExtraction.swift` — centre-region prior + quantised palette.
-- `GarmentRegionDetecting` protocol seam — deliberately unimplemented (needs a live Vision request against a real garment photo).
-
-**Elsewhere to build against:**
+## Elsewhere to build against
 
 - `Domain/Repositories/ClosetRepository.swift` — `analyzeItem` / `batchAnalyzeItems`.
 - `Domain/Models/ClosetItemAnalysisResult.swift` — confidence-scored suggestions the future review screen binds to.
@@ -36,4 +35,4 @@ Owns garment capture and the device-side half of the computer vision pipeline (s
 
 ## Tickets
 
-Filled in by the **P3-SCAN** tickets in `docs/02-task-breakdown.md`. Next client slices: capture UI (`P3-SCAN-01`) and the review screen (`P3-SCAN-09`).
+`P3-SCAN-*` in `docs/02-task-breakdown.md`. Capture UI: `P3-SCAN-01` / `P3-SCAN-06`. Next: review (`P3-SCAN-09`) and upload wiring (`P3-SCAN-05`).

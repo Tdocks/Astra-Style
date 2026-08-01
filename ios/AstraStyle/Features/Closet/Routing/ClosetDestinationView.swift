@@ -70,7 +70,8 @@ struct ClosetDestinationView: View {
             // Capture is a modal flow (spec §4), presented through
             // `AppRouter.startScan()` — the scan button in the closet
             // header does exactly that. This pushed case exists on the
-            // enum but is not how the scanner is entered.
+            // enum but is not how the scanner is entered; the modal
+            // hosts `ScannerDestinationView`.
             FeaturePlaceholderView(
                 title: String(localized: "Scan an Item"),
                 message: String(localized: "Point your camera at a garment and Kyra will catalog it for you."),

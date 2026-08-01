@@ -69,11 +69,12 @@
 //  `ClosetItemFormViewModel.adding(...)` are built, tested and write real
 //  `closet_items` rows, and until this button existed they had no call
 //  site anywhere in the app: the tab's only way in was the scan button,
-//  and `AppRouter.startScan()` reaches a placeholder until the scanner
-//  ships. So the Closet tab shipped with no way to put a garment in it at
-//  all. That is the same §22 failure the filter button was being kept out
-//  to avoid, arrived at from the other direction, and this is the control
-//  that fixes it.
+//  and at the time `AppRouter.startScan()` still reached a placeholder.
+//  So the Closet tab shipped with no way to put a garment in it at all.
+//  That is the same §22 failure the filter button was being kept out to
+//  avoid, arrived at from the other direction, and this is the control
+//  that fixes it. (The scanner modal is real now — capture + import —
+//  but review/cataloguing still lands later.)
 //
 //  It sits BEFORE the scan button rather than after it so the camera keeps
 //  the trailing corner it already has — the two are the same pair of ideas
