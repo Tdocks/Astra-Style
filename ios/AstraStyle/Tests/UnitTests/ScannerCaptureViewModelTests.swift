@@ -55,14 +55,42 @@ struct ScannerCaptureViewModelTests {
         await model.onAppear()
         await model.importImageData(jpeg)
 
-        guard case .draftReady(let prepared) = model.phase else {
+        guard case .draftReady(let ready) = model.phase else {
             Issue.record("Expected draftReady after import, got \(model.phase)")
             return
         }
-        #expect(prepared.byteCount > 0)
-        #expect(prepared.pixelWidth > 0)
-        #expect(prepared.pixelHeight > 0)
-        #expect(prepared.sizeReductionFactor >= 1)
+        #expect(ready.prepared.byteCount > 0)
+        #expect(ready.prepared.pixelWidth > 0)
+        #expect(ready.prepared.pixelHeight > 0)
+        #expect(ready.prepared.sizeReductionFactor >= 1)
+    }
+
+    @Test("Import extracts device hints before review when detectors are injected")
+    func importExtractsDeviceHintsBeforeReview() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let session = MockCaptureSessionController(isHardwareAvailable: false)
+        let region = GarmentRegion(
+            boundingBox: CGRect(x: 0.1, y: 0.1, width: 0.8, height: 0.8),
+            confidence: 0.9
+        )
+        let model = ScannerCaptureViewModel(
+            captureSession: session,
+            autoCaptureEnabled: false,
+            regionDetector: MockGarmentRegionDetector(region: region),
+            textRecognizer: MockLabelTextRecognizer(lines: ["ACME", "M"])
+        )
+
+        await model.onAppear()
+        await model.importImageData(jpeg)
+
+        guard case .draftReady(let ready) = model.phase else {
+            Issue.record("Expected draftReady after import, got \(model.phase)")
+            return
+        }
+        let hints = try #require(ready.deviceHints)
+        #expect(hints.detectedText.contains("ACME"))
+        #expect(hints.detectedText.contains("M"))
+        #expect(!hints.dominantColorsRGB.isEmpty)
     }
 
     @Test("A still capture through the mock session prepares a draft and stops the session")

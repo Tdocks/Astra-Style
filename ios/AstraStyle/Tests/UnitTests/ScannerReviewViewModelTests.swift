@@ -42,6 +42,11 @@ struct ScannerReviewViewModelTests {
         #expect(model.brand == "Uniqlo")
 
         model.brand = "Drake's"
+        // Seed complementary partners so P3-SCAN-11 reports a real count.
+        repository.seedItems = [
+            ClosetItem(id: UUID(), userID: userID, name: "Chinos", category: .bottom),
+            ClosetItem(id: UUID(), userID: userID, name: "Sneakers", category: .shoes)
+        ]
         await model.save()
 
         #expect(model.phase == .saved)
@@ -50,6 +55,7 @@ struct ScannerReviewViewModelTests {
         #expect(saved.name == "Cotton Crewneck Sweater")
         #expect(repository.lastImages?.first?.storagePath == model.storagePath)
         #expect(store.draft(id: draft.id) == nil)
+        #expect(model.outfitsUnlockedCount == 2)
     }
 
     @Test("Non-network upload failure keeps the local draft and retry re-invokes upload")

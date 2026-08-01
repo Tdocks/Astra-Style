@@ -85,6 +85,9 @@ public final class ScannerReviewViewModel {
     public internal(set) var storagePath: String?
     public internal(set) var analysis: ClosetItemAnalysisResult?
     public internal(set) var ocrText: String?
+    /// Phase-3 simplified unlock count after a successful save (P3-SCAN-11).
+    /// `nil` until save completes; zero is a real answer ("nothing new yet").
+    public internal(set) var outfitsUnlockedCount: Int?
 
     public var name: String = ""
     public var brand: String = ""
@@ -232,6 +235,14 @@ public final class ScannerReviewViewModel {
             if corrected > 0 {
                 analyticsClient.log(.scanCorrected(fieldsCorrectedCount: corrected))
             }
+            // P3-SCAN-11: complementary partners already owned, not the
+            // Phase-4 purchase-unlock algorithm. Fail closed to 0 if the
+            // closet cannot be read — never invent a marketing number.
+            let closet = (try? await closetRepository.fetchItems()) ?? []
+            outfitsUnlockedCount = ScanOutfitUnlockEstimator.newlyUnlockedCount(
+                adding: item,
+                to: closet
+            )
             draftStore.remove(id: draftID)
             AstraHaptics.success()
             phase = .saved
