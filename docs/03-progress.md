@@ -40,14 +40,14 @@ lands data layers, protocols, and models long before the screens that use them.
 |---|---|---|---|---|
 | 1 — Foundation | 25 | 13 | 12 | 0 |
 | 2 — Identity | 17 | 12 | 5 | 0 |
-| 3 — Closet | 27 | 11 | 10 | 6 |
+| 3 — Closet | 27 | 12 | 10 | 5 |
 | 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **41** | **53** | **84** |
+| **Total** | **178** | **42** | **53** | **83** |
 
-Read that table carefully before drawing a conclusion from it. 41 of 178 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 42 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -205,7 +205,7 @@ pgvector ordering test.
 
 # PHASE 3 — CLOSET
 
-**11 Done · 10 Partial · 6 Not started.** Closet UI is substantially real. The SCAN loop for single-item is end-to-end on the client (capture/import → upload → analyze → editable review → save). Vision garment-region + OCR adapters and OpenAI pilot docs are in place but still Partial (manual device criteria / live pilot gate unrun). Free-tier 30-cap, offline closet read cache, and `testAddGarment` land here — including the `currentUserID` wiring `MainTabView` / `ClosetDestinationView` need for manual add to actually save. Still missing: batch/receipt/mirror modes, live OpenAI pilot against real users, and the post-scan unlock count.
+**12 Done · 10 Partial · 5 Not started.** Closet UI is substantially real. The SCAN loop for single-item is end-to-end on the client (capture/import → upload → analyze → editable review → save). Vision garment-region + OCR adapters and OpenAI pilot docs are in place but still Partial (manual device criteria / live pilot gate unrun). Free-tier 30-cap, offline closet read cache, offline conflict resolution (LWW + destructive surface), and `testAddGarment` land here — including the `currentUserID` wiring `MainTabView` / `ClosetDestinationView` need for manual add to actually save. Still missing: batch/receipt/mirror modes, live OpenAI pilot against real users, and the post-scan unlock count.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -232,7 +232,7 @@ pgvector ordering test.
 | P3-CLOSET-09 | Done | `Features/Closet/Components/ClosetItemActionRow.swift` driven by `ClosetItemDetailViewModel`; the repository half was already true and is now reachable from the UI. **Both criteria met and asserted:** mark worn increments `wear_count` by 1 and sets `last_worn_at` to now; archive sets `archived_at`, leaves the row in place, and `fetchItems()` already filters it out of default views. All three writes apply optimistically and roll back on failure, so the screen never shows a wear count, laundry state or archive the database does not have — pinned by three tests named for exactly that. Archive fires `AstraHaptics.warning()` per spec §3 and does not dismiss on failure, because dismissing would tell a man his jacket was gone while it is still there. Edit opens `P3-CLOSET-08`'s form. §6.15's "Sell/donate" is explicitly a later action and is not stubbed. Tests: `Tests/UnitTests/ClosetItemDetailViewModelTests.swift`. |
 | P3-CLOSET-10 | Done | `CostPerWearCalculator` + tests: $100/4→$25, 0 wears→nil, missing price→nil, rounding, average, projection. |
 | P3-CLOSET-11 | Done | Guest 10-item cap remains in `GuestClosetRepository` (`GuestClosetRepositoryTests`). Free-tier 30-item cap is `FreeTierCappedClosetRepository` + `FreeTierLimits` / `FreeTierClosetError` (spec §16), wrapping the live/mock path in `AppContainer` and consulting `Subscription.isEntitledToPremium` (fail closed to free limits on lookup error). Premium fixture is never blocked; archiving frees a slot. Form surfaces `freeTierCapReached` as a non-retryable notice (same pattern as guest) — **no paywall UI invented** (purchase chrome is `P7-SUB-05`). Tests: `Tests/UnitTests/FreeTierClosetCapTests.swift`, plus form coverage in `ClosetItemFormViewModelTests`. |
-| P3-INFRA-01 | Not started | `OfflineMutationQueue` is FIFO-only; no conflict rule, no last-write-wins on `updated_at`, no conflict test. |
+| P3-INFRA-01 | Done | ADR 0005 wired into drain: `OfflineConflictResolution.resolve` (LWW by `updated_at` for `.update`; `.delete`/archive surfaces `needsResolution` when remote is newer — never auto-applied). `ClosetWriting.fetch(id:)` feeds the compare; discards/conflicts record via `OfflineConflictRecording` + OSLog. Tests: `Tests/UnitTests/OfflineConflictResolutionTests.swift`. |
 | P3-INFRA-02 | Not started | No scan capture exists to queue; no "pending analysis" state. |
 | P3-TEST-01 | Partial | Cost-per-wear and offline replay-after-failure tests exist and pass. Redundancy-score test cannot exist — no redundancy logic does. |
 | P3-TEST-02 | Done | `AstraStyleUITests.testAddGarment()` drives manual entry under `-astra-mock-backend` + `-astra-skip-onboarding`: Closet tab → `closet.header.addManually` → name + Tops category → submit → form dismisses → Tops category → asserts the new name appears and item detail shows wear count 0. `MainTabView` / `ClosetDestinationView` pass `sessionStore.currentUserID` into `ClosetViewModel` so the add form can resolve an owner (without that wiring every submit failed as `.auth` and the sheet never closed). `AstraStyleApp` mock-backend launch respects `AppRouter.postAuthenticationRoute` so skip-onboarding reaches `.main`. |

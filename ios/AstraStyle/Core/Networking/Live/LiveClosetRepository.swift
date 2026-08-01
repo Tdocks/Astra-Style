@@ -37,6 +37,7 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     private let supabase: SupabaseClient
     let offlineQueue: OfflineMutationQueue
     let writer: any ClosetWriting
+    let conflictRecorder: OfflineConflictRecording
     private let cache: ClosetItemCaching
     private let currentUserID: @Sendable () async -> UUID?
     /// Test seam: when non-nil, `fetchItems` uses this instead of Postgrest
@@ -64,6 +65,7 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
             offlineQueue: offlineQueue,
             supabase: supabase,
             writer: SupabaseClosetWriter(supabase: supabase),
+            conflictRecorder: InMemoryOfflineConflictRecorder(),
             cache: cache,
             currentUserID: {
                 // Lowercased elsewhere for Storage paths; UUID equality does
@@ -80,6 +82,7 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         offlineQueue: OfflineMutationQueue,
         supabase: SupabaseClient,
         writer: any ClosetWriting,
+        conflictRecorder: OfflineConflictRecording = InMemoryOfflineConflictRecorder(),
         cache: ClosetItemCaching = InMemoryClosetItemCache(),
         currentUserID: @escaping @Sendable () async -> UUID? = { nil },
         activeItemsFetcher: (@Sendable () async throws -> [ClosetItem])? = nil
@@ -88,6 +91,7 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         self.offlineQueue = offlineQueue
         self.supabase = supabase
         self.writer = writer
+        self.conflictRecorder = conflictRecorder
         self.cache = cache
         self.currentUserID = currentUserID
         self.activeItemsFetcher = activeItemsFetcher

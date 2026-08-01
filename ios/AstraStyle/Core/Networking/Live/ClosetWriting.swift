@@ -26,6 +26,9 @@ import Supabase
 /// The closet writes that can be performed against the backend, and that a
 /// queued offline mutation is replayed through.
 protocol ClosetWriting: Sendable {
+    /// Fetches one row by id for offline conflict comparison during drain.
+    /// Returns `nil` when the row is absent (not when the network fails).
+    func fetch(id: UUID) async throws -> ClosetItem?
     func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem
     func update(_ item: ClosetItem) async throws -> ClosetItem
     func archive(id: UUID) async throws
@@ -39,6 +42,18 @@ protocol ClosetWriting: Sendable {
 /// repository and the thing it writes through.
 struct SupabaseClosetWriter: ClosetWriting {
     let supabase: SupabaseClient
+
+    func fetch(id: UUID) async throws -> ClosetItem? {
+        // Array + first (not `.single()`): missing rows must be `nil`, not a
+        // thrown PostgREST error that the drain would treat as a hard failure.
+        let rows: [ClosetItem] = try await supabase.from("closet_items")
+            .select()
+            .eq("id", value: id)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
 
     func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         let created: ClosetItem = try await supabase.from("closet_items")
