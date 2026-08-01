@@ -109,11 +109,15 @@ public final class ScannerCaptureViewModel {
         }
 
         do {
+            // Subscribe before `start()` so mock/live frames emitted on
+            // session start are not dropped on an unbuffered AsyncStream.
             let stream = captureSession.qualityFrames()
+            startConsumingQualityFrames(stream)
             try await captureSession.start()
             phase = .capturing
-            startConsumingQualityFrames(stream)
         } catch {
+            qualityTask?.cancel()
+            qualityTask = nil
             phase = .failed(mapSessionError(error))
         }
     }
