@@ -415,7 +415,8 @@ public struct ClosetView: View {
             ForEach(ClothingCategory.allCases, id: \.self) { category in
                 ClosetCategoryTile(
                     title: category.displayName,
-                    count: viewModel.count(in: category)
+                    count: viewModel.count(in: category),
+                    accessibilityIdentifier: "closet.category.\(category.rawValue)"
                 ) {
                     router.push(ClosetRoute.category(category))
                 }
@@ -423,7 +424,8 @@ public struct ClosetView: View {
 
             ClosetCategoryTile(
                 title: String(localized: "All items", comment: "Closet category tile covering the whole wardrobe"),
-                count: viewModel.visibleItemCount
+                count: viewModel.visibleItemCount,
+                accessibilityIdentifier: "closet.category.all"
             ) {
                 withAnimation(AstraMotion.aware(AstraMotion.standard, reduceMotion: reduceMotion)) {
                     scrollProxy.scrollTo(Self.allItemsSectionID, anchor: .top)

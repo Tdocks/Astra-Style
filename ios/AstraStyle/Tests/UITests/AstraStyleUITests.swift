@@ -84,14 +84,27 @@ final class AstraStyleUITests: XCTestCase {
         let itemName = "UI Test Oxford \(Int(Date().timeIntervalSince1970))"
         submitManualGarment(named: itemName)
 
-        // LazyVGrid below category tiles is off-screen — open Tops instead.
+        // The sheet must be gone before we tap Tops — while it is up,
+        // XCUITest can hit the form's Tops *chip* (`closet.form.category.top`)
+        // instead of the closet category tile (that was the prior CI miss).
+        let formHeader = app.descendants(matching: .any)["closet.form.header"]
+        XCTAssertTrue(
+            formHeader.waitForNonExistence(timeout: timeout),
+            "Add-garment sheet did not dismiss after submit — save likely failed"
+        )
         awaitElement(closetTitle, "Closet root after save")
-        let topsTile = app.buttons["Tops"].firstMatch
+
+        // LazyVGrid below category tiles is off-screen — open Tops instead.
+        let topsTile = app.descendants(matching: .any)["closet.category.top"]
         awaitElement(topsTile, "Tops category tile after save")
         topsTile.tap()
 
-        let newTile = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", itemName)
+        let newTile = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                "closet.grid.item.",
+                itemName
+            )
         ).firstMatch
         XCTAssertTrue(
             newTile.waitForExistence(timeout: timeout),
@@ -118,14 +131,18 @@ final class AstraStyleUITests: XCTestCase {
         addButton.tap()
         awaitElement(app.descendants(matching: .any)["closet.form.header"], "Add garment form")
 
-        let nameField = app.descendants(matching: .any)["closet.form.name"]
-        awaitElement(nameField, "Name field")
-        nameField.tap()
-        nameField.typeText(itemName)
-
+        // Category first, while the keyboard is down — same lesson as
+        // `OnboardingCaptureStepsUITests.testAddingAFirstItemAsAGuest`.
         let categoryChip = app.descendants(matching: .any)["closet.form.category.top"]
         awaitElement(categoryChip, "Tops category chip")
         categoryChip.tap()
+
+        let nameField = app.descendants(matching: .any)["closet.form.name"]
+        awaitElement(nameField, "Name field")
+        nameField.tap()
+        // Trailing newline resigns focus so the submit control is not
+        // obscured by the keyboard when we tap it.
+        nameField.typeText(itemName + "\n")
 
         let submit = app.descendants(matching: .any)["closet.form.submit"]
         awaitElement(submit, "Add garment submit")

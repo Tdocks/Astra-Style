@@ -23,6 +23,9 @@ import SwiftUI
 struct ClosetCategoryTile: View {
     let title: String
     let count: Int
+    /// Stable automation id (P3-TEST-02). Optional so previews need not
+    /// invent a wardrobe category raw value they do not have.
+    var accessibilityIdentifier: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -71,6 +74,7 @@ struct ClosetCategoryTile: View {
         .accessibilityValue(Text(count.formatted()))
         .accessibilityHint(Text(String(localized: "Opens this part of your closet", comment: "VoiceOver hint on a closet category tile")))
         .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "closet.category.unspecified")
     }
 }
 
