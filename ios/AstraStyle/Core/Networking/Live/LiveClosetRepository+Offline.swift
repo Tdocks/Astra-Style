@@ -100,24 +100,28 @@ extension LiveClosetRepository {
             try await applyMutation(mutation.operation, item: item, writer: writer)
         case .discardLocal(let reason):
             await recordConflict(
-                mutation: mutation,
-                item: item,
-                remote: remote,
-                disposition: .discardedLocal,
-                reason: reason,
-                conflictRecorder: conflictRecorder
+                makeConflict(
+                    mutation,
+                    item: item,
+                    remote: remote,
+                    disposition: .discardedLocal,
+                    reason: reason
+                ),
+                with: conflictRecorder
             )
         case .surfaceConflict(let reason):
             // Record + remove (successful return). Throwing would wedge the
             // FIFO backlog; `OfflineSyncConflictError` wraps the recorded
             // value for any later UI resolution pass.
             await recordConflict(
-                mutation: mutation,
-                item: item,
-                remote: remote,
-                disposition: .needsResolution,
-                reason: reason,
-                conflictRecorder: conflictRecorder
+                makeConflict(
+                    mutation,
+                    item: item,
+                    remote: remote,
+                    disposition: .needsResolution,
+                    reason: reason
+                ),
+                with: conflictRecorder
             )
         }
     }
@@ -137,15 +141,14 @@ extension LiveClosetRepository {
         }
     }
 
-    private static func recordConflict(
-        mutation: OfflineMutation,
+    private static func makeConflict(
+        _ mutation: OfflineMutation,
         item: ClosetItem,
         remote: ClosetItem?,
         disposition: OfflineSyncConflict.Disposition,
-        reason: String,
-        conflictRecorder: OfflineConflictRecording
-    ) async {
-        let conflict = OfflineSyncConflict(
+        reason: String
+    ) -> OfflineSyncConflict {
+        OfflineSyncConflict(
             mutationID: mutation.id,
             itemID: item.id,
             operation: mutation.operation,
@@ -154,6 +157,12 @@ extension LiveClosetRepository {
             localUpdatedAt: item.updatedAt,
             remoteUpdatedAt: remote?.updatedAt
         )
+    }
+
+    private static func recordConflict(
+        _ conflict: OfflineSyncConflict,
+        with conflictRecorder: OfflineConflictRecording
+    ) async {
         OfflineConflictLog.log(conflict)
         await conflictRecorder.record(conflict)
     }

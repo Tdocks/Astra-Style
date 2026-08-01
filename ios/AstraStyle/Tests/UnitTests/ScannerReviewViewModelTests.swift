@@ -28,8 +28,7 @@ struct ScannerReviewViewModelTests {
             draftID: draft.id,
             store: store,
             repository: repository,
-            resolver: resolver,
-            userID: userID
+            seams: ReviewTestSeams(resolver: resolver, userID: userID)
         )
 
         await model.start()
@@ -132,8 +131,7 @@ struct ScannerReviewViewModelTests {
             draftID: draft.id,
             store: store,
             repository: repository,
-            pendingScanQueue: queue,
-            networkMonitor: monitor
+            seams: ReviewTestSeams(pendingScanQueue: queue, networkMonitor: monitor)
         )
 
         await model.start()
@@ -167,8 +165,7 @@ struct ScannerReviewViewModelTests {
             draftID: draft.id,
             store: store,
             repository: repository,
-            pendingScanQueue: queue,
-            networkMonitor: monitor
+            seams: ReviewTestSeams(pendingScanQueue: queue, networkMonitor: monitor)
         )
 
         await model.start()
@@ -200,23 +197,29 @@ struct ScannerReviewViewModelTests {
         draftID: UUID,
         store: CaptureDraftStore,
         repository: ClosetRepository,
-        resolver: ClosetImageURLResolving = ReviewMockURLResolver(),
-        pendingScanQueue: PendingScanQueue = InMemoryPendingScanQueue(),
-        networkMonitor: NetworkReachabilityMonitoring = StaticNetworkReachabilityMonitor(offline: false),
-        userID: UUID = UUID()
+        seams: ReviewTestSeams = ReviewTestSeams()
     ) -> ScannerReviewViewModel {
         ScannerReviewViewModel(
             draftID: draftID,
             dependencies: .init(
                 draftStore: store,
                 closetRepository: repository,
-                imageURLResolver: resolver,
-                pendingScanQueue: pendingScanQueue,
-                networkMonitor: networkMonitor,
-                currentUserID: { userID }
+                imageURLResolver: seams.resolver,
+                pendingScanQueue: seams.pendingScanQueue,
+                networkMonitor: seams.networkMonitor,
+                currentUserID: { seams.userID }
             )
         )
     }
+}
+
+/// Optional test doubles for `makeModel`, bundled so the factory stays
+/// under SwiftLint's `function_parameter_count` (5).
+private struct ReviewTestSeams {
+    var resolver: ClosetImageURLResolving = ReviewMockURLResolver()
+    var pendingScanQueue: PendingScanQueue = InMemoryPendingScanQueue()
+    var networkMonitor: NetworkReachabilityMonitoring = StaticNetworkReachabilityMonitor(offline: false)
+    var userID: UUID = UUID()
 }
 
 // MARK: - Fixtures / doubles
@@ -245,9 +248,16 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     var lastCreated: ClosetItem?
     var lastImages: [ClosetItemImage]?
     var lastAnalyzeStoragePath: String?
+    var seedItems: [ClosetItem] = []
     private var uploadedPath: String?
 
-    func fetchItems() async throws -> [ClosetItem] { [] }
+    func fetchItems() async throws -> [ClosetItem] {
+        var items = seedItems
+        if let lastCreated {
+            items.append(lastCreated)
+        }
+        return items
+    }
     func fetchItem(id: UUID) async throws -> ClosetItem {
         throw AstraError.server("not found")
     }
