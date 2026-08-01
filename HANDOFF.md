@@ -1,8 +1,14 @@
 # Astra Style — Handoff
 
-**For:** an AI builder picking this codebase up cold.
-**Written:** 2026-08-01, against `main` at `af2fee65`.
-**Status at handoff:** 178 tickets tracked — **35 Done, 52 Partial, 91 Not started**.
+**For:** an AI builder picking this codebase up cold (Claude Code on the owner's Mac, or a cloud agent).
+**Written:** 2026-08-01, against `main` at `86edb74` (merge of PR #12 — Phase 3 exit for TestFlight).
+**Status at handoff:** 178 tickets tracked — **45 Done, 52 Partial, 81 Not started** (machine-checked by `scripts/check_progress.py`).
+
+### ▶ Do this next (owner asked Claude on the Mac to own it)
+
+**Cut an internal TestFlight build and get Astra Style onto the owner's iPhone.**
+
+Cloud / Linux agents **cannot** do Archive → App Store Connect (no Xcode, no signing identity, no ASC session). That work must run on the owner's Mac with Xcode **26.6** and an Apple ID on the Developer team. Full step-by-step is **§12.0** below; the shorter twin is `docs/12-testflight-cut.md`. Do not start Phase 4 feature work until that build is on TestFlight unless the owner redirects you.
 
 ---
 
@@ -22,7 +28,7 @@ Six things will save you the most time, in order.
 
 6. **The commit message is part of the deliverable.** Commits here are long, structured, and self-certifying: they name the tickets touched and their status delta, explain *why* with measured numbers, and close with a verification line (`swiftlint --strict clean (262 files), all six checkers pass, zero warnings under ios/AstraStyle/, 525 unit tests in 67 suites passing`). `docs/03-progress.md` is updated **in the same commit** as the code it describes.
 
-**Current working convention (as of 2026-08-01):** commit and push directly to `main`. Earlier work used feature branches and PRs — `#1`–`#4` were merged; `#5` was closed without merging and its content shipped as commit `c3d9e77b` straight to `main`, which is the workflow shift in action. `docs/03-progress.md`'s blocker list still claims "zero PRs have ever existed" — that is stale.
+**Current working convention (as of 2026-08-01 evening):** prefer feature branches `cursor/<descriptive-name>-****` and draft PRs into `main` (PRs `#9`–`#12` landed the Phase 3 exit). Direct-to-`main` commits still happen for tiny doc fixes; do not invent a new workflow. Conventional commits (`feat`/`fix`/`chore`/`docs`/`test`). Update `docs/03-progress.md` **in the same commit** as status-changing code.
 
 ---
 
@@ -39,10 +45,10 @@ The product surfaces, per the spec's section numbers (which you will see cited c
 | §5.1 / §6.2–6.10 | Onboarding → Style DNA | **Most complete flow in the app** |
 | §6.11 | Home / Daily Brief | Complete; the reference implementation |
 | §6.14–6.15 | Closet overview + item detail | Complete enough to use end to end |
-| §6.16 | Scanner (camera → analysis → review) | **Groundwork only — no UI exists** |
-| §6.17+ | Outfits, Kyra, Studio, Discover, Shopping, Subscription | **README-only. Zero Swift files.** |
+| §6.16 | Scanner (camera → analysis → review → save → unlock report) | **Usable single-item loop on `main`** (capture/import, device hints, upload, analyze, editable review, offline queue, unlock count). Batch / receipt / mirror / server cutout still Partial. |
+| §6.17+ | Outfits, Kyra, Studio, Discover, Shopping, Subscription | Mostly README-only shells; outfit/Kyra data layer Partial in places — do not assume screens exist. |
 
-That last row matters: `ios/AstraStyle/Features/` has twelve directories, and **six of them contain nothing but a `README.md`**. A reader skimming directory names will badly overestimate what is built.
+`Features/Scanner/README.md` may still lag the code; trust `docs/03-progress.md` for ticket status.
 
 ---
 
@@ -647,11 +653,11 @@ Colours the wheel can't place go to **two named, explained trailing groups**, ke
 
 **Metrics-vs-tile-count asymmetry, deliberate:** `metrics` is computed over `allItems`; `count(in:)` on a category tile **is** narrowed by search and filters. *"A tile is a door and its number must match what's behind it; a metric is a statement about the wardrobe. 'Estimated closet value' falling from £14,000 to £180 because a man typed three letters reads as money going missing."*
 
-### 7.4 Scanner — groundwork only
+### 7.4 Scanner — single-item loop ships; modes still Partial
 
-> **`Features/Scanner/README.md` overclaims.** It lists four capture modes, camera guidance and a review screen. **None of the UI exists.** `Features/Scanner/` contains exactly three files, all under `Services/`, and there is no `Views/` or `ViewModels/` directory.
+> **UPDATE (2026-08-01, `86edb74`):** The paragraph below described mid-day groundwork and is **historical**. On current `main` the Scanner has real `Views/` + `ViewModels/` + capture session adapters, review/upload/save, pending-analysis offline queue, device hints before review, App Icon assets, and a post-save unlock report (`P3-SCAN-05/06/09/11`, `P3-INFRA-01/02` Done). Still Partial / Not started: live device Vision QA criteria, OpenAI pilot gate (`VISION_ANALYSIS_PROVIDER` still defaults to mock), batch analyze end-to-end, receipt/mirror modes, server cutout. Ticket truth: `docs/03-progress.md` Phase 3 table. Runbook for phone: `docs/12-testflight-cut.md` and **§12.0**.
 
-What landed (2026-08-01), all **pure, synchronous, nonisolated**:
+What landed earlier the same day (pure pipeline — still accurate as building blocks):
 
 **`CaptureQuality.swift`** — §12 step 1. `CaptureQualityVerdict` combines independent `BlurAssessment` and `ExposureAssessment`, each `Comparable` on a three-level severity (`acceptable`/`warning`/`blocking`). **Every threshold was measured against the garment photographs already in `brand/quiz-imagery`, not taken from literature.** Reconcile the corpus before re-deriving any of them: `CaptureQuality.swift`'s blur comment says **34** photographs, its own exposure comment says **36**, and the directory holds 36 PNGs of which only 32 are axis-pair garment photos. The source disagrees with itself.
 
@@ -910,53 +916,147 @@ scripts/verify-deployment.sh --project-ref <ref>   # four real post-deploy check
 cd supabase/functions && deno task test            # covers _shared + outfits + profile + style-dna
 ```
 
-**Expected baseline as of this handoff:** SwiftLint 0 violations across 262 files; all six checkers pass; zero warnings under `ios/AstraStyle/`; **525 unit tests in 67 suites passing**; UI suite 23 executed / 0 failures / 7 skipped.
+**Expected baseline as of this handoff:** trust the latest green `iOS` workflow on `main` (PR #12 was green before merge). Local file counts and suite totals drift; do not treat older “525 tests / 262 files” numbers in this file as current.
 
 ---
 
 ## 12. Where to pick up
 
-The active phase is **Phase 3 — Closet**, and the remaining block is the **scanner**.
+**Immediate owner request:** get a build on the owner's iPhone via **internal TestFlight**. Feature work after that should follow Phase 3 leftovers → Phase 4, not invent a new path.
 
-### 12.1 What just landed (2026-08-01, commit `af2fee65`)
+### 12.0 ▶ TestFlight cut — instructions for Claude on the owner's Mac
 
-Scanner groundwork: the analysis DTO redesign (§7.5) and the pure capture pipeline (§7.4). Nothing user-visible. P3-SCAN-02 and -04 moved to Partial.
+You are running on a **Mac with Xcode 26.6**. Linux/cloud agents already merged the Phase 3 exit to `main` (`86edb74` / PR #12) and **cannot** codesign or talk to App Store Connect. Your job is the Apple-side cut only. Twin doc: `docs/12-testflight-cut.md`.
 
-### 12.2 The recommended next slice — the `closet` Edge Function
+#### Preconditions (stop and ask the owner if any fail)
 
-P3-SCAN-07 (`POST /closet/analyze-item`) and P3-SCAN-08 (`POST /closet/batch-analyze`). This is next because the DTO contract is now settled and every downstream ticket (the review screen especially) is easier to build against a real response shape than a mock's.
+- Active **Apple Developer Program** membership; owner signed into Xcode with the right Apple ID.
+- App Store Connect app **Astra Style** exists (or create it) with bundle id **`com.astrastyle.app`** (see `ios/project.yml`).
+- App ID has **Sign in with Apple** capability.
+- An **internal TestFlight** group exists and includes the owner's Apple ID.
+- Repo clone is current: `git checkout main && git pull`.
+- `brew install xcodegen` if needed.
 
-Concretely, that means:
+#### A. Secrets + generate the project
 
-1. Create `supabase/functions/closet/` from the `outfits/` template: `index.ts`, `handler.ts`, `handler_test.ts`, `schema.ts`, `schema_test.ts`.
-2. Define a `VisionAnalysisProvider` interface in `_shared/providers/` alongside `stylistReasoning.ts`, with a mock; **construct the live adapter in `index.ts` and nowhere else.**
-3. **Fix the retry/idempotency problem in the same change** (§9 item 2) — a per-endpoint retry policy and an idempotency key, not a follow-up.
-4. **Design batch as job + poll**, not an in-request fan-out (§9 item 3).
-5. Add `"closet"` to `EndpointDeploymentMappingTests.requiredNow`.
-6. Add `closet/` to `deno.json`'s four hardcoded lists **and** to `.github/workflows/edge-functions.yml` (and consider adding `profile/` and `style-dna/` while you're there — see §9 item 8).
-7. Port `outfits/handler_test.ts`'s **cross-user isolation test** — the attacker-supplied-`user_id` one.
-8. Run the `docs/08` §2.5 **pilot gate** before this ships to real users. It is a stated hard precondition, not a formality.
+```bash
+cd <repo>/ios
+test -f Config/Secrets.xcconfig || cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
+# Ensure SUPABASE_URL + SUPABASE_ANON_KEY are filled.
+# xcconfig footgun: write URLs as https:/$()/anutsdzbxycaavmmkewo.supabase.co
+# (project ref from earlier handoffs — confirm with owner if unsure).
+xcodegen generate
+open AstraStyle.xcodeproj
+```
 
-### 12.3 Then, in rough order
+#### B. Signing (Xcode UI — once per machine/team)
 
-- **P3-SCAN-01/02/03/06** — the camera screen, the Vision half of the quality pipeline, label OCR, PhotosUI import. Keep the capture layer a thin protocol-fronted shell; `Features/Onboarding/Views/OnboardingReferenceView.swift` already has a **working, shipped `PhotosPicker` integration** to copy from (the P3-SCAN-06 progress note saying otherwise is wrong).
-- **P3-SCAN-09** — the review screen. `AstraTextField` now exists, so the old blocker is gone.
-- **P3-SCAN-05** — finish the upload path: it currently has no signed-URL read path and no retryable capture state.
-- **P3-SCAN-11** — the post-scan "newly unlocked outfits" count. **Be careful here.** Its progress row points at `HomeBriefData.purchaseOpportunity`, which is the wrong thing — that type requires a `ProductCandidate` and is owned by P6-SHOP. The real §10 algorithm is P4-OUTFIT-09 and is Not started. The ticket permits a placeholder, **but a fabricated number on the emotional payoff moment of the scan flow is exactly the §22 "no placeholder" bar.** Consider shipping the confirmation without the count.
+AstraStyle target → **Signing & Capabilities**:
 
-### 12.4 The smaller Phase 3 debts, any time
+- Team = owner's Personal Team / org
+- Automatically manage signing = ON
+- Bundle identifier = `com.astrastyle.app`
+- Confirm **AppIcon** resolves (`Resources/Assets.xcassets` — marble 1024)
 
-- **P3-TEST-02** — `testAddGarment` is still an `XCTSkip`, but the flow it describes now exists end to end. This is the cheapest real win in the phase.
-- **P3-CLOSET-11** — the free-tier 30-item cap is entirely absent; only the guest 10-item cap exists.
-- **P3-CLOSET-02** — no local read cache, so an authenticated user's offline cold start shows the error state rather than a cached closet.
-- **P3-INFRA-01/02** — offline conflict resolution, and a "pending analysis" state (which is **net-new design with no existing seam**, and a schema change if you make it server-visible).
-- **`silhouette-2`** — the last quiz axis at one pair. Blocked on the owner raising the OpenAI billing hard limit; then `python3 scripts/generate_quiz_imagery.py --pair silhouette-2` and `build_quiz_imagery.py`.
+Do **not** commit `Secrets.xcconfig`, provisioning profiles, or `.p12` keys.
 
-### 12.5 Housekeeping worth doing early
+#### C. Build number
 
-- Update the stale READMEs (`Features/Closet/`, `Features/Scanner/`, `Resources/QuizImagery/`, `legal/`, `ios/`) — each is flagged in §7 and §9. **These are the last known stale documents in the repo**; `docs/03-progress.md` was corrected alongside this handoff.
-- Reconcile the capture corpus count — `CaptureQuality.swift` says 34 in one comment and 36 in another (§7.4).
-- Fold `MeasurementFormatting.formattedPrice` into `CurrencyFormatting` — note its fallback is the **device locale's** currency, which is the behaviour `ClosetItemDetailCopy` argued against, so this is a behaviour change and not a pure move.
+ASC rejects duplicate `CFBundleVersion`. Before each upload, bump `CURRENT_PROJECT_VERSION` in `ios/project.yml` (currently `"1"`; `MARKETING_VERSION` is `"1.0.0"`). Re-run `xcodegen generate` after editing. Commit the bump on a tiny branch/PR or direct-to-main per §0 convention — do not leave the archive on a dirty tree with an uncommitted version you already uploaded.
+
+#### D. Archive and upload (preferred: Xcode Organizer)
+
+1. Scheme **AstraStyle**, destination **Any iOS Device (arm64)** (not a simulator).
+2. **Product → Archive**. Wait for Organizer.
+3. **Distribute App → App Store Connect → Upload**.
+4. Defaults are fine for first internal cut (bitcode N/A; strip Swift symbols as Xcode suggests).
+5. When ASC finishes processing, App Store Connect → TestFlight → add the build to the **internal** group → enable for the owner.
+6. On the iPhone: TestFlight app → install **Astra Style**.
+
+CLI alternative if you prefer scriptable archive (still needs a signed team on the Mac):
+
+```bash
+cd <repo>/ios
+xcodegen generate
+xcodebuild archive \
+  -project AstraStyle.xcodeproj \
+  -scheme AstraStyle \
+  -configuration Release \
+  -archivePath build/AstraStyle.xcarchive \
+  -destination 'generic/platform=iOS'
+# Then distribute via Organizer / Transporter / `xcodebuild -exportArchive`
+# with an ExportOptions.plist pointed at app-store distribution.
+```
+
+If Apple ID 2FA or "agree to new license" interrupts, **hand that click to the owner** — do not invent credentials or store app-specific passwords in the repo.
+
+#### E. Optional — live vision for the phone build
+
+Default Edge Function vision provider is **mock**. For real garment suggestions on device:
+
+```bash
+supabase login   # if needed
+supabase link --project-ref anutsdzbxycaavmmkewo   # confirm ref with owner
+supabase secrets set VISION_ANALYSIS_PROVIDER=openai OPENAI_API_KEY=sk-...
+supabase functions deploy closet
+```
+
+Read `supabase/functions/closet/README.md` and `docs/08-provider-abstraction.md` §2.5 / §2.5.1 before inviting anyone else. Do not put `OPENAI_API_KEY` in iOS secrets.
+
+#### F. Smoke checklist on the iPhone (report results to the owner)
+
+1. Guest or Sign in with Apple → Home / Closet reachable.
+2. Manual add a garment → appears under category; detail wear count 0.
+3. Scan or **Import** a shirt → editable review → Save → unlock copy → **Done**.
+4. Airplane mode: Closet still shows cached items; start a scan → queued analysis copy; reconnect → analyze completes without re-capture.
+5. Closet filters / metrics / mark worn — no crash.
+
+#### G. Done criteria for this review
+
+- Build visible in TestFlight internal group.
+- Owner can launch the app on a physical iPhone.
+- Smoke checklist results written back (pass/fail per step + any crash logs).
+- If upload failed: paste the exact Organizer / `xcodebuild` error; common fixes are missing Sign in with Apple capability, wrong team, or stale build number.
+
+**Out of scope for the TestFlight cut:** Fastlane/Match automation, ASC privacy nutrition labels, subscription products, public TestFlight, Phase 4 outfit generation.
+
+---
+
+### 12.1 What just landed (2026-08-01, `86edb74` / PR #12)
+
+Phase 3 exit for an internal phone cut:
+
+- Closet CRUD + free-tier 30-cap + guest 10-cap + offline read cache + `testAddGarment`
+- Scanner single-item loop: capture/import → device hints → upload → analyze → review → save → unlock report
+- Offline: LWW closet conflict on drain; pending scan queue that analyzes on reconnect
+- App Icon + AccentColor asset catalog; `docs/12-testflight-cut.md`
+
+Honest Phase 3 leftovers (do **not** block the TF cut): device Vision QA (`P3-SCAN-01`–`04` Partial), live OpenAI pilot gate (`P3-SCAN-07` Partial), batch/receipt/mirror (`P3-SCAN-08`/`12`), server cutout (`P3-SCAN-10`).
+
+### 12.2 After TestFlight is on the phone — recommended next engineering
+
+Only start this after §12.0 is done (or the owner explicitly prioritizes code over the phone build).
+
+1. **Stale Scanner/Closet READMEs** — they still under/over-claim; align with `docs/03-progress.md`.
+2. **Live vision pilot** — run docs/08 §2.5 gate against real menswear photos; flip `VISION_ANALYSIS_PROVIDER=openai` only after the gate.
+3. **P3-SCAN-10** server background-removal fallback (load-bearing for messy real rooms — see Phase 3 risks in `docs/01-build-roadmap.md`).
+4. **Phase 4** outfit intelligence per `docs/01-build-roadmap.md` / `docs/02-task-breakdown.md` — do not jump to Kyra/Studio screens while Daily Brief still lacks real outfit generation.
+5. **`silhouette-2` quiz imagery** — still blocked on the owner’s OpenAI billing hard limit if not yet raised.
+
+### 12.3 Phase 3 debts that are already Done (do not rebuild)
+
+These used to be the “pick up next” list; they shipped before/with PR #12 — verify in `docs/03-progress.md` before rewriting:
+
+- `P3-SCAN-05` / `P3-SCAN-06` / `P3-SCAN-09` / `P3-SCAN-11`
+- `P3-CLOSET-02` offline read cache, `P3-CLOSET-11` free-tier cap, `P3-TEST-02` UI test
+- `P3-INFRA-01` LWW conflict, `P3-INFRA-02` pending scan queue
+- `closet` Edge Function + OpenAI adapter **code** (pilot gate still unrun)
+
+### 12.4 Housekeeping worth doing early (non-blocking)
+
+- Reconcile capture corpus count comments in `CaptureQuality.swift` (34 vs 36).
+- Fold `MeasurementFormatting.formattedPrice` into `CurrencyFormatting` carefully (locale fallback behaviour differs — not a pure move).
+- Consider CI→TestFlight later **only with an ADR** (Fastlane/Match is a new dependency) and ASC API key secrets — not required for the first internal cut.
 
 ---
 
@@ -965,12 +1065,13 @@ Concretely, that means:
 ### 13.1 Files to read first, in order
 
 1. `CLAUDE.md`
-2. `docs/00-master-spec.md`
-3. `docs/03-progress.md`
-4. `docs/02-task-breakdown.md` (for the ticket you're picking up)
-5. The relevant `docs/adr/000X-*.md`
-6. `.github/workflows/ios.yml` and the six `scripts/check_*.py` — so you know what will reject you before you write code that trips it
-7. `Features/Home/ViewModels/HomeViewModel.swift` — the pattern everything else copies
+2. `HANDOFF.md` §12.0 (if your job is the TestFlight cut) + `docs/12-testflight-cut.md`
+3. `docs/00-master-spec.md`
+4. `docs/03-progress.md`
+5. `docs/02-task-breakdown.md` (for the ticket you're picking up)
+6. The relevant `docs/adr/000X-*.md`
+7. `.github/workflows/ios.yml` and the six `scripts/check_*.py` — so you know what will reject you before you write code that trips it
+8. `Features/Home/ViewModels/HomeViewModel.swift` — the pattern everything else copies
 
 ### 13.2 Endpoints and their deployment state
 
