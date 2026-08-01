@@ -117,15 +117,21 @@ final class AstraStyleUITests: XCTestCase {
         XCTAssertTrue(submit.isEnabled, "Submit should enable once name and category are set")
         submit.tap()
 
-        // Sheet dismisses on save; the new tile should be in the grid.
+        // Sheet dismisses on save. The whole-closet editorial grid is a
+        // LazyVGrid below the category tiles — off-screen cells are not in
+        // the accessibility tree — so open Tops (the category we just
+        // chose) where the new garment is at the front of a short list.
         awaitElement(closetTitle, "Closet root after save")
+        let topsTile = app.buttons["Tops"].firstMatch
+        awaitElement(topsTile, "Tops category tile after save")
+        topsTile.tap()
 
         let newTile = app.buttons.matching(
             NSPredicate(format: "label CONTAINS %@", itemName)
         ).firstMatch
         XCTAssertTrue(
             newTile.waitForExistence(timeout: timeout),
-            "Saved garment '\(itemName)' did not appear in the Closet grid"
+            "Saved garment '\(itemName)' did not appear in the Tops grid"
         )
 
         // Wear count of 0 and an editable, non-placeholder name live on
