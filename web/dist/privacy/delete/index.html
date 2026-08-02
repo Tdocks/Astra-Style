@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra Style — Deleting your account and your data</title>
+<!--
+  UNREVIEWED DRAFT. NOT LEGAL ADVICE. DO NOT PUBLISH BEFORE COUNSEL REVIEW.
+  Drafted from the Astra Style codebase, 2026-07-31.
+
+  IMPLEMENTATION STATUS AT TIME OF DRAFTING (docs/03-progress.md, P7-PRIVACY-01/02):
+  the SQL half of account deletion is built and hardened — the account_deletions
+  table, request_account_deletion(), finalize_account_deletion(),
+  mark_account_deletion_complete()/_failed(), and the ON DELETE CASCADE chain from
+  auth.users. The Edge Function that must orchestrate them (delete the storage
+  blobs, then call the GoTrue admin delete) DOES NOT EXIST, and there is no in-app
+  deletion screen. This document therefore describes an email-request process and
+  is explicit about what is automated and what is not. Do not rewrite it to promise
+  in-app deletion until the function and the screen ship.
+-->
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin:0; padding:1.25rem .9rem 3rem; background:#fff; color:#111;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:17px; line-height:1.6; -webkit-text-size-adjust:100%; }
+main { max-width:44rem; margin:0 auto; }
+h1 { font-size:1.65rem; line-height:1.25; margin:0 0 .3rem; }
+h2 { font-size:1.2rem; line-height:1.3; margin:2.2rem 0 .6rem; padding-top:1.2rem; border-top:2px solid #111; }
+h3 { font-size:1.02rem; margin:1.5rem 0 .35rem; }
+p, li { font-size:1rem; }
+ul, ol { padding-left:1.25rem; margin:.6rem 0; }
+li { margin:.35rem 0; }
+.updated { font-weight:700; margin:.2rem 0 1rem; }
+.banner { border:3px solid #111; background:#fffbe6; padding:.85rem .95rem; margin:1.2rem 0; }
+.banner p { margin:.4rem 0; }
+.banner strong { text-transform:uppercase; letter-spacing:.02em; }
+.notice { border:3px solid #a30000; background:#fff0f0; padding:.85rem .95rem; margin:1.4rem 0; }
+.needs-input { background:#ffe600; color:#000; font-weight:700; padding:.08em .3em;
+  border:1px solid #7a6a00; border-radius:2px; }
+table { width:100%; border-collapse:collapse; margin:1rem 0; }
+th, td { border:1px solid #999; padding:.5rem .55rem; text-align:left; vertical-align:top; font-size:.95rem; }
+th { background:#efefef; }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.88em;
+  background:#f1f1f1; padding:.1em .3em; border-radius:3px; overflow-wrap:anywhere; }
+footer { margin-top:2.5rem; padding-top:1rem; border-top:2px solid #111; font-size:.92rem; color:#333; }
+@media (max-width:480px) { body { font-size:16px; } th, td { font-size:.9rem; padding:.4rem; } }
+</style>
+</head>
+<body>
+<div style="background:#1B1B1B;color:#B9B3A8;font:14px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;padding:12px 20px;border-bottom:1px solid #2A2927;">
+  <strong style="color:#D7B46A;">Draft</strong> — not yet in force. Placeholders remain; this is not published legal counsel.
+  <a href="/" style="color:#D7B46A;margin-left:12px;">← Astra Style</a>
+</div>
+
+<main>
+
+<h1>Deleting your Astra Style account and your data</h1>
+<p class="updated">Last updated: 31 July 2026</p>
+
+<div class="banner">
+<p><strong>Draft for legal review.</strong></p>
+<p>This page was drafted from the Astra Style codebase so that it describes what deletion actually
+does. It has not been reviewed by a lawyer and must not be published in this state. Each
+<span class="needs-input">[[NEEDS INPUT: …]]</span> marker is an unresolved question.</p>
+</div>
+
+<h2>1. If you never made an account</h2>
+<p>Guest mode stores everything on your device and nothing on our servers — no account, no
+server-side identity, no uploaded files. To delete guest data, delete the app from your iPhone.
+There is nothing for us to delete and nothing for you to ask us for.</p>
+
+<h2>2. How to request deletion</h2>
+
+<div class="notice">
+<p><strong>Current status, stated plainly.</strong> The in-app "delete my account" screen is not
+built yet, and neither is the automated server routine that would carry the deletion out end to end.
+Until both ship, deletion is requested by email and performed by us. We would rather tell you that
+than show you a button that does not exist.</p>
+</div>
+
+<p>Email <span class="needs-input">[[NEEDS INPUT: deletion request email address]]</span> from the
+email address on your account, with the subject "Delete my account".</p>
+<p>We will confirm that we have your request, verify that it came from the account holder, and tell
+you when it is done.
+<span class="needs-input">[[NEEDS INPUT: identity verification method for a deletion request,
+particularly for Sign in with Apple users whose account email is a private relay
+address]]</span></p>
+<p><span class="needs-input">[[NEEDS INPUT: the completion window we commit to — e.g. within 30
+days of a verified request — and the interim status we give you]]</span></p>
+
+<h3>Cancel your subscription separately</h3>
+<p>Deleting your account does not cancel an App Store subscription. Cancel it in your Apple account
+settings before or after deletion, or Apple will keep billing you.</p>
+
+<h2>3. What deletion removes</h2>
+<p>Deleting your account removes your authentication identity. Every record in our database that
+belongs to you is linked to that identity and is removed with it:</p>
+<table>
+<tr><th>Removed</th><th>What it contains</th></tr>
+<tr><td>Profile</td><td>Display name, avatar, location name, time zone, preferences, subscription
+tier.</td></tr>
+<tr><td>Style profile</td><td>Style goals and identities, colour preferences, fit and formality
+preferences, style summary, the preference-quiz vector, and the style embedding.</td></tr>
+<tr><td>Body profile</td><td>Height, weight, chest, waist, inseam and neck measurements, sizes, fit
+notes, the derived frame characteristics, and the appearance details including any reference to your
+selfies.</td></tr>
+<tr><td>Lifestyle profile</td><td>Occupation, dress code, typical week, occasions, budget, brands,
+laundry and travel habits, attire needs, sustainability preference.</td></tr>
+<tr><td>Closet</td><td>Every garment record and every garment image record, with their attributes,
+purchase details, wear counts and embeddings.</td></tr>
+<tr><td>Outfits</td><td>Outfits, their contents, and your entire wear history including ratings and
+written feedback.</td></tr>
+<tr><td>Kyra</td><td>Every conversation thread and every message in it.</td></tr>
+<tr><td>Style memories and feedback</td><td>Every inferred preference, with its embedding, and every
+like, dislike and reason you recorded. Style memories are hard-deleted by design — the schema has no
+"hidden but kept" state for them.</td></tr>
+<tr><td>Planning</td><td>Occasions, including any calendar event identifiers, and daily
+briefs.</td></tr>
+<tr><td>Style Studio</td><td>Every generation record, including the prompt payload and the paths of
+the reference and result images.</td></tr>
+<tr><td>Shopping</td><td>Every product evaluation we produced for you.</td></tr>
+<tr><td>Subscription record</td><td>Our copy of your subscription state.</td></tr>
+<tr><td>Authentication identity</td><td>The account itself.</td></tr>
+</table>
+
+<h3>Your images</h3>
+<p>Your photographs and generated images are files in private storage, not database rows, and
+deleting them is a separate operation from deleting the records that point at them. Deletion is
+designed to remove everything stored under your account's own storage path — the garment photos,
+the background-removed versions, the reference selfies and body images, and the Style Studio
+outputs — and then, as a second line of defence, to sweep any storage record left behind under that
+path.</p>
+<div class="notice">
+<p><strong>The part that is not built yet.</strong> The database side of this is implemented: the
+request function, the audit record, the cascade, and the finalisation step that clears leftover
+storage records. What does not exist yet is the server function that runs the sequence end to
+end — including the call that deletes the image files themselves from storage and the call that
+deletes the authentication identity. Until it is built, those two steps are performed manually
+against your account when you email us. We are describing the process we operate, and flagging what
+is automated and what is not, rather than claiming a guarantee the software does not yet
+enforce.</p>
+</div>
+
+<h2>4. What survives, and why</h2>
+<ul>
+<li><strong>A record that a deletion happened.</strong> We keep the deletion request record — its
+status and its timestamps. When the deletion completes, your user identifier is removed from that
+record and replaced with a one-way SHA-256 hash of it, so we can confirm a specific deletion
+completed without keeping the identifier.</li>
+<li><strong>The shared product catalogue.</strong> Products, retailers, prices and links are shared
+across all users and contain nothing personal about you. They are not deleted, because they are not
+yours.</li>
+<li><strong>Apple's records.</strong> Apple holds your purchase and subscription history under its
+own policies. We cannot delete those.</li>
+<li><strong>Backups.</strong> <span class="needs-input">[[NEEDS INPUT: backup retention window, and
+whether and how deletions propagate into backups]]</span></li>
+<li><strong>Anything we must keep by law.</strong>
+<span class="needs-input">[[NEEDS INPUT: whether tax, chargeback or fraud-audit obligations require
+retaining an anonymised billing record after deletion. The schema currently deletes subscription
+records outright with everything else; the migration notes flag this as a question for legal and
+finance before launch, and no anonymised-retention table exists]]</span></li>
+<li><strong>Data already sent to our model provider.</strong> Requests are made with the strictest
+available no-retention setting, but any residual copy held by a provider under its own terms is
+outside our direct control.
+<span class="needs-input">[[NEEDS INPUT: OpenAI's retention window for API requests under the
+account this app uses, and whether a zero-retention arrangement is in place]]</span></li>
+</ul>
+
+<h2>5. Deleting less than everything</h2>
+<p>Today, in the app, you can edit or correct your profile answers, and archive or edit closet items
+and outfits. Deleting individual reference images or individual generated images, and inspecting and
+deleting individual style memories, are designed but <strong>not yet available in the app</strong>.
+Until they ship, ask us by email and we will do it for you.</p>
+
+<h2>6. Getting a copy of your data first</h2>
+<p>Data export is <strong>not yet available</strong> as a self-service feature. If you want a copy of
+your data before deleting, ask before you send the deletion request — once deletion completes there
+is nothing left to export.
+<span class="needs-input">[[NEEDS INPUT: export format and the turnaround time we
+commit to]]</span></p>
+
+<h2>7. Contact</h2>
+<p>Deletion requests: <span class="needs-input">[[NEEDS INPUT: deletion request email
+address]]</span><br>
+Privacy questions: <span class="needs-input">[[NEEDS INPUT: privacy contact email
+address]]</span><br>
+<span class="needs-input">[[NEEDS INPUT: full legal entity name]]</span>,
+<span class="needs-input">[[NEEDS INPUT: registered entity address]]</span></p>
+
+<footer>
+<p>Astra Style data deletion — draft of 31 July 2026. Unreviewed. Not legal advice.</p>
+</footer>
+
+</main>
+</body>
+</html>

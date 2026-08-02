@@ -94,8 +94,9 @@ ios/AstraStyle/Resources/Info.plist
 ios/AstraStyle/Resources/AstraStyle.entitlements
 __pycache__/
 
-# === Marketing site (web/ → Cloudflare Pages) ===
+# === Marketing site (web/ → Cloudflare) ===
 web/node_modules/
-web/dist/
 web/.astro/
 web/.wrangler/
+# web/dist is committed so `npx wrangler deploy` works with no build step.
+# Rebuild with: cd web && npm run build
