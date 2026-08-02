@@ -6,6 +6,17 @@
 
 name = "astra-style"
 compatibility_date = "2026-08-01"
+workers_dev = true
+
+# Bind the purchased domain on deploy (Cloudflare creates DNS + certs).
+# Requires the astra-style.com zone to already be on this Cloudflare account.
+[[routes]]
+pattern = "astra-style.com"
+custom_domain = true
+
+[[routes]]
+pattern = "www.astra-style.com"
+custom_domain = true
 
 [assets]
 directory = "./web/dist"
