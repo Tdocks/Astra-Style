@@ -128,13 +128,10 @@ targets:
         # correct place for it and is already set to "Astra Style".
         PRODUCT_NAME: AstraStyle
         PRODUCT_MODULE_NAME: AstraStyle
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad: >-
-          UIInterfaceOrientationPortrait
-          UIInterfaceOrientationPortraitUpsideDown
-          UIInterfaceOrientationLandscapeLeft
-          UIInterfaceOrientationLandscapeRight
+        # Do NOT add INFOPLIST_KEY_* here. GENERATE_INFOPLIST_FILE is NO for
+        # this target, so Xcode never merges those build settings — edit
+        # AstraStyle/Resources/Info.plist instead (see ios/CLI_BUILD_AND_TESTFLIGHT.md
+        # footgun #2). Orientations and UILaunchScreen live in that plist.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_EMIT_LOC_STRINGS: YES

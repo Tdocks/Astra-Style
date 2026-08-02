@@ -4,13 +4,16 @@
 > Open **[`web/CLAUDE.md`](web/CLAUDE.md)** (sources in `web/` + `legal/`, not `ios/`).
 > Deploy brief: [`web/GATE.md`](web/GATE.md).
 
-**Your only job right now:** cut an **internal TestFlight** build of Astra Style
-and get it onto the owner's iPhone.
+**Current status (2026-08-02):** Build **1.0.0 (1)** uploaded to App Store
+Connect and was **Processing**; Internal TestFlight group created with
+automatic distribution; owner (`tdoxwell@icloud.com`) invited as tester.
+**Your job now:** wait until the build is **Ready to Test**, install via
+TestFlight on the owner's iPhone, run the smoke checklist below. Do not cut
+another build unless this one fails processing or the owner asks.
 
 Do **not** dig through `HANDOFF.md` landmines, rewrite READMEs, or start Phase 4.
 Do **not** treat commit `cc7923cf` ("Pre-build groundwork…") as new work — that is
-an **older** ancestor on `main` (guest scan gate / CI / truth docs). Current tip
-already includes Phase 3 exit + this handoff (`git log -5 --oneline`).
+an **older** ancestor on `main` (guest scan gate / CI / truth docs).
 
 ### Owner decisions (2026-08-02) — stop waiting on these
 
@@ -19,20 +22,22 @@ already includes Phase 3 exit + this handoff (`git log -5 --oneline`).
    flip `AstraLegal.isPublished`. Do **not** fill `[[NEEDS INPUT]]` or chase
    counsel for this cut. Publishing unreviewed policies is worse than none
    (`legal/README.md`). Ticket remains `P7-PRIVACY-05` (end of project).
-2. **Priority = TestFlight only.** Finish Archive → ASC → internal group →
-   iPhone smoke. If ASC refuses an empty Privacy Policy URL on the app record,
-   paste `https://astra-style.com/privacy/` (Draft banner is intentional and
-   honest). That does **not** authorize flipping in-app legal links.
+2. **Priority = TestFlight only.** Finish Ready to Test → iPhone install →
+   smoke. ASC Privacy Policy URL may be `https://astra-style.com/privacy/` —
+   that does **not** authorize flipping in-app legal links.
 
 | Fact | Value |
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
+| Team ID | `Q9ZH8AA9NY` |
+| ASC App ID | `6797115649` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (starts at `1`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (starts at `1`; **1 is already on ASC**) |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
-| Twin docs | `docs/12-testflight-cut.md`, `HANDOFF.md` §12.0 (same content, longer context) |
+| GUI path | this file + `docs/12-testflight-cut.md` |
+| CLI path (no Xcode GUI) | **`ios/CLI_BUILD_AND_TESTFLIGHT.md`** |
 
 ---
 
