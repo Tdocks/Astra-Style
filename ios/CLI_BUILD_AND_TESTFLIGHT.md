@@ -41,8 +41,9 @@ read both.
    in** — that mechanism only applies when Xcode generates the Info.plist
    itself, which this project does not do. If a build needs a new Info.plist
    key (orientations, usage descriptions, URL schemes, etc.), **edit the
-   real Info.plist file directly.** Adding more `INFOPLIST_KEY_*` lines to
-   `project.yml` will look correct and silently do nothing.
+   real Info.plist file directly.** The misleading
+   `INFOPLIST_KEY_UISupportedInterfaceOrientations*` lines were removed from
+   `project.yml` after error 90474; do not re-add them.
 
 ## 1. Pull, regenerate the project
 

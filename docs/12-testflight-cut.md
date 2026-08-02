@@ -7,7 +7,11 @@ Apple ID.
 
 **If you are Claude Code on that Mac:** open **`START_HERE.md` at the repo root**
 first — that is the canonical checklist. `HANDOFF.md` §12.0 is the same content
-with more surrounding context. This file is the short twin.
+with more surrounding context. This file is the short twin. **CLI-only agents
+(no Xcode GUI):** use **`ios/CLI_BUILD_AND_TESTFLIGHT.md`**.
+
+**Status 2026-08-02:** `1.0.0 (1)` installed on owner's iPhone via TestFlight.
+Next: smoke checklist in `START_HERE.md` §6 — report pass/fail.
 
 ## What you get on device
 
@@ -106,10 +110,18 @@ before inviting anyone outside yourself.
    analysis copy; reconnect and confirm analyze completes without re-capture.
 5. Confirm no crash on Closet filters / metrics / mark worn.
 
+## App Store Connect Privacy Policy URL (internal TF)
+
+If ASC requires a Privacy Policy URL on the app record before you can upload or
+enable TestFlight: use `https://astra-style.com/privacy/`. That page shows a
+**Draft** banner on purpose. Do **not** remove the banner and do **not** flip
+`AstraLegal.isPublished` for this cut (`P7-PRIVACY-05` stays deferred).
+
 ## What this doc is not
 
 - Not ASC screenshots, privacy nutrition labels, or subscription products
   (`P7-INFRA-05` / `P7-SUB-*`).
+- Not publishing counsel-cleared legal docs (`P7-PRIVACY-05`).
 - Not CI→TestFlight automation (no Fastlane/Match in-repo yet).
 - Not a substitute for measured 60 fps / device Vision acceptance criteria —
   those stay Partial until you run them on hardware.

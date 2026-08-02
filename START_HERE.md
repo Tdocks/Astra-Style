@@ -4,23 +4,38 @@
 > Open **[`web/CLAUDE.md`](web/CLAUDE.md)** (sources in `web/` + `legal/`, not `ios/`).
 > Deploy brief: [`web/GATE.md`](web/GATE.md).
 
-**Your only job right now:** cut an **internal TestFlight** build of Astra Style
-and get it onto the owner's iPhone.
+**Current status (2026-08-02):** Build **1.0.0 (1)** is **installed on the
+owner's iPhone** via TestFlight (Internal group). **Your job now:** run the
+smoke checklist (§6) and report pass/fail. Do not cut another build unless
+smoke fails hard or the owner asks.
 
 Do **not** dig through `HANDOFF.md` landmines, rewrite READMEs, or start Phase 4.
 Do **not** treat commit `cc7923cf` ("Pre-build groundwork…") as new work — that is
-an **older** ancestor on `main` (guest scan gate / CI / truth docs). Current tip
-already includes Phase 3 exit + this handoff (`git log -5 --oneline`).
+an **older** ancestor on `main` (guest scan gate / CI / truth docs).
+
+### Owner decisions (2026-08-02) — stop waiting on these
+
+1. **Privacy / legal stay drafts.** Keep the live “Draft — not yet in force”
+   banner on https://astra-style.com/privacy/. Do **not** remove it. Do **not**
+   flip `AstraLegal.isPublished`. Do **not** fill `[[NEEDS INPUT]]` or chase
+   counsel for this cut. Publishing unreviewed policies is worse than none
+   (`legal/README.md`). Ticket remains `P7-PRIVACY-05` (end of project).
+2. **Priority = TestFlight only.** Finish Ready to Test → iPhone install →
+   smoke. ASC Privacy Policy URL may be `https://astra-style.com/privacy/` —
+   that does **not** authorize flipping in-app legal links.
 
 | Fact | Value |
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
+| Team ID | `Q9ZH8AA9NY` |
+| ASC App ID | `6797115649` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (starts at `1`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (starts at `1`; **1 is already on ASC**) |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
-| Twin docs | `docs/12-testflight-cut.md`, `HANDOFF.md` §12.0 (same content, longer context) |
+| GUI path | this file + `docs/12-testflight-cut.md` |
+| CLI path (no Xcode GUI) | **`ios/CLI_BUILD_AND_TESTFLIGHT.md`** |
 
 ---
 
@@ -101,8 +116,8 @@ Never put provider keys in the iOS target.
 
 ## 7. Done when
 
-- [ ] Build is in the internal TestFlight group
-- [ ] Owner launched it on a physical iPhone
+- [x] Build is in the internal TestFlight group
+- [x] Owner launched it on a physical iPhone
 - [ ] Smoke results reported (and any Organizer errors pasted verbatim)
 
 **Out of scope:** Fastlane, public TestFlight, subscriptions, Phase 4 features.
