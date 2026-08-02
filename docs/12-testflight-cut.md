@@ -7,7 +7,11 @@ Apple ID.
 
 **If you are Claude Code on that Mac:** open **`START_HERE.md` at the repo root**
 first — that is the canonical checklist. `HANDOFF.md` §12.0 is the same content
-with more surrounding context. This file is the short twin.
+with more surrounding context. This file is the short twin. **CLI-only agents
+(no Xcode GUI):** use **`ios/CLI_BUILD_AND_TESTFLIGHT.md`**.
+
+**Status 2026-08-02:** `1.0.0 (1)` uploaded; Internal group + owner invited;
+awaiting Apple processing → Ready to Test → phone smoke.
 
 ## What you get on device
 
