@@ -93,3 +93,9 @@ __snapshots__/**/*.actual.png
 ios/AstraStyle/Resources/Info.plist
 ios/AstraStyle/Resources/AstraStyle.entitlements
 __pycache__/
+
+# === Marketing site (web/ → Cloudflare Pages) ===
+web/node_modules/
+web/dist/
+web/.astro/
+web/.wrangler/

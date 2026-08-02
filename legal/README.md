@@ -32,7 +32,9 @@ Where things stand, so the deferral is a known state rather than a vague one:
 - `AstraLegal.isPublished` is **`false`**, so every legal URL in the app is `nil` and every call
   site handles it. `LegalDocumentAvailabilityTests` pins that invariant.
 - The public `legal` storage bucket **exists and is empty**. Nothing is uploaded to it.
-- `astrastyle.app` is not registered.
+- `astrastyle.app` was never registered. The owner purchased **`astra-style.com`**
+  (Cloudflare DNS) for the marketing site — see `web/GATE.md`. That does **not**
+  by itself publish these drafts or flip `AstraLegal.isPublished`.
 - **Every `[[NEEDS INPUT]]` below still stands.** They are not resolved, not withdrawn, and not
   being chased right now.
 

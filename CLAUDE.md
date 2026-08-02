@@ -5,13 +5,15 @@ working on this codebase. It is a set of binding conventions, not background
 reading — follow it by default, and deviate only with a documented reason (an ADR
 for architectural deviations, a code comment for local ones).
 
-> ## ▶ CURRENT TASK (owner's Mac / Claude Code)
+> ## ▶ CURRENT TASKS (pick the file that matches you)
 >
-> **Open [`START_HERE.md`](START_HERE.md) at the repo root and do that job.**
-> It is the TestFlight cut onto the owner's iPhone — Archive → App Store Connect →
-> internal TestFlight. Self-contained checklist. Do not hunt through `HANDOFF.md`
-> first; that file is background. `cc7923cf` ("Pre-build groundwork…") is an
-> **old** ancestor, not new unfinished work.
+> | Agent | Open first |
+> |---|---|
+> | **Cloudflare / website / Pages** | **[`web/GATE.md`](web/GATE.md)** — build & deploy **astra-style.com** |
+> | **Claude Code on the owner's Mac (iOS)** | **[`START_HERE.md`](START_HERE.md)** — internal TestFlight cut |
+>
+> Also see root [`AGENTS.md`](AGENTS.md). Do not hunt through `HANDOFF.md` first.
+> `cc7923cf` ("Pre-build groundwork…") is an **old** ancestor, not unfinished tip work.
 
 ## What Astra Style is
 
@@ -26,8 +28,8 @@ provider.
 
 ## Document hierarchy — read this before touching anything
 
-0. **Right now: [`START_HERE.md`](START_HERE.md).** Owner-requested next action
-   (TestFlight). Finish that before picking Phase 4 tickets unless redirected.
+0. **Right now:** Cloudflare → [`web/GATE.md`](web/GATE.md) (astra-style.com).
+   Mac/iOS → [`START_HERE.md`](START_HERE.md) (TestFlight). See [`AGENTS.md`](AGENTS.md).
 1. **`docs/00-master-spec.md` is the source of truth.** Every screen, data model,
    endpoint, and requirement in this codebase traces back to it. If you're unsure
    what a feature should do, the answer is in there — read the relevant section
