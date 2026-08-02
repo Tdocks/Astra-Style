@@ -9,7 +9,8 @@ for architectural deviations, a code comment for local ones).
 >
 > | Agent | Open first |
 > |---|---|
-> | **Cloudflare / website / Pages** | **[`web/GATE.md`](web/GATE.md)** — build & deploy **astra-style.com** |
+> | **Website / privacy / astra-style.com** | **[`web/CLAUDE.md`](web/CLAUDE.md)** — sources in `web/` + `legal/` (not under `ios/`) |
+> | **Cloudflare deploy** | **[`web/GATE.md`](web/GATE.md)** |
 > | **Claude Code on the owner's Mac (iOS)** | **[`START_HERE.md`](START_HERE.md)** — internal TestFlight cut |
 >
 > Also see root [`AGENTS.md`](AGENTS.md). Do not hunt through `HANDOFF.md` first.
