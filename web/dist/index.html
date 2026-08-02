@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Astra Style</title>
+    <meta
+      name="description"
+      content="Astra Style is a premium personal stylist for men. Kyra learns your wardrobe and tells you what to wear — and what to buy next."
+    />
+    <link rel="canonical" href="https://astra-style.com/" />
+    <meta property="og:title" content="Astra Style" />
+    <meta
+      property="og:description"
+      content="Your style. Your journey. Your best self. A personal stylist and wardrobe operating system for men."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://astra-style.com/" />
+    <meta property="og:image" content="https://astra-style.com/assets/app-icon-marble.jpg" />
+    <meta name="theme-color" content="#0D0D0D" />
+    <link rel="icon" href="/assets/app-icon-marble.jpg" type="image/jpeg" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="hero marble">
+      <div class="hero-media" aria-hidden="true">
+        <img
+          src="/assets/splash-reference.jpg"
+          alt=""
+          width="1320"
+          height="2027"
+          fetchpriority="high"
+        />
+      </div>
+      <div class="hero-veil" aria-hidden="true"></div>
+      <div class="hero-content">
+        <img
+          class="wordmark"
+          src="/assets/logo-wordmark-dark.jpg"
+          alt="Astra Style"
+          width="440"
+          height="375"
+        />
+        <h1>Your style. Your journey. Your best self.</h1>
+        <p class="lede">
+          A personal stylist for men. Kyra learns your wardrobe, then tells you
+          what to wear — and which piece unlocks the most outfits next.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="mailto:hello@astra-style.com?subject=TestFlight%20access">
+            Request iPhone access
+          </a>
+          <a class="btn btn-ghost" href="#how-it-works">How it works</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="how-it-works">
+        <div class="inner">
+          <h2>Closet in. Clarity out.</h2>
+          <p>
+            Scan or add what you own. Kyra builds a wardrobe graph — so every
+            recommendation compounds into a coherent style, not another random outfit.
+          </p>
+        </div>
+      </section>
+
+      <section class="band" id="not-shopping">
+        <div class="inner">
+          <h2>Not another shopping feed.</h2>
+          <p>
+            Buy less, unlock more. Astra Style measures which purchase opens the
+            most outfits from what you already wear — then gets out of the way.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="inner">
+        <img
+          class="footer-mark"
+          src="/assets/logo-wordmark-dark.jpg"
+          alt="Astra Style"
+          width="280"
+          height="238"
+        />
+        <nav aria-label="Legal">
+          <a href="/privacy/">Privacy</a>
+          <a href="/terms/">Terms</a>
+          <a href="/privacy/delete/">Data deletion</a>
+          <a href="/affiliate-disclosure/">Affiliate disclosure</a>
+        </nav>
+      </div>
+      <p class="meta">© <span id="y"></span> Astra Style. iOS app in private TestFlight.</p>
+    </footer>
+    <script>
+      document.getElementById("y").textContent = String(new Date().getFullYear());
+    </script>
+  </body>
+</html>

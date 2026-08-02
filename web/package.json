@@ -1,0 +1,15 @@
+{
+  "name": "astra-style-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Marketing site for astra-style.com (Cloudflare Workers static assets)",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "deploy": "npm run build && npx wrangler deploy --config ./wrangler.toml",
+    "deploy:root": "npm run build && cd .. && npx wrangler deploy"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

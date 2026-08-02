@@ -1,0 +1,13 @@
+# Cloudflare Workers static assets — run from repo root:
+#   npx wrangler deploy
+#
+# The marketing site lives under web/dist (committed HTML + assets).
+# See web/GATE.md for domain / brand brief.
+
+name = "astra-style"
+compatibility_date = "2026-08-01"
+
+[assets]
+directory = "./web/dist"
+not_found_handling = "404-page"
+html_handling = "auto-trailing-slash"

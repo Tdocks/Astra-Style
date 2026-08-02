@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astra Style — Privacy Policy</title>
+<!--
+  ============================================================================
+  UNREVIEWED DRAFT. NOT LEGAL ADVICE. DO NOT PUBLISH BEFORE COUNSEL REVIEW.
+  ============================================================================
+
+  *** BIOMETRIC PRIVACY — READ THIS FIRST ***
+
+  Astra Style collects, and this policy describes, TWO categories of data that
+  may fall inside biometric-privacy statutes:
+
+    1. Face images. Reference selfies uploaded for Style Studio
+       (body_profiles.appearance.reference_selfie_paths,
+       studio_generations.reference_image_path). The Style Studio pipeline
+       (spec §13, step 3) explicitly "generate[s] a face/body identity
+       representation" and the prompt template instructs the model to
+       "preserve the person's recognizable facial features". A face template /
+       identity representation derived from a photograph is precisely the kind
+       of artefact several statutes regulate.
+    2. Body measurements. height, weight, chest, waist, inseam, neck
+       (body_profiles), plus the server-derived frame axes (frame_taper,
+       frame_proportion, frame_scale, muscularity_hint).
+
+  The Illinois Biometric Information Privacy Act (BIPA) is the sharp edge:
+  it carries a private right of action and statutory damages per violation,
+  and it requires written notice and written consent BEFORE collection, plus
+  a published retention/destruction schedule. Texas (CUBI), Washington, and
+  several newer state privacy laws impose related duties; GDPR Art. 9 treats
+  biometric data processed for unique identification as special category data.
+
+  This is NOT resolved in this draft, and this draft does not attempt to
+  resolve it. Specific legal review is required on at least:
+    - whether the Style Studio identity representation is a "biometric
+      identifier" / "biometric information" as defined by BIPA;
+    - whether the app must obtain separate, written, pre-collection consent
+      for face images, and what that consent screen must say;
+    - whether a published biometric retention and destruction schedule is
+      required, and what it must contain;
+    - whether Illinois (and any other state) should be geofenced out of
+      Style Studio until the above is settled;
+    - what the OpenAI data-processing terms must say about biometric data.
+
+  See also docs/11-risk-register.md risk 7.
+  ============================================================================
+-->
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin:0; padding:1.25rem .9rem 3rem; background:#fff; color:#111;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:17px; line-height:1.6; -webkit-text-size-adjust:100%; }
+main { max-width:44rem; margin:0 auto; }
+h1 { font-size:1.65rem; line-height:1.25; margin:0 0 .3rem; }
+h2 { font-size:1.2rem; line-height:1.3; margin:2.2rem 0 .6rem; padding-top:1.2rem; border-top:2px solid #111; }
+h3 { font-size:1.02rem; margin:1.5rem 0 .35rem; }
+p, li { font-size:1rem; }
+ul, ol { padding-left:1.25rem; margin:.6rem 0; }
+li { margin:.35rem 0; }
+.updated { font-weight:700; margin:.2rem 0 1rem; }
+.banner { border:3px solid #111; background:#fffbe6; padding:.85rem .95rem; margin:1.2rem 0; }
+.banner p { margin:.4rem 0; }
+.banner strong { text-transform:uppercase; letter-spacing:.02em; }
+.alert { border:3px solid #a30000; background:#fff0f0; padding:.85rem .95rem; margin:1.4rem 0; }
+.needs-input { background:#ffe600; color:#000; font-weight:700; padding:.08em .3em;
+  border:1px solid #7a6a00; border-radius:2px; }
+table { width:100%; border-collapse:collapse; margin:1rem 0; }
+th, td { border:1px solid #999; padding:.5rem .55rem; text-align:left; vertical-align:top; font-size:.95rem; }
+th { background:#efefef; }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.88em;
+  background:#f1f1f1; padding:.1em .3em; border-radius:3px; overflow-wrap:anywhere; }
+footer { margin-top:2.5rem; padding-top:1rem; border-top:2px solid #111; font-size:.92rem; color:#333; }
+@media (max-width:480px) {
+  body { font-size:16px; }
+  th, td { font-size:.9rem; padding:.4rem .4rem; }
+}
+</style>
+</head>
+<body>
+<div style="background:#1B1B1B;color:#B9B3A8;font:14px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;padding:12px 20px;border-bottom:1px solid #2A2927;">
+  <strong style="color:#D7B46A;">Draft</strong> — not yet in force. Placeholders remain; this is not published legal counsel.
+  <a href="/" style="color:#D7B46A;margin-left:12px;">← Astra Style</a>
+</div>
+
+<main>
+
+<h1>Astra Style — Privacy Policy</h1>
+<p class="updated">Last updated: 31 July 2026</p>
+
+<div class="banner">
+<p><strong>Draft for legal review.</strong></p>
+<p>This document was drafted from the Astra Style codebase — the database schema, the
+architecture decision records, and the product specification — so that it describes what the
+software actually does. It has not been reviewed by a lawyer, it is not legal advice, and it
+must not be published in this state. Every <span class="needs-input">[[NEEDS INPUT: …]]</span>
+marker below is an unanswered question that must be resolved before publication.</p>
+</div>
+
+<div class="alert">
+<p><strong>Flagged for counsel: biometric privacy.</strong> This app collects face images
+(reference selfies for Style Studio) and body measurements, and the Style Studio pipeline derives
+a face and body identity representation from a photograph. These may fall within biometric-privacy
+statutes — notably the Illinois Biometric Information Privacy Act (BIPA), which requires written
+notice and consent before collection, a published retention and destruction schedule, and which
+carries a private right of action with statutory damages. Texas, Washington and several state
+privacy laws impose related duties; the GDPR treats biometric data processed for unique
+identification as special category data. This draft does not attempt to resolve any of that.
+<span class="needs-input">[[NEEDS INPUT: specific biometric-privacy legal review — BIPA
+applicability, pre-collection written consent flow, published biometric retention/destruction
+schedule, whether Style Studio should be geofenced pending review]]</span></p>
+</div>
+
+<h2>1. Who we are</h2>
+<p>Astra Style is a personal styling application for iPhone. This policy explains what personal
+data the app and its backend collect, why, who processes it, how long it is kept, and how it can
+be deleted.</p>
+<ul>
+<li>Controller / operator: <span class="needs-input">[[NEEDS INPUT: full legal entity name]]</span></li>
+<li>Registered address: <span class="needs-input">[[NEEDS INPUT: registered entity address]]</span></li>
+<li>Privacy contact: <span class="needs-input">[[NEEDS INPUT: privacy contact email address]]</span></li>
+<li>Data protection officer or EU/UK representative, if one is appointed:
+<span class="needs-input">[[NEEDS INPUT: DPO / Article 27 representative details, or a positive
+statement that none is required]]</span></li>
+</ul>
+<p>This policy describes our practices. It does not make a claim about compliance with any
+particular statute; which laws apply, and what they require of us, is a question for our legal
+advisers.</p>
+
+<h2>2. What this policy covers</h2>
+<p>The Astra Style iOS app, and the backend services it talks to: our database, file storage and
+server functions (hosted with Supabase), and the third-party model providers listed in section 8.
+It does not cover retailer websites you open from the app, which have their own policies.</p>
+
+<h2>3. Guest mode collects nothing on our servers</h2>
+<p>You can use Astra Style without creating an account. Guest mode is designed to be entirely
+local to your device:</p>
+<ul>
+<li>No account is created, and no server-side identity of any kind exists for a guest — not even
+an anonymous one.</li>
+<li>Guest data (up to 10 closet items, their photographs, and one Style Studio sample) is stored
+only in the app's on-device storage. It is not uploaded to our database or our file storage.</li>
+<li>There is no cloud sync and no shopping history in guest mode.</li>
+<li>Because nothing is on our servers, guest data is not recoverable by us. If you delete the app
+or lose the device, that data is gone.</li>
+<li>If you later create an account, the app asks you to migrate your guest data. Migration is an
+explicit, user-initiated upload — it does not happen silently — and everything uploaded is written
+under your new account's identity.</li>
+<li>To delete guest data, delete the app from your device.</li>
+</ul>
+<p><span class="needs-input">[[NEEDS INPUT: confirm with engineering whether the single Style
+Studio sample offered in guest mode transmits a reference image to our server functions and to
+OpenAI. Generation cannot happen on-device, so it almost certainly does. If so, that is a transfer
+of a face image by a user who has no account, and this section and section 8 must say so
+plainly — and the biometric-consent question above arises before any account exists]]</span></p>
+
+<h2>4. What personal data we hold</h2>
+<p>The tables below are taken from the database schema, so they list what the system is built to
+store rather than a generic summary. Fields are optional unless stated; the app is designed so
+that measurement and appearance questions can be skipped, and skipping them leaves the field
+empty rather than guessed.</p>
+
+<h3>4.1 Account and identity</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Authentication identifier and email address</td><td>Held by our authentication service when
+you sign in with Apple or with an email link/one-time code. If you use Sign in with Apple and choose
+to hide your email, we receive Apple's private relay address rather than your own.</td></tr>
+<tr><td>Display name, avatar image URL</td><td>Optional profile fields.</td></tr>
+<tr><td>Approximate location name, time zone</td><td>A place name you enter or grant for weather
+context, plus your time zone. We do not store precise coordinates in the profile record.</td></tr>
+<tr><td>Units, theme, onboarding completion time, subscription tier</td><td>App preferences and
+state.</td></tr>
+</table>
+
+<h3>4.2 Style profile</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Style goals, primary and secondary style identities</td><td>From onboarding.</td></tr>
+<tr><td>Preferred and avoided colours, preferred fit, formality preference, logo tolerance, trend
+tolerance, accessory preference</td><td>From onboarding and from the style summary the app
+generates.</td></tr>
+<tr><td>Style summary text</td><td>A written description of your style, generated from your
+answers.</td></tr>
+<tr><td>Style preference vector</td><td>The result of the paired-image preference quiz: for each of
+eight dimensions (colour tolerance, formality, silhouette, texture, logo tolerance, trend tolerance,
+accessory preference, contrast preference) a score, a confidence band, how many comparisons stand
+behind it, and how consistent those comparisons were.</td></tr>
+<tr><td>Numerical embedding of your style profile</td><td>A vector derived from the above, used to
+find items and outfits similar to your taste. It is derived from your personal data and is treated
+as personal data.</td></tr>
+</table>
+
+<h3>4.3 Body measurements and appearance — sensitive</h3>
+<p>These are the most sensitive fields in the app and we are not going to bury them in a list.</p>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Height, weight, chest, waist, inseam and neck measurements</td><td>Stored in centimetres
+and kilograms. Every one is optional.</td></tr>
+<tr><td>Shoe, shirt and trouser sizes</td><td>Optional.</td></tr>
+<tr><td>Fit notes</td><td>Short descriptions of fit problems you tell us about, e.g. broad chest,
+short torso.</td></tr>
+<tr><td>Derived frame characteristics</td><td>From your measurements the database derives, and
+stores, a taper classification, a torso/leg proportion classification, an overall scale
+classification, a muscularity hint, and a confidence figure for each. These are computed on our
+servers, are never shown to you as labels, and exist only to shape fit advice.</td></tr>
+<tr><td>Appearance details</td><td>Optional: skin undertone, hair colour, eye colour, facial hair,
+whether you wear glasses, whether tattoos are visible.</td></tr>
+<tr><td>Reference selfie and body images</td><td><strong>Photographs of your face and body</strong>
+that you upload for Style Studio. The images are held in private file storage; the database stores
+only their paths.</td></tr>
+</table>
+<p>Body measurements and face images are handled as sensitive personal data. See the flagged
+biometric note at the top of this policy.</p>
+
+<h3>4.4 Lifestyle profile</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Occupation category, dress code, typical week, common occasions</td><td>From
+onboarding.</td></tr>
+<tr><td>Climate preferences, laundry cadence, travel frequency</td><td>From onboarding.</td></tr>
+<tr><td>Clothing budget and currency, preferred and avoided brands, sustainability
+preference</td><td>From onboarding.</td></tr>
+<tr><td>Religious or service attire needs</td><td>Free text, optional. If you complete this field,
+it may reveal your religion, which is a sensitive category of data in many jurisdictions. It exists
+so that outfit suggestions are usable rather than tone-deaf, and it can be left
+empty. <span class="needs-input">[[NEEDS INPUT: whether this field needs its own explicit consent
+treatment, or should be restructured to avoid capturing religion at all]]</span></td></tr>
+</table>
+
+<h3>4.5 Closet</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Garment records</td><td>Name, brand, category, colours, pattern, material composition, size,
+fit, condition, seasonality, and computed formality/warmth/water-resistance scores.</td></tr>
+<tr><td>Purchase information</td><td>Purchase date, price paid, currency, retailer, product
+link.</td></tr>
+<tr><td>Use information</td><td>Wear count, last worn date, laundry state, availability, and whether
+you have archived the item.</td></tr>
+<tr><td>Garment photographs</td><td>The photos you take or import, and their background-removed
+versions, in private file storage. The database stores paths, plus per-image analysis metadata such
+as confidence scores and blur/lighting flags.</td></tr>
+<tr><td>Numerical embeddings of items</td><td>Used for similarity and duplicate detection.</td></tr>
+</table>
+
+<h3>4.6 Outfits and wear history</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Outfits</td><td>Name, description, occasion tags, weather range, formality and compatibility
+scores, how the outfit was created, preview images, favourite flag, and an embedding.</td></tr>
+<tr><td>Outfit contents</td><td>Which of your items, or which shortlisted products, fill each
+slot.</td></tr>
+<tr><td>Wear events</td><td>Each time you mark an outfit worn: the date and time, the occasion, a
+1–5 rating, any written feedback, and a snapshot of the weather at the time.</td></tr>
+</table>
+
+<h3>4.7 Planning</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Occasions</td><td>Title, start and end times, location, dress code. If you enable calendar
+access, we store the identifier of the calendar event so a re-sync updates rather than duplicates
+the entry. Calendar access is requested only when you turn this feature on.</td></tr>
+<tr><td>Daily briefs</td><td>One record per day: the outfit suggested, alternatives, a weather
+snapshot, a snapshot of your schedule for that day, and the accompanying message.</td></tr>
+</table>
+
+<h3>4.8 Kyra conversations, feedback and style memories</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Conversation threads and messages</td><td>What you write to Kyra and what Kyra replies,
+including any structured content in a reply.</td></tr>
+<tr><td>Model metadata on each message</td><td>Provider and model identifier, token counts, latency
+and confidence. By design this field holds metadata only — not raw prompts and not provider request
+or response bodies.</td></tr>
+<tr><td>Style feedback</td><td>Your likes, dislikes and reasons about items, outfits and products,
+including any free text you write.</td></tr>
+<tr><td>Style memories</td><td>Durable preferences inferred from your conversations, each with a
+confidence value, a link to the message it came from, and an embedding. These are stored so they can
+be genuinely deleted rather than hidden — the schema has no soft-delete for them.</td></tr>
+</table>
+
+<h3>4.9 Shopping</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Product evaluations</td><td>For each product you ask about: a compatibility score, a
+redundancy score, how many new outfits it would unlock, an expected cost per wear, a verdict, and
+the written reasoning. Evaluations are kept as a history rather than overwritten, so the same
+product can have several evaluations over time.</td></tr>
+<tr><td>Product catalogue</td><td>The catalogue of products itself is shared across all users and
+holds no personal data — retailer, brand, name, price, links. It is not tied to you and is not
+deleted when you delete your account, because it is not yours.</td></tr>
+</table>
+
+<h3>4.10 Style Studio</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Generation records</td><td>The path of the reference image used, the outfit it was based on,
+the prompt payload sent to the provider, job status, the path of the resulting image, which provider
+produced it, and any error message.</td></tr>
+<tr><td>Reference and generated images</td><td>Held in private file storage. Generated images are
+labelled in the app as generated, and are a styling estimate rather than a photograph of you in
+those clothes.</td></tr>
+</table>
+
+<h3>4.11 Subscription</h3>
+<table>
+<tr><th>Data</th><th>Notes</th></tr>
+<tr><td>Subscription state</td><td>Apple's original transaction identifier, the product identifier,
+status, expiry date and whether the transaction is a production or sandbox one. This record is
+written by our server functions from what Apple tells us.</td></tr>
+</table>
+<p>Payments are taken by Apple. We never see or hold your card details, billing address or
+payment credentials.</p>
+
+<h3>4.12 Deletion records</h3>
+<p>When you ask us to delete your account we create a record of the request: its status, when it was
+requested, when it completed, and any failure reason. Once the deletion completes, your user
+identifier is removed from that record and replaced with a one-way SHA-256 hash of it, so that we
+can confirm a deletion happened without keeping the identifier itself.</p>
+
+<h2>5. What we do with it</h2>
+<ul>
+<li>Build your style profile and generate outfit suggestions, daily briefs and packing lists.</li>
+<li>Recognise garments from the photographs you take, and fill in their attributes for you to
+correct.</li>
+<li>Answer your questions in the Kyra conversation, and remember preferences you express.</li>
+<li>Evaluate products you are considering, against the wardrobe you already own.</li>
+<li>Generate Style Studio visualisations from a reference image you provide.</li>
+<li>Operate subscriptions and enforce free-tier limits.</li>
+<li>Keep the service secure, diagnose faults, and prevent abuse.</li>
+</ul>
+<p>We do not sell personal data. We do not share it with advertisers, and the app contains no
+advertising SDK and no cross-app or cross-site tracking. Apple's App Tracking Transparency prompt
+is not shown because no such tracking is implemented; if that ever changes, the prompt will be
+added and this policy updated first.</p>
+<p><span class="needs-input">[[NEEDS INPUT: the legal bases for each purpose (e.g. contract,
+consent, legitimate interests) if a GDPR-style basis table is required, and the corresponding
+disclosures for US state privacy laws — deliberately not drafted here]]</span></p>
+
+<h2>6. Analytics</h2>
+<p>The app defines a fixed set of product analytics events: onboarding started and completed, closet
+item added, scan corrected, outfit generated, outfit marked worn, outfit rejected, Kyra prompt sent,
+product evaluated, affiliate link opened, Style Studio generation started and completed, paywall
+viewed, and subscription started, renewed and cancelled.</p>
+<p>These events are constructed so that they cannot carry personal content: their properties are
+limited to fixed category values, counts, booleans, and record identifiers. Image data, image paths,
+your messages to Kyra, your written feedback and pasted product URLs are excluded by the way the
+event type is defined, not by a filter that could be forgotten. The analytics identity is the opaque
+user identifier only — never your name, email or images — and it is cleared when you sign out.</p>
+<p>Being precise about the current state: no analytics provider is connected, there is no analytics
+table in the database, and the production analytics client does nothing but print in debug builds.
+Nothing is transmitted to any analytics service today.
+<span class="needs-input">[[NEEDS INPUT: which analytics provider, if any, will be used at launch;
+this section must be rewritten to name it and describe its own data handling before that
+happens]]</span></p>
+
+<h2>7. Permissions we ask for</h2>
+<ul>
+<li><strong>Camera</strong> — only when you scan a garment.</li>
+<li><strong>Photos</strong> — only when you import an image.</li>
+<li><strong>Location</strong> — only if you enable weather-aware suggestions.</li>
+<li><strong>Calendar</strong> — only if you enable occasion-aware suggestions.</li>
+<li><strong>Notifications</strong> — only after you have seen what they are for.</li>
+<li><strong>Microphone</strong> — only if you use voice input.</li>
+</ul>
+<p>Each is requested in context, at the moment the feature needs it, and each can be refused or
+withdrawn in iOS Settings without losing the rest of the app.</p>
+
+<h2>8. Who processes your data for us</h2>
+
+<h3>8.1 OpenAI — model provider</h3>
+<p>OpenAI is our only model provider. Requests are made from our server functions using our own API
+key; the app never talks to OpenAI directly. Depending on the feature, OpenAI receives:</p>
+<ul>
+<li><strong>Style Studio:</strong> your reference image — a photograph of your face and body — and
+the structured prompt describing the garments, using the <code>gpt-image-1.5</code> model.</li>
+<li><strong>Quiz and reference imagery:</strong> prompts for the paired-image style quiz and other
+generated illustrative imagery, using the <code>gpt-image-2</code> model. No photograph of you is
+involved in this.</li>
+<li><strong>Garment analysis:</strong> garment photographs, for classification of subtype, material,
+pattern and condition.</li>
+<li><strong>Kyra and styling reasoning:</strong> your messages and the profile, closet and outfit
+context needed to answer them.</li>
+<li><strong>Embeddings:</strong> text derived from your profile, items and outfits.</li>
+<li><strong>Product extraction:</strong> the content of product pages you ask us to evaluate.</li>
+</ul>
+<p>Initial photo processing — blur and exposure checks, garment region detection, background
+removal, care-label text recognition, colour extraction, resizing and metadata stripping — happens
+on your iPhone using Apple's on-device frameworks, before anything is uploaded. Metadata such as
+location tags is stripped from garment photographs on the device.</p>
+
+<h3>8.2 Supabase — hosting</h3>
+<p>Supabase hosts our database, our file storage and our server functions, and provides
+authentication. Everything described in section 4 is stored there. Access is restricted per user at
+the database level, storage buckets are private, and files are served only through short-lived
+signed links.</p>
+
+<h3>8.3 Apple</h3>
+<p>Apple provides Sign in with Apple and takes all payments through the App Store. Apple receives
+what it needs for those functions and handles it under its own policies; we receive from Apple an
+account identifier, an email address or private relay address, and subscription transaction
+records.</p>
+
+<h3>8.4 Other</h3>
+<p><span class="needs-input">[[NEEDS INPUT: weather provider — none is selected in the codebase yet;
+if one is added, name it and say what is sent (a place name or coordinates)]]</span></p>
+<p><span class="needs-input">[[NEEDS INPUT: affiliate networks or retailer feed providers, once
+commerce goes live — see the Affiliate Disclosure]]</span></p>
+<p><span class="needs-input">[[NEEDS INPUT: crash and error reporting service, if one is
+added]]</span></p>
+
+<h2>9. Model training</h2>
+<p>Our intent, and our engineering default, is that your data is not used to train anybody's models:
+provider calls are to be made with the strictest available no-retention and no-training setting, and
+we would require explicit consent before any of your images were used for model improvement.</p>
+<p>Two honest qualifications:</p>
+<ul>
+<li>OpenAI states that data submitted through its API is not used to train its models by default.
+We have not verified the configuration of the specific account this app uses.
+<span class="needs-input">[[NEEDS INPUT: confirm the OpenAI organisation's data-controls settings
+and retention window, and whether a zero-data-retention arrangement and a data processing agreement
+are in place — then state the verified position here rather than the intended one]]</span></li>
+<li>The in-app training opt-out control described in our internal design is <strong>not built
+yet</strong>. There is no toggle in the app today. We describe the default we operate under; we do
+not claim to offer you a control that does not exist.</li>
+</ul>
+
+<h2>10. How long we keep things</h2>
+<p>The retention rules the product is designed around:</p>
+<ul>
+<li><strong>Garment photographs</strong> are kept for as long as you keep the item, since they are
+the item's record.</li>
+<li><strong>Reference selfies and body images</strong> are kept for as long as you keep them saved
+as a reference. An upload that is never used to complete a generation is treated as abandoned and
+deleted automatically after a short window — 24 hours by default.</li>
+<li><strong>Generated Style Studio images</strong> expire after a set window — 30 days by
+default — unless you explicitly save one, which makes it permanent until you delete it.</li>
+<li><strong>Everything else</strong> is kept while your account exists, and is removed when the
+account is deleted (section 11).</li>
+</ul>
+<p>Stated plainly, because it matters: <strong>the scheduled job that enforces these expiry windows
+is not built yet.</strong> The windows above are the designed policy; until the automated sweep is
+implemented and monitored, abandoned reference images and expired generations will not delete
+themselves. This must be built, or this section must be rewritten, before publication.
+<span class="needs-input">[[NEEDS INPUT: confirm final retention windows, and confirm the retention
+sweep is live before publishing this section as written]]</span></p>
+
+<h2>11. Deleting your data</h2>
+<p>What deletion is built to do, and what happens today, are not the same thing, and the difference
+is set out fully in the companion document <em>Astra Style — Deleting your account and your
+data</em>. In summary:</p>
+<ul>
+<li>Deleting your account removes your authentication identity, which cascades through the database
+and removes your profile, style profile, body profile, lifestyle profile, closet items and their
+images records, outfits, outfit contents and wear history, style feedback, style memories and their
+embeddings, conversations and messages, occasions, daily briefs, Style Studio generation records,
+subscription records and product evaluations.</li>
+<li>The files themselves — your photographs and generated images — are deleted from storage by a
+separate step, because removing the database record and removing the stored file are two different
+operations.</li>
+<li>The shared product catalogue is not deleted, because it is not your data.</li>
+<li>A deletion record survives, holding a one-way hash of your identifier rather than the identifier
+itself.</li>
+</ul>
+<p><strong>The gap, stated rather than hidden:</strong> the database side of deletion — the request
+function, the cascade, the audit record, the finalisation function — is implemented. The server
+function that would orchestrate the whole sequence, including the deletion of the stored image files
+and of the authentication identity, <strong>does not exist yet</strong>, and there is no in-app
+delete-my-account screen. Until both are built, deletion must be requested by email and carried out
+manually. Do not publish a claim that deletion is available in the app until it is.</p>
+
+<h2>12. Your choices and requests</h2>
+<p>Depending on where you live, you may have rights to access, correct, delete, restrict or object
+to the processing of your personal data, to receive a copy of it, and to complain to a supervisory
+authority. To make any request, contact us at
+<span class="needs-input">[[NEEDS INPUT: privacy contact email address]]</span>.</p>
+<p>What exists in the app today, honestly stated:</p>
+<ul>
+<li>You can edit and correct your profile, measurement, appearance and lifestyle answers.</li>
+<li>You can archive and edit closet items and outfits.</li>
+<li>An in-app account deletion screen is <strong>not yet available</strong> — requests go by
+email.</li>
+<li>Data export is <strong>not yet available</strong> — requests go by email and are fulfilled
+manually.</li>
+<li>Per-image deletion of individual reference and generated images is <strong>not yet
+available</strong> in the app.</li>
+<li>An in-app control to inspect and delete individual style memories is <strong>not yet
+available</strong>.</li>
+</ul>
+<p>These controls are designed and specified, and this policy will be updated as each ships. We
+would rather list them as missing than promise a button that is not there.
+<span class="needs-input">[[NEEDS INPUT: response time commitment for access, export and deletion
+requests — e.g. 30 days — and whether identity verification is required before we act on
+one]]</span></p>
+
+<h2>13. Security</h2>
+<ul>
+<li>Every user-owned table enforces per-user access at the database level, so one account cannot
+read another's rows.</li>
+<li>File storage is private. No image is served from a public URL; access is through short-lived
+signed links, granted only for files under your own account's path.</li>
+<li>Privileged service credentials exist only in server functions and are never shipped in the
+app.</li>
+<li>Transport is encrypted.</li>
+</ul>
+<p>No system is perfectly secure, and we do not claim otherwise.
+<span class="needs-input">[[NEEDS INPUT: breach notification commitment and process]]</span></p>
+
+<h2>14. Where your data is processed</h2>
+<p>Our hosting and our model provider operate infrastructure in more than one country, so your data
+may be processed outside the country where you live.
+<span class="needs-input">[[NEEDS INPUT: the Supabase project region, OpenAI's processing regions,
+and the transfer mechanism relied on for any international transfer — e.g. standard contractual
+clauses]]</span></p>
+
+<h2>15. Children</h2>
+<p>Astra Style is for adults. It is not directed at children, and you must be at least 18 years old
+to create an account. We do not knowingly collect personal data from anyone under 18; if we learn
+that we have, we will delete it. Given that the app handles face images and body measurements, an
+age below this is not something we are willing to design for.
+<span class="needs-input">[[NEEDS INPUT: confirm 18 is the intended minimum, that it matches the
+App Store age rating, and that it satisfies the age-of-consent rules in every market where the app
+will be listed]]</span></p>
+
+<h2>16. Changes to this policy</h2>
+<p>If we change this policy we will update the date at the top and, for material changes, tell you
+in the app before the change takes effect.</p>
+
+<h2>17. Contact</h2>
+<p>Privacy questions and requests:
+<span class="needs-input">[[NEEDS INPUT: privacy contact email address]]</span><br>
+Postal address: <span class="needs-input">[[NEEDS INPUT: registered entity address]]</span><br>
+If you are in the UK, EU or another jurisdiction with a supervisory authority, you may also complain
+to it: <span class="needs-input">[[NEEDS INPUT: lead supervisory authority, or a statement of which
+authority applies]]</span></p>
+
+<footer>
+<p>Astra Style Privacy Policy — draft of 31 July 2026. Unreviewed. Not legal advice.</p>
+</footer>
+
+</main>
+</body>
+</html>

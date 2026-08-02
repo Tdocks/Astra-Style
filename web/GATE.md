@@ -2,10 +2,11 @@
 
 **Audience:** Cloudflare’s coding / deploy agent (and any human running Pages).
 **Domain (purchased):** `astra-style.com` (and `www.astra-style.com`).
-**Host:** Cloudflare Pages (account already owns the domain in Cloudflare).
-**This file is the job brief.** Build the site under `web/`, deploy it to Pages,
-attach the custom domain. Do not touch the iOS app, Supabase Edge Functions, or
-flip `AstraLegal.isPublished` unless the owner explicitly asks.
+**Host:** Cloudflare Workers static assets (or Pages) — domain on Cloudflare.
+**This file is the job brief.** The site already lives under `web/dist/` and
+deploys with `npx wrangler deploy` from the **repo root** (see root
+`wrangler.toml`). Attach **astra-style.com**. Do not touch the iOS app,
+Supabase Edge Functions, or flip `AstraLegal.isPublished` unless asked.
 
 If you are an **iOS / Claude Code** agent looking for TestFlight: stop — open
 [`../START_HERE.md`](../START_HERE.md) instead.
@@ -25,82 +26,71 @@ If you are an **iOS / Claude Code** agent looking for TestFlight: stop — open
 
 ---
 
-## 1. Stack (use this; do not invent a second app)
+## 1. Stack (already scaffolded — do not replace)
 
-| Choice | Requirement |
+| Choice | Value |
 |---|---|
-| Framework | **Astro 5** (static) **or** plain Vite + static HTML. Prefer Astro if you need components; keep it static-exportable. |
-| Hosting | **Cloudflare Pages** |
-| Config | `web/wrangler.toml` (or `wrangler.jsonc`) with `pages_build_output_dir` pointing at the static `dist/` |
-| Package manager | `npm` (lockfile committed) |
-| Node | 20+ |
+| Site source | `web/site/` (HTML + CSS) |
+| Build output | `web/dist/` (**committed**; rebuild with `cd web && npm run build`) |
+| Hosting | Cloudflare Workers **static assets** via root `wrangler.toml` |
+| Deploy command | `npx wrangler deploy` from **repository root** |
+| Package | `web/package.json` — build copies brand + legal drafts into `dist/` |
 
-Do **not** add a Next.js / Vercel app. Do **not** put Supabase service-role or
-OpenAI keys in this site. No user auth on the marketing site for v1.
-
-Suggested layout after you scaffold:
+Do **not** add Next.js / Vercel. Do **not** put Supabase service-role or OpenAI
+keys here. No user auth on the marketing site for v1.
 
 ```
+wrangler.toml             ← root config assets.directory = ./web/dist
 web/
-  GATE.md                 ← this brief (do not delete)
-  README.md
-  package.json
-  wrangler.toml
-  public/                 ← favicon, robots, copied brand assets
-  src/                    ← pages + components (if Astro/Vite)
-  dist/                   ← build output (gitignored)
+  GATE.md
+  site/                   ← edit HTML/CSS here
+  scripts/build.mjs
+  dist/                   ← what Wrangler uploads (committed)
+  wrangler.toml           ← same site if Root directory = web
 ```
+
+### Cloudflare dashboard / Agent settings that must match
+
+The failing log ran `npx wrangler deploy` with **no static files**. Fix:
+
+| Setting | Required value |
+|---|---|
+| Deploy command | `npx wrangler deploy` |
+| Root / working directory | **repository root** (not empty; needs root `wrangler.toml`) |
+| Optional build command | `cd web && npm run build` (before deploy) |
+| Do **not** use | `wrangler pages deploy` unless you switch to a Pages project with `pages_build_output_dir` |
+
+If the Agent UI forces a subdirectory of `web`, set Root directory to `web` and
+deploy command to `npx wrangler deploy --config ./wrangler.toml` after
+`npm run build`.
 
 ---
 
-## 2. Deploy to Cloudflare Pages + attach domain
+## 2. Deploy + attach domain
 
-### A. First deploy (CLI)
+### A. Deploy (CLI / Agent)
 
-From `web/` after a successful local build:
+From repo root (after merge to `main`):
 
 ```bash
-cd web
-npm install
-npm run build
-npx wrangler pages project create astra-style --production-branch main   # once
-npx wrangler pages deploy dist --project-name=astra-style
+cd web && npm run build && cd ..
+npx wrangler deploy
 ```
 
-Owner must be logged in (`npx wrangler login`) or have `CLOUDFLARE_API_TOKEN` +
-`CLOUDFLARE_ACCOUNT_ID` in the environment. Prefer the owner’s Cloudflare
-session if you are running inside their Cloudflare Agent product.
+Owner / Agent must be authenticated (`wrangler login` or `CLOUDFLARE_API_TOKEN` +
+`CLOUDFLARE_ACCOUNT_ID`).
 
 ### B. Custom domain
 
-In Cloudflare dashboard (or via API):
+Workers & Pages → worker **astra-style** (or Pages project) → Custom domains →
+add **`astra-style.com`** and **`www.astra-style.com`**.
 
-1. Pages project **astra-style** → Custom domains → add **`astra-style.com`**
-   and **`www.astra-style.com`**.
-2. DNS for the zone `astra-style.com` should already be on Cloudflare (domain
-   was purchased for this). Ensure:
-   - Apex: Pages-managed record (CNAME flattening / ALIAS as Cloudflare sets)
-   - `www` → same Pages project
-3. Force HTTPS. Enable always-use-HTTPS.
+DNS for zone `astra-style.com` is on Cloudflare. Force HTTPS / always-use-HTTPS.
 
-### C. Git integration (optional follow-up)
+### C. Git integration
 
-Wire the GitHub repo `Tdocks/Astra-Style` to Pages with:
-
-- Root directory: `web`
-- Build command: `npm run build`
-- Output directory: `dist`
-- Production branch: `main`
-
-Until Git integration exists, CLI deploy from this gate is enough.
-
-### D. `wrangler.toml` sketch
-
-```toml
-name = "astra-style"
-compatibility_date = "2026-08-01"
-pages_build_output_dir = "dist"
-```
+Production branch: `main`. Build command optional (`cd web && npm run build`).
+Deploy command: `npx wrangler deploy`.
 
 ---
 
