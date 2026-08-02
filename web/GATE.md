@@ -90,18 +90,35 @@ Owner / Agent must be authenticated (`wrangler login` or `CLOUDFLARE_API_TOKEN` 
 uses Cloudflare nameservers (`april` / `tate`) but has **no apex A/AAAA/CNAME**,
 so the browser/search bar correctly fails for `https://astra-style.com`.
 
-**In the Cloudflare dashboard (owner click-path):**
+**Preferred (no dashboard clicking):** root `wrangler.toml` already lists
 
-1. Left nav → **Workers & Pages** → open worker **`astra-style`**.
-2. **Settings** → **Domains & Routes** (or **Triggers** → **Custom Domains**).
-3. **Add** → **Custom domain** → enter `astra-style.com` → Add domain.
-4. Repeat for `www.astra-style.com`.
-5. Cloudflare will create the DNS records automatically in the `astra-style.com`
-   zone. Wait until status is **Active** (often 1–5 minutes; sometimes longer).
-6. **SSL/TLS** for the zone → mode **Full (strict)**. Turn on **Always Use HTTPS**.
+```toml
+[[routes]]
+pattern = "astra-style.com"
+custom_domain = true
 
-**Do not** invent manual `A` records to random IPs. Use **Custom Domains** on the
-Worker so Cloudflare wires the proxy correctly.
+[[routes]]
+pattern = "www.astra-style.com"
+custom_domain = true
+```
+
+Redeploy from repo root on latest `main`:
+
+```bash
+npx wrangler deploy
+```
+
+Wrangler attaches both hostnames and creates DNS + certificates in the
+`astra-style.com` zone (must already be on this Cloudflare account — it is).
+
+**Dashboard fallback (if deploy cannot create the domain):**
+
+1. **Workers & Pages** → worker **`astra-style`**
+2. **Settings** → **Domains & Routes** → **Add** → Custom domain
+3. Add `astra-style.com`, then `www.astra-style.com`
+4. Wait until **Active**. SSL/TLS zone mode **Full (strict)** + Always Use HTTPS.
+
+**Do not** invent manual `A` records to random IPs.
 
 Verify:
 
