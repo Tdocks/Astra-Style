@@ -2,6 +2,9 @@
 
 Marketing site for **astra-style.com**, deployed with Cloudflare Workers static assets.
 
+**Claude:** start at [`CLAUDE.md`](CLAUDE.md) in this folder. Edit `site/` and `../legal/`;
+never look under `ios/` for this site.
+
 ## Live URLs
 
 | URL | Status |

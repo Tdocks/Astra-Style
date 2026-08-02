@@ -1,7 +1,8 @@
 # START HERE — Claude on the owner's Mac
 
-> If you are a **Cloudflare / website** agent: wrong file.
-> Open **[`web/GATE.md`](web/GATE.md)** for **astra-style.com**.
+> If you are fixing **astra-style.com / privacy / the marketing site**: wrong file.
+> Open **[`web/CLAUDE.md`](web/CLAUDE.md)** (sources in `web/` + `legal/`, not `ios/`).
+> Deploy brief: [`web/GATE.md`](web/GATE.md).
 
 **Your only job right now:** cut an **internal TestFlight** build of Astra Style
 and get it onto the owner's iPhone.
