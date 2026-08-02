@@ -10,8 +10,8 @@ first — that is the canonical checklist. `HANDOFF.md` §12.0 is the same conte
 with more surrounding context. This file is the short twin. **CLI-only agents
 (no Xcode GUI):** use **`ios/CLI_BUILD_AND_TESTFLIGHT.md`**.
 
-**Status 2026-08-02:** `1.0.0 (1)` uploaded; Internal group + owner invited;
-awaiting Apple processing → Ready to Test → phone smoke.
+**Status 2026-08-02:** `1.0.0 (1)` installed on owner's iPhone via TestFlight.
+Next: smoke checklist in `START_HERE.md` §6 — report pass/fail.
 
 ## What you get on device
 

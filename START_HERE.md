@@ -4,12 +4,10 @@
 > Open **[`web/CLAUDE.md`](web/CLAUDE.md)** (sources in `web/` + `legal/`, not `ios/`).
 > Deploy brief: [`web/GATE.md`](web/GATE.md).
 
-**Current status (2026-08-02):** Build **1.0.0 (1)** uploaded to App Store
-Connect and was **Processing**; Internal TestFlight group created with
-automatic distribution; owner (`tdoxwell@icloud.com`) invited as tester.
-**Your job now:** wait until the build is **Ready to Test**, install via
-TestFlight on the owner's iPhone, run the smoke checklist below. Do not cut
-another build unless this one fails processing or the owner asks.
+**Current status (2026-08-02):** Build **1.0.0 (1)** is **installed on the
+owner's iPhone** via TestFlight (Internal group). **Your job now:** run the
+smoke checklist (§6) and report pass/fail. Do not cut another build unless
+smoke fails hard or the owner asks.
 
 Do **not** dig through `HANDOFF.md` landmines, rewrite READMEs, or start Phase 4.
 Do **not** treat commit `cc7923cf` ("Pre-build groundwork…") as new work — that is
@@ -118,8 +116,8 @@ Never put provider keys in the iOS target.
 
 ## 7. Done when
 
-- [ ] Build is in the internal TestFlight group
-- [ ] Owner launched it on a physical iPhone
+- [x] Build is in the internal TestFlight group
+- [x] Owner launched it on a physical iPhone
 - [ ] Smoke results reported (and any Organizer errors pasted verbatim)
 
 **Out of scope:** Fastlane, public TestFlight, subscriptions, Phase 4 features.
