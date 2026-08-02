@@ -106,10 +106,18 @@ before inviting anyone outside yourself.
    analysis copy; reconnect and confirm analyze completes without re-capture.
 5. Confirm no crash on Closet filters / metrics / mark worn.
 
+## App Store Connect Privacy Policy URL (internal TF)
+
+If ASC requires a Privacy Policy URL on the app record before you can upload or
+enable TestFlight: use `https://astra-style.com/privacy/`. That page shows a
+**Draft** banner on purpose. Do **not** remove the banner and do **not** flip
+`AstraLegal.isPublished` for this cut (`P7-PRIVACY-05` stays deferred).
+
 ## What this doc is not
 
 - Not ASC screenshots, privacy nutrition labels, or subscription products
   (`P7-INFRA-05` / `P7-SUB-*`).
+- Not publishing counsel-cleared legal docs (`P7-PRIVACY-05`).
 - Not CI→TestFlight automation (no Fastlane/Match in-repo yet).
 - Not a substitute for measured 60 fps / device Vision acceptance criteria —
   those stay Partial until you run them on hardware.
