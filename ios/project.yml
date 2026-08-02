@@ -107,6 +107,15 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.astrastyle.app
+        # Signing. Team ID Q9ZH8AA9NY is Tyler Dockswell's Apple Developer
+        # membership (confirmed via the App ID's "Q9ZH8AA9NY (Team ID)" prefix
+        # on developer.apple.com). This was previously only set by hand in
+        # Xcode's Signing & Capabilities pane, which does NOT survive
+        # `xcodegen generate` because project.pbxproj is fully regenerated
+        # from this file — pin it here so a future regen can't silently drop
+        # signing again.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: Q9ZH8AA9NY
         # PRODUCT_NAME is the BUILD artifact name, not what the user sees.
         # It was "Astra Style", and the space caused two separate failures:
         #   1. The Swift module name became `Astra_Style` (non-alphanumerics are
