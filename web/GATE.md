@@ -80,12 +80,40 @@ npx wrangler deploy
 Owner / Agent must be authenticated (`wrangler login` or `CLOUDFLARE_API_TOKEN` +
 `CLOUDFLARE_ACCOUNT_ID`).
 
-### B. Custom domain
+### B. Custom domain (required — deploy alone does **not** bind astra-style.com)
 
-Workers & Pages → worker **astra-style** (or Pages project) → Custom domains →
-add **`astra-style.com`** and **`www.astra-style.com`**.
+`npx wrangler deploy` only publishes the Worker to a `*.workers.dev` URL, e.g.:
 
-DNS for zone `astra-style.com` is on Cloudflare. Force HTTPS / always-use-HTTPS.
+**https://astra-style.7rff2b9rjf.workers.dev** ← open this now; the site is live there.
+
+`astra-style.com` will not resolve until you attach it. As of 2026-08-02 the zone
+uses Cloudflare nameservers (`april` / `tate`) but has **no apex A/AAAA/CNAME**,
+so the browser/search bar correctly fails for `https://astra-style.com`.
+
+**In the Cloudflare dashboard (owner click-path):**
+
+1. Left nav → **Workers & Pages** → open worker **`astra-style`**.
+2. **Settings** → **Domains & Routes** (or **Triggers** → **Custom Domains**).
+3. **Add** → **Custom domain** → enter `astra-style.com` → Add domain.
+4. Repeat for `www.astra-style.com`.
+5. Cloudflare will create the DNS records automatically in the `astra-style.com`
+   zone. Wait until status is **Active** (often 1–5 minutes; sometimes longer).
+6. **SSL/TLS** for the zone → mode **Full (strict)**. Turn on **Always Use HTTPS**.
+
+**Do not** invent manual `A` records to random IPs. Use **Custom Domains** on the
+Worker so Cloudflare wires the proxy correctly.
+
+Verify:
+
+```bash
+curl -sI https://astra-style.7rff2b9rjf.workers.dev | head -5   # expect 200
+curl -sI https://astra-style.com | head -5                      # 200 after attach
+dig +short astra-style.com                                      # should return CF proxied IPs
+```
+
+Google / Safari search will **not** list the site until the custom domain works
+and search engines crawl it (days). Bookmark the `workers.dev` URL or the domain
+after step 5 — do not expect instant SEO.
 
 ### C. Git integration
 
