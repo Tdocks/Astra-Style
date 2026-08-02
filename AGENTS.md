@@ -4,7 +4,7 @@ Which instructions you follow depends on who you are:
 
 | You are… | Open this first |
 |---|---|
-| **Cloudflare Agent** / web / Pages / domain deploy | **[`web/GATE.md`](web/GATE.md)** — build + deploy **astra-style.com** |
+| **Cloudflare Agent** / web / domain deploy | **[`web/GATE.md`](web/GATE.md)** — site is in `web/dist`; from repo root run `npx wrangler deploy` |
 | **Claude Code on the owner's Mac** (iOS / TestFlight) | **[`START_HERE.md`](START_HERE.md)** |
 | Any agent writing iOS / Supabase code | [`CLAUDE.md`](CLAUDE.md) then [`docs/03-progress.md`](docs/03-progress.md) |
 
