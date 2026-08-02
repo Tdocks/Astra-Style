@@ -11,11 +11,15 @@ app can quantify which purchase unlocks the most outfits and build a coherent
 wardrobe over months and years, rather than functioning as a generic shopping app
 or outfit randomizer.
 
-## ▶ Next action (Claude on the owner's Mac)
+## ▶ Next actions (agent gates)
 
-**[`START_HERE.md`](START_HERE.md)** — cut the internal TestFlight build and put
-Astra Style on the owner's iPhone. That file is the whole checklist. Do not start
-by auditing `HANDOFF.md` landmines or re-litigating older commits.
+| Who | Open |
+|---|---|
+| **Cloudflare Agent / website** | **[`web/GATE.md`](web/GATE.md)** — build & deploy **astra-style.com** |
+| **Claude on the owner's Mac** | **[`START_HERE.md`](START_HERE.md)** — internal TestFlight → iPhone |
+| Router | [`AGENTS.md`](AGENTS.md) |
+
+Do not start by auditing `HANDOFF.md` landmines.
 
 ## Status
 
@@ -41,9 +45,12 @@ snapshot — do not treat it as current.
 ## Repo layout
 
 ```
-START_HERE.md    ◀ Claude: open this first — TestFlight cut checklist
-CLAUDE.md        Binding conventions for AI coding agents (points at START_HERE)
-HANDOFF.md       Long cold-start narrative (background; §12.0 = same TF cut)
+AGENTS.md        ◀ Which gate to open (Cloudflare vs Mac/iOS)
+web/GATE.md      ◀ Cloudflare: astra-style.com marketing site deploy brief
+START_HERE.md    ◀ Claude on Mac: TestFlight cut checklist
+CLAUDE.md        Binding conventions for AI coding agents
+HANDOFF.md       Long cold-start narrative (background)
+web/             Marketing site (Pages) — scaffold per web/GATE.md
 docs/            Specs, architecture decisions, roadmap, progress, and ADRs
 ios/             The native iOS app (Swift 6, SwiftUI, XcodeGen-generated project)
 supabase/        Backend: Postgres migrations and Edge Functions
