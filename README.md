@@ -50,11 +50,12 @@ snapshot — do not treat it as current.
 
 ```
 AGENTS.md        ◀ Which gate to open (Cloudflare vs Mac/iOS)
+CLAUDE_HANDOFF.md ◀ Situation brief for Claude / agents (read this)
 web/GATE.md      ◀ Cloudflare: astra-style.com marketing site deploy brief
-START_HERE.md    ◀ Claude on Mac: TestFlight cut checklist
+START_HERE.md    ◀ Claude on Mac: phone smoke checklist
 CLAUDE.md        Binding conventions for AI coding agents
-HANDOFF.md       Long cold-start narrative (background)
-web/             Marketing site (Pages) — scaffold per web/GATE.md
+HANDOFF.md       Older long cold-start dump (prefer CLAUDE_HANDOFF.md)
+web/             Marketing site (Workers) — see web/GATE.md
 docs/            Specs, architecture decisions, roadmap, progress, and ADRs
 ios/             The native iOS app (Swift 6, SwiftUI, XcodeGen-generated project)
 supabase/        Backend: Postgres migrations and Edge Functions
