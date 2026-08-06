@@ -35,6 +35,9 @@ Where things stand, so the deferral is a known state rather than a vague one:
 - `astrastyle.app` was never registered. The owner purchased **`astra-style.com`**
   (Cloudflare DNS) for the marketing site — see `web/GATE.md`. That does **not**
   by itself publish these drafts or flip `AstraLegal.isPublished`.
+- **2026-08-02 confirmation:** live `/privacy` keeps the Draft banner;
+  `isPublished` stays `false`; ASC may temporarily reference the draft URL for
+  internal TestFlight only. Still no counsel pass, no placeholder fill.
 - **Every `[[NEEDS INPUT]]` below still stands.** They are not resolved, not withdrawn, and not
   being chased right now.
 

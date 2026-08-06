@@ -9,9 +9,10 @@ for architectural deviations, a code comment for local ones).
 >
 > | Agent | Open first |
 > |---|---|
+> | **Cold start / where are we?** | **[`CLAUDE_HANDOFF.md`](CLAUDE_HANDOFF.md)** |
 > | **Website / privacy / astra-style.com** | **[`web/CLAUDE.md`](web/CLAUDE.md)** — sources in `web/` + `legal/` (not under `ios/`) |
 > | **Cloudflare deploy** | **[`web/GATE.md`](web/GATE.md)** |
-> | **Claude Code on the owner's Mac (iOS)** | **[`START_HERE.md`](START_HERE.md)** — internal TestFlight cut |
+> | **Claude Code on the owner's Mac (iOS)** | **[`START_HERE.md`](START_HERE.md)** — phone smoke on TestFlight 1.0.0 (1) |
 >
 > Also see root [`AGENTS.md`](AGENTS.md). Do not hunt through `HANDOFF.md` first.
 > `cc7923cf` ("Pre-build groundwork…") is an **old** ancestor, not unfinished tip work.
@@ -29,8 +30,9 @@ provider.
 
 ## Document hierarchy — read this before touching anything
 
-0. **Right now:** Cloudflare → [`web/GATE.md`](web/GATE.md) (astra-style.com).
-   Mac/iOS → [`START_HERE.md`](START_HERE.md) (TestFlight). See [`AGENTS.md`](AGENTS.md).
+0. **Right now:** situation → [`CLAUDE_HANDOFF.md`](CLAUDE_HANDOFF.md).
+   Mac/iOS smoke → [`START_HERE.md`](START_HERE.md). Site → [`web/GATE.md`](web/GATE.md).
+   See [`AGENTS.md`](AGENTS.md).
 1. **`docs/00-master-spec.md` is the source of truth.** Every screen, data model,
    endpoint, and requirement in this codebase traces back to it. If you're unsure
    what a feature should do, the answer is in there — read the relevant section

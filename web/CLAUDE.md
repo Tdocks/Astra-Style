@@ -20,6 +20,10 @@
 - That banner is **intentional** while `[[NEEDS INPUT]]` placeholders remain and
   `AstraLegal.isPublished` is `false` in the iOS app. Do **not** remove it or flip
   `isPublished` unless the owner explicitly says the drafts are counsel-cleared.
+- **Decided 2026-08-02:** leave the banner and `isPublished == false`. ASC may
+  reference `https://astra-style.com/privacy/` for TestFlight — that is not
+  publication. Resume legal work only under `P7-PRIVACY-05`. Full situation:
+  [`CLAUDE_HANDOFF.md`](../CLAUDE_HANDOFF.md).
 - To change privacy **content**, edit `legal/privacy.html`, then:
 
 ```bash

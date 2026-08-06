@@ -1,85 +1,79 @@
 # START HERE — Claude on the owner's Mac
 
+> **Full situation brief:** [`CLAUDE_HANDOFF.md`](CLAUDE_HANDOFF.md) — where we
+> are, what works, what is stub. Read that if you are cold-starting.
+>
 > If you are fixing **astra-style.com / privacy / the marketing site**: wrong file.
 > Open **[`web/CLAUDE.md`](web/CLAUDE.md)** (sources in `web/` + `legal/`, not `ios/`).
 > Deploy brief: [`web/GATE.md`](web/GATE.md).
 
-**Your only job right now:** cut an **internal TestFlight** build of Astra Style
-and get it onto the owner's iPhone.
+**Current status (2026-08-06):** Build **1.0.0 (1)** is **installed on the
+owner's iPhone** via TestFlight (Internal group). **Your job now:** run the
+smoke checklist (§6) and report pass/fail. Do not cut another build unless
+smoke fails hard or the owner asks. Do not start Phase 4.
 
-Do **not** dig through `HANDOFF.md` landmines, rewrite READMEs, or start Phase 4.
-Do **not** treat commit `cc7923cf` ("Pre-build groundwork…") as new work — that is
-an **older** ancestor on `main` (guest scan gate / CI / truth docs). Current tip
-already includes Phase 3 exit + this handoff (`git log -5 --oneline`).
+### Owner decisions (2026-08-02) — stop waiting on these
+
+1. **Privacy / legal stay drafts.** Keep the live “Draft — not yet in force”
+   banner on https://astra-style.com/privacy/. Do **not** remove it. Do **not**
+   flip `AstraLegal.isPublished`. Do **not** fill `[[NEEDS INPUT]]` or chase
+   counsel for this cut (`legal/README.md`, ticket `P7-PRIVACY-05`).
+2. **Priority = TestFlight smoke.** ASC Privacy Policy URL may be
+   `https://astra-style.com/privacy/` — that does **not** authorize flipping
+   in-app legal links.
 
 | Fact | Value |
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
+| Team ID | `Q9ZH8AA9NY` |
+| ASC App ID | `6797115649` |
+| Owner ASC login | `tdoxwell@icloud.com` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (starts at `1`) |
-| Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
-| Twin docs | `docs/12-testflight-cut.md`, `HANDOFF.md` §12.0 (same content, longer context) |
+| Build number | **1 already on ASC** — bump before any re-upload |
+| Supabase project ref | `anutsdzbxycaavmmkewo` |
+| Situation brief | **`CLAUDE_HANDOFF.md`** |
+| GUI path | this file + `docs/12-testflight-cut.md` |
+| CLI path (no Xcode GUI) | **`ios/CLI_BUILD_AND_TESTFLIGHT.md`** |
 
 ---
 
-## 1. Pull and open the project
+## 1. Pull (only if you need to rebuild)
 
 ```bash
-cd /path/to/Astra-Style   # the connected folder
+cd /path/to/Astra-Style
 git checkout main
 git pull origin main
 cd ios
 test -f Config/Secrets.xcconfig || cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig
-# Fill SUPABASE_URL + SUPABASE_ANON_KEY if empty.
 # xcconfig footgun: URLs must be written https:/$()/anutsdzbxycaavmmkewo.supabase.co
 xcodegen generate          # brew install xcodegen if missing
 open AstraStyle.xcodeproj
 ```
 
-## 2. Signing (once)
+## 2. Signing (already pinned for build 1)
 
-In Xcode → AstraStyle target → **Signing & Capabilities**:
-
-- Team = owner's Apple Developer team
-- Automatically manage signing = ON
-- Bundle ID = `com.astrastyle.app`
-- App Icon should resolve from `Resources/Assets.xcassets`
+In `ios/project.yml` target settings: `CODE_SIGN_STYLE: Automatic`,
+`DEVELOPMENT_TEAM: Q9ZH8AA9NY`. Do not rely on GUI-only signing —
+`xcodegen generate` regenerates the project.
 
 Do not commit `Secrets.xcconfig` or any `.p12` / provisioning profile.
 
-## 3. Bump build number if needed
+## 3. Bump build number only for a re-upload
 
 ASC rejects duplicate `CFBundleVersion`. Edit `CURRENT_PROJECT_VERSION` in
-`ios/project.yml`, then `xcodegen generate` again. Commit the bump before upload.
+`ios/project.yml`, then `xcodegen generate`. Commit the bump before upload.
 
-## 4. Archive → TestFlight
+## 4. Archive → TestFlight (re-cuts only)
 
-1. Scheme **AstraStyle**, destination **Any iOS Device (arm64)** (not Simulator).
-2. **Product → Archive** → Organizer opens.
-3. **Distribute App → App Store Connect → Upload**.
-4. Wait for ASC processing.
-5. App Store Connect → TestFlight → add build to the **internal** group (owner's Apple ID).
-6. iPhone → TestFlight app → install **Astra Style**.
+GUI: Scheme **AstraStyle** → Any iOS Device → Product → Archive → Distribute →
+App Store Connect.
 
-CLI archive (optional):
+CLI: follow **`ios/CLI_BUILD_AND_TESTFLIGHT.md`** (`xcodebuild archive` +
+`-exportArchive` with `ExportOptions.plist`).
 
-```bash
-cd ios
-xcodegen generate
-xcodebuild archive \
-  -project AstraStyle.xcodeproj \
-  -scheme AstraStyle \
-  -configuration Release \
-  -archivePath build/AstraStyle.xcarchive \
-  -destination 'generic/platform=iOS'
-```
-
-Then export/upload via Organizer or Transporter.
-
-**2FA / license agreements:** stop and ask the owner. Never invent Apple credentials
-or put app-specific passwords in the repo.
+**2FA / license agreements:** stop and ask the owner.
 
 ## 5. Optional — real vision (mock is the default)
 
@@ -91,7 +85,7 @@ supabase functions deploy closet
 See `supabase/functions/closet/README.md` and `docs/08-provider-abstraction.md` §2.5.
 Never put provider keys in the iOS target.
 
-## 6. Smoke on the phone (report pass/fail)
+## 6. Smoke on the phone (report pass/fail) — **do this now**
 
 1. Guest or Sign in with Apple → Home / Closet.
 2. Manual add a garment → shows under category; wear count 0.
@@ -99,15 +93,19 @@ Never put provider keys in the iOS target.
 4. Airplane mode: Closet cached; scan queues; reconnect analyzes without re-capture.
 5. Filters / metrics / mark worn — no crash.
 
+Note: analyze defaults to **mock** vision unless §5 was enabled — mock success
+still counts as a pass for the client loop.
+
 ## 7. Done when
 
-- [ ] Build is in the internal TestFlight group
-- [ ] Owner launched it on a physical iPhone
+- [x] Build is in the internal TestFlight group
+- [x] Owner launched it on a physical iPhone
 - [ ] Smoke results reported (and any Organizer errors pasted verbatim)
 
-**Out of scope:** Fastlane, public TestFlight, subscriptions, Phase 4 features.
+**Out of scope:** Fastlane, public TestFlight, subscriptions, Phase 4 features,
+legal publish.
 
 ---
 
 If something blocks you, tell the owner the exact Xcode/ASC error. Do not pivot
-into unrelated refactors while this cut is unfinished.
+into unrelated refactors while smoke is unfinished.
