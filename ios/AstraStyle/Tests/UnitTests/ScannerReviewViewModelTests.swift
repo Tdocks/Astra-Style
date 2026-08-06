@@ -352,7 +352,10 @@ private final class FlippingNetworkMonitor: NetworkReachabilityMonitoring, @unch
     }
 
     private func removeContinuation(id: UUID) {
-        _ = withState { state in
+        // No `_ =`: the closure returns Void, so discarding it is redundant and
+        // the compiler says so — and the CI warning gate greps the whole
+        // `ios/AstraStyle/` tree, tests included.
+        withState { state in
             state.continuations[id] = nil
         }
     }

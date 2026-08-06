@@ -52,11 +52,19 @@ function suggestion<T>(value: T, confidence: number): FieldSuggestionDTO<T> {
 
 function resolveCategory(
   providerCategory: string,
+  providerConfidence: number,
   hints?: DeviceHints,
 ): FieldSuggestionDTO<string> {
   const lower = providerCategory.toLowerCase();
   if (CATEGORIES.has(lower)) {
-    return suggestion(lower, 0.91);
+    // The provider's own number, not a constant. This used to be a
+    // hardcoded 0.91, which meant a category the provider had *guessed* was
+    // presented to the user as one it had read — the mock defaults to "top"
+    // whenever device hints carry no category, which on a real deploy is
+    // every single request, and the live OpenAI adapter's measured
+    // confidence was being flattened the same way. `flags.add("category")`
+    // below can only fire if this number is allowed through.
+    return suggestion(lower, providerConfidence);
   }
   const approx = hints?.approximateCategory?.toLowerCase();
   if (approx && CATEGORIES.has(approx)) {
@@ -74,7 +82,7 @@ export function mapProviderResultToWire(
   result: GarmentAnalysisResult,
   opts: { deviceHints?: DeviceHints; normalizedImagePath?: string },
 ): ClosetItemAnalysisResultDTO {
-  const category = resolveCategory(result.category, opts.deviceHints);
+  const category = resolveCategory(result.category, result.confidence, opts.deviceHints);
   const flags = new Set(result.fieldsBelowConfidenceThreshold);
 
   const brand = result.brandGuess
@@ -166,7 +174,10 @@ export function mapProviderResultToWire(
  * device hints and mark every inferred field low-confidence.
  */
 export function degradedResultFromHints(hints?: DeviceHints): ClosetItemAnalysisResultDTO {
-  const category = resolveCategory("unknown", hints);
+  // "unknown" is not a category, so the provider confidence passed here is
+  // never read — the hint branch or the "top" default answers instead, and
+  // the line below pins the result at the degraded value regardless.
+  const category = resolveCategory("unknown", 0.35, hints);
   category.confidence = 0.35;
   const primary = hints?.dominantColorsRgb[0] ? suggestion("navy", 0.35) : suggestion("navy", 0.2);
   return {

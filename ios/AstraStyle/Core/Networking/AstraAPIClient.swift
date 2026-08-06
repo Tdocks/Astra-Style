@@ -22,6 +22,7 @@
 //
 
 import Foundation
+import OSLog
 
 /// Supplies the current Supabase access token, if any. Implemented by
 /// `SessionStore`; injected post-construction to avoid a circular
@@ -43,6 +44,11 @@ public final class AstraAPIClient: @unchecked Sendable {
     private let decoder: JSONDecoder
     private let retryPolicy: AstraRetryPolicy
     private let tokenProviderBox: TokenProviderBox
+
+    /// Diagnostics only. Nothing user-identifying is ever logged here —
+    /// the marked-public interpolations are an endpoint path, an HTTP
+    /// method, a server-authored message and a client-minted request id.
+    fileprivate static let logger = Logger(subsystem: "app.astrastyle", category: "networking")
 
     public init(
         environment: AstraEnvironment,
@@ -147,7 +153,7 @@ public final class AstraAPIClient: @unchecked Sendable {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AstraError.network("No HTTP response received.", requestID: requestID)
         }
-        try throwIfUnsuccessful(httpResponse, data: data, requestID: requestID)
+        try throwIfUnsuccessful(httpResponse, endpoint: endpoint, data: data, requestID: requestID)
 
         return try decodePayload(Payload.self, from: data, statusCode: httpResponse.statusCode, requestID: requestID)
     }
@@ -197,6 +203,7 @@ public final class AstraAPIClient: @unchecked Sendable {
     /// present, preferring the server's own error envelope when it sent one.
     private func throwIfUnsuccessful(
         _ response: HTTPURLResponse,
+        endpoint: AstraEndpoint,
         data: Data,
         requestID: String
     ) throws {
@@ -211,6 +218,8 @@ public final class AstraAPIClient: @unchecked Sendable {
             return
         case 401, 403:
             throw AstraError.auth("Your session has expired.", requestID: requestID)
+        case 404:
+            throw notFoundError(endpoint: endpoint, data: data, requestID: requestID, envelope: serverEnvelopeError())
         case 422, 400:
             throw serverEnvelopeError()
                 ?? AstraError.validation("The request was invalid.", requestID: requestID)
@@ -234,6 +243,55 @@ public final class AstraAPIClient: @unchecked Sendable {
                     requestID: requestID
                 )
         }
+    }
+
+    /// Maps a 404 onto `.unimplemented` rather than `.server`.
+    ///
+    /// Two different things return 404 here and only one of them is a
+    /// runtime failure:
+    ///
+    /// 1. **Supabase's gateway**, when the *slug* has never been deployed.
+    ///    Its body is `{"code":404,"message":"Requested function was not
+    ///    found"}` — a shape that is not `AstraResponseEnvelope`. Because
+    ///    every field of that envelope is optional, the decode *succeeds*
+    ///    with `error == nil`, so `serverEnvelopeError()` returns nil and
+    ///    the old `default:` branch produced "Unexpected response (404)."
+    ///    The server's message was never missing; it was decoded into
+    ///    silence by a shape mismatch.
+    /// 2. **A deployed function's own router**, when the sub-path is
+    ///    unknown (ADR 0013). That one does send the envelope.
+    ///
+    /// Both are facts about the build, not transient conditions, so both
+    /// map to `.unimplemented` — which `isRetryable` already reports as
+    /// false. Before this, `.server` was retryable, so a permanently-404ing
+    /// URL was retried three times with backoff before the user saw
+    /// anything, and the UI then offered him a "Try Again" button that
+    /// could not succeed (spec §22, "no dead buttons").
+    ///
+    /// The user-facing `message` stays generic on purpose; the endpoint
+    /// path and the gateway's own words go to the log, correlated by
+    /// `requestID` (spec §14).
+    private func notFoundError(
+        endpoint: AstraEndpoint,
+        data: Data,
+        requestID: String,
+        envelope: AstraError?
+    ) -> AstraError {
+        let gatewayMessage = (try? decoder.decode(AstraGatewayErrorPayload.self, from: data))?.message
+        Self.logger.error(
+            """
+            404 for \(endpoint.method.rawValue, privacy: .public) \
+            \(endpoint.path, privacy: .public) — \
+            \(envelope?.message ?? gatewayMessage ?? "no message from server", privacy: .public) \
+            [request_id \(requestID, privacy: .public)]
+            """
+        )
+        return AstraError(
+            category: .unimplemented,
+            message: String(localized: "This part of Astra isn't ready yet."),
+            underlyingStatusCode: 404,
+            requestID: requestID
+        )
     }
 
     /// Unwraps the success envelope. A 2xx that carries an `error` or no `data`

@@ -355,7 +355,8 @@ Two other error types cross boundaries: **`GuestClosetError.capReached(limit:)`*
 - **Request envelope:** `{request_id, client_version, body}`. `clientVersion` is `"ios/<CFBundleShortVersionString>"`.
 - **Headers:** `Content-Type`, `X-Request-Id`, `apikey: <anon>`, `Authorization: Bearer <access token>` (or the anon key for the one unauthenticated endpoint).
 - **Response envelope:** `{data, error, request_id}`. **A 2xx carrying `error != null`, or a 2xx with `data == null`, is a failure.**
-- **Status mapping:** 401/403 → `.auth` (envelope ignored); 400/422 → prefers the envelope; 429 → `.rateLimited`; 5xx → prefers the envelope; **anything else → `default:`, which discards the envelope** and yields `"Unexpected response (404)."` — so a routing mistake surfaces without the router's carefully-shaped message.
+- **Status mapping:** 401/403 → `.auth` (envelope ignored); **404 → `.unimplemented`** (see below); 400/422 → prefers the envelope; 429 → `.rateLimited`; 5xx → prefers the envelope; anything else → `default:`, which prefers the envelope and falls back to `"Unexpected response (<code>)."`
+- **404 is its own branch since 2026-08-06**, because it has exactly two causes and neither is transient: an undeployed slug (Supabase's gateway answers in its *own* shape, `{"code":"NOT_FOUND","message":...}` — note `code` is a **string**, and that body decodes "successfully" as `AstraResponseEnvelope` because every field of the envelope is optional, which is how the real message used to vanish), or a deployed function's router rejecting a sub-path (ADR 0013's envelope). Both are facts about the build, so both map to `.unimplemented`, which is **not retryable** — that is what stops the UI offering a retry that cannot work, and stops the client burning three backoff attempts on a permanently-404ing URL. The endpoint path and the server's own words go to `Logger(subsystem: "app.astrastyle", category: "networking")`, correlated by `X-Request-Id`.
 - **Retry:** `AstraRetryPolicy.default = (maxAttempts: 3, baseDelay: 0.5, maxDelay: 8.0)`, exponential with up to 20% jitter, applied only when `isRetryable`.
 
 ### 4.10 Persistence and offline
@@ -759,7 +760,9 @@ Ordered roughly by how expensive they are to hit.
 
 **1. The UUID-casing storage trap.** See §5.3. Silent 403 on every object, no error naming the cause. Documented in exactly two client-side doc comments and nowhere server-side.
 
-**2. Orphaned uploads and non-idempotent retry on a paid call.** `analyzeItem` uploads to Storage **then** calls the Edge Function. The `closet` function doesn't exist, so every call today 404s and **leaks a storage object** — batch leaks N. Worse: `AstraRetryPolicy.default` retries 5xx three times with **no idempotency key**, so one user tap can become **three paid vision calls**, and with `docs/08`'s additive low-confidence Terra escalation, up to six. `ProviderRequestContext.idempotencyKey` exists in `_shared/providers/types.ts` and is **unused**. There is also **no cleanup path** for an upload abandoned at the review screen — ADR 0010 defines a 24h sweep for *references* but nothing for closet captures. **Fix this with the function, not after it.**
+**2. Orphaned uploads.** `analyzeItem` uploads to Storage **then** calls the Edge Function, and there is still **no cleanup path** for an upload abandoned at the review screen, or for one whose analyze call fails. ADR 0010 defines a 24h sweep for *references* and nothing for closet captures, and `ClosetRepository` has no delete verb at all. Batch leaks N.
+
+> **Updated 2026-08-06.** Two thirds of this landmine are closed. The `closet` function **is deployed** to `anutsdzbxycaavmmkewo` (it existed in the repo from `59e07361` but had never been deployed, and its migration `20260801120000_closet_analysis_jobs.sql` had never been applied — both done now), so analyze no longer 404s on every call. Idempotency is real: `AstraEndpoint.requiresIdempotencyKey` mints one key per logical call and reuses it across retries, and `closet_analysis_idempotency` replays the stored response, so one tap can no longer become three paid vision calls. **The storage leak is the part that remains** and is still unfixed.
 
 **3. Grouped-function fate-sharing puts a batch job in the interactive path's isolate.** ADR 0013 requires `analyze-item` and `batch-analyze` to be **one deployed function**, sharing one in-memory rate limiter and one deploy unit. Batch is bursty and long-running; single-item analysis is what a user is staring at. A 20-image batch will saturate the shared limiter and can OOM the isolate. **Design the batch as a job + poll from day one** — P3-SCAN-08's own scope permits "asynchronously or via polling". Note a polling endpoint is a *new* §14 endpoint, touching `AstraEndpoint`, `EndpointDeploymentMappingTests` and arguably the spec.
 
@@ -777,7 +780,9 @@ xcodebuild -project ios/AstraStyle.xcodeproj -scheme AstraStyle \
 
 It must print nothing.
 
-**7. `AstraAPIClient` discards the server envelope on 404** (`default:` branch), so a routing mistake surfaces as `"Unexpected response (404)."` rather than the router's careful message. When you're debugging a new endpoint and see that string, suspect the slug.
+**7. ~~`AstraAPIClient` discards the server envelope on 404.~~ Fixed 2026-08-06** — see §4.9. A 404 now maps to `.unimplemented` and the server's message is logged. The replacement landmine is smaller but real: **a new endpoint whose function is not yet deployed now fails quietly and unretryably.** That is the honest behaviour, but it means the screen says "Not ready yet" rather than anything you can debug from. When you see that, read the log line — it names the method and path.
+
+**7a. `xcodegen generate` rewrites `ios/AstraStyle/Resources/Info.plist` wholesale**, because `project.yml`'s `info:` block owns that path. Anything hand-added to the plist disappears at the next regen with no warning. This already happened once: commit `913e43a1` added `UISupportedInterfaceOrientations` (App Store Connect rejects an upload without it) and a later regen silently deleted it — it was missing from the working tree again on 2026-08-06. The keys now live in `project.yml`'s `info.properties`, which is the only place they survive. **Note the `INFOPLIST_KEY_*` build settings do NOT cover this**: Xcode merges those only when `GENERATE_INFOPLIST_FILE` is `YES`, and this target supplies its own plist.
 
 **8. `.github/workflows/edge-functions.yml` does not cover `profile/` or `style-dna/`.** Adding a new function directory requires editing **both** that workflow **and** the four hardcoded directory lists in `supabase/functions/deno.json` — and bumping `requiredNow` in the Swift test.
 
@@ -1084,14 +1089,21 @@ These used to be the “pick up next” list; they shipped before/with PR #12 �
 
 ### 13.2 Endpoints and their deployment state
 
-| Endpoint | Method | Slug | Function dir |
+Four slugs are deployed to `anutsdzbxycaavmmkewo`, verified 2026-08-06 via
+`list_edge_functions`: `profile`, `style-dna`, `outfits`, `closet` — all
+`verify_jwt: true`. **"Built" and "deployed" are different facts and this table
+tracks the second**, because `closet` sat fully written and fully tested in the
+repo for five days while every client call to it 404'd.
+
+| Endpoint | Method | Slug | State |
 |---|---|---|---|
-| `profile/complete-onboarding` | POST | `profile` | ✅ built |
-| `style-dna/generate` | POST | `style-dna` | ✅ built |
-| `outfits/generate` | POST | `outfits` | ✅ built |
-| `outfits/rank` | POST | `outfits` | ⚠️ dir exists, route not built |
-| `closet/analyze-item` | POST | `closet` | ❌ |
-| `closet/batch-analyze` | POST | `closet` | ❌ |
+| `profile/complete-onboarding` | POST | `profile` | ✅ deployed |
+| `style-dna/generate` | POST | `style-dna` | ✅ deployed |
+| `outfits/generate` | POST | `outfits` | ✅ deployed |
+| `outfits/rank` | POST | `outfits` | ⚠️ slug deployed, route not built |
+| `closet/analyze-item` | POST | `closet` | ✅ deployed 2026-08-06 (mock vision provider) |
+| `closet/batch-analyze` | POST | `closet` | ✅ deployed 2026-08-06 (job + poll) |
+| `closet/batch-status/{uuid}` | GET | `closet` | ✅ deployed 2026-08-06 |
 | `daily-brief/generate` | POST | `daily-brief` | ❌ |
 | `kyra/respond` | POST | `kyra` | ❌ |
 | `products/extract` | POST | `products` | ❌ |

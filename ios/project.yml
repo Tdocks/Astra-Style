@@ -147,6 +147,27 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
+
+        # Orientations must be HERE, not only in the INFOPLIST_KEY_* build
+        # settings above. Those settings are merged by Xcode only when
+        # GENERATE_INFOPLIST_FILE is YES; this target supplies its own
+        # Info.plist, so they never reach the bundle and App Store Connect
+        # rejects the upload for a missing UISupportedInterfaceOrientations.
+        #
+        # Commit 913e43a1 fixed that by adding the keys directly to
+        # Resources/Info.plist — but XcodeGen OWNS that file through the
+        # `path:` above and rewrites it wholesale on every `xcodegen
+        # generate`, so the fix silently disappeared the next time anyone
+        # regenerated the project. It was already gone from the working tree
+        # when this was written. Declaring them here is the only version that
+        # survives a regen.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # Deliberately NOT set to `Dark`. This is a UIKit-level hard
         # override that wins over SwiftUI's `.preferredColorScheme(...)` —
         # `App/AstraStyleApp.swift` already applies

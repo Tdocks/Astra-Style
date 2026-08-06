@@ -29,12 +29,29 @@ const CATEGORIES = new Set([
   "fragrance",
 ]);
 
-function resolveCategory(hints?: GarmentAnalysisRequest["deviceHints"]): string {
+/**
+ * Resolve a category from the device hints, and say whether it was actually
+ * read or merely defaulted.
+ *
+ * `isFallback` is not decoration. No production iOS code sets
+ * `approximateCategory` — `DeviceHintsExtraction` produces colours and OCR
+ * text, and nothing computes a category — so on a real deploy **every**
+ * request lands on the `"top"` default. Returning that at the same 0.91
+ * confidence as a read category is how a man photographing a pair of shoes
+ * gets told, with no hedge anywhere on the screen, that he owns a navy
+ * crewneck sweater.
+ *
+ * This codebase's rule is that absent is honest and a confounded reading is
+ * not. A default is not a reading, and the caller marks it as such.
+ */
+function resolveCategory(
+  hints?: GarmentAnalysisRequest["deviceHints"],
+): { category: string; isFallback: boolean } {
   const approx = hints?.approximateCategory?.toLowerCase();
   if (approx && CATEGORIES.has(approx)) {
-    return approx;
+    return { category: approx, isFallback: false };
   }
-  return "top";
+  return { category: "top", isFallback: true };
 }
 
 function hexToLch(hex: string): { l: number; c: number; h: number } {
@@ -122,7 +139,7 @@ export class MockVisionAnalysisProvider implements VisionAnalysisProvider {
   ): Promise<GarmentAnalysisResult> {
     void ctx.idempotencyKey;
     const hints = request.deviceHints;
-    const category = resolveCategory(hints);
+    const { category, isFallback: categoryIsFallback } = resolveCategory(hints);
     const colors = hints?.dominantColorsRgb ?? [];
     const primaryHex = colors[0] ?? "#1B2A4A";
     const secondaryHexes = colors.slice(1, 3);
@@ -150,11 +167,21 @@ export class MockVisionAnalysisProvider implements VisionAnalysisProvider {
     if (sizeGuess && sizeGuess.confidence < 0.6) {
       lowFields.push("size");
     }
+    // A defaulted category is a guess about the garment, and `subcategory`
+    // is derived from it, so both are marked. `ClosetItemAnalysisResult`
+    // unions this list with its own computed one, so marking here can only
+    // ever add a hedge — never remove one.
+    if (categoryIsFallback) {
+      lowFields.push("category", "subcategory");
+    }
 
     const result: GarmentAnalysisResult = {
       category,
       subcategory,
-      confidence: 0.91,
+      // Below `AnalysisConfidence.lowConfidenceThreshold` (0.6) when the
+      // category was defaulted rather than read, so the review screen shows
+      // "Kyra isn't sure — check this" instead of a confident wrong answer.
+      confidence: categoryIsFallback ? 0.35 : 0.91,
       colorLch: hexToLch(primaryHex),
       secondaryColorsLch: secondaryHexes.map(hexToLch),
       pattern: "solid",

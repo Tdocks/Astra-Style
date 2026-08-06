@@ -74,6 +74,26 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
         let profile = try await profileRepository.fetchCurrentProfile()
 
+        // §6.11's empty state is a fact about the closet, not a failure of
+        // the brief generator — a man who finished onboarding sixty seconds
+        // ago has nothing to be dressed in, and asking the server to build
+        // him an outfit anyway can only fail. Ask the closet first.
+        //
+        // The count is read here rather than inferred from a nil
+        // `primaryOutfitID` on the way back because that inference requires
+        // the round trip to have succeeded. Before this check existed the
+        // empty state was reachable only by guests: every signed-in user
+        // went to `generateDailyBrief`, whose Edge Function is not built
+        // (P4-HOME-02), and got an error screen where §6.11 specifies an
+        // invitation. `try?` rather than `try` on purpose — if the closet
+        // itself is unreachable we genuinely do not know the count, and
+        // falling through to the old path surfaces that honestly instead
+        // of telling a man with forty garments that he owns nothing.
+        let closetItems = try? await closetRepository.fetchItems()
+        if let closetItems, closetItems.count < HomeBriefData.minimumItemsForOutfits {
+            return await loadSparseClosetBrief(profile: profile, closetItems: closetItems)
+        }
+
         let brief: DailyBrief
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
             brief = cached
@@ -122,6 +142,48 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             throw AstraError.validation("There's no outfit to mark worn yet.")
         }
         try await outfitRepository.recordWear(outfitID: outfitID, wornAt: .now, occasion: nil, rating: nil, feedback: nil)
+    }
+
+    // MARK: - Sparse-closet brief (spec §6.11 empty state)
+
+    /// The signed-in counterpart to `loadGuestBrief()`: a real profile, a
+    /// real closet, and deliberately no outfit — because there aren't
+    /// enough garments to build one from.
+    ///
+    /// `primaryOutfit` is nil, which is what drives
+    /// `HomeBriefData.needsMoreClosetItems` and therefore
+    /// `HomeViewModel.ViewState.empty`. The header still greets him by
+    /// name and the laundry count is still real: `.empty` carries its
+    /// payload precisely so an empty screen is not a blank one.
+    ///
+    /// Weather and schedule are nil rather than fetched. Both arrive on
+    /// the `DailyBrief` the server generates, and there is no honest way
+    /// to put a forecast on a screen whose whole message is "there is
+    /// nothing to dress you in yet" — a weather strip above that copy
+    /// implies an outfit recommendation the app has not made.
+    private func loadSparseClosetBrief(profile: Profile, closetItems: [ClosetItem]) async -> HomeBriefData {
+        async let wardrobeScoreTask = fetchWardrobeScoreSafely()
+        async let occasionsTask = calendarService.fetchUpcomingEvents(
+            in: DateInterval(start: .now, duration: 60 * 60 * 18),
+            userID: profile.id
+        )
+
+        let wardrobeScore = await wardrobeScoreTask
+        let occasions = await occasionsTask
+
+        return HomeBriefData(
+            greetingName: profile.greetingName,
+            weather: nil,
+            schedule: nil,
+            brief: DailyBrief(id: UUID(), userID: profile.id, briefDate: .now),
+            primaryOutfit: nil,
+            primaryOutfitItems: [],
+            alternativeOutfits: [],
+            wardrobeScore: wardrobeScore,
+            laundryAlertItemCount: closetItems.filter { $0.laundryState == .laundry }.count,
+            upcomingOccasions: occasions,
+            purchaseOpportunity: nil
+        )
     }
 
     // MARK: - Guest brief (ADR 0011; never touches Supabase)

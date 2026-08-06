@@ -62,6 +62,31 @@ public struct AstraServerErrorPayload: Decodable, Sendable {
     }
 }
 
+/// Supabase's own gateway error shape, which is **not**
+/// `AstraResponseEnvelope`.
+///
+/// When a function slug has never been deployed the request never reaches
+/// any Astra code, so nothing writes the envelope: the platform answers
+/// on its own. Decoding that as `AstraResponseEnvelope` silently
+/// *succeeds* — every field of the envelope is optional — leaving
+/// `error == nil` and discarding the only sentence that said what went
+/// wrong. This type exists so the gateway's message can be logged rather
+/// than lost; see
+/// `AstraAPIClient.notFoundError(endpoint:data:requestID:envelope:)`.
+///
+/// **Only `message` is declared, deliberately.** The bodies observed
+/// against `anutsdzbxycaavmmkewo` on 2026-08-06 were
+/// `{"code":"NOT_FOUND","message":"Requested function was not found"}` for
+/// an undeployed slug and
+/// `{"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization
+/// header"}` with no bearer token — so `code` is a string there, while
+/// Supabase's docs and older responses show an integer. Declaring it at
+/// either type makes the whole decode fail on the other, throwing away the
+/// message for the sake of a field nothing reads.
+public struct AstraGatewayErrorPayload: Decodable, Sendable {
+    public let message: String
+}
+
 /// An empty, `Encodable`/`Decodable` payload for endpoints that take or
 /// return no body (e.g. `GET /studio/status/:id` takes none;
 /// `DELETE /account` returns none).

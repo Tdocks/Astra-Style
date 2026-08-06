@@ -54,6 +54,18 @@ public struct HomeBriefData: Sendable {
     public var needsMoreClosetItems: Bool {
         primaryOutfit == nil
     }
+
+    /// The closet size below which §6.11's empty state — not a Daily Brief —
+    /// is the correct screen, taken from that section's own wording
+    /// ("Prompt to add 5 closet items") and §21's example copy ("Add five
+    /// pieces and Kyra can begin building real outfits").
+    ///
+    /// It lives here rather than inside `DefaultHomeBriefProvider` because
+    /// it is the number the *copy* promises. If the two ever disagree the
+    /// screen tells the user to add five pieces and then keeps showing him
+    /// the same screen after he adds a fifth, which reads as a broken app
+    /// rather than an early one.
+    public static let minimumItemsForOutfits = 5
 }
 
 /// "Purchase opportunity with outfit unlock count" module (spec §6.11).
