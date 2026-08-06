@@ -15,28 +15,32 @@ or outfit randomizer.
 
 | Who | Open |
 |---|---|
-| **Cloudflare Agent / website** | **[`web/GATE.md`](web/GATE.md)** — build & deploy **astra-style.com** |
-| **Claude on the owner's Mac** | **[`START_HERE.md`](START_HERE.md)** — internal TestFlight → iPhone |
+| **Cold start / where are we?** | **[`CLAUDE_HANDOFF.md`](CLAUDE_HANDOFF.md)** |
+| **Cloudflare Agent / website** | **[`web/GATE.md`](web/GATE.md)** — **astra-style.com** (live) |
+| **Claude on the owner's Mac** | **[`START_HERE.md`](START_HERE.md)** — phone smoke on TestFlight 1.0.0 (1) |
 | Router | [`AGENTS.md`](AGENTS.md) |
 
-Do not start by auditing `HANDOFF.md` landmines.
+Do not start by auditing `HANDOFF.md` landmines — use `CLAUDE_HANDOFF.md`.
 
 ## Status
 
-**Phase 3 of 7 — Closet — exit cut for internal TestFlight.** Closet is usable
-end to end (browse, filters, metrics, manual add/edit, free-tier/guest caps,
-offline read cache). Single-item Scanner ships (capture/import → review → save →
-unlock report, offline queue). Batch/receipt/mirror, server cutout, and the live
-OpenAI vision pilot gate remain Partial. Outfit intelligence, Kyra, Style Studio,
-shopping, and subscriptions remain largely unbuilt.
+**Phase 3 of 7 — Closet — internal TestFlight installed on the owner's iPhone
+(1.0.0 build 1).** Closet is usable end to end (browse, filters, metrics, manual
+add/edit, free-tier/guest caps, offline read cache). Single-item Scanner ships
+(capture/import → review → save → unlock report, offline queue). Vision defaults
+to **mock**. Batch/receipt/mirror, server cutout, and the live OpenAI vision
+pilot gate remain Partial. Outfit intelligence, Kyra, Style Studio, shopping,
+and subscriptions remain largely unbuilt. Marketing site live at
+https://astra-style.com (legal pages still Draft).
 
 **Per-ticket status for all 178 tickets lives in
-[`docs/03-progress.md`](docs/03-progress.md)** (~45 Done / 52 Partial / 81 Not
+[`docs/03-progress.md`](docs/03-progress.md)** (45 Done / 52 Partial / 81 Not
 started — trust that file, not this paragraph). Enforced by
 `scripts/check_progress.py` in CI.
 
-Cold-start narrative: [`HANDOFF.md`](HANDOFF.md). Phase plan:
-`docs/01-build-roadmap.md`. Risks: `docs/11-risk-register.md`.
+Situation brief: [`CLAUDE_HANDOFF.md`](CLAUDE_HANDOFF.md). Older dump:
+[`HANDOFF.md`](HANDOFF.md). Phase plan: `docs/01-build-roadmap.md`. Risks:
+`docs/11-risk-register.md`.
 
 **Authoritative master spec:** [`docs/00-master-spec.md`](docs/00-master-spec.md).
 Any `Astra_Style_iOS_Master_Build_Spec.md` sitting outside this repo is a frozen
@@ -46,11 +50,12 @@ snapshot — do not treat it as current.
 
 ```
 AGENTS.md        ◀ Which gate to open (Cloudflare vs Mac/iOS)
+CLAUDE_HANDOFF.md ◀ Situation brief for Claude / agents (read this)
 web/GATE.md      ◀ Cloudflare: astra-style.com marketing site deploy brief
-START_HERE.md    ◀ Claude on Mac: TestFlight cut checklist
+START_HERE.md    ◀ Claude on Mac: phone smoke checklist
 CLAUDE.md        Binding conventions for AI coding agents
-HANDOFF.md       Long cold-start narrative (background)
-web/             Marketing site (Pages) — scaffold per web/GATE.md
+HANDOFF.md       Older long cold-start dump (prefer CLAUDE_HANDOFF.md)
+web/             Marketing site (Workers) — see web/GATE.md
 docs/            Specs, architecture decisions, roadmap, progress, and ADRs
 ios/             The native iOS app (Swift 6, SwiftUI, XcodeGen-generated project)
 supabase/        Backend: Postgres migrations and Edge Functions
