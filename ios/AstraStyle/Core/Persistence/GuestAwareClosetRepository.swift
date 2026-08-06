@@ -50,6 +50,10 @@ public struct GuestAwareClosetRepository: ClosetRepository {
         try await active().uploadCapturedImage(data)
     }
 
+    public func deleteCapturedImage(atPath storagePath: String) async throws {
+        try await active().deleteCapturedImage(atPath: storagePath)
+    }
+
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         try await active().analyzeItem(request)
     }

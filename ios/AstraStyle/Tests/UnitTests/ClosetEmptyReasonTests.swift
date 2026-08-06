@@ -300,6 +300,8 @@ private struct StubClosetRepository: ClosetRepository {
         return "users/test/closet/stub.jpg"
     }
 
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
+
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.unimplemented("Scanning is not part of these tests.")
     }

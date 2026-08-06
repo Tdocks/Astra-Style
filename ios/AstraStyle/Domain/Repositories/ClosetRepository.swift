@@ -24,6 +24,27 @@ public protocol ClosetRepository: Sendable {
     /// retried without discarding the local draft).
     func uploadCapturedImage(_ data: Data) async throws -> String
 
+    /// Deletes a capture that was uploaded but never became a
+    /// `ClosetItemImage` — a scan the user retook, closed out of, or whose
+    /// analysis failed for good.
+    ///
+    /// Without this the bytes stay in `user-content` forever with nothing
+    /// in Postgres referencing them: invisible to the user, invisible in
+    /// the app, and counted against his storage. A batch leaks one per
+    /// image. ADR 0010 defines a 24-hour sweep for *reference* photos and
+    /// nothing at all for closet captures, and a sweep would in any case
+    /// leave a photograph he abandoned on the server for a day.
+    ///
+    /// **Only ever called for a path that is not referenced by a saved
+    /// item.** Deleting is not undoable, so the decision of when a capture
+    /// is abandoned belongs to the flow that owns it
+    /// (`ScannerReviewViewModel.discardUnsavedUpload`), not here.
+    ///
+    /// Throwing is meaningful — a caller that is cleaning up should not
+    /// fail the user's action over it, but it should not pretend the
+    /// object is gone either.
+    func deleteCapturedImage(atPath storagePath: String) async throws
+
     /// Returns the server's analysis suggestion for review (spec §6.16
     /// "Review screen"). Does not create a `ClosetItem` by itself — call
     /// `createItem` once the user confirms.

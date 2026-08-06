@@ -31,8 +31,7 @@ struct ScannerDestinationView: View {
                     if showsChromeClose {
                         ToolbarItem(placement: .cancellationAction) {
                             Button(String(localized: "Close", comment: "Dismiss scanner modal")) {
-                                container.captureDraftStore.removeAll()
-                                dismiss()
+                                closeScanner()
                             }
                             .foregroundStyle(AstraColor.textSecondary)
                         }
@@ -40,9 +39,34 @@ struct ScannerDestinationView: View {
                 }
         }
         .presentationBackground(AstraColor.backgroundPrimary)
+        // Covers the swipe-dismiss, which reaches neither Close button.
         .onDisappear {
+            discardUnsavedUpload()
             container.captureDraftStore.removeAll()
         }
+    }
+
+    /// Every exit that is not a save runs through here.
+    ///
+    /// The capture is already in `user-content` by the time the review
+    /// screen renders — `uploadCapturedImage` runs before the user has
+    /// decided anything — so leaving without saving strands the object with
+    /// nothing referencing it. Dropping the local draft, which is all this
+    /// used to do, removes the only thing that knew the path.
+    ///
+    /// The `Task` captures the view model strongly on purpose: it has to
+    /// outlive the dismissal that fires immediately after, or the cleanup
+    /// is cancelled by the very action that made it necessary. The view
+    /// model's own guard makes the call a no-op after a successful save.
+    private func discardUnsavedUpload() {
+        guard let viewModel = reviewViewModel else { return }
+        Task { await viewModel.discardUnsavedUpload() }
+    }
+
+    private func closeScanner() {
+        discardUnsavedUpload()
+        container.captureDraftStore.removeAll()
+        dismiss()
     }
 
     private var showsChromeClose: Bool {
@@ -94,8 +118,7 @@ struct ScannerDestinationView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button(String(localized: "Close", comment: "Dismiss scanner from review")) {
-                            container.captureDraftStore.removeAll()
-                            dismiss()
+                            closeScanner()
                         }
                         .foregroundStyle(AstraColor.textSecondary)
                     }
@@ -150,6 +173,10 @@ struct ScannerDestinationView: View {
                         dismiss()
                     },
                     onRetake: {
+                        // Retake is the abandonment the user is most likely
+                        // to repeat — three attempts at one garment leave
+                        // three orphans without this.
+                        discardUnsavedUpload()
                         Task { await container.pendingScanQueue.remove(id: draftID) }
                         container.captureDraftStore.remove(id: draftID)
                         self.reviewViewModel = nil

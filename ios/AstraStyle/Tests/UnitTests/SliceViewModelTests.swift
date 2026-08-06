@@ -102,6 +102,8 @@ private actor StubClosetRepository: ClosetRepository {
         return "users/test/closet/stub.jpg"
     }
 
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
+
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError(category: .unknown, message: "not used by the slice — no camera/Vision in the slice")
     }

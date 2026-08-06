@@ -47,6 +47,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
         try await base.uploadCapturedImage(data)
     }
 
+    public func deleteCapturedImage(atPath storagePath: String) async throws {
+        try await base.deleteCapturedImage(atPath: storagePath)
+    }
+
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         try await base.analyzeItem(request)
     }

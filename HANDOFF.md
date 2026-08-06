@@ -760,9 +760,16 @@ Ordered roughly by how expensive they are to hit.
 
 **1. The UUID-casing storage trap.** See §5.3. Silent 403 on every object, no error naming the cause. Documented in exactly two client-side doc comments and nowhere server-side.
 
-**2. Orphaned uploads.** `analyzeItem` uploads to Storage **then** calls the Edge Function, and there is still **no cleanup path** for an upload abandoned at the review screen, or for one whose analyze call fails. ADR 0010 defines a 24h sweep for *references* and nothing for closet captures, and `ClosetRepository` has no delete verb at all. Batch leaks N.
+**2. ~~Orphaned uploads and non-idempotent retry on a paid call.~~ Closed 2026-08-06.** Kept here because the *shape* of it recurs: `analyzeItem` uploads to Storage and then calls an Edge Function, so any failure between those two steps strands bytes nobody references.
 
-> **Updated 2026-08-06.** Two thirds of this landmine are closed. The `closet` function **is deployed** to `anutsdzbxycaavmmkewo` (it existed in the repo from `59e07361` but had never been deployed, and its migration `20260801120000_closet_analysis_jobs.sql` had never been applied — both done now), so analyze no longer 404s on every call. Idempotency is real: `AstraEndpoint.requiresIdempotencyKey` mints one key per logical call and reuses it across retries, and `closet_analysis_idempotency` replays the stored response, so one tap can no longer become three paid vision calls. **The storage leak is the part that remains** and is still unfixed.
+What closed it, in the order the three parts fell:
+- The `closet` function **is deployed** (it existed in the repo from `59e07361` and had never been deployed; `20260801120000_closet_analysis_jobs.sql` had never been applied — both done now), so analyze stopped 404ing on every call.
+- **Idempotency is real:** `AstraEndpoint.requiresIdempotencyKey` mints one key per logical call and reuses it across retries; `closet_analysis_idempotency` replays the stored response. One tap can no longer become three paid vision calls.
+- **`ClosetRepository.deleteCapturedImage(atPath:)` now exists**, and `ScannerReviewViewModel.discardUnsavedUpload()` runs on every non-save exit (Retake, both Close buttons, swipe-dismiss). `LiveClosetRepository.analyzeItem` / `batchAnalyzeItems` additionally delete what *they* uploaded on failure.
+
+Two rules to preserve if you touch this. **Only compensate for an upload you made** — a caller-supplied `storagePath` belongs to the caller, and the scanner deliberately keeps its path across an analyze retry so the retry does not re-upload; deleting it would pull the object out from under the retry. And **the batch stops compensating once the job is enqueued** — from then on the server owns those objects, and a poll that times out is not a reason to delete images a job is still working through.
+
+ADR 0010's 24h sweep for *reference* photos still does not exist. That is a separate gap.
 
 **3. Grouped-function fate-sharing puts a batch job in the interactive path's isolate.** ADR 0013 requires `analyze-item` and `batch-analyze` to be **one deployed function**, sharing one in-memory rate limiter and one deploy unit. Batch is bursty and long-running; single-item analysis is what a user is staring at. A 20-image batch will saturate the shared limiter and can OOM the isolate. **Design the batch as a job + poll from day one** — P3-SCAN-08's own scope permits "asynchronously or via polling". Note a polling endpoint is a *new* §14 endpoint, touching `AstraEndpoint`, `EndpointDeploymentMappingTests` and arguably the spec.
 

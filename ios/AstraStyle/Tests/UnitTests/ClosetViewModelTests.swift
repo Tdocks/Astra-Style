@@ -760,6 +760,8 @@ private actor StubClosetRepository: ClosetRepository {
     func uploadCapturedImage(_ data: Data) async throws -> String {
         _ = data; return "users/test/closet/stub.jpg"
     }
+
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.unimplemented("Scanning is not part of this screen.")
     }

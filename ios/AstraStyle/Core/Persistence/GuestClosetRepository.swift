@@ -70,6 +70,16 @@ public struct GuestClosetRepository: ClosetRepository {
         throw AstraError.validation("Scanning isn't available in guest mode yet. Create an account to scan items.")
     }
 
+    public func deleteCapturedImage(atPath storagePath: String) async throws {
+        // A guest cannot have uploaded anything (see above), so there is
+        // nothing of his in `user-content` to remove. Succeeding silently
+        // rather than throwing is the correct answer to "make sure this
+        // path is gone": it is, and it never existed. Throwing here would
+        // make the scanner's cleanup path report a failure on the one
+        // session type that cannot possibly leak.
+        _ = storagePath
+    }
+
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         // Analysis requires uploading the image to a Vision Edge Function,
         // which would put guest photo bytes on Supabase — exactly what

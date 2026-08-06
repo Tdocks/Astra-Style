@@ -93,6 +93,8 @@ private actor StubClosetRepository: ClosetRepository {
         return "users/test/closet/stub.jpg"
     }
 
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
+
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw StubUnexpectedError()
     }

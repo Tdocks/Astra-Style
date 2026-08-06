@@ -326,6 +326,7 @@ private struct UnreachableClosetRepository: ClosetRepository {
     func fetchItem(id: UUID) async throws -> ClosetItem { throw AstraError.network("unused") }
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
     func uploadCapturedImage(_ data: Data) async throws -> String { throw AstraError.network("unused") }
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.network("unused")
     }
@@ -365,6 +366,8 @@ private actor ThrowingWardrobeScoreClosetRepository: ClosetRepository {
         _ = data
         return "users/test/closet/stub.jpg"
     }
+
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
 
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.validation("unused")

@@ -57,6 +57,128 @@ struct ScannerReviewViewModelTests {
         #expect(model.outfitsUnlockedCount == 2)
     }
 
+    // MARK: - Abandoned captures
+    //
+    // `uploadCapturedImage` runs before the user has decided anything, so
+    // every exit that is not a save strands an object in `user-content`
+    // with nothing in Postgres referencing it. These assert on
+    // `liveStoragePaths` — "nothing was left behind" — rather than on a
+    // delete call count, which would pass just as well if the wrong path
+    // were deleted.
+
+    @Test("Leaving review without saving removes the uploaded capture")
+    func abandonedCaptureIsDeleted() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(draftID: draft.id, store: store, repository: repository)
+
+        await model.start()
+        let uploaded = try #require(model.storagePath)
+
+        await model.discardUnsavedUpload()
+
+        #expect(repository.deletedPaths == [uploaded])
+        #expect(repository.liveStoragePaths.isEmpty)
+        #expect(model.storagePath == nil)
+        // The draft must forget the path too, or a resumed review would
+        // skip the upload and then analyze an object that is gone.
+        #expect(store.draft(id: draft.id)?.storagePath == nil)
+    }
+
+    /// The one case where deleting would be actively destructive: after a
+    /// save, that path *is* the garment's `ClosetItemImage.storagePath`.
+    /// The scanner's dismissal calls this on every exit including the one
+    /// straight after a successful save, so the guard is load-bearing.
+    @Test("A saved capture is never deleted")
+    func savedCaptureSurvivesDiscard() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(draftID: draft.id, store: store, repository: repository)
+
+        await model.start()
+        let uploaded = try #require(model.storagePath)
+        await model.save()
+        #expect(model.phase == .saved)
+
+        await model.discardUnsavedUpload()
+
+        #expect(repository.deletedPaths.isEmpty)
+        #expect(repository.liveStoragePaths == [uploaded])
+        #expect(repository.lastImages?.first?.storagePath == uploaded)
+    }
+
+    @Test("Discarding twice cannot ask the server to delete the same object twice")
+    func discardIsIdempotent() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(draftID: draft.id, store: store, repository: repository)
+
+        await model.start()
+        await model.discardUnsavedUpload()
+        await model.discardUnsavedUpload()
+
+        #expect(repository.deletedPaths.count == 1)
+    }
+
+    /// A cleanup that cannot reach the network must not trap the user on a
+    /// screen he is trying to leave. The object leaks, which is logged and
+    /// is the same outcome as before this existed — the point is that the
+    /// dismissal still happens.
+    @Test("A failed cleanup does not throw at the caller")
+    func failedCleanupIsSwallowed() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(draftID: draft.id, store: store, repository: repository)
+
+        await model.start()
+        repository.deleteError = AstraError.network("offline")
+
+        await model.discardUnsavedUpload()
+
+        #expect(model.storagePath == nil)
+        #expect(repository.liveStoragePaths.count == 1)
+    }
+
+    /// Nothing was uploaded, so there is nothing to clean up — and calling
+    /// the repository anyway would fail on a path that never existed.
+    @Test("Discarding before an upload succeeded touches nothing")
+    func discardBeforeUploadIsANoOp() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        repository.uploadError = AstraError.server("upload failed")
+        let model = makeModel(draftID: draft.id, store: store, repository: repository)
+
+        await model.start()
+        await model.discardUnsavedUpload()
+
+        #expect(repository.deletedPaths.isEmpty)
+    }
+
     @Test("Non-network upload failure keeps the local draft and retry re-invokes upload")
     func uploadFailureIsRetryable() async throws {
         let jpeg = try #require(fixtureJPEG())
@@ -250,6 +372,14 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     var lastAnalyzeStoragePath: String?
     var seedItems: [ClosetItem] = []
     private var uploadedPath: String?
+    /// Paths handed out and not yet deleted — the stand-in for objects
+    /// still sitting in `user-content`. Asserting `liveStoragePaths` is
+    /// empty says "nothing was left behind", which is the property that
+    /// matters; a delete *call count* would pass just as well if the
+    /// wrong path were deleted.
+    private(set) var liveStoragePaths: Set<String> = []
+    private(set) var deletedPaths: [String] = []
+    var deleteError: AstraError?
 
     func fetchItems() async throws -> [ClosetItem] {
         var items = seedItems
@@ -271,7 +401,16 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
         }
         let path = "users/test/closet/\(UUID().uuidString.lowercased()).jpg"
         uploadedPath = path
+        liveStoragePaths.insert(path)
         return path
+    }
+
+    func deleteCapturedImage(atPath storagePath: String) async throws {
+        deletedPaths.append(storagePath)
+        if let deleteError {
+            throw deleteError
+        }
+        liveStoragePaths.remove(storagePath)
     }
 
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
