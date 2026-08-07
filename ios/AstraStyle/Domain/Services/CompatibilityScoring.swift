@@ -52,6 +52,35 @@ public struct CompatibilityBreakdown: Codable, Hashable, Sendable {
     public var occasionRelevance: Double
     public var availabilityLaundry: Double
 
+    /// Snake-case wire keys, added when this type first crossed the network.
+    ///
+    /// It was `Codable` from the start and had no `CodingKeys`, which was
+    /// harmless for exactly as long as it stayed inside the app: nothing
+    /// encoded it. `AstraAPIClient` uses a plain `JSONDecoder` with no key
+    /// strategy, so the moment `/outfits/rank` started returning a breakdown
+    /// the default camelCase keys would have missed every snake_case field the
+    /// server sends — and missed them LOUDLY, since all eight are non-optional
+    /// `Double`, so it would have thrown rather than quietly zeroing.
+    ///
+    /// Every other wire type in this app spells its keys out in snake_case for
+    /// the same reason; this one had simply never needed to.
+    ///
+    /// `frameHarmony` is here for completeness and round-tripping. No server
+    /// sends it — the wearer half of the silhouette dimension has no server
+    /// implementation — and its absence collapses `silhouetteCompatibility`
+    /// back to `silhouetteInternal`, which is the honest reading.
+    enum CodingKeys: String, CodingKey {
+        case colorCompatibility = "color_compatibility"
+        case formalityAlignment = "formality_alignment"
+        case silhouetteInternal = "silhouette_internal"
+        case frameHarmony = "frame_harmony"
+        case seasonWeatherSuitability = "season_weather_suitability"
+        case userPreference = "user_preference"
+        case historicalCoWear = "historical_co_wear"
+        case occasionRelevance = "occasion_relevance"
+        case availabilityLaundry = "availability_laundry"
+    }
+
     /// The silhouette dimension spec §10 weights at 0.15.
     ///
     /// Frame fit deliberately splits this EXISTING dimension rather than adding
