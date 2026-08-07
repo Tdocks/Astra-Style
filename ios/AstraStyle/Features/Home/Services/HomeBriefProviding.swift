@@ -93,30 +93,47 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // Never prompts — see `currentWeatherSnapshotIfAuthorized()`.
         let weatherSnapshot = await currentWeatherSnapshotIfAuthorized()
 
-        let brief: DailyBrief
+        let serverBrief: DailyBrief
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
-            // A cached brief can predate today's weather permission grant —
-            // e.g. the very first Home load of the day happened before the
-            // user tapped "Enable Weather". Overlay the fresh client reading
-            // onto the value handed to `HomeBriefData` so the header is
-            // honest about what Kyra can see right now, WITHOUT writing back
-            // to the server: this is a read, and turning it into a network
-            // write purely to attach a forecast would cost a request on
-            // every single Home load for no reason the user asked for. The
-            // persisted row catches up the next time generation actually
-            // runs (a new day, or an explicit regenerate).
-            brief = weatherSnapshot.map { snapshot in
-                var patched = cached
-                patched.weatherSnapshot = snapshot
-                return patched
-            } ?? cached
+            serverBrief = cached
         } else {
             // `regenerate` is threaded through rather than always false:
             // the endpoint is idempotent per `brief_date`, so §6.11's
             // regenerate control would otherwise return the outfits the
             // user just asked to replace.
-            brief = try await outfitRepository.generateDailyBrief(for: .now, regenerate: regenerate, weather: weatherSnapshot)
+            serverBrief = try await outfitRepository.generateDailyBrief(
+                for: .now,
+                regenerate: regenerate,
+                weather: weatherSnapshot
+            )
         }
+
+        // THE CLIENT'S OWN READING WINS, ON BOTH PATHS.
+        //
+        // The cached path needs it for an obvious reason: a brief written this
+        // morning can predate the moment the user tapped "Enable Weather", and
+        // the header should say what Kyra can see NOW.
+        //
+        // The generate path needs it for a less obvious one, and it was a real
+        // bug — this overlay used to apply only to the cached branch. On the
+        // generate branch the snapshot goes UP to the server, is persisted, and
+        // comes back down on the returned row; so the header was reading a
+        // value it already held in a local variable, via a network round trip,
+        // and showed nothing at all whenever the server did not echo it back.
+        // Depending on a round trip to return something you are holding is
+        // fragile in the exact case where it matters — a slow or partial write
+        // and the header silently goes blank on a device that knows the
+        // weather perfectly well.
+        //
+        // Overlaying is NOT a write. Attaching a forecast to the persisted row
+        // on every Home read would cost a request per screen load for
+        // something nobody asked for; the row catches up the next time
+        // generation actually runs.
+        let brief = weatherSnapshot.map { snapshot in
+            var patched = serverBrief
+            patched.weatherSnapshot = snapshot
+            return patched
+        } ?? serverBrief
 
         // Each of these degrades independently to an empty/nil result on
         // failure via `try?` inside the wrapper — a hiccup fetching, say,

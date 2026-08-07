@@ -30,8 +30,8 @@ import Foundation
 import Supabase
 
 public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
-    private let apiClient: AstraAPIClient
-    private let supabase: SupabaseClient
+    let apiClient: AstraAPIClient
+    let supabase: SupabaseClient
     let offlineQueue: OfflineMutationQueue
     let writer: any OutfitWriting
     private let cache: OutfitCaching
@@ -300,76 +300,8 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
         }
     }
 
-    public func fetchDailyBrief(for date: Date) async throws -> DailyBrief? {
-        do {
-            return try await supabase.from("daily_briefs")
-                .select()
-                .eq("brief_date", value: DateFormatter.astraDay.string(from: date))
-                .single()
-                .execute()
-                .value
-        } catch {
-            return nil
-        }
-    }
-
-    public func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
-        struct Body: Encodable, Sendable {
-            let date: String
-            let regenerate: Bool
-            // Reuses `WeatherSnapshot`'s own `Encodable`/`CodingKeys`, so the
-            // wire shape matches `weather_snapshot` exactly — no second,
-            // divergent JSON shape for the same data.
-            let weatherSnapshot: WeatherSnapshot?
-            enum CodingKeys: String, CodingKey {
-                case date
-                case regenerate
-                case weatherSnapshot = "weather_snapshot"
-            }
-        }
-        return try await apiClient.send(
-            .generateDailyBrief,
-            body: Body(date: DateFormatter.astraDay.string(from: date), regenerate: regenerate, weatherSnapshot: weather),
-            as: DailyBrief.self
-        )
-    }
-
-    public func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
-        struct Body: Encodable, Sendable {
-            let destination: String
-            let startDate: Date
-            let endDate: Date
-            let activities: [String]
-            let dressCodes: [DressCode]
-            let luggageConstraint: LuggageConstraint
-            let hasLaundryAccess: Bool
-            enum CodingKeys: String, CodingKey {
-                case destination
-                case startDate = "start_date"
-                case endDate = "end_date"
-                case activities
-                case dressCodes = "dress_codes"
-                case luggageConstraint = "luggage_constraint"
-                case hasLaundryAccess = "has_laundry_access"
-            }
-        }
-        return try await apiClient.send(
-            .generatePacking,
-            body: Body(
-                destination: request.destination,
-                startDate: request.startDate,
-                endDate: request.endDate,
-                activities: request.activities,
-                dressCodes: request.dressCodes,
-                luggageConstraint: request.luggageConstraint,
-                hasLaundryAccess: request.hasLaundryAccess
-            ),
-            as: PackingPlan.self
-        )
-    }
 }
 
-/// `POST /outfits/generate` request body.
 private struct GenerateOutfitsBody: Encodable, Sendable {
     let occasionID: UUID?
     let naturalLanguageRequest: String?
@@ -392,16 +324,4 @@ private struct GenerateOutfitsBody: Encodable, Sendable {
         case excludedClosetItemIDs = "excluded_closet_item_ids"
         case desiredCount = "desired_count"
     }
-}
-
-extension DateFormatter {
-    /// `YYYY-MM-DD`, matching the Postgres `date` column type used by
-    /// `daily_briefs.brief_date` (spec §9).
-    static let astraDay: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = .current
-        return formatter
-    }()
 }

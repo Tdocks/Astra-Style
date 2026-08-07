@@ -35,7 +35,11 @@ struct OutfitItemAssemblyTests {
         #expect(items.count == 2)
         #expect(items[0].role == .top)
         #expect(items[1].role == .bottom)
-        #expect(items.allSatisfy(\.isRequired))
+        // A literal closure, not `allSatisfy(\.isRequired)`. The key-path form
+        // makes `rethrows` unprovable inside `#expect`'s macro expansion, and
+        // the build fails with "call can throw" pointing at generated code
+        // rather than at this line. The closure form infers non-throwing.
+        #expect(items.allSatisfy { $0.isRequired })
         #expect(items.allSatisfy { $0.outfitID == outfitID })
     }
 

@@ -39,6 +39,7 @@ import {
   wearableItems,
 } from "../_shared/scoring/compatibility.ts";
 import type { GarmentRole, ScorableItem, ScoringContext } from "../_shared/scoring/types.ts";
+import { canonicalSignature } from "../_shared/scoring/equivalence.ts";
 import { buildReason } from "./reason.ts";
 
 export interface GenerateCandidateOutfitsOptions {
@@ -135,23 +136,20 @@ function extendOptional(
   return prune(expanded, BEAM_WIDTH);
 }
 
-/** Section 6.3's canonical signature: sorted `(role, colour bucket, formality bucket, fit)` tuple. */
-function equivalenceClass(item: ScorableItem): string {
-  const colorBucket = item.primaryColor === null
-    ? "color-unread"
-    : item.isNeutral
-    ? "neutral"
-    : `hue${Math.floor(item.primaryColor.h / 30)}`;
-  const formalityBucket = item.formalityScore === null
-    ? "formality-unclassified"
-    : `f${Math.floor(item.formalityScore / 10)}`;
-  const fitBucket = item.fit ?? "fit-unrecorded";
-  return `${item.role}:${colorBucket}:${formalityBucket}:${fitBucket}`;
-}
-
-function canonicalSignature(items: readonly ScorableItem[]): string {
-  return [...items.map(equivalenceClass)].sort().join("|");
-}
+// §6.3's canonical signature lives in `_shared/scoring/equivalence.ts` and is
+// imported above, NOT reimplemented here.
+//
+// It briefly was reimplemented here, and the two copies did not agree: this
+// file bucketed hue by a flat 30° division while the shared one uses §5.4's
+// hue-bin clustering. Both are defensible in isolation and the disagreement is
+// not visible in either. It is visible on a Home screen, where the daily brief
+// deduplicates outfits with one rule and the purchase-unlock count beside it
+// deduplicates with the other, and the two answer differently whether two looks
+// are "the same" — for the same closet, in the same session, six inches apart.
+//
+// That is the failure mode of building the generator and the unlock count at
+// the same time, and the reason there is one §6.3 rather than a copy per
+// caller. If the bucketing needs to change, it changes once.
 
 function dropNearDuplicates(rankedDescending: readonly PartialCombo[]): PartialCombo[] {
   const seen = new Set<string>();
