@@ -70,6 +70,14 @@ public final class HomeViewModel {
     public private(set) var isMarkingWorn = false
     public private(set) var isRegenerating = false
 
+    /// Drives `WeatherOptInCardView`/the denied-state notice (P4-HOME-05).
+    /// Starts `.notDetermined` — the same value a brand-new install's
+    /// `CLLocationManager` reports — so a view rendered before `onAppear()`
+    /// runs (a `#Preview`, a test asserting on the freshly-constructed view
+    /// model) shows nothing rather than a false "denied" state.
+    public private(set) var weatherAuthorization: WeatherLocationAuthorization = .notDetermined
+    public private(set) var isRequestingWeatherPermission = false
+
     private let provider: HomeBriefProviding
     private let analyticsClient: AnalyticsClient
     private let networkMonitor: NetworkReachabilityMonitoring
@@ -86,7 +94,37 @@ public final class HomeViewModel {
 
     public func onAppear() async {
         isOffline = await networkMonitor.isOffline()
+        // Read-only — never prompts. First use of Home is when spec §7's
+        // location permission becomes reachable at all, but the ask itself
+        // waits for `enableWeather()`, which only `WeatherOptInCardView`'s
+        // button calls.
+        weatherAuthorization = provider.weatherAuthorization()
         guard case .loading = state else { return }
+        await load(regenerate: false)
+    }
+
+    /// Spec §7's "Location: when enabling weather", requested in context on
+    /// first use of Home and nowhere during onboarding — the requirement
+    /// `P2-ONBOARD-06` dropped and this ticket now owns (see
+    /// `docs/02-task-breakdown.md`'s `P4-HOME-05` entry).
+    ///
+    /// The one caller of `HomeBriefProviding.requestWeatherPermission()`
+    /// reachable from a live screen, and it is only ever invoked from
+    /// `WeatherOptInCardView`'s button — which has already put the
+    /// explanation on screen. That ordering is the whole point: nothing
+    /// else in this view model calls it, so the system prompt cannot
+    /// appear before a man has read why.
+    public func enableWeather() async {
+        guard weatherAuthorization == .notDetermined, !isRequestingWeatherPermission else { return }
+        isRequestingWeatherPermission = true
+        defer { isRequestingWeatherPermission = false }
+        let granted = await provider.requestWeatherPermission()
+        weatherAuthorization = granted ? .authorized : .denied
+        guard granted else { return }
+        // Reload rather than patch `state` in place: the brief the user is
+        // looking at was generated/read before weather existed, and a
+        // fresh `loadTodayBrief()` is what actually attaches it (see
+        // `DefaultHomeBriefProvider`'s cached-vs-generate weather overlay).
         await load(regenerate: false)
     }
 

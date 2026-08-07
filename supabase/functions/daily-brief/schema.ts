@@ -27,6 +27,17 @@ export interface GenerateDailyBriefBody {
    * user who is looking at them.
    */
   readonly regenerate: boolean;
+  /**
+   * The caller's own `WeatherService` reading (P4-HOME-05), or `null` when
+   * weather permission was never granted or the lookup failed. There is no
+   * server-side weather provider — see `README.md`'s "What it deliberately
+   * does not produce" — so this is the only source `weather_snapshot` can
+   * ever have. Validated, not merely passed through: a populated object
+   * that does not match the client's `WeatherSnapshot` shape would decode
+   * on the device and throw, per `DailyBrief.init(from:)`'s own comment on
+   * why a malformed snapshot must not reach that column.
+   */
+  readonly weatherSnapshot: Record<string, unknown> | null;
 }
 
 /** Envelope every Astra client wraps its bodies in (`AstraRequestEnvelope`). */
@@ -62,6 +73,52 @@ export function parseEnvelope(raw: unknown): RequestEnvelope {
 // request finds.
 const BRIEF_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Mirrors `WeatherCondition`'s raw values on the client exactly. */
+const KNOWN_WEATHER_CONDITIONS = new Set([
+  "clear",
+  "partly_cloudy",
+  "cloudy",
+  "fog",
+  "rain",
+  "drizzle",
+  "thunderstorm",
+  "snow",
+  "sleet",
+  "windy",
+]);
+
+/**
+ * Validates an optional client-supplied weather reading against the shape
+ * `WeatherSnapshot.init(from:)` on the client actually decodes.
+ *
+ * Absent/`null` maps to `null` — "no forecast available" is the ordinary
+ * case (permission not yet granted, or granted but the lookup failed) and
+ * is not an error. A PRESENT object that does not match the shape IS
+ * rejected rather than silently dropped: `DailyBrief.init(from:)`'s own
+ * comment explains why a populated-but-malformed snapshot must never reach
+ * the column — the client's decoder throws on it and takes the whole
+ * brief down, which is worse than this request failing loudly instead.
+ */
+function parseWeatherSnapshot(raw: unknown): Record<string, unknown> | null {
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  const record = asRecord(raw, "`weather_snapshot`");
+
+  const temperatureHigh = record["temperature_high"];
+  const temperatureLow = record["temperature_low"];
+  if (typeof temperatureHigh !== "number" || typeof temperatureLow !== "number") {
+    throw badRequest("`weather_snapshot.temperature_high`/`temperature_low` must be numbers.");
+  }
+
+  const condition = record["condition"];
+  if (typeof condition !== "string" || !KNOWN_WEATHER_CONDITIONS.has(condition)) {
+    throw badRequest("`weather_snapshot.condition` must be a known weather condition.");
+  }
+
+  return record;
+}
+
 export function parseGenerateDailyBriefBody(raw: unknown): GenerateDailyBriefBody {
   const record = asRecord(raw, "`body`");
 
@@ -80,7 +137,9 @@ export function parseGenerateDailyBriefBody(raw: unknown): GenerateDailyBriefBod
     throw badRequest("`regenerate` must be a boolean when present.");
   }
 
-  return { briefDate, regenerate: regenerate === true };
+  const weatherSnapshot = parseWeatherSnapshot(record["weather_snapshot"]);
+
+  return { briefDate, regenerate: regenerate === true, weatherSnapshot };
 }
 
 // ---------------------------------------------------------------------------

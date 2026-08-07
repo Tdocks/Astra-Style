@@ -155,6 +155,11 @@ function generateRoute(req: Request): Promise<Response> {
           brief_date: input.briefDate,
           primary_outfit_id: input.primaryOutfitId,
           alternative_outfit_ids: input.alternativeOutfitIds,
+          // `?? {}` matches the column's own default (P4-HOME-05): no
+          // weather reading is the ordinary case, not an error, and `{}`
+          // is what `mapBriefRowToWire` already knows how to turn back
+          // into `null` for the client.
+          weather_snapshot: input.weatherSnapshot ?? {},
           schedule_snapshot: input.scheduleSnapshot,
         }, { onConflict: "user_id,brief_date" })
         .select(BRIEF_COLUMNS)

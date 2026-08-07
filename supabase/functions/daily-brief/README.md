@@ -21,9 +21,21 @@ supabase functions deploy daily-brief --project-ref anutsdzbxycaavmmkewo
 {
   "request_id": "…",
   "client_version": "ios/1.0.0",
-  "body": { "date": "2026-08-06", "regenerate": false }
+  "body": {
+    "date": "2026-08-06",
+    "regenerate": false,
+    "weather_snapshot": {
+      "temperature_high": 68,
+      "temperature_low": 54,
+      "condition": "partly_cloudy"
+    }
+  }
 }
 ```
+
+`weather_snapshot` is optional and, when present, must match the client's own `WeatherSnapshot`
+shape (`temperature_high`/`temperature_low` numbers, a known `condition` string — see `schema.ts`'s
+`parseWeatherSnapshot`). Omit it, or send `null`, when the client has no weather reading to offer.
 
 `date` is the caller's local calendar day and is matched strictly against `YYYY-MM-DD`, then
 re-checked for being a real day. `new Date(value)` would accept `2026-13-45`, `2026-8-6` and a full
@@ -54,12 +66,15 @@ succeed and one fail on the constraint.
 
 ## What it deliberately does not produce
 
-Spec §14 lists weather and a Kyra-authored message among this endpoint's inputs. Neither is
-assembled, and their absence is the honest answer:
+Spec §14 lists weather and a Kyra-authored message among this endpoint's inputs.
 
-- **`weather_snapshot` is null.** There is no server-side weather provider. `P4-HOME-05` is Not
-  started and `WeatherService` on the client has zero production call sites. A forecast nothing
-  measured does not belong on Home.
+- **`weather_snapshot` is whatever the client sent, or null.** There is still no server-side weather
+  provider — `P4-HOME-05` wired the client's own `WeatherService` (WeatherKit) into
+  `HomeBriefProviding`, which now passes its reading up in the request body rather than this
+  endpoint looking one up itself. `null` when the client had none to offer (permission not yet
+  granted, denied, or the lookup failed) is still the honest, and common, answer — this endpoint
+  never invents a forecast to fill the column, and rejects a populated-but-malformed one rather than
+  storing it (see `schema.ts`'s `parseWeatherSnapshot`).
 - **`kyra_message` is null.** The scorer behind these outfits returns one identical hardcoded
   `reason` for every outfit it builds, so a "Kyra's insight" module fed from it would be the same
   sentence every day, dressed as a judgement. `HomeView` already renders that module only when the
