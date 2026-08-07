@@ -108,15 +108,17 @@ final class OnboardingFlowUITests: XCTestCase {
         return found
     }
 
-    /// Enters guest mode, which reaches onboarding without a network or an
-    /// account (spec §6.2) — so this runs on a clean simulator with no fixtures.
+    /// Enters onboarding against the in-memory mocks.
+    ///
+    /// This used to tap "Explore in guest mode", which was the only
+    /// account-free way in. ADR 0014 removed it, so the account-free entry
+    /// is now `-astra-mock-backend` — Debug-only, swaps the whole dependency
+    /// graph for `Core/Mocks`, and still runs on a clean simulator with no
+    /// network and no fixtures.
     private func enterOnboarding() {
+        app.launchArguments += ["-astra-mock-backend"]
         app.launch()
-        let guest = app.buttons["Explore in guest mode"].exists
-            ? app.buttons["Explore in guest mode"]
-            : app.staticTexts["Explore in guest mode"]
-        awaitElement(guest, "Welcome: guest entry")
-        guest.tap()
+        awaitElement(app.buttons["onboarding.begin"], "Intro")
     }
 
     /// Every option tile currently on screen, whichever comparison it belongs to.
@@ -551,16 +553,11 @@ private extension OnboardingFlowUITests {
 
     /// Enters onboarding as a SIGNED-IN user, against the in-memory mocks.
     ///
-    /// Guest mode is the only account-free way into the flow, and a guest has
-    /// no server profile (ADR 0011) — so a guest run of §6.10 can only reach
-    /// the guest outcome, and the six sections that step exists to show would
-    /// have no UI coverage at all. `-astra-mock-backend` is Debug-only and
-    /// swaps the whole dependency graph for `Core/Mocks`, so this still runs on
-    /// a clean simulator with no network and no fixtures.
+    /// Kept as a named alias of `enterOnboarding()`. Both entries used to
+    /// differ — one guest, one signed in — and every §6.10 assertion below
+    /// says which it meant. They are the same thing now (ADR 0014).
     private func enterOnboardingSignedIn() {
-        app.launchArguments += ["-astra-mock-backend"]
-        app.launch()
-        awaitElement(app.buttons["onboarding.begin"], "Intro, signed in")
+        enterOnboarding()
     }
 
     /// Walks §6.3-§6.9 with the minimum input the flow requires, to reach
@@ -831,7 +828,7 @@ private extension OnboardingFlowUITests {
     ///
     /// Deliberately shallow. Both steps have their own suite —
     /// `OnboardingCaptureStepsUITests` — because the §29 consent gate and the
-    /// guest cap need more assertions than a pass-through walk should carry.
+    /// closet cap need more assertions than a pass-through walk should carry.
     /// What this covers is the part only the full walk can: that neither step
     /// interrupts the sequence, and that both are captured in the same
     /// review pass as every other screen.
@@ -856,26 +853,24 @@ private extension OnboardingFlowUITests {
     }
 
     private func walkResult() {
-        // §6.10 — Result, as a GUEST. ADR 0011: a guest has no server profile,
-        // so there is no Style DNA to generate and no call to make. What must
-        // be true is that he lands on something coherent — not a spinner that
-        // never resolves and not an error — and that the step's own promise
-        // ("edit anything that's wrong") is still keepable.
+        // §6.10 — Result. What must be true is that he lands on something
+        // coherent — not a spinner that never resolves and not an error — and
+        // that the step's own promise ("edit anything that's wrong") is still
+        // keepable.
         awaitElement(app.buttons["onboarding.advance"], "Result: finish button")
-        awaitElement(app.staticTexts["onboarding.result.guestNotice"], "Result: guest outcome")
         capture("31-Onboarding-Result")
 
         XCTAssertFalse(
             app.staticTexts["onboarding.result.loading"].exists,
-            "A guest is left waiting on a generation that can never happen"
+            "The result step is still spinning after generation should have resolved"
         )
         XCTAssertFalse(
             app.buttons["onboarding.result.retry"].exists,
-            "A guest is shown a failure for a call ADR 0011 says must not be made"
+            "The result step is showing a failure against the in-memory mocks"
         )
         let edit = app.buttons["onboarding.result.edit"]
         edit.scrollIntoView(in: app)
-        XCTAssertTrue(edit.exists, "A guest cannot edit the answers this step says he can edit")
+        XCTAssertTrue(edit.exists, "The result step cannot edit the answers it says it can edit")
         for _ in 0..<6 { app.swipeDown(velocity: .slow) }
         usleep(300_000)
 
@@ -886,11 +881,6 @@ private extension OnboardingFlowUITests {
         // a tab-navigation test. It now enters through `-astra-skip-onboarding`,
         // so the real transition needs proving exactly once, by the test that
         // owns the flow.
-        //
-        // A guest has no server profile (ADR 0011), so `submit()` resolves to
-        // `savedLocally` rather than `succeeded` — both route to `.main`, which
-        // is the point: a guest who finished the questions is not held on the
-        // last screen for not having signed up.
         app.buttons["onboarding.advance"].tap()
         awaitElement(app.tabBars.firstMatch, "Main tab bar after finishing onboarding")
         capture("31b-Onboarding-Finished-MainShell")

@@ -5,13 +5,12 @@
 //  Drives the §6.3–§6.10 flow: step navigation, draft persistence, and the
 //  single submission at the end.
 //
-//  The guest case is the one that shapes this class. Per ADR 0011 a guest has
-//  no server profile, so `completeOnboarding` cannot be called for one — but a
-//  guest absolutely may work through onboarding, and throwing away his answers
-//  at the account-creation prompt would be the worst possible moment to lose
-//  them. So the draft is the source of truth throughout and submission is a
-//  separate, later act: guests finish the flow locally, and the draft is
-//  submitted by `GuestMigrationService` when the account appears.
+//  THE DRAFT IS THE SOURCE OF TRUTH THROUGHOUT, and submission is a single
+//  act at the end. That shape was originally forced by guest mode, which
+//  could not call `completeOnboarding` at all; ADR 0014 removed guest mode
+//  and the shape stayed, because it is right for its own reasons — seven
+//  screens of answers must survive a dropped connection, a backgrounded app,
+//  and a failed submit, and only a persisted draft does that.
 //
 //  WHY SUBMISSION MOVED TO THE START OF §6.10 RATHER THAN THE END OF IT.
 //
@@ -75,12 +74,6 @@ public final class OnboardingViewModel {
     public var newItemCategory: ClothingCategory?
     public var newItemColor: String = ""
     public internal(set) var addItemState: AddItemState = .idle
-
-    /// How many more a guest may add (spec §6.2's 10-item cap), or nil when
-    /// the cap does not apply. Read once when the step opens: the cap counts
-    /// items already in local guest storage, not just the ones added here, so
-    /// a resumed session must not restart the count at zero.
-    public internal(set) var guestItemsRemaining: Int?
 
     /// Set once the user has finished the flow and the app should move on.
     ///
@@ -308,7 +301,6 @@ public final class OnboardingViewModel {
     public func submit() async {
         submission = .submitting
 
-        let isGuest = await sessionStore.currentIsGuest()
         guard let userID = await currentUserID() else {
             // No session at all. Should be unreachable — onboarding is only
             // routed to when authenticated — but failing loudly beats writing a
@@ -317,24 +309,6 @@ public final class OnboardingViewModel {
                 String(localized: "You need to be signed in to save this.",
                        comment: "Onboarding submission error")
             )
-            return
-        }
-
-        if isGuest {
-            // ADR 0011: a guest has no server profile, so there is nothing to
-            // PATCH. Keep the draft — GuestMigrationService submits it once an
-            // account exists. Answers are not lost and nothing is silently
-            // dropped on the floor.
-            //
-            // This return is also the ONLY thing standing between a guest's
-            // photograph and Supabase Storage, which is why the upload below
-            // is here rather than on the capture step: one branch, in the one
-            // method that already knows whether this session has a server
-            // identity, instead of a second guest check on a screen whose
-            // author has to remember to write it.
-            draft.furthestStepReached = .result
-            await persist()
-            submission = .savedLocally
             return
         }
 
@@ -389,8 +363,6 @@ public final class OnboardingViewModel {
         await submit()
 
         switch submission {
-        case .savedLocally:
-            styleDNAState = .guestPreview
         case .succeeded:
             await generate(previous: nil)
         case .failed(let message):
@@ -451,14 +423,13 @@ public final class OnboardingViewModel {
     public func regenerate(identities: [StyleIdentity], primary: StyleIdentity?) async {
         // The draft is updated first and unconditionally. Whatever happens to
         // the network call, the man changed his mind and the app should not
-        // forget it — and for a guest the draft IS the outcome.
+        // forget it.
         draft.selectedIdentities = identities
         draft.primaryIdentity = primary
         await persist()
 
         // ADR 0011: no server profile, so nothing to write and nothing to
         // generate. The screen already says so; this is not a failure.
-        if case .guestPreview = styleDNAState { return }
 
         let previous = currentStyleDNA
         styleDNAState = previous.map { .regenerating(previous: $0) } ?? .loading
@@ -496,7 +467,7 @@ public final class OnboardingViewModel {
         switch styleDNAState {
         case .ready(let dna), .regenerating(previous: let dna): dna
         case .failed(_, let previous): previous
-        case .idle, .loading, .guestPreview: nil
+        case .idle, .loading: nil
         }
     }
 
@@ -505,7 +476,7 @@ public final class OnboardingViewModel {
     public var isWorkingOnStyleDNA: Bool {
         switch styleDNAState {
         case .loading, .regenerating: true
-        case .idle, .ready, .failed, .guestPreview: false
+        case .idle, .ready, .failed: false
         }
     }
 
@@ -516,14 +487,14 @@ public final class OnboardingViewModel {
     /// input when the generation step failed on a bad connection.
     public func finish() async {
         switch submission {
-        case .succeeded, .savedLocally:
+        case .succeeded:
             isFinished = true
         case .submitting:
             return
         case .idle, .failed:
             await submit()
             switch submission {
-            case .succeeded, .savedLocally:
+            case .succeeded:
                 isFinished = true
             case .failed(let message):
                 styleDNAState = .failed(message: message, previous: currentStyleDNA)
@@ -544,8 +515,7 @@ public final class OnboardingViewModel {
     }
 
     func currentUserID() async -> UUID? {
-        if let guestID = await sessionStore.currentGuestUserID() { return guestID }
-        return await MainActor.run { sessionStore.currentSession?.userID }
+        await MainActor.run { sessionStore.currentSession?.userID }
     }
 }
 
@@ -564,9 +534,6 @@ public extension OnboardingViewModel {
     enum SubmissionState: Equatable {
         case idle
         case submitting
-        /// Finished locally. A guest reaches this and stops here — his answers
-        /// are saved and will be sent when he creates an account.
-        case savedLocally
         case succeeded
         case failed(String)
     }
@@ -594,9 +561,5 @@ public extension OnboardingViewModel {
         /// Working from edited inputs, with the previous result still on screen.
         case regenerating(previous: StyleDNA)
         case failed(message: String, previous: StyleDNA?)
-        /// ADR 0011: a guest has no server profile, so there is no Style DNA to
-        /// generate and no call to make. Not an error and not a loading state —
-        /// a real, permanent outcome for this session that the screen names.
-        case guestPreview
     }
 }

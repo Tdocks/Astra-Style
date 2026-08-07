@@ -14,9 +14,9 @@ public actor MockAuthRepository: AuthRepository {
     /// want a `SessionStore` at all. When present (as it is from
     /// `AppContainer.preview()`), every method also mirrors its result into
     /// it — matching `LiveAuthRepository`'s behavior of calling
-    /// `sessionStore.adopt(_:)` — so `container.sessionStore.isGuest` and
-    /// friends reflect reality in previews too, rather than only this
-    /// actor's own private `session`.
+    /// `sessionStore.adopt(_:)` — so `container.sessionStore.isSignedIn`
+    /// reflects reality in previews too, rather than only this actor's own
+    /// private `session`.
     private let sessionStore: SessionStore?
 
     public init(startSignedIn: Bool = true, sessionStore: SessionStore? = nil) {
@@ -40,17 +40,6 @@ public actor MockAuthRepository: AuthRepository {
         session = newSession
         try? await sessionStore?.adopt(newSession)
         return newSession
-    }
-
-    public func continueAsGuest() async throws -> AuthSession {
-        let newSession = AuthSession(userID: UUID(), accessToken: "", refreshToken: "", expiresAt: .distantFuture, isGuest: true)
-        session = newSession
-        try? await sessionStore?.adopt(newSession)
-        return newSession
-    }
-
-    public func migrateGuestToAccount(identityToken: String, nonce: String) async throws -> AuthSession {
-        try await signInWithApple(identityToken: identityToken, nonce: nonce)
     }
 
     public func restoreSession() async throws -> AuthSession? {

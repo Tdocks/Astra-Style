@@ -17,7 +17,7 @@
 //      xcrun xcresulttool export attachments \
 //        --path <result>.xcresult --output-path ./shots
 //
-//  Runs against guest mode, which needs no network and no account (spec §6.2),
+//  Runs against the in-memory mocks, which need no network and no account,
 //  so the sweep works on a clean simulator with no fixtures.
 //
 
@@ -120,8 +120,11 @@ final class ScreenQAUITests: XCTestCase {
         XCTAssertTrue(app.buttons["welcome.termsLink"].exists, "Terms link missing from Welcome")
         XCTAssertTrue(app.buttons["welcome.privacyLink"].exists, "Privacy link missing from Welcome")
         XCTAssertTrue(app.buttons["Continue with Email"].exists)
-        XCTAssertTrue(app.staticTexts["Explore in guest mode"].exists
-                      || app.buttons["Explore in guest mode"].exists)
+        // Two actions and no third. ADR 0014 removed "Explore in guest
+        // mode"; asserting on its ABSENCE is what stops it coming back by
+        // accident, which a missing positive assertion would not.
+        XCTAssertFalse(app.staticTexts["Explore in guest mode"].exists)
+        XCTAssertFalse(app.buttons["Explore in guest mode"].exists)
     }
 
     func testEmailAuthSheet() {
@@ -150,7 +153,7 @@ final class ScreenQAUITests: XCTestCase {
 
     // MARK: - Main shell
 
-    /// Enters guest mode and lands in the five-tab shell.
+    /// Lands in the five-tab shell.
     ///
     /// Deliberately does NOT walk §6.3–§6.10. It used to, back when onboarding
     /// was a single placeholder screen with one "Skip for now" button, and that
@@ -168,19 +171,12 @@ final class ScreenQAUITests: XCTestCase {
     /// onboarding-to-main transition is still covered, once, by the test that
     /// is actually about onboarding.
     ///
-    /// Guest mode, not a stubbed session: it is a real authenticated session
-    /// reached with no network and no account (spec §6.2), so the tabs render
-    /// against the same state they would for a restored guest — which ADR 0011
-    /// already routes straight to `.main` on relaunch.
+    /// Reached through `-astra-mock-backend`, which starts already signed in
+    /// against `Core/Mocks`. This used to tap "Explore in guest mode" — the
+    /// only account-free entry there was — which ADR 0014 removed.
     private func enterMainShell() {
-        app.launchArguments += ["-astra-skip-onboarding"]
+        app.launchArguments += ["-astra-mock-backend", "-astra-skip-onboarding"]
         app.launch()
-
-        let guestEntry = app.buttons["Explore in guest mode"].exists
-            ? app.buttons["Explore in guest mode"]
-            : app.staticTexts["Explore in guest mode"]
-        awaitElement(guestEntry, "Welcome: guest mode entry")
-        guestEntry.tap()
 
         awaitElement(app.tabBars.firstMatch, "Main tab bar")
         capture("04-MainShell-Entered")

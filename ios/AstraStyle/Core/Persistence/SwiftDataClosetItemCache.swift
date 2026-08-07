@@ -3,11 +3,9 @@
 //  AstraStyle
 //
 //  Production `ClosetItemCaching` conformance. Reuses
-//  `PersistedClosetItem` / `PersistenceMapping` — the same SwiftData model
-//  the guest store writes — scoped by the authenticated account's
-//  `userID` so guest rows and signed-in cache rows never collide in the
-//  shared store (guest ids are locally minted; account ids come from
-//  Supabase Auth).
+//  `PersistedClosetItem` / `PersistenceMapping`, scoped by the
+//  authenticated account's `userID` so two accounts on one device never
+//  collide in the shared store.
 //
 //  `@ModelActor` so every `ModelContext` access is serialized on its own
 //  executor (`ModelContext` is not `Sendable`).

@@ -2,77 +2,26 @@
 //  HomeBriefProvidingTests.swift
 //  AstraStyleTests
 //
-//  Defect (visual QA sweep): a guest landed on Home's error state because
-//  `DefaultHomeBriefProvider.loadTodayBrief(regenerate:)` called
-//  `profileRepository.fetchCurrentProfile()` unconditionally, and guests
-//  have no server-side profile row at all (ADR 0011). These tests pin the
-//  fix — a guest never touches `ProfileRepository` and gets the real empty
-//  state — and guard against a signed-in regression in the same file.
+//  What this file pins, after ADR 0014 removed guest mode: the signed-in
+//  paths through `DefaultHomeBriefProvider` — a populated closet, a sparse
+//  one, an unreadable one, and a regenerate.
+//
+//  The guest half is gone with the feature. It is worth knowing what it
+//  was, because the shape recurs: a guest reached Home's ERROR state
+//  because `loadTodayBrief` called `fetchCurrentProfile()` unconditionally
+//  and a guest had no profile row. The fix branched early for guests — and
+//  that branch then became the ONLY path that reached §6.11's empty state,
+//  so every real user got an error screen where the spec calls for an
+//  invitation. A branch added to fix one path can quietly become the only
+//  path that is right.
 //
 
 import Foundation
 import Testing
 @testable import AstraStyle
 
-@Suite("DefaultHomeBriefProvider — guest vs. signed-in (ADR 0011)")
+@Suite("DefaultHomeBriefProvider")
 struct HomeBriefProvidingTests {
-
-    // MARK: - Guest path
-
-    @Test("A guest brief never calls ProfileRepository or OutfitRepository, and yields the empty state")
-    func guestBriefMakesNoProfileOrOutfitCall() async throws {
-        let profileRepository = FailIfCalledProfileRepository()
-        let outfitRepository = FailIfCalledOutfitRepository()
-        let closetRepository = MockClosetRepository(items: [])
-
-        let provider = DefaultHomeBriefProvider(
-            outfitRepository: outfitRepository,
-            profileRepository: profileRepository,
-            closetRepository: closetRepository,
-            weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { true }
-        )
-
-        let data = try await provider.loadTodayBrief(regenerate: false)
-
-        #expect(await profileRepository.callCount == 0)
-        #expect(await outfitRepository.callCount == 0)
-
-        // The real empty state (spec §6.11 "Add five pieces..."), not an
-        // error — this is exactly what `HomeViewModel.load(regenerate:)`
-        // checks to choose `.empty` over `.loaded`.
-        #expect(data.needsMoreClosetItems)
-        #expect(data.primaryOutfit == nil)
-        #expect(data.brief.primaryOutfitID == nil)
-    }
-
-    @Test("A guest brief reads the local closet through ClosetRepository, not a hardcoded value")
-    func guestBriefReadsLocalCloset() async throws {
-        // `fetchWardrobeScore()` throwing (as `GuestClosetRepository` always
-        // does) must not surface as an error either — it degrades to `nil`
-        // like every other optional module.
-        let closetRepository = ThrowingWardrobeScoreClosetRepository(
-            items: [
-                ClosetItem(id: UUID(), userID: UUID(), name: "Item 1", category: .top, laundryState: .laundry),
-                ClosetItem(id: UUID(), userID: UUID(), name: "Item 2", category: .bottom, laundryState: .clean)
-            ]
-        )
-
-        let provider = DefaultHomeBriefProvider(
-            outfitRepository: FailIfCalledOutfitRepository(),
-            profileRepository: FailIfCalledProfileRepository(),
-            closetRepository: closetRepository,
-            weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { true }
-        )
-
-        let data = try await provider.loadTodayBrief(regenerate: false)
-
-        #expect(data.laundryAlertItemCount == 1)
-        #expect(data.wardrobeScore == nil)
-    }
 
     // MARK: - Signed-in path (no regression)
 
@@ -84,8 +33,7 @@ struct HomeBriefProvidingTests {
             profileRepository: profileRepository,
             closetRepository: MockClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { false }
+            calendarService: MockCalendarService()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -99,7 +47,7 @@ struct HomeBriefProvidingTests {
     // MARK: - Sparse closet (spec §6.11 empty state)
     //
     // The defect these pin: for weeks the §6.11 empty state was reachable
-    // only by guests. Every signed-in user — including one who had
+    // only by a guest session. Every real user — including one who had
     // finished onboarding a minute earlier and owned nothing — went
     // straight to `generateDailyBrief`, whose Edge Function does not exist
     // (P4-HOME-02), and got an error screen reading "Something went wrong"
@@ -117,8 +65,7 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: closetRepository,
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { false }
+            calendarService: MockCalendarService()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -142,8 +89,7 @@ struct HomeBriefProvidingTests {
                 items: Array(SampleData.closetItems.prefix(HomeBriefData.minimumItemsForOutfits))
             ),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { false }
+            calendarService: MockCalendarService()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -163,8 +109,7 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: UnreachableClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { false }
+            calendarService: MockCalendarService()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -187,8 +132,7 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { false }
+            calendarService: MockCalendarService()
         )
 
         _ = try await provider.loadTodayBrief(regenerate: true)
@@ -207,8 +151,7 @@ struct HomeBriefProvidingTests {
             profileRepository: AlwaysFailingProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService(),
-            isGuest: { false }
+            calendarService: MockCalendarService()
         )
 
         await #expect(throws: AstraError.self) {
@@ -219,87 +162,15 @@ struct HomeBriefProvidingTests {
 
 // MARK: - Test doubles
 
-/// Fails loudly (via `Issue.record`) if any method is called — used to pin
-/// "a guest brief makes no profile fetch at all", not just "the happy path
-/// doesn't need one."
-private actor FailIfCalledProfileRepository: ProfileRepository {
-    private(set) var callCount = 0
-
-    private func recordCall(_ function: String = #function) {
-        callCount += 1
-        Issue.record("ProfileRepository.\(function) must never be called for a guest session (ADR 0011)")
-    }
-
-    func fetchCurrentProfile() async throws -> Profile {
-        recordCall()
-        return SampleData.profile
-    }
-
-    func updateProfile(_ profile: Profile) async throws -> Profile {
-        recordCall()
-        return profile
-    }
-
-    func fetchStyleProfile() async throws -> StyleProfile? {
-        recordCall()
-        return nil
-    }
-
-    func updateStyleProfile(_ styleProfile: StyleProfile) async throws -> StyleProfile {
-        recordCall()
-        return styleProfile
-    }
-
-    func fetchBodyProfile() async throws -> BodyProfile? {
-        recordCall()
-        return nil
-    }
-
-    func updateBodyProfile(_ bodyProfile: BodyProfile) async throws -> BodyProfile {
-        recordCall()
-        return bodyProfile
-    }
-
-    func fetchLifestyleProfile() async throws -> LifestyleProfile? {
-        recordCall()
-        return nil
-    }
-
-    func updateLifestyleProfile(_ lifestyleProfile: LifestyleProfile) async throws -> LifestyleProfile {
-        recordCall()
-        return lifestyleProfile
-    }
-
-    func completeOnboarding(_ payload: OnboardingCompletionPayload) async throws -> Profile {
-        recordCall()
-        return SampleData.profile
-    }
-
-    func generateStyleDNA() async throws -> StyleDNA {
-        recordCall()
-        return SampleData.styleDNA
-    }
-
-    func uploadReferenceImage(_ imageData: Data) async throws -> String {
-        recordCall()
-        return "users/guest/references/never.jpg"
-    }
-
-    func exportPersonalData() async throws -> URL {
-        recordCall()
-        return URL(fileURLWithPath: "/dev/null")
-    }
-}
-
-/// Fails loudly if called — pins that a guest brief never reaches
-/// `OutfitRepository` either, since there is no server-generated Daily
-/// Brief to fetch without an Edge Function round trip a guest can't make.
+/// Fails loudly if called — pins that a closet too thin to dress anyone
+/// never reaches `OutfitRepository` at all, rather than asking the server
+/// for an outfit it cannot build and handling the failure afterwards.
 private actor FailIfCalledOutfitRepository: OutfitRepository {
     private(set) var callCount = 0
 
     private func recordCall(_ function: String = #function) {
         callCount += 1
-        Issue.record("OutfitRepository.\(function) must never be called for a guest session (ADR 0011)")
+        Issue.record("OutfitRepository.\(function) must not be called for a closet below the outfit threshold")
     }
 
     func fetchOutfits() async throws -> [Outfit] { recordCall(); return [] }
@@ -406,59 +277,4 @@ private struct UnreachableClosetRepository: ClosetRepository {
         throw AstraError.network("unused")
     }
     func fetchWardrobeScore() async throws -> WardrobeScore { throw AstraError.network("unused") }
-}
-
-/// `ClosetRepository` double that behaves like `MockClosetRepository` for
-/// everything except `fetchWardrobeScore()`, which always throws — mirrors
-/// `GuestClosetRepository.fetchWardrobeScore()`'s real behavior ("Wardrobe
-/// Score isn't available in guest mode") without depending on SwiftData.
-private actor ThrowingWardrobeScoreClosetRepository: ClosetRepository {
-    private var items: [ClosetItem]
-
-    init(items: [ClosetItem]) {
-        self.items = items
-    }
-
-    func fetchItems() async throws -> [ClosetItem] { items }
-    func fetchItem(id: UUID) async throws -> ClosetItem {
-        guard let item = items.first(where: { $0.id == id }) else {
-            throw AstraError.server("not found")
-        }
-        return item
-    }
-    func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
-    func uploadCapturedImage(_ data: Data) async throws -> String {
-        _ = data
-        return "users/test/closet/stub.jpg"
-    }
-
-    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
-
-    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
-        throw AstraError.validation("unused")
-    }
-    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
-        throw AstraError.validation("unused")
-    }
-    func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
-        items.append(item)
-        return item
-    }
-    func updateItem(_ item: ClosetItem) async throws -> ClosetItem { item }
-    func archiveItem(id: UUID) async throws {}
-    func markWorn(id: UUID, wornAt: Date) async throws -> ClosetItem {
-        guard let item = items.first(where: { $0.id == id }) else {
-            throw AstraError.server("not found")
-        }
-        return item
-    }
-    func updateLaundryState(id: UUID, state: LaundryState) async throws -> ClosetItem {
-        guard let item = items.first(where: { $0.id == id }) else {
-            throw AstraError.server("not found")
-        }
-        return item
-    }
-    func fetchWardrobeScore() async throws -> WardrobeScore {
-        throw AstraError.validation("Wardrobe Score isn't available in guest mode. Create an account to unlock it.")
-    }
 }

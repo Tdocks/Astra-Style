@@ -46,7 +46,17 @@ ENDPOINT_TEST = (
 )
 FUNCTIONS_DIR = REPO_ROOT / "supabase" / "functions"
 
-VALID_STATUSES = {"Done", "Partial", "Not started", "Unverifiable"}
+# `Withdrawn` was added 2026-08-06, when ADR 0014 removed guest mode and two
+# tickets that had genuinely been finished no longer had a feature to be
+# finished about. Every other status would have been a lie in one direction
+# or the other: `Done` claims a shipped capability nobody can use, `Not
+# started` erases work that was done and then deliberately removed, and
+# `Unverifiable` means "real but unprovable from code", which this is not.
+#
+# A `Withdrawn` row must name the ADR that withdrew it — enforced below —
+# because the one thing worse than a wrong status is a right one whose
+# reason has to be reconstructed from the git log.
+VALID_STATUSES = {"Done", "Partial", "Not started", "Unverifiable", "Withdrawn"}
 
 # Ticket ids look like `P2-ONBOARD-07`. In 02-task-breakdown.md they head a
 # section as `#### \`P2-ONBOARD-07\` — title`; in 03-progress.md they open a
@@ -133,11 +143,20 @@ def main() -> int:
     #
     # Left open-ended, this drifts into "Mostly done", "In progress", "Blocked?"
     # and the summary counts stop meaning anything.
-    for ticket, (status, _) in sorted(rows.items()):
+    for ticket, (status, evidence) in sorted(rows.items()):
         if status not in VALID_STATUSES:
             fail(
                 f"{ticket} has status {status!r}, which is not one of: "
                 + ", ".join(sorted(VALID_STATUSES))
+            )
+
+        # A `Withdrawn` row has to say what withdrew it. Without this the
+        # status degrades into "someone gave up", which is the opposite of
+        # what it means and unrecoverable a month later.
+        if status == "Withdrawn" and not re.search(r"ADR\s*0\d{3}", evidence):
+            fail(
+                f"{ticket} is marked Withdrawn but its evidence names no ADR. "
+                "A withdrawn ticket must cite the decision that withdrew it."
             )
 
     # --- 3. Summary counts match the rows -----------------------------------
@@ -273,7 +292,9 @@ def main() -> int:
     partial = sum(c["Partial"] for c in counted.values())
     not_started = sum(c["Not started"] for c in counted.values())
     unverifiable = sum(c["Unverifiable"] for c in counted.values())
+    withdrawn = sum(c["Withdrawn"] for c in counted.values())
     extra = f", {unverifiable} unverifiable" if unverifiable else ""
+    extra += f", {withdrawn} withdrawn" if withdrawn else ""
     print(
         f"Progress doc OK — {len(rows)} tickets tracked "
         f"({done} done, {partial} partial, {not_started} not started{extra})."

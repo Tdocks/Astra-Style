@@ -161,10 +161,6 @@ public enum AppModalRoute: Identifiable, Sendable {
     case studioGeneration(outfitID: UUID?)
     case askKyra(KyraRoute)
     case addOccasion
-    /// Guest -> account creation (spec §7 "Guest migration to account";
-    /// ADR 0011) — distinct from `.paywall`, which is a subscription
-    /// upsell for an existing account, not account creation itself.
-    case createAccount(reason: CreateAccountReason)
 
     public var id: String {
         switch self {
@@ -174,7 +170,6 @@ public enum AppModalRoute: Identifiable, Sendable {
         case .studioGeneration: "studioGeneration"
         case .askKyra: "askKyra"
         case .addOccasion: "addOccasion"
-        case .createAccount: "createAccount"
         }
     }
 }
@@ -217,13 +212,6 @@ public final class AppRouter {
     /// at a time.
     public var presentedModal: AppModalRoute?
 
-    /// When true, `startScan` opens the create-account sheet instead of the
-    /// scanner. Wired from the session in `MainTabView` so every Closet/Home
-    /// scan button shares one choke point — a guest must never reach the
-    /// camera (ADR 0011; spec §22). Defaults false so unit tests that only
-    /// exercise navigation stay unchanged.
-    public var blocksGuestScan: Bool = false
-
     public init() {}
 
     /// Where a freshly authenticated session goes next.
@@ -234,8 +222,8 @@ public final class AppRouter {
     /// straight to `.main` instead, for UI tests whose subject is the tab shell.
     ///
     /// Computed here rather than at each `routeState = .onboarding` site so the
-    /// three entry points (Apple, email, guest) cannot drift apart — the same
-    /// reason `resetForSignOut` hangs off the state transition above.
+    /// two entry points (Apple, email) cannot drift apart — the same reason
+    /// `resetForSignOut` hangs off the state transition above.
     public static var postAuthenticationRoute: AppRouteState {
         AstraFeatureFlags.skipsOnboarding ? .main : .onboarding
     }
@@ -302,15 +290,13 @@ public final class AppRouter {
         presentModal(.askKyra(threadID.map(KyraRoute.thread) ?? .thread(threadID: UUID())))
     }
 
+    /// No gate in front of this any more. It used to check
+    /// `blocksGuestScan` and divert to account creation, because a guest
+    /// reaching the camera was a §22 dead button — effort spent capturing,
+    /// then a refusal. Every session is now a real one (ADR 0014), so the
+    /// only reader of that flag is gone and the scanner opens for everyone
+    /// who can reach the button.
     public func startScan(mode: ScannerRoute = .singleItem) {
-        // Gate BEFORE the scanner modal. Guest analyze paths already throw
-        // with zero network I/O, but opening a camera (or today's
-        // placeholder that pretends one exists) is still a dead button once
-        // the user has spent effort capturing — the exact §22 failure.
-        if blocksGuestScan {
-            presentModal(.createAccount(reason: .scanningRequiresAccount))
-            return
-        }
         presentModal(.scanner(mode))
     }
 

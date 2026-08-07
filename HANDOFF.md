@@ -253,7 +253,7 @@ So: **types are nonisolated by default.** Repositories do I/O off the main actor
 
 ### 4.5 Dependency injection
 
-`App/AppContainer.swift` — a `@MainActor @Observable final class`, no DI framework (ADR 0007). It exposes: `sessionStore`, `authRepository`, `profileRepository`, `closetRepository`, `closetImageURLResolver`, `outfitRepository`, `kyraRepository`, `studioRepository`, `shoppingRepository`, `subscriptionRepository`, `guestMigrationService`, `weatherService`, `calendarService`, `apiClient`, `analyticsClient`, `offlineMutationQueue`, `settings`.
+`App/AppContainer.swift` — a `@MainActor @Observable final class`, no DI framework (ADR 0007). It exposes: `sessionStore`, `authRepository`, `profileRepository`, `closetRepository`, `closetImageURLResolver`, `outfitRepository`, `kyraRepository`, `studioRepository`, `shoppingRepository`, `subscriptionRepository`, `weatherService`, `calendarService`, `apiClient`, `analyticsClient`, `offlineMutationQueue`, `settings`.
 
 - **`.live()`** wires every `Live*` type against one shared `AstraAPIClient`. The model container is `(try? AstraModelContainer.live()) ?? AstraModelContainer.preview()` — a corrupt store degrades to "no caching this session" rather than crashing.
 - **`.preview()`** wires every `Mock*` type. It passes `SessionStore(apiClient: .previewClient, supabase: ...previewClient)` **explicitly** rather than relying on the default, because the default evaluates `AstraEnvironment.current`, which `preconditionFailure`s in a process with no Info.plist secrets.
@@ -264,9 +264,9 @@ So: **types are nonisolated by default.** Repositories do I/O off the main actor
 
 | Flag | Effect |
 |---|---|
-| `-astra-reset-state` | Clears persisted session/guest data at launch. Every UI suite sets it. Not DEBUG-gated. |
+| `-astra-reset-state` | Clears the persisted session at launch. Every UI suite sets it. Not DEBUG-gated. |
 | `-astra-skip-onboarding` | Routes straight to the tab shell. |
-| `-astra-mock-backend` | Runs against `AppContainer.preview()`, already signed in to a throwaway non-guest session. **This is the lever for testing anything backend-dependent.** |
+| `-astra-mock-backend` | Runs against `AppContainer.preview()`, already signed in to a throwaway session. **This is the lever for testing anything backend-dependent**, and since ADR 0014 it is also the only account-free way into onboarding for a UI test. |
 | `-astra-theme light\|dark\|system` | Overrides the stored theme (needed because the app's `.preferredColorScheme` beats the simulator's `-UIUserInterfaceStyle`). |
 | env `ASTRA_VERTICAL_SLICE=1` | Boots `SliceRootView()` instead of the app. |
 
@@ -346,7 +346,7 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
 
 **`.unimplemented` is deliberately distinct from `.server`:** *"a `.server` failure is a runtime problem that might not happen next time; this one is a fact about the build — retrying will never help, and the UI should degrade (hide the module, disable the control) rather than offer a retry button that cannot succeed."* It is not retryable, which is what stops the Closet growing a dead "Try Again" button.
 
-Two other error types cross boundaries: **`GuestClosetError.capReached(limit:)`** (a distinct type, not an `AstraError` category, so call sites can catch "show the create-account prompt" without string-matching a message) and **`OfflineMutationNotHandled`** (thrown by a drain handler that doesn't own the mutation type it was handed — means "skip, don't fail, don't consume").
+Two other error types cross boundaries: **`FreeTierClosetError.capReached(limit:)`** (a distinct type, not an `AstraError` category, so call sites can catch the cap without string-matching a message) and **`OfflineMutationNotHandled`** (thrown by a drain handler that doesn't own the mutation type it was handed — means "skip, don't fail, don't consume").
 
 ### 4.9 The API client
 
@@ -363,7 +363,7 @@ Two other error types cross boundaries: **`GuestClosetError.capReached(limit:)`*
 
 SwiftData schema: `PersistedClosetItem`, `PersistedOutfit`, `PersistedDailyBrief`, `PersistedOfflineMutation`.
 
-**What `PersistedClosetItem` actually backs: guest-mode storage only.** `LiveClosetRepository.fetchItems()` reads straight from Supabase with **no local-cache fallback** and never touches it. So for an authenticated user, an offline cold start shows the error state rather than a cached closet. This is P3-CLOSET-02's stated Partial reason.
+**`PersistedClosetItem` now backs the signed-in read cache only** (`SwiftDataClosetItemCache`); it used to back guest storage as well, which is gone. The "no local-cache fallback" this paragraph used to describe is also gone — `LiveClosetRepository.fetchItems` write-throughs on success and serves cached rows when the network fetch fails, which is what moved P3-CLOSET-02 to Done.
 
 **`OfflineMutationQueue`** is FIFO, stops at the first genuine failure (preserving order, incrementing `attemptCount`), and treats `OfflineMutationNotHandled` as "skip, leave queued, don't count an attempt" since one queue serves several repositories. Its limitations, all stated in the codebase:
 
@@ -522,28 +522,40 @@ Named costs, accepted: grouped functions **share fate at runtime** (a crash-loop
 
 ---
 
-## 6. Guest mode — read before touching any write path
+## 6. ~~Guest mode~~ — removed (ADR 0014)
 
-**ADR 0011.** Guest mode is **fully local, with no server-side identity at all** until migration. Guest data lives only in SwiftData and local files, never under a placeholder `user_id` on Supabase. Supabase's official anonymous-auth pattern was explicitly rejected — it would create server-side data, cost and cleanup burden for every guest including the large fraction who never convert.
+**There is no guest mode.** An account is required before onboarding. Removed 2026-08-06 by
+[ADR 0014](docs/adr/0014-account-required-no-guest-mode.md), which supersedes 0011 and amends
+spec §6.2 and §7.
 
-**The enforcement is structural, not per-screen.** `GuestClosetRepository` holds **no `AstraAPIClient` or `SupabaseClient` property at all** — there is no HTTP-capable field a future edit could accidentally wire up. Every feature is handed `GuestAwareClosetRepository`, a pure per-call switch (`isGuest() ? guest : live`), and **that wrapper is the only `ClosetRepository` `AppContainer` ever hands to feature code.** So "guest mode never reaches Supabase, from any screen" is a property of the dependency graph.
+Deleted, not flagged off: `GuestClosetRepository`, `GuestAwareClosetRepository`,
+`GuestClosetStore` and both implementations, `GuestMigrationService` /
+`LiveGuestMigrationService`, `GuestProfileView(Model)`, `GuestLimits`, `CreateAccountReason` and
+the create-account sheet, `AuthSession.isGuest`, `SessionStore.isGuest` /
+`currentIsGuest()` / `currentGuestUserID()`, `AppRouter.blocksGuestScan`,
+`AppModalRoute.createAccount`, `OnboardingViewModel`'s `.guestPreview` and `.savedLocally`
+states, and the three test suites that pinned the behaviour.
 
-| Guest can | Guest cannot |
-|---|---|
-| Browse a local closet | Scan (`analyzeItem`/`batchAnalyzeItems` throw `AstraError.validation("Scanning isn't available in guest mode yet. Create an account to scan items.")` **with zero network I/O**) |
-| Add up to **10** items (`GuestLimits.maxClosetItems`) via the manual form | See a Wardrobe Score (`.validation("Wardrobe Score isn't available in guest mode.")`) |
-| Archive, mark worn | Have images (`fetchImages` returns `[]` unconditionally) |
-| Complete the whole onboarding flow, draft persisted locally | Have Style DNA generated (`styleDNAState = .guestPreview`, a real permanent outcome — no generation call is ever made) |
+**Read this part even though the feature is gone**, because two of its lessons are about the
+codebase and not about guests:
 
-Exceeding the cap throws **`GuestClosetError.capReached(limit: 10)`** — a distinct type, so call sites catch the condition rather than string-matching a message.
+1. **A branch added to fix one path can quietly become the only path that is right.** The guest
+   branch in `DefaultHomeBriefProvider` was added because a guest hit Home's error state — and
+   it then became the *only* path that reached §6.11's empty state. Every real user got an error
+   screen where the spec calls for an invitation, for weeks, and the branch structure is what
+   hid it.
+2. **ADR 0011 predicted its own data-loss bug and it shipped anyway.** Its Consequences section
+   said onboarding answers "must also be captured locally during guest onboarding and migrated,
+   not just closet scans". `LiveGuestMigrationService` migrated closet items and no profile
+   table. A named consequence is not a mitigated one.
 
-**Migration** (`LiveGuestMigrationService`) composes the local store with the **live** repository — never the guest-aware wrapper, which would loop migrated items back into guest storage. Ownership comes from `session.userID`, never from the local record. It migrates one item at a time, removing from local storage only after a successful `createItem`, and **stops at the first failure** — everything unmigrated including the failing item stays local, so it is retryable rather than silently partial.
+What remains and is easy to confuse with it: **the free-tier 30-item cap**
+(`FreeTierLimits`, `FreeTierCappedClosetRepository`, `FreeTierClosetError.capReached`) is a cap
+on a *signed-in* closet and is untouched. Both used to cap a closet, which is most of why they
+were confusable.
 
-**Named, accepted risks** (ADR 0011's own "Negative" section): guest data is at the mercy of the device until migration — device loss or app deletion before signup is unrecoverable by design. A shared device has no per-guest isolation.
-
-**A landmine this creates:** `ClosetView`'s scan button already calls `AppRouter.startScan()`. The moment a camera screen lands, a guest can open the camera, capture, wait through the pipeline, and hit a wall — **the exact dead-button failure §22 forbids, wearing a friendlier face.** The gate must be *before* the camera opens, which makes it a permission-timing question too (§7 says camera "when scanning" — a guest is never going to scan). **No ticket currently owns this.**
-
----
+If a trial path is ever wanted again, ADR 0014's Alternatives says where to start — and it is
+not what was deleted.
 
 ## 7. Feature-by-feature state
 
@@ -563,7 +575,7 @@ intro → goals → identity → measurements → appearance → lifestyle → q
 
 So `loadStyleDNA()` **submits first and generates second**, and §6.10's forward button only leaves the flow. The server generator is stateless with respect to the request body — it re-reads whatever is currently in the three profile tables.
 
-**The guest path is enforced by ordering, not by a check.** `uploadReferenceImageIfNeeded()` only runs *after* the guest branch's early return, so a guest's reference photo never leaves the device. That is the enforcement point for ADR 0011's photo rule — there is no separate guard anywhere else.
+**The reference photo uploads at submission, not at capture.** `uploadReferenceImageIfNeeded()` runs inside `submit()`, so nothing leaves the device until the answers do — which is also what keeps `removeReferenceImage()` a purely local operation with no remote object to chase.
 
 ### 7.2 The quiz imagery system — the most unusual thing in the repo
 
@@ -704,7 +716,7 @@ The display threshold moved off `FieldSuggestion` onto `AnalysisConfidence.lowCo
 
 ### 7.6 The six empty modules
 
-`Discover/`, `Kyra/`, `Outfits/`, `Shopping/`, `Studio/`, `Subscription/` contain **only a README.md**. `Profile/` has just `GuestProfileViewModel` + `GuestProfileView`. Every one of those READMEs is an accurate forward-looking spec, not an overclaim — but a reader skimming directory names will assume far more exists than does.
+`Discover/`, `Kyra/`, `Outfits/`, `Shopping/`, `Studio/`, `Subscription/` contain **only a README.md**, and since ADR 0014 so does `Profile/` — its two files were the guest profile. Every one of those READMEs is an accurate forward-looking spec, not an overclaim — but a reader skimming directory names will assume far more exists than does.
 
 ---
 
@@ -748,7 +760,8 @@ There is **no registered domain** — `astrastyle.app` returned RDAP 404 on 2026
 | XcodeGen | 0008 | Reviewable YAML diffs instead of `.pbxproj` merge conflicts. |
 | StoreKit 2 + server reconciliation, not RevenueCat | 0009 | Margin protection at $12.99/month, with named switch conditions. |
 | Image storage and retention | 0010 | Private buckets, signed URLs, `users/{user_id}/…`; abandoned references auto-delete (24h default), Studio outputs expire (30d default); **training opt-out defaults to off**. |
-| Guest mode fully local | 0011 | No server identity until sign-in; migration is user-initiated and resumable. |
+| ~~Guest mode fully local~~ | 0011 | **Superseded by 0014**: an account is required, guest mode removed. |
+| An account is required | 0014 | The trial path guest mode offered was never reachable; the branches it added cost more than it bought. |
 | Testing strategy | 0012 | Swift Testing for unit/integration, XCUITest for UI, unit-heavy pyramid. |
 | Edge Function routing | 0013 | §14 URL shapes preserved verbatim; 12 slugs, shared router. |
 
@@ -773,7 +786,7 @@ ADR 0010's 24h sweep for *reference* photos still does not exist. That is a sepa
 
 **3. Grouped-function fate-sharing puts a batch job in the interactive path's isolate.** ADR 0013 requires `analyze-item` and `batch-analyze` to be **one deployed function**, sharing one in-memory rate limiter and one deploy unit. Batch is bursty and long-running; single-item analysis is what a user is staring at. A 20-image batch will saturate the shared limiter and can OOM the isolate. **Design the batch as a job + poll from day one** — P3-SCAN-08's own scope permits "asynchronously or via polling". Note a polling endpoint is a *new* §14 endpoint, touching `AstraEndpoint`, `EndpointDeploymentMappingTests` and arguably the spec.
 
-**4. Guest mode dead-ends the scanner, and the scan button is already live.** See §6.
+**4. ~~Guest mode dead-ends the scanner.~~ Gone with guest mode (ADR 0014).** The scan button now opens the scanner for everyone who can reach it.
 
 **5. Nothing about the camera is testable, and the acceptance criteria are written as if it were.** No camera in the simulator, no fixture-image mechanism, no test-asset wiring in either target, storage RLS uncovered. P3-SCAN-01 criterion 2, P3-SCAN-02 (both), P3-SCAN-03 (both), P3-SCAN-10 criterion 1 and P3-SCAN-12 criterion 1 are **all manual-on-device**. If the capture layer is not isolated behind a protocol with the logic pulled into pure functions, the largest ticket in Phase 3 ships with **zero automated coverage**.
 
@@ -1028,7 +1041,7 @@ Read `supabase/functions/closet/README.md` and `docs/08-provider-abstraction.md`
 
 #### F. Smoke checklist on the iPhone (report results to the owner)
 
-1. Guest or Sign in with Apple → Home / Closet reachable.
+1. Sign in with Apple or email → Home / Closet reachable. (No guest entry — ADR 0014.)
 2. Manual add a garment → appears under category; detail wear count 0.
 3. Scan or **Import** a shirt → editable review → Save → unlock copy → **Done**.
 4. Airplane mode: Closet still shows cached items; start a scan → queued analysis copy; reconnect → analyze completes without re-capture.
@@ -1049,7 +1062,7 @@ Read `supabase/functions/closet/README.md` and `docs/08-provider-abstraction.md`
 
 Phase 3 exit for an internal phone cut:
 
-- Closet CRUD + free-tier 30-cap + guest 10-cap + offline read cache + `testAddGarment`
+- Closet CRUD + free-tier 30-cap + offline read cache + `testAddGarment`
 - Scanner single-item loop: capture/import → device hints → upload → analyze → review → save → unlock report
 - Offline: LWW closet conflict on drain; pending scan queue that analyzes on reconnect
 - App Icon + AccentColor asset catalog; `docs/12-testflight-cut.md`
@@ -1129,7 +1142,7 @@ repo for five days while every client call to it 404'd.
 | Protocol | Conformances |
 |---|---|
 | `AuthRepository` | Live, Mock |
-| `ClosetRepository` | Live, **Guest**, **GuestAware** (the one injected), Mock |
+| `ClosetRepository` | Live, **FreeTierCapped** (the one injected), Mock |
 | `ClosetImageURLResolving` | Live, Mock |
 | `OutfitRepository` | Live, Mock |
 | `KyraRepository` | Live, Mock |

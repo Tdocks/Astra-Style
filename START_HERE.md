@@ -9,7 +9,7 @@ and get it onto the owner's iPhone.
 
 Do **not** dig through `HANDOFF.md` landmines, rewrite READMEs, or start Phase 4.
 Do **not** treat commit `cc7923cf` ("Pre-build groundwork…") as new work — that is
-an **older** ancestor on `main` (guest scan gate / CI / truth docs). Current tip
+an **older** ancestor on `main` (CI / truth docs). Current tip
 already includes Phase 3 exit + this handoff (`git log -5 --oneline`).
 
 | Fact | Value |
@@ -93,7 +93,7 @@ Never put provider keys in the iOS target.
 
 ## 6. Smoke on the phone (report pass/fail)
 
-1. Guest or Sign in with Apple → Home / Closet.
+1. Sign in with Apple or email → Home / Closet. (There is no guest entry: ADR 0014 removed it.)
 2. Manual add a garment → shows under category; wear count 0.
 3. Scan or **Import** a shirt → edit fields → Save → unlock copy → **Done**.
 4. Airplane mode: Closet cached; scan queues; reconnect analyzes without re-capture.

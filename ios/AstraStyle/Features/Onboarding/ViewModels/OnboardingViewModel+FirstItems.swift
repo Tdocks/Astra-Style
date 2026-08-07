@@ -39,11 +39,12 @@ public extension OnboardingViewModel {
         /// can say WHICH item landed rather than "Saved".
         case added(name: String)
         case failed(String)
-        /// A guest at `GuestLimits.maxClosetItems` (spec §6.2; ADR 0011).
-        /// Its own case rather than a `.failed` with a particular message,
-        /// because it is a permanent state of this session that changes what
-        /// the screen offers, not a transient error with a retry.
-        case guestCapReached(limit: Int)
+        /// The free-tier closet cap (spec §16), refused by
+        /// `FreeTierCappedClosetRepository`. Its own case rather than a
+        /// `.failed` with a particular message, because it is a state that
+        /// changes what the screen offers, not a transient error with a
+        /// retry.
+        case capReached(limit: Int)
     }
 
     /// Whether the form currently describes an item worth writing.
@@ -53,7 +54,7 @@ public extension OnboardingViewModel {
     /// and `primary_color` is nullable in the schema precisely because of
     /// cases like that.
     var canAddItem: Bool {
-        guard case .guestCapReached = addItemState else {
+        guard case .capReached = addItemState else {
             return !trimmedNewItemName.isEmpty && newItemCategory != nil
         }
         return false
@@ -63,30 +64,17 @@ public extension OnboardingViewModel {
         newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Reads the guest cap once, when the step opens.
+    /// Nothing to prepare any more.
     ///
-    /// Only for a guest. A signed-in user's item count would need a full
-    /// closet read to compute and would mean nothing — there is no cap to show
-    /// him — so the call is not made at all rather than made and discarded.
-    func prepareFirstItemsStep() async {
-        guard await sessionStore.currentIsGuest() else {
-            guestItemsRemaining = nil
-            return
-        }
-        // Counts what is ALREADY in local guest storage, not just what this
-        // session added. A guest who added items, quit, and resumed would
-        // otherwise be told he has ten left while the repository refuses the
-        // third — the app disagreeing with itself about its own rule.
-        let existing = (try? await closetRepository.fetchItems().count) ?? firstItems.count
-        let remaining = max(0, GuestLimits.maxClosetItems - existing)
-        guestItemsRemaining = remaining
-        if remaining == 0 {
-            addItemState = .guestCapReached(limit: GuestLimits.maxClosetItems)
-        }
-    }
+    /// This used to read the guest cap so the step could show how many of
+    /// ten local items were left. Guest mode is gone (ADR 0014) and the
+    /// free-tier cap is 30 on a signed-in closet, enforced by
+    /// `FreeTierCappedClosetRepository` and surfaced when a write is
+    /// actually refused — a remaining-count on this screen would be a
+    /// number about a limit nobody is near in their first minute.
+    func prepareFirstItemsStep() async {}
 
-    /// Creates one real `closet_items` row (or one local guest item — the
-    /// repository decides, see `GuestAwareClosetRepository`).
+    /// Creates one real `closet_items` row.
     ///
     /// The item is built with `laundryState: .clean` and no wear history
     /// because that is what "I own this" means on the day you say it; the
@@ -122,23 +110,14 @@ public extension OnboardingViewModel {
             newItemColor = ""
             addItemState = .added(name: created.name)
             AstraHaptics.success()
-            if let remaining = guestItemsRemaining {
-                let left = max(0, remaining - 1)
-                guestItemsRemaining = left
-                if left == 0 {
-                    addItemState = .guestCapReached(limit: GuestLimits.maxClosetItems)
-                }
-            }
-        } catch let error as GuestClosetError {
-            // The typed guest failure exists so this call site can recognise
-            // the cap without matching on a message string (see
-            // `GuestLimits.swift`). Reaching it here rather than at the
-            // pre-check means the boundary is enforced by the repository, and
-            // this is only how the screen finds out.
+        } catch let error as FreeTierClosetError {
+            // The typed failure exists so this call site can recognise the
+            // cap without matching on a message string. Reaching it here
+            // rather than at a pre-check means the boundary is enforced by
+            // the repository, and this is only how the screen finds out.
             switch error {
             case .capReached(let limit):
-                guestItemsRemaining = 0
-                addItemState = .guestCapReached(limit: limit)
+                addItemState = .capReached(limit: limit)
             }
         } catch {
             logger.error("createItem during onboarding failed: \(error.localizedDescription)")
@@ -156,10 +135,7 @@ public extension OnboardingViewModel {
         do {
             try await closetRepository.archiveItem(id: item.id)
             firstItems.removeAll { $0.id == item.id }
-            if let remaining = guestItemsRemaining {
-                guestItemsRemaining = min(GuestLimits.maxClosetItems, remaining + 1)
-                if case .guestCapReached = addItemState { addItemState = .idle }
-            }
+            if case .capReached = addItemState { addItemState = .idle }
         } catch {
             logger.error("archiveItem during onboarding failed: \(error.localizedDescription)")
             addItemState = .failed(error.localizedDescription)
@@ -171,7 +147,7 @@ public extension OnboardingViewModel {
     func acknowledgeAddItemState() {
         switch addItemState {
         case .added, .failed: addItemState = .idle
-        case .idle, .saving, .guestCapReached: break
+        case .idle, .saving, .capReached: break
         }
     }
 }

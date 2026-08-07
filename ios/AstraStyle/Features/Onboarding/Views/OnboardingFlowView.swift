@@ -51,13 +51,11 @@ public struct OnboardingFlowView: View {
         // kill between screens still keeps what was typed on the current one.
         .onChange(of: model.draft) { _, _ in Task { await model.persist() } }
         .onChange(of: model.isFinished) { _, finished in
-            // Routing is keyed on the user finishing, not on the submission
-            // succeeding. Both outcomes of a submission reach the app — a
-            // guest's answers are saved locally and submitted at account
-            // creation (ADR 0011), so holding him on the onboarding screen
-            // would be punishing him for not having signed up yet — but the
-            // submission now runs when §6.10 OPENS, and routing off it would
-            // skip the screen entirely.
+            // Routing is keyed on the user FINISHING, not on the submission
+            // succeeding — a failed submit must not strand him on the last
+            // screen with no way forward. And it cannot be keyed on the
+            // submission anyway: that now runs when §6.10 OPENS, so routing
+            // off it would skip the screen entirely.
             if finished { router.routeState = .main }
         }
     }

@@ -212,7 +212,7 @@ Use `NavigationStack` per tab with independent paths. Preserve tab navigation st
 2. Wordmark: ASTRA STYLE.
 3. Tagline: “Your style. Your journey. Your best self.”
 4. Continue.
-5. Sign in with Apple, email, or continue in limited guest mode.
+5. Sign in with Apple or email. **(Amended 2026-08-06, ADR 0014: an account is required; guest mode is removed.)**
 6. Kyra introduction.
 7. Style identity onboarding.
 8. Body and fit profile.
@@ -297,15 +297,15 @@ Actions:
 
 - Continue with Apple.
 - Continue with email.
-- Explore demo.
 - Terms and Privacy links.
 
-Guest mode restrictions:
-
-- Local closet capped at 10 items.
-- No cloud sync.
-- One Style Studio sample.
-- No shopping history.
+**Amended 2026-08-06 — ADR 0014.** "Explore demo" and the guest-mode
+restrictions that followed it are removed: an account is required before
+onboarding. The trial path they described was never reachable — a guest
+could not scan, could not receive a Style DNA, and could not be given an
+outfit, because all three are server capabilities a guest deliberately had
+no identity for. The free-tier closet cap on a *signed-in* user
+(`FreeTierLimits`) is a separate rule and is unaffected.
 
 ### 6.3 Kyra introduction
 
@@ -785,7 +785,13 @@ Outputs:
 - Email magic link or OTP.
 - Session restoration.
 - Account deletion inside app.
-- Guest migration to account.
+
+**Amended 2026-08-06 — ADR 0014.** "Guest migration to account" is removed
+along with guest mode. Note that the migration this line required was never
+fully built even while the feature existed: the shipped service migrated
+closet items and no profile table, so a user who onboarded as a guest and
+then signed in lost his onboarding answers — a data-loss bug ADR 0011's own
+Consequences section had predicted.
 
 ### Permissions
 

@@ -36,16 +36,6 @@ struct MainTabView: View {
         .sheet(item: $router.presentedModal) { modal in
             modalContent(for: modal)
         }
-        // Keep the scan gate in lockstep with the session. A guest who
-        // upgrades mid-session must be able to scan without relaunching;
-        // a signed-in user who somehow becomes a guest must not keep the
-        // open path. `startScan` reads this flag — call sites stay dumb.
-        .onAppear {
-            router.blocksGuestScan = container.sessionStore.isGuest
-        }
-        .onChange(of: container.sessionStore.isGuest) { _, isGuest in
-            router.blocksGuestScan = isGuest
-        }
     }
 
     @ViewBuilder
@@ -68,12 +58,6 @@ struct MainTabView: View {
         // would otherwise be out of scope. @Observable types need this to
         // project bindings at all.
         @Bindable var router = router
-        // Captured as a local `let` (matching `AppContainer.live()`'s own
-        // `{ await sessionStore.currentIsGuest() }` closures) rather than
-        // referencing `container.sessionStore` from inside the closure
-        // body, so the `@Sendable` closure captures the already-Sendable
-        // `SessionStore` reference directly.
-        let sessionStore = container.sessionStore
         NavigationStack(path: $router.homePath) {
             HomeView(
                 viewModel: HomeViewModel(
@@ -82,8 +66,7 @@ struct MainTabView: View {
                         profileRepository: container.profileRepository,
                         closetRepository: container.closetRepository,
                         weatherService: container.weatherService,
-                        calendarService: container.calendarService,
-                        isGuest: { await sessionStore.currentIsGuest() }
+                        calendarService: container.calendarService
                     ),
                     analyticsClient: container.analyticsClient
                 )
@@ -182,22 +165,11 @@ struct MainTabView: View {
         // project bindings at all.
         @Bindable var router = router
         NavigationStack(path: $router.profilePath) {
-            Group {
-                // A guest has no real Profile content to browse yet
-                // (Style DNA, wardrobe progress — Phase 2+), but does
-                // need a real, reachable "create an account" surface
-                // (spec §6.2; ADR 0011) — shown here instead of the
-                // generic placeholder below.
-                if container.sessionStore.isGuest {
-                    GuestProfileView()
-                } else {
-                    FeaturePlaceholderView(
-                        title: String(localized: "Profile"),
-                        message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
-                        systemImage: "person.crop.circle"
-                    )
-                }
-            }
+            FeaturePlaceholderView(
+                title: String(localized: "Profile"),
+                message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
+                systemImage: "person.crop.circle"
+            )
             .navigationDestination(for: ProfileRoute.self) { _ in
                 FeaturePlaceholderView(
                     title: String(localized: "Profile"),
@@ -243,8 +215,6 @@ struct MainTabView: View {
                 message: String(localized: "Tell Kyra what's coming up and she'll dress you for it."),
                 systemImage: "calendar.badge.plus"
             )
-        case .createAccount(let reason):
-            CreateAccountSheet(reason: reason)
         }
     }
 }

@@ -18,9 +18,6 @@
 //  that presents a guess in the same voice as an answer — and that mistake
 //  compiles, renders, and looks better than the correct behaviour.
 //
-//  The guest case is here for a different reason: ADR 0011 says a guest never
-//  touches Supabase, and the only way to prove the result step honours that is
-//  to count the calls it makes.
 //
 
 import Foundation
@@ -123,9 +120,8 @@ private actor ScriptedProfileRepository: ProfileRepository {
         return document
     }
 
-    /// Records the bytes as well as the count: `OnboardingReferenceTests`
-    /// asserts that a guest's photo never reaches this method at all, and
-    /// "never called" is only provable if the double can be asked.
+    /// Records the bytes as well as the count, so a test can assert on what
+    /// was uploaded and not merely that something was.
     func uploadReferenceImage(_ imageData: Data) async throws -> String {
         uploadedReferenceImages.append(imageData)
         if referenceUploadFails { throw Failure.write }
@@ -252,7 +248,7 @@ private enum StyleDNAFixtures {
 @Suite("Style DNA result step (spec §6.10)")
 struct StyleDNAResultTests {
 
-    private func makeSessionStore(isGuest: Bool) throws -> SessionStore {
+    private func makeSessionStore() throws -> SessionStore {
         let apiClient = AstraAPIClient(environment: .preview)
         let store = SessionStore(
             apiClient: apiClient,
@@ -265,7 +261,6 @@ struct StyleDNAResultTests {
                 accessToken: "test-token",
                 refreshToken: "test-refresh",
                 expiresAt: .now.addingTimeInterval(3600),
-                isGuest: isGuest
             )
         )
         return store
@@ -283,7 +278,6 @@ struct StyleDNAResultTests {
     private func makeModel(
         repository: ScriptedProfileRepository,
         store: MemoryDraftStore = MemoryDraftStore(),
-        isGuest: Bool = false
     ) throws -> OnboardingViewModel {
         OnboardingViewModel(
             store: store,
@@ -293,7 +287,7 @@ struct StyleDNAResultTests {
             // only make the failure messages harder to read.
             closetRepository: MockClosetRepository(items: []),
             referenceStore: InMemoryReferenceImageStore(),
-            sessionStore: try makeSessionStore(isGuest: isGuest),
+            sessionStore: try makeSessionStore(),
             draft: answeredDraft(),
             step: .result
         )
@@ -421,42 +415,6 @@ struct StyleDNAResultTests {
         #expect(!StyleDNAFixtures.rich.identityWasInferred)
     }
 
-    // MARK: Guests (ADR 0011)
-
-    @Test("A guest reaches a coherent outcome and makes no Style DNA call at all")
-    func guestNeverCallsTheEndpoint() async throws {
-        let repository = ScriptedProfileRepository(documents: [StyleDNAFixtures.rich])
-        let model = try makeModel(repository: repository, isGuest: true)
-
-        await model.loadStyleDNA()
-
-        #expect(model.styleDNAState == .guestPreview)
-        #expect(model.currentStyleDNA == nil)
-        // Neither call may happen: a guest has no server profile to write and
-        // none to generate from.
-        #expect(await repository.completeOnboardingCount == 0)
-        #expect(await repository.generateCount == 0)
-        // Not a spinner and not a failure — the two things a guest must never
-        // be left looking at here.
-        #expect(!model.isWorkingOnStyleDNA)
-        if case .failed = model.styleDNAState { Issue.record("A guest must not see a failure state") }
-    }
-
-    @Test("A guest's edit changes his saved answers without touching the network")
-    func guestEditStaysLocal() async throws {
-        let repository = ScriptedProfileRepository(documents: [StyleDNAFixtures.rich])
-        let store = MemoryDraftStore()
-        let model = try makeModel(repository: repository, store: store, isGuest: true)
-
-        await model.loadStyleDNA()
-        await model.regenerate(identities: [.executive, .minimalist, .creative], primary: .executive)
-
-        #expect(model.draft.primaryIdentity == .executive)
-        #expect(model.styleDNAState == .guestPreview)
-        #expect(await repository.updateStyleProfileCount == 0)
-        #expect(await repository.generateCount == 0)
-    }
-
     // MARK: Edit and regenerate (the Phase 2 exit criterion)
 
     @Test("Editing the identity writes it, regenerates, and the result changes")
@@ -574,17 +532,6 @@ struct StyleDNAResultTests {
 
         #expect(model.isFinished)
         #expect(await repository.completeOnboardingCount == 1)
-    }
-
-    @Test("A guest who finishes still leaves the flow")
-    func guestCanFinish() async throws {
-        let repository = ScriptedProfileRepository(documents: [StyleDNAFixtures.rich])
-        let model = try makeModel(repository: repository, isGuest: true)
-
-        await model.loadStyleDNA()
-        await model.advance()
-
-        #expect(model.isFinished)
     }
 
     @Test("Going back to change an answer discards the result so returning regenerates it")

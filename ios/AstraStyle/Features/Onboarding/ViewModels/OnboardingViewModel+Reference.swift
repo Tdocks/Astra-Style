@@ -46,17 +46,6 @@ public extension OnboardingViewModel {
         await removeReferenceImage()
     }
 
-    /// Whether this session is a guest (ADR 0011).
-    ///
-    /// Exposed because the consent copy has to say where the photo goes, and
-    /// for a guest the honest answer is "nowhere" — a sentence the screen
-    /// cannot write without knowing. Reads through `SessionStore` at call time
-    /// rather than being captured, since a guest session is minted per
-    /// `continueAsGuest()`.
-    func isGuestSession() async -> Bool {
-        await sessionStore.currentIsGuest()
-    }
-
     // MARK: - Capture
 
     /// Stores a chosen or captured photo locally and records its filename.
@@ -117,10 +106,10 @@ public extension OnboardingViewModel {
     ///    failure mode, behind a control whose entire promise is that it
     ///    works. A remove that leaves the object behind is a broken promise
     ///    about a photograph, which is the worst kind to break.
-    /// 3. The one branch that knows whether this session is a guest is
-    ///    `submit()`. Doing the upload there means ADR 0011's "guests never
-    ///    touch Supabase" is enforced by control flow that already exists,
-    ///    rather than by a second `currentIsGuest()` check on a view.
+    /// 3. `submit()` is the one place that already knows the answers are
+    ///    about to leave the device. Doing the upload there keeps "the photo
+    ///    goes when the answers go" a property of control flow that already
+    ///    exists, rather than of a second decision on a view.
     ///
     /// The cost is real and worth naming: a user on a slow connection waits
     /// for the photo during submission rather than earlier, when he could have

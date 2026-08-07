@@ -44,7 +44,6 @@ public final class SessionStore: AstraAuthTokenProviding {
     }
 
     public var isSignedIn: Bool { currentSession != nil }
-    public var isGuest: Bool { currentSession?.isGuest ?? false }
 
     // MARK: - AstraAuthTokenProviding
 
@@ -52,42 +51,16 @@ public final class SessionStore: AstraAuthTokenProviding {
         await MainActor.run { self.currentSession?.accessToken }
     }
 
+    /// The current session's user id — `nil` only when nobody is signed in.
+    ///
     /// `nonisolated` so it can be captured in a `@Sendable` closure and
-    /// polled from a background context — e.g. `GuestAwareClosetRepository`
-    /// deciding, per call, whether to route to local guest storage — without
-    /// forcing every caller onto the main actor just to read one flag.
-    public nonisolated func currentIsGuest() async -> Bool {
-        await MainActor.run { self.isGuest }
-    }
-
-    /// The current session's user id, but only if it's a guest session —
-    /// `nil` for a real account or no session at all. Used to scope local
-    /// guest storage, and must be captured *before* migration replaces the
-    /// guest session with a real one (see `GuestMigrationService`).
-    public nonisolated func currentGuestUserID() async -> UUID? {
-        await MainActor.run {
-            guard let session = self.currentSession, session.isGuest else { return nil }
-            return session.userID
-        }
-    }
-
-    /// The current session's user id, guest or real — `nil` only when
-    /// nobody is signed in.
+    /// read from a background context: it is handed to repositories and
+    /// view models that are not on the main actor, and forcing every one of
+    /// them onto it just to read one id would be a real cost for no reason.
     ///
-    /// Deliberately a sibling of `currentGuestUserID()` rather than a
-    /// generalisation of it: that one answers "which local guest bucket
-    /// does this belong to" and returns `nil` for a real account *on
-    /// purpose*, so a signed-in user can never be handed guest storage.
-    /// This one answers a different question — "whose row is this" — which
-    /// is what writing a `closet_items` row needs before it has decided
-    /// where the row goes. Which store it goes to stays
-    /// `GuestAwareClosetRepository`'s decision, taken from
-    /// `currentIsGuest()`, so a guest's id still lands on a local row and
-    /// a real account's on a Postgres one.
-    ///
-    /// `nonisolated` for the same reason as its two neighbours: it is
-    /// captured in `@Sendable` closures handed to repositories and view
-    /// models that are not on the main actor.
+    /// This used to have two siblings, and the distinction between them was
+    /// load-bearing while guest mode existed. It is not now (ADR 0014):
+    /// there is one kind of session, so there is one question to ask.
     public nonisolated func currentUserID() async -> UUID? {
         await MainActor.run { self.currentSession?.userID }
     }
@@ -108,13 +81,8 @@ public final class SessionStore: AstraAuthTokenProviding {
     ///     the user's perspective: the entry is wiped and restoration
     ///     proceeds as if it had never existed, rather than propagating a
     ///     decode error all the way up through app launch.
-    ///   - A guest session is never expired (`AuthSession.expiresAt` is
-    ///     `.distantFuture` for guests — see `LiveAuthRepository
-    ///     .continueAsGuest()`) and is restored as-is, with no Supabase
-    ///     call of any kind — guest mode has no server-side identity to
-    ///     refresh (ADR 0011).
-    ///   - A valid, non-expired real session is restored as-is.
-    ///   - An expired real session is refreshed via `sessionRefresher`; if
+    ///   - A valid, non-expired session is restored as-is.
+    ///   - An expired session is refreshed via `sessionRefresher`; if
     ///     the refresh token itself is expired or has been revoked
     ///     server-side, the stale entry is cleared and this returns `nil`
     ///     — a normal "please sign in again" outcome, not a crash.
@@ -134,11 +102,6 @@ public final class SessionStore: AstraAuthTokenProviding {
         guard let stored else {
             currentSession = nil
             return nil
-        }
-
-        if stored.isGuest {
-            currentSession = stored
-            return stored
         }
 
         guard stored.isExpired else {
@@ -171,9 +134,7 @@ public final class SessionStore: AstraAuthTokenProviding {
     }
 
     public func signOut() async throws {
-        if !isGuest {
-            try? await supabase.auth.signOut()
-        }
+        try? await supabase.auth.signOut()
         try keychain.clear()
         currentSession = nil
     }

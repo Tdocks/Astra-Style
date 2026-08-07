@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
+**Last audited:** 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
 
 This file answers one question: *which of the 178 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -30,6 +30,7 @@ corresponding code change is a lie in the making.
 | **Partial** | Some criteria met, others provably not. The row says which are missing. |
 | **Not started** | No implementing code exists anywhere in the repo. |
 | **Unverifiable** | The criterion is real but cannot be settled by reading code — needs a device, a sandbox purchase, App Store review, or a judgement about subjective quality. Used honestly; it is not a synonym for Done. |
+| **Withdrawn** | The ticket's feature was removed by a decision, so its criteria can never be met. The row must name the ADR that withdrew it — `check_progress.py` enforces that. Every other status would be a lie: `Done` claims a capability nobody can use, `Not started` erases work that was done and then deliberately removed. |
 
 "Partial" is the most common status and that is expected, not a failure. A repo built spec-first
 lands data layers, protocols, and models long before the screens that use them.
@@ -38,16 +39,16 @@ lands data layers, protocols, and models long before the screens that use them.
 
 | Phase | Tickets | Done | Partial | Not started |
 |---|---|---|---|---|
-| 1 — Foundation | 25 | 13 | 12 | 0 |
+| 1 — Foundation | 25 | 11 | 12 | 0 |
 | 2 — Identity | 17 | 12 | 5 | 0 |
 | 3 — Closet | 27 | 15 | 9 | 3 |
 | 4 — Outfit intelligence | 26 | 3 | 11 | 12 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **46** | **52** | **80** |
+| **Total** | **178** | **44** | **52** | **80** |
 
-Read that table carefully before drawing a conclusion from it. 46 of 178 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 44 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -132,7 +133,7 @@ left open. This section stays as the record of *why*.
 
 # PHASE 1 — FOUNDATION
 
-**13 Done · 12 Partial · 0 Not started.** Substantively complete. Every Partial below is a narrow
+**11 Done · 12 Partial · 0 Not started · 2 Withdrawn.** Substantively complete. Every Partial below is a narrow
 missing criterion, not missing work — but three of them (CI on PRs, SwiftData schema versioning,
 the dead offline queue) will cost real money later if they stay open.
 
@@ -160,8 +161,8 @@ the dead offline queue) will cost real money later if they stay open.
 | P1-AUTH-01 | Done | `AppleSignInCoordinator` + SHA-256 nonce; `handle_new_user()` trigger deployed; cancellation maps to `AstraError.cancelled`. Live round-trip is a deliberate §22 placeholder. |
 | P1-AUTH-02 | Done | `LiveAuthRepository.requestEmailOTP`/`verifyEmailOTP`; `EmailAuthSheet` is the entry UI; distinct errors for wrong code vs unconfirmed email; `astrastyle` URL scheme registered. |
 | P1-AUTH-03 | Done | `SessionStore.restoreSession()` + `SessionRefreshing`; `SessionRestoreTests` — 6 tests including transparent refresh, refresh rejection, corrupt Keychain item, and guest session surviving relaunch. |
-| P1-AUTH-04 | Done | `GuestClosetRepository` rejects the 11th item; `GuestClosetRepositoryTests` (7 tests) plus `GuestModeNetworkTests` proving 0 intercepted requests via a `URLProtocol` trap. |
-| P1-AUTH-05 | Done | `LiveGuestMigrationService`; `GuestMigrationServiceTests` (4 tests) including partial-failure retention and ownership re-pointing. |
+| P1-AUTH-04 | Withdrawn | **ADR 0014** removed guest mode; an account is required before onboarding. This was genuinely finished — `GuestClosetRepository` rejected the 11th item, and `GuestModeNetworkTests` proved zero intercepted requests through a `URLProtocol` trap — and has been deleted along with the feature. Not `Done` (nobody can use it) and not `Not started` (the work happened). The free-tier 30-item cap on a signed-in closet is a different rule and still ships: `P3-CLOSET-11`. |
+| P1-AUTH-05 | Withdrawn | **ADR 0014** removed guest mode, so there is nothing to migrate from. Worth recording that this was never as finished as its `Done` implied: `LiveGuestMigrationService` migrated closet items and **no profile table**, so a user who onboarded as a guest and then signed in lost his onboarding answers — the exact data loss ADR 0011's own Consequences section predicted. It shipped that way for the feature's whole life. |
 | P1-AUTH-06 | Partial | `SignedOutGateView` wires all four actions. The criterion "Terms/Privacy open real documents, not a 404" is **still unmet — no policy text exists** and `astrastyle.app` is still NXDOMAIN (re-verified 2026-07-30 with `nslookup` and `curl`). What changed is the failure mode: `AstraLegal` now gates every URL behind `isPublished` (false) and vends `URL?`, so the dead link is a compile-time obligation rather than a runtime 404, and the welcome screen renders an honest "will be published before release" notice instead of opening Safari on a DNS error — the control still does something, so §22's "no dead buttons" holds. **Writing the documents and registering the domain are product/legal decisions, not code.** Flip `AstraLegal.isPublished` and update `Tests/UnitTests/LegalDocumentAvailabilityTests.swift` in the same change. |
 
 ---

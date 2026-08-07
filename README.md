@@ -24,7 +24,7 @@ Do not start by auditing `HANDOFF.md` landmines.
 ## Status
 
 **Phase 3 of 7 — Closet — exit cut for internal TestFlight.** Closet is usable
-end to end (browse, filters, metrics, manual add/edit, free-tier/guest caps,
+end to end (browse, filters, metrics, manual add/edit, the free-tier cap,
 offline read cache). Single-item Scanner ships (capture/import → review → save →
 unlock report, offline queue). Batch/receipt/mirror, server cutout, and the live
 OpenAI vision pilot gate remain Partial. Outfit intelligence, Kyra, Style Studio,

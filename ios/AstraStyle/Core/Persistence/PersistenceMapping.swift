@@ -85,8 +85,8 @@ public enum PersistenceMapping {
     }
 
     /// Mutates an existing `PersistedClosetItem` in place to match `item`,
-    /// for update-in-place call sites (`SwiftDataGuestClosetStore.update`)
-    /// rather than delete+reinsert, which would needlessly churn the
+    /// for update-in-place call sites rather than delete+reinsert, which
+    /// would needlessly churn the
     /// SwiftData row's identity. Mirrors `persistedModel(from:pendingSync:)`
     /// field-for-field, minus `id`/`createdAt` (identity/history, never
     /// updated) and `primaryImageStoragePath` (not sourced from `ClosetItem`

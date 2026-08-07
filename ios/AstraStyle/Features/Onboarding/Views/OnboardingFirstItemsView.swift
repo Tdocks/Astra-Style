@@ -40,10 +40,6 @@ struct OnboardingFirstItemsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
-            if let remaining = model.guestItemsRemaining {
-                guestAllowance(remaining)
-            }
-
             addForm
 
             if !model.firstItems.isEmpty {
@@ -51,39 +47,6 @@ struct OnboardingFirstItemsView: View {
             }
         }
         .task { await model.prepareFirstItemsStep() }
-    }
-
-    // MARK: - Guest allowance (spec §6.2; ADR 0011)
-
-    /// Stated up front rather than discovered at the eleventh item.
-    ///
-    /// The cap is enforced in `GuestClosetRepository` and this screen cannot
-    /// weaken it — but a limit a user only learns about by hitting it reads as
-    /// the app breaking, and the count is the whole reason a guest might
-    /// choose to sign in here rather than later.
-    private func guestAllowance(_ remaining: Int) -> some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            Text("GUEST MODE")
-                .astraText(.micro)
-                .foregroundStyle(AstraColor.accentChampagneAccessible)
-
-            Text(
-                remaining > 0
-                    ? String(
-                        format: String(localized: "You can keep %d more pieces on this phone. They stay here until you create an account.",
-                                       comment: "Guest closet allowance; %d is the number of items left"),
-                        remaining
-                      )
-                    : String(localized: "You've filled the ten pieces guest mode keeps on this phone. Create an account to add more.",
-                             comment: "Guest closet allowance, exhausted")
-            )
-            .astraText(.callout)
-            .foregroundStyle(AstraColor.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("onboarding.firstItems.guestAllowance")
     }
 
     // MARK: - The form
@@ -192,12 +155,12 @@ struct OnboardingFirstItemsView: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("onboarding.firstItems.added")
 
-        case .guestCapReached(let limit):
+        case .capReached(let limit):
             noticeCard(
-                headline: String(localized: "That's the guest limit.", comment: "Guest cap headline"),
+                headline: String(localized: "That's the free-plan limit.", comment: "Closet cap headline"),
                 detail: String(
-                    format: String(localized: "Guest mode keeps %d pieces on this phone. Create an account and Kyra keeps the whole closet — everything you've added comes with you.",
-                                   comment: "Guest cap detail; %d is the limit"),
+                    format: String(localized: "The free plan keeps %d pieces. You can carry on — the rest of onboarding doesn't need any more than this.",
+                                   comment: "Closet cap detail; %d is the limit"),
                     limit
                 ),
                 identifier: "onboarding.firstItems.capNotice"

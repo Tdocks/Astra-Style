@@ -29,7 +29,7 @@ public enum AstraFeatureFlags {
         #endif
     }
 
-    /// When `true`, the app clears any persisted session and local guest data
+    /// When `true`, the app clears any persisted session and local data
     /// during launch, before routing.
     ///
     /// UI tests need a known starting state. Without this, the QA sweep
@@ -43,7 +43,7 @@ public enum AstraFeatureFlags {
         ProcessInfo.processInfo.arguments.contains("-astra-reset-state")
     }
 
-    /// When `true`, authenticating — including entering guest mode — routes
+    /// When `true`, authenticating routes
     /// straight to the five-tab shell instead of into §6.3–§6.10.
     ///
     /// Exists for tests whose subject is the shell rather than onboarding.
@@ -73,15 +73,14 @@ public enum AstraFeatureFlags {
 
     /// When `true`, the app runs against `AppContainer.preview()` — the
     /// in-memory mocks in `Core/Mocks` — and starts already signed in to a
-    /// throwaway (non-guest) session, routed straight into §6.3.
+    /// throwaway session, routed straight into §6.3.
     ///
-    /// Exists for one thing the other flags cannot give a UI test: a SIGNED-IN
-    /// run of onboarding. Guest mode is the only account-free way into the
-    /// flow, and a guest has no server profile (ADR 0011), so a guest run of
-    /// §6.10 can only ever exercise the guest outcome — the six sections that
-    /// step exists to show are unreachable. Without this, the screen with the
-    /// most content in the flow would be the one screen with no UI coverage of
-    /// its layout, which is where Dynamic Type breaks first.
+    /// Exists for one thing the other flags cannot give a UI test: a run of
+    /// §6.10 with a real Style DNA in it. Reaching that screen otherwise
+    /// means a live `style-dna/generate` round trip, so without this the
+    /// screen with the most content in the flow would be the one screen with
+    /// no UI coverage of its layout — which is where Dynamic Type breaks
+    /// first.
     ///
     /// Debug-only by construction, like `verticalSliceEnabled` and
     /// `skipsOnboarding`: a Release build ignores the argument entirely, so a

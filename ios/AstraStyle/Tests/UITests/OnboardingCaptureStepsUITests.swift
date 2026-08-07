@@ -88,20 +88,18 @@ final class OnboardingCaptureStepsUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    /// Enters onboarding as a guest and walks to the reference photo step,
+    /// Enters onboarding against the in-memory mocks and walks to the reference photo step,
     /// answering only §6.5 — the one step the flow requires.
     private func walkToReferenceStep(largestTextSize: Bool = false) {
         if largestTextSize {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName",
                                     "UICTContentSizeCategoryAccessibilityXXXL"]
         }
+        // Before `launch()`, obviously — but worth stating, because the
+        // guest tap this replaced happened after it and moving the line
+        // without moving it far enough would silently launch signed out.
+        app.launchArguments += ["-astra-mock-backend"]
         app.launch()
-
-        let guest = app.buttons["Explore in guest mode"].exists
-            ? app.buttons["Explore in guest mode"]
-            : app.staticTexts["Explore in guest mode"]
-        awaitElement(guest, "Welcome: guest entry")
-        guest.tap()
 
         awaitElement(app.buttons["onboarding.begin"], "Intro")
         app.buttons["onboarding.begin"].tap()
@@ -296,9 +294,9 @@ final class OnboardingCaptureStepsUITests: XCTestCase {
         )
     }
 
-    // MARK: - §5.1 step 12 — adding, the guest cap, and skipping
+    // MARK: - §5.1 step 12 — adding and skipping
 
-    func testAddingAFirstItemAsAGuest() {
+    func testAddingAFirstItem() {
         walkToReferenceStep()
         leaveReferenceStep()
 
@@ -306,12 +304,6 @@ final class OnboardingCaptureStepsUITests: XCTestCase {
         XCTAssertFalse(
             app.buttons["onboarding.firstItems.add"].isEnabled,
             "Add is enabled with an empty form, so tapping it can only fail"
-        )
-        // Spec §6.2's cap, said before he starts rather than discovered at the
-        // eleventh item.
-        XCTAssertTrue(
-            anyElement("onboarding.firstItems.guestAllowance").exists,
-            "A guest is not told how many pieces this device will keep"
         )
         capture("54-FirstItems-Empty")
 
@@ -389,7 +381,7 @@ final class OnboardingCaptureStepsUITests: XCTestCase {
             usleep(400_000)
         }
 
-        awaitElement(app.staticTexts["onboarding.result.guestNotice"], "Result after skipping both steps")
+        awaitElement(app.buttons["onboarding.advance"], "Result after skipping both steps")
         capture("56-SkippedBothSteps-Result")
 
         app.buttons["onboarding.advance"].tap()

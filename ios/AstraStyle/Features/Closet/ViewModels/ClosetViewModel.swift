@@ -242,9 +242,8 @@ public final class ClosetViewModel {
 
     /// Who the garment being added belongs to. A closure rather than a
     /// `SessionStore` because that is how this fact already crosses an
-    /// isolation boundary everywhere else in the app (`AppContainer` hands
-    /// `GuestClosetRepository` a `currentGuestUserID` closure the same
-    /// way), and because taking the store itself would drag a live
+    /// isolation boundary everywhere else in the app, and because taking
+    /// the store itself would drag a live
     /// Supabase client into every unit test of a screen that makes no auth
     /// call.
     ///
@@ -362,9 +361,8 @@ public final class ClosetViewModel {
     /// screen.
     ///
     /// Inserted at the FRONT, not appended, because that is where the next
-    /// fetch will put it: both closet stores order by `created_at`
-    /// descending (`LiveClosetRepository.fetchItems()` and
-    /// `SwiftDataGuestClosetStore.items(for:)`), so a new garment appearing
+    /// fetch will put it: `LiveClosetRepository.fetchItems()` orders by
+    /// `created_at` descending, so a new garment appearing
     /// at the top now and staying there after a refresh is the same list,
     /// not two.
     ///

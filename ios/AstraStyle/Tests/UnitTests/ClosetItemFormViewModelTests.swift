@@ -4,7 +4,7 @@
 //
 //  Ticket P3-CLOSET-08 ("Implement manual add garment form"), spec §6.15
 //  (the fields the item detail screen must be able to edit) and §6.2 /
-//  ADR 0011 (the guest closet cap).
+//  spec §16 (the free-tier closet cap).
 //
 //  The ticket's two acceptance criteria are the first two suites below:
 //  a garment goes in end to end with no camera anywhere in the path, and
@@ -30,7 +30,6 @@ import Testing
 /// the stub stays `Sendable` without qualification.
 private enum StubOutcome: Sendable {
     case succeed
-    case guestCap(limit: Int)
     case freeTierCap(limit: Int)
     case astra(AstraError)
     /// Something that is neither of the typed failures — the case the
@@ -38,7 +37,7 @@ private enum StubOutcome: Sendable {
     case unexpected
 }
 
-/// A failure that is not `AstraError` and not `GuestClosetError`, so the
+/// A failure that is not `AstraError` and not `FreeTierClosetError`, so the
 /// `catch` of last resort is exercised by something real.
 private struct StubUnexpectedError: Error {}
 
@@ -74,7 +73,6 @@ private actor StubClosetRepository: ClosetRepository {
     private func check() throws {
         switch outcome {
         case .succeed: return
-        case .guestCap(let limit): throw GuestClosetError.capReached(limit: limit)
         case .freeTierCap(let limit): throw FreeTierClosetError.capReached(limit: limit)
         case .astra(let error): throw error
         case .unexpected: throw StubUnexpectedError()
@@ -479,49 +477,6 @@ extension ClosetItemFormViewModelTests {
 
 extension ClosetItemFormViewModelTests {
 
-    @Test("The guest cap surfaces its own explanation, not a generic 'something went wrong'")
-    func guestCapSurfacesItsOwnMessage() async throws {
-        let limit = GuestLimits.maxClosetItems
-        let repository = StubClosetRepository(outcome: .guestCap(limit: limit))
-        let model = makeAdding(repository: repository)
-        model.name = "The eleventh piece"
-        model.category = .top
-
-        await model.submit()
-
-        let failure = try #require(model.failure)
-        #expect(failure == .guestCapReached(limit: limit))
-        // The exact sentence `GuestClosetError` defines, so a guest reads
-        // the same words here as anywhere else in the app.
-        #expect(failure.message == GuestClosetError.capReached(limit: limit).localizedDescription)
-        #expect(failure.message.contains("\(limit)"))
-        // Not retryable, so the form stops offering a submit that cannot
-        // succeed — and says why instead of just greying out.
-        #expect(!failure.isRecoverable)
-        #expect(!model.canSubmit)
-        #expect(model.blockingReason == failure.message)
-    }
-
-    @Test("The guest cap does not close the form or clear the draft")
-    func capReachedDoesNotCloseTheForm() async throws {
-        let repository = StubClosetRepository(outcome: .guestCap(limit: 10))
-        let model = makeAdding(repository: repository)
-        model.name = "The eleventh piece"
-        model.category = .outerwear
-        model.brand = "Barbour"
-
-        await model.submit()
-
-        // Onboarding closes its form at the cap because that step is one
-        // screen of twelve and is designed to be easy to leave. This is a
-        // first-class add path a man navigated to on purpose, and throwing
-        // away what he typed would be the app punishing him for a limit he
-        // could not see coming.
-        #expect(model.name == "The eleventh piece")
-        #expect(model.category == .outerwear)
-        #expect(model.brand == "Barbour")
-    }
-
     @Test("The free-tier cap surfaces its own explanation, not a generic failure")
     func freeTierCapSurfacesItsOwnMessage() async throws {
         let limit = FreeTierLimits.maxClosetItems
@@ -648,7 +603,7 @@ extension ClosetItemFormViewModelTests {
     func onSavedDoesNotFireOnFailure() async {
         let recorder = SaveRecorder()
 
-        for outcome in [StubOutcome.astra(AstraError.network("offline")), .guestCap(limit: 10), .unexpected] {
+        for outcome in [StubOutcome.astra(AstraError.network("offline")), .freeTierCap(limit: 30), .unexpected] {
             let model = makeAdding(repository: StubClosetRepository(outcome: outcome))
             model.onSaved = { item in recorder.record(item) }
             model.name = "Grey crewneck"

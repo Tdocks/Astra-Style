@@ -9,7 +9,7 @@
 //  so tests never interfere with each other or with a real app install)
 //  and a fake `SessionRefreshing`, covering every case named in the task:
 //  valid, expired-but-refreshable, expired-and-unrefreshable,
-//  corrupt-Keychain, absent, and a guest session across a simulated
+//  corrupt-Keychain and absent sessions across a simulated
 //  relaunch.
 //
 
@@ -147,39 +147,11 @@ struct SessionRestoreTests {
         #expect(try keychain.load() == nil)
     }
 
-    @Test("A guest session survives a simulated kill-and-relaunch and is still flagged as a guest")
-    func guestSessionSurvivesRelaunchWithoutRefreshing() async throws {
-        let keychain = uniqueKeychain()
-        let guestID = UUID()
-        let guestSession = AuthSession(userID: guestID, accessToken: "", refreshToken: "", expiresAt: .distantFuture, isGuest: true)
-
-        // First "launch": adopt the guest session, as `continueAsGuest()` would.
-        let refresherA = StubRefresher(result: .failure(AstraError.auth("guest sessions must never refresh")))
-        let firstLaunchStore = makeSessionStore(keychain: keychain, refresher: refresherA)
-        try firstLaunchStore.adopt(guestSession)
-
-        // "Kill and relaunch": a brand new `SessionStore` instance — as
-        // `AstraStyleApp` constructs at every launch — backed by the same
-        // Keychain entry, with nothing carried over in memory.
-        let refresherB = StubRefresher(result: .failure(AstraError.auth("guest sessions must never refresh")))
-        let relaunchedStore = makeSessionStore(keychain: keychain, refresher: refresherB)
-        let restored = try await relaunchedStore.restoreSession()
-
-        #expect(restored?.isGuest == true)
-        #expect(restored?.userID == guestID)
-        #expect(relaunchedStore.isGuest == true)
-        // A guest is never confused for a real account: `isSignedIn` is
-        // `true` (there *is* a usable local session)...
-        #expect(relaunchedStore.isSignedIn == true)
-        // ...but nothing about it ever reached the refresh path, which is
-        // exactly the path that would imply a server-side identity.
-        #expect(await refresherB.callCount == 0)
-    }
 }
 
 /// Configurable `SessionRefreshing` double that also counts calls, so tests
 /// can assert both the outcome and — for the paths that must never touch
-/// the network (guest, absent, corrupt) — that it was never invoked at all.
+/// the network (absent, corrupt) — that it was never invoked at all.
 private actor StubRefresher: SessionRefreshing {
     private let result: Result<RefreshedSession, AstraError>
     private(set) var callCount = 0

@@ -35,43 +35,21 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private let weatherService: WeatherService
     private let calendarService: CalendarService
 
-    /// Resolves the *current* session's guest status at call time (a guest
-    /// session can end mid-lifetime via migration, so this cannot be
-    /// captured once at construction) — injected rather than read from a
-    /// global so this type stays testable, matching the pattern
-    /// `GuestAwareClosetRepository` already uses for the same question.
-    /// Typically `{ await sessionStore.currentIsGuest() }` (see
-    /// `Core/Auth/SessionStore.swift`, backed by `AuthSession.isGuest`).
-    private let isGuest: @Sendable () async -> Bool
-
     public init(
         outfitRepository: OutfitRepository,
         profileRepository: ProfileRepository,
         closetRepository: ClosetRepository,
         weatherService: WeatherService,
-        calendarService: CalendarService,
-        isGuest: @escaping @Sendable () async -> Bool
+        calendarService: CalendarService
     ) {
         self.outfitRepository = outfitRepository
         self.profileRepository = profileRepository
         self.closetRepository = closetRepository
         self.weatherService = weatherService
         self.calendarService = calendarService
-        self.isGuest = isGuest
     }
 
     public func loadTodayBrief(regenerate: Bool) async throws -> HomeBriefData {
-        // Guests have no server-side profile row at all (ADR 0011: "no
-        // server-side identity at all" until migration), so
-        // `profileRepository.fetchCurrentProfile()` below would be a real
-        // Supabase call for a session that must never touch Supabase — and
-        // it would fail besides. Route guests to a brief built entirely
-        // from local state instead, matching the pattern already
-        // established in `AstraStyleApp.resolveLaunchRoute()`.
-        if await isGuest() {
-            return await loadGuestBrief()
-        }
-
         let profile = try await profileRepository.fetchCurrentProfile()
 
         // §6.11's empty state is a fact about the closet, not a failure of
@@ -82,7 +60,7 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // The count is read here rather than inferred from a nil
         // `primaryOutfitID` on the way back because that inference requires
         // the round trip to have succeeded. Before this check existed the
-        // empty state was reachable only by guests: every signed-in user
+        // empty state was reachable only by a guest session: every real user
         // went to `generateDailyBrief`, whose Edge Function is not built
         // (P4-HOME-02), and got an error screen where §6.11 specifies an
         // invitation. `try?` rather than `try` on purpose — if the closet
@@ -150,9 +128,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
     // MARK: - Sparse-closet brief (spec §6.11 empty state)
 
-    /// The signed-in counterpart to `loadGuestBrief()`: a real profile, a
-    /// real closet, and deliberately no outfit — because there aren't
-    /// enough garments to build one from.
+    /// A real profile, a real closet, and deliberately no outfit —
+    /// because there aren't enough garments to build one from.
     ///
     /// `primaryOutfit` is nil, which is what drives
     /// `HomeBriefData.needsMoreClosetItems` and therefore
@@ -186,48 +163,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             wardrobeScore: wardrobeScore,
             laundryAlertItemCount: closetItems.filter { $0.laundryState == .laundry }.count,
             upcomingOccasions: occasions,
-            purchaseOpportunity: nil
-        )
-    }
-
-    // MARK: - Guest brief (ADR 0011; never touches Supabase)
-
-    /// Builds the guest Home brief from local state only — no
-    /// `profileRepository` or `outfitRepository` call, both of which are
-    /// Supabase-backed and neither of which has a guest-local counterpart
-    /// (there is no server-generated Daily Brief without an Edge Function
-    /// round trip). `closetRepository` is safe to use as-is: it's always
-    /// `GuestAwareClosetRepository` (see `AppContainer`), which already
-    /// routes a guest session's calls to on-device storage.
-    ///
-    /// A guest's brief therefore always has no primary outfit — outfit
-    /// generation is a server capability guests don't have — which drives
-    /// `HomeBriefData.needsMoreClosetItems`, so `HomeViewModel` renders the
-    /// real "Let's build your first look" empty state (spec §6.11) instead
-    /// of an error. The one thing that *is* real here is the local closet:
-    /// `fetchLaundryCount()` below reads it through the same guest-aware
-    /// repository, not a hardcoded zero.
-    private func loadGuestBrief() async -> HomeBriefData {
-        async let wardrobeScoreTask = fetchWardrobeScoreSafely()
-        async let laundryCountTask = fetchLaundryCount()
-
-        let wardrobeScore = await wardrobeScoreTask
-        let laundryCount = await laundryCountTask
-
-        let brief = DailyBrief(id: UUID(), userID: UUID(), briefDate: .now)
-
-        return HomeBriefData(
-            // Empty, not "there" — see DailyBriefHeaderView for why.
-            greetingName: "",
-            weather: nil,
-            schedule: nil,
-            brief: brief,
-            primaryOutfit: nil,
-            primaryOutfitItems: [],
-            alternativeOutfits: [],
-            wardrobeScore: wardrobeScore,
-            laundryAlertItemCount: laundryCount,
-            upcomingOccasions: [],
             purchaseOpportunity: nil
         )
     }

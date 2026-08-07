@@ -42,7 +42,7 @@ Worn** writes a real `outfit_wears` row.
 ## What's explicitly excluded (do not add these here)
 
 Style DNA / onboarding, camera/OCR, Kyra, Style Studio, product evaluation,
-notifications, StoreKit, account deletion, guest mode, and any design
+notifications, StoreKit, account deletion, and any design
 polish beyond the existing `Astra*` tokens. If a task asks for any of
 these, it belongs in the real feature module under `Features/`, not here.
 

@@ -36,7 +36,7 @@ Owns garment capture and the device-side half of the computer vision pipeline (s
 - `Domain/Models/ClosetItemAnalysisResult.swift` — confidence-scored suggestions the review screen binds to; `GarmentDeviceHints` for on-device priors.
 - `Core/Networking/Live/LiveClosetRepository.swift` — upload-then-analyze flow.
 - `Core/Mocks/MockClosetRepository.swift` — believable suggestions without a camera.
-- Guest mode: scan entry is gated before the modal opens for guests.
+- ~~Guest mode: scan entry is gated before the modal opens for guests.~~ Withdrawn — ADR 0014 removed guest mode, and with it the gate.
 
 **Server (outside this module):** `supabase/functions/closet/` — see that directory's README and `docs/08` §2.5 for the optional OpenAI vision pilot.
 

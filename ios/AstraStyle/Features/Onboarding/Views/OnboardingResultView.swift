@@ -59,8 +59,6 @@ struct OnboardingResultView: View {
             switch model.styleDNAState {
             case .idle, .loading:
                 workingState
-            case .guestPreview:
-                guestState
             case .ready(let dna):
                 result(dna, isRegenerating: false)
             case .regenerating(let dna):
@@ -93,25 +91,9 @@ struct OnboardingResultView: View {
 
     /// Split out of the view only because the sentence is longer than one
     /// line of source. It is one paragraph on screen.
-    private var guestExplanation: String {
-        String(localized: "Kyra builds Style DNA on Astra's servers, and guest mode never sends anything there.",
-               comment: "Guest Style DNA explanation, first sentence")
-            + " "
-            + String(localized: "Create an account whenever you like and it's built from exactly these answers.",
-                     comment: "Guest Style DNA explanation, second sentence")
-            + " "
-            + String(localized: "You won't be asked any of it twice.",
-                     comment: "Guest Style DNA explanation, third sentence")
-    }
 
-    /// A guest's edit changes his saved answers and nothing else — there is no
-    /// server profile to regenerate from (ADR 0011) — so promising a regenerate
-    /// would be a button that lies about what it did.
     private var confirmTitle: String {
-        if case .guestPreview = model.styleDNAState {
-            return String(localized: "Save", comment: "Confirm an edit with no regeneration")
-        }
-        return String(localized: "Regenerate", comment: "Confirm an edit and regenerate Style DNA")
+        String(localized: "Regenerate", comment: "Confirm an edit and regenerate Style DNA")
     }
 
     // MARK: - States around the result
@@ -169,71 +151,6 @@ struct OnboardingResultView: View {
             RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
                 .strokeBorder(AstraColor.warningAmber, lineWidth: 1)
         )
-    }
-
-    /// ADR 0011: a guest never touches Supabase, so there is no Style DNA to
-    /// fetch and no request to make.
-    ///
-    /// The alternative — computing one on-device — was considered and rejected.
-    /// It means a second copy of `deterministicStylist.ts` in Swift, drifting
-    /// from the server's the first time either is retuned, and it would hand a
-    /// guest a Style DNA that the account he later creates would silently
-    /// replace with a different one. So this says what is true, shows him the
-    /// answers it will be built from, and lets him change them.
-    private var guestState: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.lg) {
-            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-                Text("SAVED ON THIS DEVICE")
-                    .astraText(.micro)
-                    .foregroundStyle(AstraColor.accentChampagneAccessible)
-
-                Text("Your answers are safe. Your Style DNA needs an account.")
-                    .astraText(.title1)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(guestExplanation)
-                    .astraText(.body)
-                    .foregroundStyle(AstraColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("onboarding.result.guestNotice")
-
-            if !model.draft.selectedIdentities.isEmpty {
-                VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-                    AstraSectionHeader(
-                        title: String(localized: "What it will be built from",
-                                      comment: "Guest Style DNA section title"),
-                        eyebrow: String(localized: "YOUR ANSWERS", comment: "Guest Style DNA eyebrow")
-                    )
-
-                    ForEach(model.draft.selectedIdentities, id: \.self) { identity in
-                        HStack(spacing: AstraSpacing.sm) {
-                            Text(identity.displayName)
-                                .astraText(.body)
-                                .foregroundStyle(AstraColor.textPrimary)
-
-                            if identity == model.draft.primaryIdentity {
-                                Text("PRIMARY")
-                                    .astraText(.micro)
-                                    .foregroundStyle(AstraColor.accentChampagneAccessible)
-                            }
-
-                            Spacer(minLength: 0)
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                }
-            }
-
-            // Outside the block above, not inside it: the promise on this step
-            // is "edit anything that's wrong", and a guest who somehow reached
-            // here with no identity recorded is precisely the man who needs the
-            // control most.
-            editButton
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - The result itself
@@ -389,7 +306,7 @@ struct OnboardingResultView: View {
 // MARK: - The remaining §6.10 sections, and the §5.1 step 11 notice
 //
 // In an extension purely so the type above stays a readable account of the
-// screen's STATES — working, guest, failed, result — rather than four hundred
+// screen's STATES — working, failed, result — rather than four hundred
 // lines in which those states are hard to find among the stacks.
 
 private extension OnboardingResultView {

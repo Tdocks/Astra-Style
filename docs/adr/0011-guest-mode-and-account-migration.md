@@ -2,7 +2,14 @@
 
 ## Status
 
-Accepted
+**Superseded by [0014](0014-account-required-no-guest-mode.md) (2026-08-06).**
+Guest mode is removed and an account is required before onboarding. This
+document is kept as the record of why guest mode was built the way it was —
+in particular its Consequences section, which predicted the profile-migration
+data loss that then shipped, and its Alternatives, where Supabase anonymous
+auth is the option to revisit if a trial path is ever wanted again.
+
+Originally: Accepted
 
 ## Context
 

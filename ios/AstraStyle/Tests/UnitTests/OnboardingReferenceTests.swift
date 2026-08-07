@@ -7,7 +7,7 @@
 //  Three of these tests are about §29 and one is about ADR 0011, and they are
 //  the reason this file exists at all. The camera and the picker are system
 //  components that cannot be driven from a unit test; the consent gate, the
-//  upload timing and the guest embargo are pure logic, they are the parts that
+//  upload timing is pure logic, it is the part that
 //  would be catastrophic to get wrong, and none of them is visible in a UI
 //  test that only sees the happy path.
 //
@@ -21,7 +21,7 @@ import Testing
 /// A `ProfileRepository` that counts uploads and can be told to fail them.
 ///
 /// Counting rather than merely recording success, because the strongest
-/// assertion in this file is a NEGATIVE one — a guest's photo must produce
+/// assertion in this file is a NEGATIVE one — a skipped photo must produce
 /// zero calls — and "zero" is only provable against a double that would have
 /// noticed one.
 private actor ReferenceProfileRepository: ProfileRepository {
@@ -80,7 +80,7 @@ struct OnboardingReferenceTests {
 
     private let photo = Data("not-really-a-jpeg-but-bytes-are-bytes".utf8)
 
-    private func makeSessionStore(isGuest: Bool) throws -> SessionStore {
+    private func makeSessionStore() throws -> SessionStore {
         let store = SessionStore(
             apiClient: AstraAPIClient(environment: .preview),
             supabase: AstraSupabaseClientFactory.previewClient,
@@ -92,7 +92,6 @@ struct OnboardingReferenceTests {
                 accessToken: "test-token",
                 refreshToken: "test-refresh",
                 expiresAt: .now.addingTimeInterval(3600),
-                isGuest: isGuest
             )
         )
         return store
@@ -102,7 +101,6 @@ struct OnboardingReferenceTests {
         repository: ReferenceProfileRepository,
         referenceStore: InMemoryReferenceImageStore = InMemoryReferenceImageStore(),
         draftStore: InMemoryOnboardingDraftStore = InMemoryOnboardingDraftStore(),
-        isGuest: Bool = false
     ) throws -> OnboardingViewModel {
         var draft = OnboardingDraft()
         draft.selectedIdentities = [.modernHeritage, .quietLuxury, .smartCasual]
@@ -112,7 +110,7 @@ struct OnboardingReferenceTests {
             profileRepository: repository,
             closetRepository: MockClosetRepository(items: []),
             referenceStore: referenceStore,
-            sessionStore: try makeSessionStore(isGuest: isGuest),
+            sessionStore: try makeSessionStore(),
             draft: draft,
             step: .reference
         )
@@ -181,29 +179,6 @@ struct OnboardingReferenceTests {
         #expect(model.draft.referenceImageFilename == nil)
         #expect(model.draft.referenceStoragePaths.isEmpty)
         #expect(model.referenceImageData == nil)
-    }
-
-    // MARK: ADR 0011 — guests never touch Supabase
-
-    @Test("A guest's photo is never uploaded, and the local copy survives")
-    func guestPhotoNeverLeavesTheDevice() async throws {
-        let repository = ReferenceProfileRepository()
-        let referenceStore = InMemoryReferenceImageStore()
-        let model = try makeModel(repository: repository, referenceStore: referenceStore, isGuest: true)
-
-        await model.grantReferenceConsent()
-        await model.setReferenceImage(photo)
-        let filename = try #require(model.draft.referenceImageFilename)
-
-        await model.submit()
-
-        #expect(model.submission == .savedLocally)
-        #expect(await repository.uploadCount == 0)
-        #expect(await repository.completedPayloads.isEmpty)
-        #expect(model.draft.referenceStoragePaths.isEmpty)
-        // For a guest this store is not a staging area, it is the only copy
-        // there will ever be — so submission must not clear it.
-        #expect(await referenceStore.load(filename: filename) != nil)
     }
 
     // MARK: Upload timing
