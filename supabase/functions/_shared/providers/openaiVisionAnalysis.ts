@@ -3,8 +3,13 @@
 // ============================================================================
 // Optional live `VisionAnalysisProvider` adapter (docs/08 §2.5 — OpenAI
 // GPT-5.6 Luna). Constructed ONLY from `closet/index.ts` when
-// `VISION_ANALYSIS_PROVIDER=openai` and `OPENAI_API_KEY` are set. Never
-// imported by handlers or tests that should stay offline.
+// `VISION_ANALYSIS_PROVIDER=openai` and `VISION_PROVIDER_API_KEY` are set.
+// Never imported by handlers or tests that should stay offline.
+//
+// That key used to be read as `OPENAI_API_KEY` — a name in neither spec
+// §25's per-capability scheme nor ADR 0004's vocabulary, and never set on
+// the project, so this adapter had never once been constructed. See
+// `closet/index.ts`'s header for the whole diagnosis.
 //
 // The pre-launch menswear-subcategory accuracy pilot (docs/08 §2.5) is a
 // hard gate before this adapter serves real users — enabling it in a

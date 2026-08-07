@@ -308,7 +308,9 @@ supabase secrets set STYLIST_PROVIDER_API_KEY=... # only when a function needs i
 # Default is mock. Both vars required or the function stays on the mock.
 # Completing this opt-in does NOT close the §2.5 menswear-subcategory pilot
 # gate — see closet/README.md and docs/08 §2.5 / §2.5.1 before real users.
-# supabase secrets set VISION_ANALYSIS_PROVIDER=openai OPENAI_API_KEY=sk-...
+# supabase secrets set VISION_ANALYSIS_PROVIDER=openai VISION_PROVIDER_API_KEY=...
+# (spec §25's per-capability name. It was `OPENAI_API_KEY` here until
+#  2026-08-07, which is a name nothing ever set — see closet/README.md.)
 
 supabase functions deploy outfits
 supabase functions deploy closet
