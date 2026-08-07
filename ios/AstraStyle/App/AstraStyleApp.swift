@@ -97,15 +97,24 @@ struct AstraStyleApp: App {
             try await appContainer.sessionStore.restoreSession()
         }
 
-        let session: AuthSession?
+        // Whether a session came back, not what was in it. Removing guest mode
+        // removed the only reader of the session itself — the guest branch
+        // below asked it whether it was one — and a bound value nobody reads
+        // is a warning, which the CI warning gate treats as a failure.
+        // `sessionStore` holds the credentials the profile fetch needs.
+        //
+        // Still a switch rather than `if case .success`: a future
+        // `RestoreOutcome` case should have to be classified here, not fall
+        // through to whichever branch happens to be the default.
+        let hasSession: Bool
         switch restored {
         case .success(let value):
-            session = value
+            hasSession = value != nil
         case .timedOut, .failed:
-            session = nil
+            hasSession = false
         }
 
-        guard let session else {
+        guard hasSession else {
             // No stored session, or restoring it failed or timed out. All
             // resolve to Welcome: without credentials there is nothing else to
             // show.
