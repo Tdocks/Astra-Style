@@ -71,6 +71,18 @@ export type Fit = "slim" | "tailored" | "regular" | "relaxed" | "oversized";
 /** `laundry_state`. Note `worn_once` — the doc writes it `wornOnce`. */
 export type LaundryState = "clean" | "worn_once" | "laundry" | "unavailable";
 
+/**
+ * `condition` in `20260728100100_core_enums.sql`.
+ *
+ * §5.6 writes this scale as `excellent, good, fair, worn, damaged`. The
+ * shipped enum is `new_with_tags, like_new, good, fair, worn` — five values,
+ * not the doc's five, and not the same five: there is no `excellent` and no
+ * `damaged`, and two values (`new_with_tags`, `like_new`) exist above `good`
+ * where the doc has one. See `wardrobeScore.ts` for the value mapping this
+ * produces and why.
+ */
+export type Condition = "new_with_tags" | "like_new" | "good" | "fair" | "worn";
+
 export type AvailabilityState =
   | "available"
   | "in_laundry"

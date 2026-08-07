@@ -110,7 +110,14 @@ function hasStretch(item: ScorableItem): boolean {
  * quietly skipped. A man who told onboarding about a short torso and gets no
  * adjustment for it should not have the app behave as though he never said so.
  */
-function bodyMultiplier(
+/**
+ * Exported for `wardrobeScore.ts`'s §5.2 fit-confidence component, which
+ * needs the same dampening: a garment that structurally conflicts with a
+ * stated fit issue cannot claim high fit confidence, feedback or not. Kept as
+ * one function rather than two copies, per the module header's reasoning
+ * about why §4.3 lives in exactly one place.
+ */
+export function bodyMultiplier(
   item: ScorableItem,
   fitNotes: readonly FitNote[],
 ): { multiplier: number; unavailable: FitNote[] } {

@@ -32,7 +32,11 @@ import {
  * defaulted to 20 would drag a suit's score down harder than a trainer
  * defaulted to 45 lifts it.
  */
-const CATEGORY_DEFAULT_FORMALITY: Record<GarmentRole, number> = {
+// Exported: §6.3's `formalityBucket` reads the same defaults so an
+// unclassified garment's equivalence-class bucket agrees with the register it
+// would be scored at — two copies of this table would let a duplicate check
+// and a compatibility score disagree about the same unmeasured garment.
+export const CATEGORY_DEFAULT_FORMALITY: Record<GarmentRole, number> = {
   top: 45,
   bottom: 45,
   outerwear: 50,
