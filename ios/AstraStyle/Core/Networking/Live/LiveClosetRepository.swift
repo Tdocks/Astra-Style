@@ -240,14 +240,22 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     ///   `try?` and Home simply hides the module. The result was a screen
     ///   that has never once shown a real score and never reported why.
     ///
-    ///   The table is not the missing piece. `WardrobeScoring` (Domain/
-    ///   Services) is a protocol plus the §10 weights with **no conforming
-    ///   scorer anywhere**, so nothing in this repo can compute a score to
-    ///   put in such a table; adding the migration would produce a table
-    ///   that is permanently empty and a call that returns "no rows" instead
-    ///   of "relation does not exist" — the same blank module, with more
-    ///   schema to maintain. Implement the scorer (P4-OUTFIT-10) and then
-    ///   the table, in that order.
+    ///   Updated 2026-08-07 (P4-HOME-04): the scorer itself is no longer
+    ///   the missing piece — `computeWardrobeScore`
+    ///   (`supabase/functions/_shared/scoring/wardrobeScore.ts`, P4-OUTFIT-10)
+    ///   is implemented and unit-tested. What is still missing is
+    ///   everything between here and it: no `closet/` route calls it (only
+    ///   `analyze-item` / `batch-analyze` / `batch-status` are deployed —
+    ///   see `closet/index.ts`), and there is still no `wardrobe_scores`
+    ///   table (or any other persistence) for a route to write to or this
+    ///   method to read from. `WardrobeScoring` (Domain/Services) — a
+    ///   client-side protocol for an offline-safe estimate — still has no
+    ///   conforming type either. Wiring an Edge Function route to the now-
+    ///   real TypeScript scorer is P4-HOME-04's honest blocker, checked and
+    ///   confirmed rather than assumed while building that ticket: do not
+    ///   have this method fabricate a score from partial local data in the
+    ///   meantime — an unmeasured composite that LOOKS measured is exactly
+    ///   what "absent is honest; a confounded reading is not" forbids.
     public func fetchWardrobeScore() async throws -> WardrobeScore {
         throw AstraError.unimplemented(
             String(localized: "Your Wardrobe Score isn't ready yet.")

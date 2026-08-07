@@ -167,6 +167,23 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             wardrobeScore: wardrobeScore,
             laundryAlertItemCount: laundryCount,
             upcomingOccasions: occasions,
+            // Always nil, checked rather than assumed while building
+            // P4-HOME-04. `PurchaseOpportunityModuleView` only renders when
+            // this is non-nil (`HomeView.modules`), so the module is
+            // honestly absent rather than showing a fabricated candidate —
+            // there is nothing yet to hydrate it from. `computeUnlockCount`
+            // (P4-OUTFIT-09, `_shared/scoring/unlockCount.ts`) exists and is
+            // unit-tested, but nothing calls it: there is no deployed
+            // `products/` Edge Function at all (only `closet`, `daily-brief`,
+            // `outfits`, `profile`, `style-dna` are), so
+            // `ShoppingRepository.evaluateProduct`
+            // (`LiveShoppingRepository.swift`) is a real network call to an
+            // endpoint that does not exist yet — see `docs/02-task-breakdown
+            // .md`'s `P6-SHOP-04`, whose scope is exactly "reusing
+            // P4-OUTFIT-09's algorithm" and which this ticket does not own.
+            // Populate this only once a real `ProductCandidate` and a real
+            // `outfitsUnlocked` count are reachable together — a plausible
+            // number for either half alone is worse than the empty module.
             purchaseOpportunity: nil
         )
     }
@@ -223,6 +240,11 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             wardrobeScore: wardrobeScore,
             laundryAlertItemCount: closetItems.filter { $0.laundryState == .laundry }.count,
             upcomingOccasions: occasions,
+            // See the main `loadTodayBrief` return's comment on this same
+            // field — the reason is identical (no purchase-evaluation
+            // endpoint deployed yet) and doubly true here: a closet this
+            // sparse has no owned items to evaluate a candidate against in
+            // the first place.
             purchaseOpportunity: nil
         )
     }

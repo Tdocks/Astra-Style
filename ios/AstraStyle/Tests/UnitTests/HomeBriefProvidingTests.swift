@@ -42,6 +42,38 @@ struct HomeBriefProvidingTests {
         #expect(data.primaryOutfit != nil)
         #expect(!data.needsMoreClosetItems)
         #expect(data.wardrobeScore != nil)
+        // P4-HOME-04: no `products/` Edge Function is deployed yet (see
+        // `HomeBriefProviding`'s comment on this field), so a populated,
+        // otherwise-healthy brief still carries no purchase opportunity —
+        // this must stay nil rather than someone wiring in a plausible-
+        // looking placeholder to make the module "look done."
+        #expect(data.purchaseOpportunity == nil)
+    }
+
+    // MARK: - Wardrobe Score (P4-OUTFIT-10 has a scorer but no deployed
+    // endpoint yet — see `LiveClosetRepository.fetchWardrobeScore`)
+
+    /// Pins the "absent is honest; a confounded reading is not" contract
+    /// for this specific module: a closet that reads back just fine but
+    /// whose Wardrobe Score fetch fails must leave `wardrobeScore` nil, not
+    /// fall back to some cached/sample/zero value that would look real.
+    @Test("A Wardrobe Score fetch failure leaves the module absent, not fabricated")
+    func wardrobeScoreFailureLeavesFieldAbsent() async throws {
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: MockOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: WardrobeScoreUnavailableClosetRepository(),
+            weatherService: MockWeatherService(),
+            calendarService: MockCalendarService()
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        // The closet itself is healthy — this isn't the "closet
+        // unreachable" case (`unreadableClosetDoesNotFakeAnEmptyState`
+        // below), only the score endpoint is unavailable.
+        #expect(!data.needsMoreClosetItems)
+        #expect(data.wardrobeScore == nil)
     }
 
     // MARK: - Sparse closet (spec §6.11 empty state)
@@ -376,6 +408,36 @@ private struct UnreachableClosetRepository: ClosetRepository {
         throw AstraError.network("unused")
     }
     func fetchWardrobeScore() async throws -> WardrobeScore { throw AstraError.network("unused") }
+}
+
+/// `ClosetRepository` double for `wardrobeScoreFailureLeavesFieldAbsent`:
+/// everything works EXCEPT the score endpoint, which throws exactly what
+/// `LiveClosetRepository.fetchWardrobeScore()` throws in production today
+/// (no deployed route, no table — see that method's own comment). Distinct
+/// from `UnreachableClosetRepository` above, whose `fetchItems()` also
+/// fails — that pins a different case (closet unknown, not just un-scored).
+private struct WardrobeScoreUnavailableClosetRepository: ClosetRepository {
+    func fetchItems() async throws -> [ClosetItem] { SampleData.closetItems }
+    func fetchItem(id: UUID) async throws -> ClosetItem { throw AstraError.network("unused") }
+    func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
+    func uploadCapturedImage(_ data: Data) async throws -> String { throw AstraError.network("unused") }
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
+    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
+        throw AstraError.network("unused")
+    }
+    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        throw AstraError.network("unused")
+    }
+    func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem { item }
+    func updateItem(_ item: ClosetItem) async throws -> ClosetItem { item }
+    func archiveItem(id: UUID) async throws {}
+    func markWorn(id: UUID, wornAt: Date) async throws -> ClosetItem { throw AstraError.network("unused") }
+    func updateLaundryState(id: UUID, state: LaundryState) async throws -> ClosetItem {
+        throw AstraError.network("unused")
+    }
+    func fetchWardrobeScore() async throws -> WardrobeScore {
+        throw AstraError.unimplemented("Your Wardrobe Score isn't ready yet.")
+    }
 }
 
 /// Spies on `WeatherService` (P4-HOME-05) to prove the honesty rule at the

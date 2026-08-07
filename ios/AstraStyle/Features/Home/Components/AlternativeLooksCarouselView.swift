@@ -28,6 +28,10 @@ struct AlternativeLooksCarouselView: View {
                             AlternativeLookTile(outfit: outfit)
                         }
                         .buttonStyle(.plain)
+                        // Stable id for UI tests, matching
+                        // `closet.grid.item.<id>`'s convention — VoiceOver
+                        // still reads the tile's own composed label below.
+                        .accessibilityIdentifier("home.alternatives.\(outfit.id.uuidString.lowercased())")
                     }
                 }
                 .scrollTargetLayout()
@@ -45,13 +49,27 @@ private struct AlternativeLookTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            RoundedRectangle(cornerRadius: AstraSpacing.cardRadius, style: .continuous)
-                .fill(AstraColor.surfaceElevated)
+            // Was a static tshirt glyph for every alternative regardless of
+            // whether the outfit had a real photo — the P4-HOME-04 gap this
+            // file exists to close ("modules render placeholders where they
+            // should render measured values"). `AstraRemoteImage` already
+            // does the honest thing when there truly is no photo (its own
+            // hanger fallback, `AstraRemoteImage.swift`'s header), so this
+            // tile no longer needs its own placeholder art on top of that.
+            AstraRemoteImage(
+                url: outfit.heroImageURL ?? outfit.generatedPreviewURL,
+                aspectRatio: 140.0 / 175.0,
+                thumbnail: .closetGridTile,
+                cornerRadius: AstraSpacing.cardRadius,
+                accessibilityDescription: String(localized: "Preview of \(outfit.name)", comment: "Accessibility description of an alternative outfit's thumbnail")
+            )
                 .frame(width: 140, height: 175)
-                .overlay {
-                    Image(systemName: "tshirt")
-                        .astraIcon(.emphasis)
-                        .foregroundStyle(AstraColor.textMuted)
+                .overlay(alignment: .bottomLeading) {
+                    // Same §11/§13 guardrail as the hero card (`HeroOutfitCardView.heroImage`).
+                    if outfit.heroImageURL == nil, outfit.generatedPreviewURL != nil {
+                        GeneratedImageBadge()
+                            .padding(AstraSpacing.xxs)
+                    }
                 }
 
             Text(outfit.name)
