@@ -214,6 +214,73 @@ struct OnboardingFirstItemsTests {
         #expect(model.firstItems.isEmpty)
     }
 
+    // MARK: The photo path
+    //
+    // The scanner writes the garment itself, through the same
+    // `ClosetRepository` this step uses; `didScanItem` only tells the step
+    // about a write it did not make. Every test here uses
+    // `FailingClosetRepository`, which throws on `createItem` — so if this
+    // seam ever started writing, all three would fail rather than quietly
+    // creating two rows for one photograph.
+
+    @Test("A scanned garment joins the list without a second write")
+    func scannedItemIsRecordedNotRewritten() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        let scanned = ClosetItem(
+            id: UUID(),
+            userID: UUID(),
+            name: "Navy field jacket",
+            category: .outerwear,
+            primaryColor: "navy"
+        )
+
+        model.didScanItem(scanned)
+
+        #expect(model.firstItems.map(\.id) == [scanned.id])
+        // Named, not just "Saved" — this is how a man checks the analysis got
+        // the right garment without opening it again.
+        #expect(model.addItemState == .added(name: "Navy field jacket"))
+    }
+
+    @Test("A scanned garment makes the step look answered")
+    func scannedItemStopsTheFooterOfferingASkip() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        #expect(model.advanceIsSkip)
+
+        model.didScanItem(
+            ClosetItem(id: UUID(), userID: UUID(), name: "Brown suede derbies", category: .shoes)
+        )
+
+        // The footer's label comes from `stepHasAnyAnswer`, which reads
+        // `firstItems`. Without this, a man who had just scanned a garment
+        // would be offered "Skip for now" for the thing he had done.
+        #expect(!model.advanceIsSkip)
+        #expect(model.advanceTitle == "Continue")
+    }
+
+    @Test("A completion delivered twice lists the garment once")
+    func scannedItemIsNotListedTwice() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        let scanned = ClosetItem(id: UUID(), userID: UUID(), name: "Grey flannel trousers", category: .bottom)
+
+        model.didScanItem(scanned)
+        model.didScanItem(scanned)
+
+        #expect(model.firstItems.count == 1)
+    }
+
+    @Test("Scanning still cannot trap the user on the step")
+    func scanningDoesNotBlockReachingHome() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        model.didScanItem(
+            ClosetItem(id: UUID(), userID: UUID(), name: "Charcoal overcoat", category: .outerwear)
+        )
+
+        #expect(model.canAdvance)
+        await model.advance()
+        #expect(model.step == .result)
+    }
+
     // MARK: The free-tier cap (spec §16)
     //
     // This step can refuse exactly one thing — a write past the free-tier

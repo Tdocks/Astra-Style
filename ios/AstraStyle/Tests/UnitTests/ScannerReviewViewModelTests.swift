@@ -57,6 +57,48 @@ struct ScannerReviewViewModelTests {
         #expect(model.outfitsUnlockedCount == 2)
     }
 
+    /// `savedItem` exists so onboarding's first-items step can list a garment
+    /// the scanner created — its list is what THAT step added, so it has to be
+    /// told. What it must be told is the SERVER's garment: onboarding shows
+    /// the name and category back to the user as confirmation the analysis got
+    /// the right thing, and showing the draft instead would confirm nothing
+    /// but that the app remembers what it sent.
+    @Test("The garment handed to the caller is the repository's, not the draft")
+    func savedItemIsTheRepositorysReturnValue() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        repository.normalizeCreated = { item in
+            var normalized = item
+            normalized.name = "Server's name for it"
+            return normalized
+        }
+        let model = makeModel(
+            draftID: draft.id,
+            store: store,
+            repository: repository,
+            seams: ReviewTestSeams(resolver: ReviewMockURLResolver(), userID: UUID())
+        )
+
+        await model.start()
+        // Nothing has been created, so there is nothing to hand anyone. A
+        // caller that read this before `save()` would list a garment that does
+        // not exist.
+        #expect(model.savedItem == nil)
+
+        model.name = "What the user typed"
+        await model.save()
+
+        #expect(model.phase == .saved)
+        let handedOut = try #require(model.savedItem)
+        #expect(handedOut.name == "Server's name for it")
+        #expect(repository.lastCreated?.name == "What the user typed")
+    }
+
     // MARK: - Abandoned captures
     //
     // `uploadCapturedImage` runs before the user has decided anything, so
@@ -426,10 +468,15 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
         ClosetItemAnalysisBatch(results: [])
     }
 
+    /// Stands in for the server rewriting the row on the way back — a
+    /// canonicalised name, a trimmed colour, a category it disagreed with.
+    /// Nil by default, so every existing test still sees what it sent.
+    var normalizeCreated: (@Sendable (ClosetItem) -> ClosetItem)?
+
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         lastCreated = item
         lastImages = images
-        return item
+        return normalizeCreated?(item) ?? item
     }
 
     func updateItem(_ item: ClosetItem) async throws -> ClosetItem { item }

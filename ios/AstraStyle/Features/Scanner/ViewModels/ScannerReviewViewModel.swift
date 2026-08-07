@@ -90,6 +90,15 @@ public final class ScannerReviewViewModel {
     /// `nil` until save completes; zero is a real answer ("nothing new yet").
     public internal(set) var outfitsUnlockedCount: Int?
 
+    /// The garment this flow created, once it exists.
+    ///
+    /// Exposed so a host that presented the scanner can learn what came back
+    /// — onboarding's first-items step appends it to the list it is
+    /// building. It is the repository's return value, not the locally-built
+    /// draft, so anything the server normalised on write is what the caller
+    /// sees rather than what was sent.
+    public private(set) var savedItem: ClosetItem?
+
     public var name: String = ""
     public var brand: String = ""
     public var category: ClothingCategory = .top
@@ -230,7 +239,7 @@ public final class ScannerReviewViewModel {
         )
 
         do {
-            _ = try await closetRepository.createItem(item, images: [image])
+            savedItem = try await closetRepository.createItem(item, images: [image])
             let corrected = fieldsCorrectedCount()
             analyticsClient.log(.closetItemAdded(category: item.category, source: .scan))
             if corrected > 0 {

@@ -2,7 +2,9 @@
 
 **For:** an AI builder picking this codebase up cold (Claude Code on the owner's Mac, or a cloud agent).
 **Written:** 2026-08-01, against `main` at `86edb74` (merge of PR #12 — Phase 3 exit for TestFlight).
-**Status at handoff:** 178 tickets tracked — **45 Done, 52 Partial, 81 Not started** (machine-checked by `scripts/check_progress.py`).
+**Status at handoff:** 179 tickets tracked — **45 Done, 52 Partial, 80 Not started, 2 Withdrawn** (machine-checked by `scripts/check_progress.py`; read the live numbers there, not here — see §10.1).
+
+**Since this was written (2026-08-06, PRs #24–#28, all stacked and open for review):** the four TestFlight defects are fixed — Home short-circuits to the §6.11 empty state below five garments instead of 404ing, a gateway 404 maps to a non-retryable `.unimplemented` with the request id on screen, the app icon is re-rendered full-bleed, and every placeholder says "Not built yet". Beyond those: the `closet` function is deployed and abandoned scan uploads are cleaned up (#25); `daily-brief` is built and deployed (#26); **guest mode is gone — an account is required before onboarding, ADR 0014** (#27); and the first-items step is photo-first (#28, `P2-ONBOARD-13`).
 
 ### ▶ Do this next (owner asked Claude on the Mac to own it)
 
@@ -822,22 +824,19 @@ Structure: audit stamp → "How this file is kept honest" → status vocabulary 
 
 Row format: `| Ticket | Status | Evidence |`. Evidence cells cite specific files (and sometimes line ranges) in backticks, **bold the negative findings inline**, and state in the same cell exactly what is still missing and why the status isn't higher.
 
-Statuses, exactly four: **Done** (every criterion met, with evidence) · **Partial** (some met, others provably not, and the row says which) · **Not started** (no implementing code exists anywhere) · **Unverifiable** (a real criterion not settleable by reading code — needs a device, a sandbox purchase, App Store review, or subjective judgement; *"used honestly; it is not a synonym for Done"*).
+Statuses, exactly five: **Done** (every criterion met, with evidence) · **Partial** (some met, others provably not, and the row says which) · **Not started** (no implementing code exists anywhere) · **Unverifiable** (a real criterion not settleable by reading code — needs a device, a sandbox purchase, App Store review, or subjective judgement; *"used honestly; it is not a synonym for Done"*) · **Withdrawn** (added 2026-08-06 with ADR 0014's removal of guest mode: the feature was deleted by a decision, so its criteria can never be met — the row must name the withdrawing ADR and `check_progress.py` enforces that. `Done` would claim a capability nobody can use; `Not started` would erase work that was done and then deliberately removed).
 
 Ticket IDs: `P{1-7}-{AREA}-{nn}`. Areas seen: `INFRA`, `CORE`, `DS`, `AUTH`, `ONBOARD`, `CLOSET`, `SCAN`, `OUTFIT`, `KYRA`, `STUDIO`, `SHOP`, `SUB`, `PRIVACY`, `TEST`.
 
-Current counts:
+**Current counts live in `docs/03-progress.md`'s Summary table and nowhere else.**
 
-| Phase | Tickets | Done | Partial | Not started |
-|---|---|---|---|---|
-| 1 — Foundation | 25 | 13 | 12 | 0 |
-| 2 — Identity | 17 | 12 | 5 | 0 |
-| 3 — Closet | 27 | 5 | 9 | 13 |
-| 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
-| 5 — Kyra | 22 | 1 | 3 | 18 |
-| 6 — Studio and commerce | 25 | 2 | 4 | 19 |
-| 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **35** | **52** | **91** |
+This section used to carry its own copy. It was wrong by ten tickets within a
+week — 35 Done against the real 45 — because nothing checked it and everyone
+updating a status updated the file CI reads. A second copy of a
+machine-checked number is not a convenience; it is a number that will
+eventually contradict the checked one, in a document whose whole job is to be
+the first thing a new builder trusts. `check_progress.py` verifies that table.
+Read it there.
 
 The discipline, quoted:
 

@@ -16,6 +16,16 @@ struct ScannerDestinationView: View {
     let route: ScannerRoute
     let container: AppContainer
 
+    /// Called with the garment a completed scan created, before the modal
+    /// dismisses.
+    ///
+    /// For the scanner's own entry points this is nil: the Closet reloads
+    /// from the repository and does not need telling. Onboarding's
+    /// first-items step does — it shows the list IT is building, not the
+    /// closet, so a garment added through here would otherwise be saved and
+    /// invisible on the screen that asked for it.
+    var onItemSaved: ((ClosetItem) -> Void)?
+
     @Environment(\.dismiss) private var dismiss
     @State private var path: [ScannerRoute] = []
     @State private var captureViewModel: ScannerCaptureViewModel?
@@ -169,6 +179,12 @@ struct ScannerDestinationView: View {
                 ScannerReviewView(
                     viewModel: reviewViewModel,
                     onFinished: {
+                        // The unwrapped local from the `if let` above — the
+                        // same instance `ScannerReviewView` was handed, so
+                        // this reads the garment that screen actually saved.
+                        if let saved = reviewViewModel.savedItem {
+                            onItemSaved?(saved)
+                        }
                         container.captureDraftStore.removeAll()
                         dismiss()
                     },

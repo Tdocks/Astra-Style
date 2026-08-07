@@ -19,8 +19,20 @@
 //  rather than enabling one. `P3-CLOSET-08` owns the full editor, and building
 //  a second one here would guarantee the two drift.
 //
-//  Nothing here touches the scanner. `P3-SCAN-*` does not exist, and a step
-//  that offered "scan instead" would be offering a control that cannot work.
+//  THE SCANNER IS NOW REACHABLE FROM HERE, and it did not used to be. This
+//  header said "nothing here touches the scanner; a step that offered 'scan
+//  instead' would be offering a control that cannot work" — true while the
+//  `closet` Edge Function was undeployed, false since it shipped. The photo
+//  path does not live in this file: the sheet is presented by
+//  `OnboardingFlowView` and the write is made by `ScannerReviewViewModel`
+//  through the same `ClosetRepository` this file uses. All that arrives here
+//  is `didScanItem(_:)`, a garment that already exists.
+//
+//  The typed form below stays, and is not a fallback for a missing camera —
+//  the scanner degrades to a Photos import on its own. It stays because a man
+//  can own a garment he cannot photograph right now: it is at the cleaners, it
+//  is in a suitcase, he is on a train. Removing it would make the step
+//  conditional on where he is standing.
 //
 
 import Foundation
@@ -123,6 +135,35 @@ public extension OnboardingViewModel {
             logger.error("createItem during onboarding failed: \(error.localizedDescription)")
             addItemState = .failed(error.localizedDescription)
         }
+    }
+
+    /// Records a garment the embedded scanner has already created.
+    ///
+    /// This writes nothing. `ScannerReviewViewModel.save()` has been through
+    /// `ClosetRepository.createItem` by the time this is called, and `item` is
+    /// the repository's return value — the server's normalisation of the
+    /// garment, not the draft the review screen was holding. Re-saving it here
+    /// would create a second row for one photograph.
+    ///
+    /// It exists because this step's list is what THIS step added, not what
+    /// the user owns (see `firstItems`). Without being told, a garment scanned
+    /// through the sheet would be genuinely saved and entirely invisible on
+    /// the screen that asked for it — and `stepHasAnyAnswer` would still call
+    /// the step untouched, so the footer would go on offering "Skip for now"
+    /// after the user had done the thing.
+    ///
+    /// Guarded on `id` because presenting the sheet and dismissing it are
+    /// separate events: a completion delivered twice must not list one garment
+    /// twice.
+    func didScanItem(_ item: ClosetItem) {
+        guard !firstItems.contains(where: { $0.id == item.id }) else { return }
+        firstItems.insert(item, at: 0)
+        // Deliberately the same confirmation the typed form gets. Two ways in,
+        // one way of saying it landed — and it names the garment, so a man who
+        // scanned a jacket and reads "Navy field jacket is in your closet" can
+        // tell the analysis got the right thing without opening it.
+        addItemState = .added(name: item.name)
+        AstraHaptics.success()
     }
 
     /// Undoes one add. Archives rather than hard-deletes, matching
