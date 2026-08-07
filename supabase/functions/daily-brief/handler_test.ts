@@ -95,8 +95,9 @@ function memoryRepository(closet: ClosetItemRow[], occasions = 0): MemoryReposit
         brief_date: input.briefDate,
         primary_outfit_id: input.primaryOutfitId,
         alternative_outfit_ids: [...input.alternativeOutfitIds],
-        // Mirrors the column defaults: NOT NULL, defaulting to `{}`.
-        weather_snapshot: {},
+        // Mirrors the live `upsertBrief`'s own `?? {}` (P4-HOME-05): the
+        // column default when nothing was measured, not a fabricated one.
+        weather_snapshot: input.weatherSnapshot ?? {},
         schedule_snapshot: input.scheduleSnapshot,
         kyra_message: null,
       };
@@ -270,4 +271,52 @@ Deno.test("a populated schedule snapshot is preserved", async () => {
   );
   const json = await response.json();
   assertEquals(json.data.schedule_snapshot, { event_count: 3 });
+});
+
+// P4-HOME-05: the client's own `WeatherService` reading is the only source
+// `weather_snapshot` can have, since there is still no server-side
+// provider. These pin that it actually reaches the stored row, that its
+// absence stays honestly null rather than becoming an error, and that a
+// malformed one is rejected rather than silently stored or dropped.
+
+const VALID_WEATHER_SNAPSHOT = {
+  temperature_high: 68,
+  temperature_low: 54,
+  condition: "partly_cloudy",
+};
+
+Deno.test("a client-supplied weather snapshot is persisted onto the brief", async () => {
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody({ weather_snapshot: VALID_WEATHER_SNAPSHOT })),
+    buildDeps(),
+  );
+  assertEquals(response.status, 200);
+  const json = await response.json();
+  assertEquals(json.data.weather_snapshot, VALID_WEATHER_SNAPSHOT);
+});
+
+Deno.test("no weather_snapshot in the request stays honestly null, not an error", async () => {
+  const response = await handleGenerateDailyBrief(requestFor(generateBody()), buildDeps());
+  assertEquals(response.status, 200);
+  const json = await response.json();
+  assertEquals(json.error, null);
+  assertEquals(json.data.weather_snapshot, null);
+});
+
+Deno.test("a weather_snapshot missing required fields is rejected, not stored", async () => {
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody({ weather_snapshot: { condition: "clear" } })),
+    buildDeps(),
+  );
+  assertEquals(response.status, 400);
+});
+
+Deno.test("a weather_snapshot with an unknown condition is rejected", async () => {
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody({
+      weather_snapshot: { temperature_high: 70, temperature_low: 55, condition: "tornado" },
+    })),
+    buildDeps(),
+  );
+  assertEquals(response.status, 400);
 });

@@ -158,6 +158,103 @@ struct HomeBriefProvidingTests {
             _ = try await provider.loadTodayBrief(regenerate: false)
         }
     }
+
+    // MARK: - Weather (P4-HOME-05)
+    //
+    // The governing rule is "absent is honest; a confounded reading is
+    // not" — these pin the mechanism that keeps it that way: `.denied` and
+    // `.notDetermined` must never reach `WeatherService.currentSnapshot()`
+    // or `requestLocationPermissionIfNeeded()` from a background load, and
+    // `.authorized` must actually reach both the freshly-generated and the
+    // cached-brief path.
+
+    @Test("Denied weather permission never triggers a lookup, and the brief carries no weather")
+    func deniedWeatherNeverLooksUpAndBriefHasNoWeather() async throws {
+        let weatherSpy = WeatherPermissionSpy(authorization: .denied)
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: NoWeatherCachedBriefOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: weatherSpy,
+            calendarService: MockCalendarService()
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(data.weather == nil)
+        #expect(await weatherSpy.currentSnapshotCallCount == 0)
+        #expect(await weatherSpy.requestPermissionCallCount == 0)
+    }
+
+    @Test("An undecided weather permission never triggers a lookup or the system prompt")
+    func notDeterminedWeatherNeverPrompts() async throws {
+        let weatherSpy = WeatherPermissionSpy(authorization: .notDetermined)
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: NoWeatherCachedBriefOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: weatherSpy,
+            calendarService: MockCalendarService()
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(data.weather == nil)
+        #expect(await weatherSpy.currentSnapshotCallCount == 0)
+        #expect(await weatherSpy.requestPermissionCallCount == 0)
+    }
+
+    @Test("Authorized weather reaches a freshly generated brief's request body")
+    func authorizedWeatherReachesGeneration() async throws {
+        let snapshot = WeatherSnapshot(temperatureHigh: 71, temperatureLow: 58, condition: .clear)
+        let weatherSpy = WeatherPermissionSpy(authorization: .authorized, snapshot: snapshot)
+        let outfitRepository = RecordingOutfitRepository()
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: outfitRepository,
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: weatherSpy,
+            calendarService: MockCalendarService()
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(data.weather == snapshot)
+        #expect(await outfitRepository.weatherSnapshotsReceived == [snapshot])
+    }
+
+    @Test("Authorized weather overlays onto a cached brief without asking the server to regenerate it")
+    func authorizedWeatherOverlaysCachedBriefWithoutRegenerating() async throws {
+        let snapshot = WeatherSnapshot(temperatureHigh: 80, temperatureLow: 66, condition: .cloudy)
+        let weatherSpy = WeatherPermissionSpy(authorization: .authorized, snapshot: snapshot)
+        // Throws if `generateDailyBrief` is called at all — this brief
+        // already exists, so attaching weather to it must stay a read.
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: NoWeatherCachedBriefOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: weatherSpy,
+            calendarService: MockCalendarService()
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(data.weather == snapshot)
+    }
+
+    @Test("weatherAuthorization() and requestWeatherPermission() delegate to WeatherService")
+    func weatherPermissionSurfaceDelegates() async throws {
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: MockOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: MockWeatherService(permissionGranted: false, authorization: .denied),
+            calendarService: MockCalendarService()
+        )
+
+        #expect(provider.weatherAuthorization() == .denied)
+        #expect(await provider.requestWeatherPermission() == false)
+    }
 }
 
 // MARK: - Test doubles
@@ -191,7 +288,7 @@ private actor FailIfCalledOutfitRepository: OutfitRepository {
         throw AstraError.server("unused")
     }
     func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { recordCall(); return nil }
-    func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief { recordCall(); throw AstraError.server("unused") }
+    func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief { recordCall(); throw AstraError.server("unused") }
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
         recordCall()
         throw AstraError.server("unused")
@@ -223,6 +320,7 @@ private struct AlwaysFailingProfileRepository: ProfileRepository {
 /// pass for the wrong reason.
 private actor RecordingOutfitRepository: OutfitRepository {
     private(set) var regenerateFlags: [Bool] = []
+    private(set) var weatherSnapshotsReceived: [WeatherSnapshot?] = []
 
     func fetchOutfits() async throws -> [Outfit] { [] }
     func fetchOutfit(id: UUID) async throws -> Outfit { SampleData.heroOutfit }
@@ -240,8 +338,9 @@ private actor RecordingOutfitRepository: OutfitRepository {
         throw AstraError.unimplemented("unused")
     }
     func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { nil }
-    func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief {
+    func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
         regenerateFlags.append(regenerate)
+        weatherSnapshotsReceived.append(weather)
         return DailyBrief(
             id: UUID(),
             userID: SampleData.profile.id,
@@ -277,4 +376,79 @@ private struct UnreachableClosetRepository: ClosetRepository {
         throw AstraError.network("unused")
     }
     func fetchWardrobeScore() async throws -> WardrobeScore { throw AstraError.network("unused") }
+}
+
+/// Spies on `WeatherService` (P4-HOME-05) to prove the honesty rule at the
+/// mechanism that actually enforces it. `LiveWeatherService.currentSnapshot()`
+/// calls `requestLocationPermissionIfNeeded()` internally as its own first
+/// step, so if `DefaultHomeBriefProvider.loadTodayBrief` ever called
+/// `currentSnapshot()` unconditionally, a man who has never been asked
+/// would see the system location dialog the instant Home loaded, with none
+/// of `WeatherOptInCardView`'s explanation in front of it. These call
+/// counts are what would catch that regression.
+private actor WeatherPermissionSpy: WeatherService {
+    let authorization: WeatherLocationAuthorization
+    let snapshot: WeatherSnapshot
+    private(set) var currentSnapshotCallCount = 0
+    private(set) var requestPermissionCallCount = 0
+
+    init(authorization: WeatherLocationAuthorization, snapshot: WeatherSnapshot = SampleData.weatherSnapshot) {
+        self.authorization = authorization
+        self.snapshot = snapshot
+    }
+
+    nonisolated func currentAuthorization() -> WeatherLocationAuthorization { authorization }
+
+    func requestLocationPermissionIfNeeded() async -> Bool {
+        requestPermissionCallCount += 1
+        return authorization == .authorized
+    }
+
+    func currentSnapshot() async throws -> WeatherSnapshot {
+        currentSnapshotCallCount += 1
+        guard authorization == .authorized else {
+            throw AstraError.auth("Location access is off.")
+        }
+        return snapshot
+    }
+}
+
+/// `OutfitRepository` whose `fetchDailyBrief` always returns a brief with
+/// no weather already attached. `SampleData.dailyBrief()` — the fixture
+/// `MockOutfitRepository` seeds itself with — always carries one, which
+/// would mask whether the provider correctly leaves an unlooked-up weather
+/// reading absent rather than reusing sample data as a stand-in.
+/// `generateDailyBrief` throws unconditionally: a cached brief already
+/// exists, so nothing should ask the server to build a new one.
+private actor NoWeatherCachedBriefOutfitRepository: OutfitRepository {
+    func fetchOutfits() async throws -> [Outfit] { [] }
+    func fetchOutfit(id: UUID) async throws -> Outfit { SampleData.heroOutfit }
+    func fetchOutfits(ids: [UUID]) async throws -> [Outfit] { [] }
+    func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem] { [] }
+    func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation] { [] }
+    func rankOutfits(candidateOutfitIDs: [UUID], lockedClosetItemIDs: [UUID]) async throws -> [OutfitRecommendation] { [] }
+    func saveOutfit(from recommendation: OutfitRecommendation, name: String?, closetItems: [ClosetItem]) async throws -> Outfit {
+        SampleData.heroOutfit
+    }
+    func updateOutfit(_ outfit: Outfit) async throws -> Outfit { outfit }
+    func deleteOutfit(id: UUID) async throws {}
+    @discardableResult
+    func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
+        throw AstraError.unimplemented("unused")
+    }
+    func fetchDailyBrief(for date: Date) async throws -> DailyBrief? {
+        DailyBrief(
+            id: UUID(),
+            userID: SampleData.profile.id,
+            briefDate: date,
+            primaryOutfitID: SampleData.heroOutfit.id,
+            weatherSnapshot: nil
+        )
+    }
+    func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
+        throw AstraError.server("generateDailyBrief must not be called when a cached brief already exists")
+    }
+    func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
+        throw AstraError.unimplemented("unused")
+    }
 }

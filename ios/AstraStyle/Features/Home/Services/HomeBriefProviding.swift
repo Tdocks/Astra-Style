@@ -26,6 +26,21 @@ public protocol HomeBriefProviding: Sendable {
     func loadTodayBrief(regenerate: Bool) async throws -> HomeBriefData
 
     func markPrimaryOutfitWorn(_ data: HomeBriefData) async throws
+
+    /// Current weather-location authorization, read without prompting
+    /// (P4-HOME-05). `HomeViewModel` uses this to decide whether to show
+    /// the "enable weather" explanation — only when nobody has decided yet
+    /// — versus the honest denied state, versus nothing at all once
+    /// weather is already flowing through `loadTodayBrief`.
+    func weatherAuthorization() -> WeatherLocationAuthorization
+
+    /// Spec §7's in-context permission ask ("Location: when enabling
+    /// weather"). The one path from a live Home screen to
+    /// `WeatherService.requestLocationPermissionIfNeeded()` — see
+    /// `HomeViewModel.enableWeather()`, its only caller, which only calls
+    /// this after `WeatherOptInCardView` has already explained why.
+    /// Returns whether permission is now granted.
+    func requestWeatherPermission() async -> Bool
 }
 
 public final class DefaultHomeBriefProvider: HomeBriefProviding {
@@ -72,15 +87,35 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             return await loadSparseClosetBrief(profile: profile, closetItems: closetItems)
         }
 
+        // Read before either branch below: both the cached-read path and the
+        // generate path want it, and reading it once keeps a slow/failing
+        // WeatherKit lookup from being attempted twice for one screen load.
+        // Never prompts — see `currentWeatherSnapshotIfAuthorized()`.
+        let weatherSnapshot = await currentWeatherSnapshotIfAuthorized()
+
         let brief: DailyBrief
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
-            brief = cached
+            // A cached brief can predate today's weather permission grant —
+            // e.g. the very first Home load of the day happened before the
+            // user tapped "Enable Weather". Overlay the fresh client reading
+            // onto the value handed to `HomeBriefData` so the header is
+            // honest about what Kyra can see right now, WITHOUT writing back
+            // to the server: this is a read, and turning it into a network
+            // write purely to attach a forecast would cost a request on
+            // every single Home load for no reason the user asked for. The
+            // persisted row catches up the next time generation actually
+            // runs (a new day, or an explicit regenerate).
+            brief = weatherSnapshot.map { snapshot in
+                var patched = cached
+                patched.weatherSnapshot = snapshot
+                return patched
+            } ?? cached
         } else {
             // `regenerate` is threaded through rather than always false:
             // the endpoint is idempotent per `brief_date`, so §6.11's
             // regenerate control would otherwise return the outfits the
             // user just asked to replace.
-            brief = try await outfitRepository.generateDailyBrief(for: .now, regenerate: regenerate)
+            brief = try await outfitRepository.generateDailyBrief(for: .now, regenerate: regenerate, weather: weatherSnapshot)
         }
 
         // Each of these degrades independently to an empty/nil result on
@@ -124,6 +159,14 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             throw AstraError.validation("There's no outfit to mark worn yet.")
         }
         try await outfitRepository.recordWear(outfitID: outfitID, wornAt: .now, occasion: nil, rating: nil, feedback: nil)
+    }
+
+    public func weatherAuthorization() -> WeatherLocationAuthorization {
+        weatherService.currentAuthorization()
+    }
+
+    public func requestWeatherPermission() async -> Bool {
+        await weatherService.requestLocationPermissionIfNeeded()
     }
 
     // MARK: - Sparse-closet brief (spec §6.11 empty state)
@@ -194,5 +237,24 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
     private func fetchLaundryCount() async -> Int {
         ((try? await closetRepository.fetchItems()) ?? []).filter { $0.laundryState == .laundry }.count
+    }
+
+    /// The client's own weather reading, or `nil` — never a guess and
+    /// never a prompt.
+    ///
+    /// Only ever fetches when `currentAuthorization()` already reports
+    /// `.authorized`. A `.notDetermined` result here does NOT fall through
+    /// to `requestLocationPermissionIfNeeded()`: that would put the system
+    /// permission dialog on screen the instant Home loads, with none of
+    /// `WeatherOptInCardView`'s explanation in front of it — exactly what
+    /// spec §7's "in context" requirement and this ticket's "never during
+    /// onboarding" note both rule out. Asking is `HomeViewModel
+    /// .enableWeather()`'s job, reachable only from that explicit button.
+    /// A `.denied` result also returns nil rather than calling
+    /// `currentSnapshot()` — it would only throw, and the caller already
+    /// knows the answer from `currentAuthorization()`.
+    private func currentWeatherSnapshotIfAuthorized() async -> WeatherSnapshot? {
+        guard weatherService.currentAuthorization() == .authorized else { return nil }
+        return try? await weatherService.currentSnapshot()
     }
 }

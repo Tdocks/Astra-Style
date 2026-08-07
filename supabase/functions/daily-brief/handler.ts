@@ -9,14 +9,9 @@
 //
 // It assembles the day's brief: a primary outfit, its alternatives, and
 // whatever schedule context exists — persisted as one `daily_briefs` row.
-// Two of §14's listed inputs are NOT assembled, and their absence is the
+// One of §14's listed inputs is NOT assembled here, and its absence is the
 // honest answer rather than an oversight:
 //
-//   * WEATHER. There is no server-side weather provider. `P4-HOME-05` is
-//     Not started and `WeatherService` on the client has zero production
-//     call sites. `weather_snapshot` therefore keeps the column default and
-//     goes out as `null`. Inventing a forecast to fill the field would put
-//     a number on Home that nothing measured.
 //   * A KYRA-AUTHORED MESSAGE. The scorer behind these outfits is
 //     `LeastRecentlyWornScorer`, which returns one identical hardcoded
 //     `reason` for every outfit it builds. A "Kyra's insight" module fed
@@ -24,6 +19,14 @@
 //     judgement. `kyra_message` stays null until there is a real stylist
 //     behind it; `HomeView` already renders that module only when the
 //     message is present.
+//
+// WEATHER (P4-HOME-05) is assembled, but not looked up here — there is
+// still no server-side weather provider. `weather_snapshot` is exactly
+// whatever the caller's own `WeatherService` reading was, validated by
+// `parseWeatherSnapshot` and passed straight through to `upsertBrief`. A
+// request with no weather (permission never granted, or the lookup failed)
+// still succeeds; `weather_snapshot` is null, same as before this ticket.
+// This handler never invents a forecast to fill the column.
 //
 // IDEMPOTENCY (P4-HOME-02's second acceptance criterion) is enforced in two
 // independent places, because one of them alone is a race. The handler
@@ -99,6 +102,7 @@ export interface UpsertBriefInput {
   readonly briefDate: string;
   readonly primaryOutfitId: string | null;
   readonly alternativeOutfitIds: readonly string[];
+  readonly weatherSnapshot: Record<string, unknown> | null;
   readonly scheduleSnapshot: Record<string, unknown>;
 }
 
@@ -190,7 +194,7 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
       }
     }
 
-    const brief = await buildBrief(userId, body.briefDate, deps);
+    const brief = await buildBrief(userId, body.briefDate, body.weatherSnapshot, deps);
 
     logger.info("daily_brief_generate.success", {
       user_id: userId,
@@ -242,6 +246,7 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
 async function buildBrief(
   userId: string,
   briefDate: string,
+  weatherSnapshot: Record<string, unknown> | null,
   deps: HandlerDeps,
 ): Promise<DailyBriefRow> {
   const items = await deps.repository.listCandidateItems(userId);
@@ -270,6 +275,7 @@ async function buildBrief(
     briefDate,
     primaryOutfitId: outfitIds[0] ?? null,
     alternativeOutfitIds: outfitIds.slice(1),
+    weatherSnapshot,
     // `event_count` only. `earliest_formality_level` would need each
     // occasion's dress code mapped onto a formality band, and
     // `headline` would be prose about the day — both are P4-HOME-06 work

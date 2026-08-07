@@ -212,14 +212,23 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
         }
     }
 
-    public func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief {
+    public func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
         struct Body: Encodable, Sendable {
             let date: String
             let regenerate: Bool
+            // Reuses `WeatherSnapshot`'s own `Encodable`/`CodingKeys`, so the
+            // wire shape matches `weather_snapshot` exactly — no second,
+            // divergent JSON shape for the same data.
+            let weatherSnapshot: WeatherSnapshot?
+            enum CodingKeys: String, CodingKey {
+                case date
+                case regenerate
+                case weatherSnapshot = "weather_snapshot"
+            }
         }
         return try await apiClient.send(
             .generateDailyBrief,
-            body: Body(date: DateFormatter.astraDay.string(from: date), regenerate: regenerate),
+            body: Body(date: DateFormatter.astraDay.string(from: date), regenerate: regenerate, weatherSnapshot: weather),
             as: DailyBrief.self
         )
     }

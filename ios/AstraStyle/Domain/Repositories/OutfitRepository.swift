@@ -59,7 +59,14 @@ public protocol OutfitRepository: Sendable {
     /// so the ordinary "no brief yet" path cannot rebuild by accident: a
     /// client retrying after a dropped connection must not replace outfits
     /// a user is looking at.
-    func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief
+    ///
+    /// `weather` (P4-HOME-05) is the client's own `WeatherService` reading,
+    /// passed up rather than looked up server-side because there is no
+    /// server-side weather provider (`daily-brief/README.md`'s "What it
+    /// deliberately does not produce"). `nil` when weather permission was
+    /// never granted or the lookup failed — the server persists exactly
+    /// what it is given and never invents a forecast to fill the column.
+    func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief
 
     /// Calls `POST /packing/generate` (spec §6.24, §14).
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan
@@ -70,6 +77,6 @@ public extension OutfitRepository {
     /// exists" — kept as a default so every caller that does not mean
     /// "rebuild" does not have to say so.
     func generateDailyBrief(for date: Date) async throws -> DailyBrief {
-        try await generateDailyBrief(for: date, regenerate: false)
+        try await generateDailyBrief(for: date, regenerate: false, weather: nil)
     }
 }

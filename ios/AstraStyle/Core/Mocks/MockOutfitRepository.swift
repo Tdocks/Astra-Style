@@ -104,8 +104,12 @@ public actor MockOutfitRepository: OutfitRepository {
         briefsByDay[DateFormatter.astraDay.string(from: date)]
     }
 
-    public func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief {
-        let brief = SampleData.dailyBrief(for: date)
+    public func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
+        // Stores whatever weather it was handed, same as the live server —
+        // a preview/test that grants weather permission should see that
+        // reading persist onto the brief, not `SampleData`'s own fixture.
+        var brief = SampleData.dailyBrief(for: date)
+        brief.weatherSnapshot = weather
         briefsByDay[DateFormatter.astraDay.string(from: date)] = brief
         return brief
     }
