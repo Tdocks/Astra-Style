@@ -42,13 +42,13 @@ lands data layers, protocols, and models long before the screens that use them.
 | 1 — Foundation | 25 | 11 | 12 | 0 |
 | 2 — Identity | 18 | 13 | 5 | 0 |
 | 3 — Closet | 27 | 15 | 9 | 3 |
-| 4 — Outfit intelligence | 26 | 3 | 11 | 12 |
+| 4 — Outfit intelligence | 26 | 7 | 10 | 9 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **179** | **45** | **52** | **80** |
+| **Total** | **179** | **49** | **51** | **77** |
 
-Read that table carefully before drawing a conclusion from it. 45 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 49 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -251,18 +251,18 @@ pgvector ordering test.
 
 # PHASE 4 — OUTFIT INTELLIGENCE
 
-**3 Done · 11 Partial · 12 Not started.** The most misread phase. The Home tab is a near-complete
+**7 Done · 10 Partial · 9 Not started.** The most misread phase. The Home tab is a near-complete
 Phase 4 vertical build (19 files) sitting in `Features/Home/`, and the deployed outfit generator is
 deliberately a placeholder scorer, not the real one.
 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P4-OUTFIT-01 | Done | `20260728100400_outfits.sql` creates `outfits`/`outfit_items`/`outfit_wears` with embeddings; RLS + cross-user isolation tested; live in production. |
-| P4-OUTFIT-02 | Partial | `CompatibilityBreakdown.score(weights:)` implements and tests the weighted-sum formula on caller-supplied values. **No type computes the 8 dimensions from real closet items**, and there is no server-config fetch with fallback. |
-| P4-OUTFIT-03 | Not started | No `compatibility_weights` table or endpoint anywhere. |
-| P4-OUTFIT-04 | Not started | No colour-compatibility or formality-alignment sub-scorer; `docs/05`'s CIE LCh algorithm has zero corresponding code. |
-| P4-OUTFIT-05 | Partial | `FrameHarmonyScorer`/`FrameDerivation`/`FitRules` + `FrameFitTests` are real, tested silhouette-on-wearer work blended into `silhouetteCompatibility`. Garment-vs-garment silhouette, season/weather, and user-preference sub-scorers do not exist. |
-| P4-OUTFIT-06 | Not started | No co-wear, occasion-relevance, or availability/laundry sub-scorer. |
+| P4-OUTFIT-02 | Done | `supabase/functions/_shared/scoring/` — 12 files, **129 unit tests**, pure functions with no database, provider or clock, which is what `docs/05` was written for. `compatibility.ts`'s `scoreOutfit` combines all eight components into the §2 `round(100 × Σ wᵢ·sᵢ)` and returns **every component and every degradation alongside the total**, not a bare number — the outfit card needs the breakdown, tuning needs the components, and Kyra must never say "these colours work together" off a 0.6 prior for a garment nobody analysed. Tests pin determinism over 25 runs, a coherent outfit beating an incoherent one by 15+ points, and a fully-contextless score landing between 60 and 95 — the ceiling is as load-bearing as the floor, since a fully-guessed 98 would be the app claiming confidence it has not got. |
+| P4-OUTFIT-03 | Partial | `supabase/functions/_shared/scoring/` — 12 files, **129 unit tests**, pure functions with no database, provider or clock, which is what `docs/05` was written for. `ComponentWeights` is a parameter with `DEFAULT_WEIGHTS` matching spec §10 exactly, and a table that does not sum to 1 is renormalised rather than allowed to cap the product — a human editing eight numbers will eventually make them sum to 0.97, and that should shift emphasis, not silently cap every outfit at 97. A test proves reweighting toward colour actually punishes a colour clash. **Still Partial: there is no `compatibility_weights` table and no endpoint to edit one.** The seam is done; the server-side storage §10 asks for is not. |
+| P4-OUTFIT-04 | Done | `supabase/functions/_shared/scoring/` — 12 files, **129 unit tests**, pure functions with no database, provider or clock, which is what `docs/05` was written for. Colour (0.25) is the full §1 pipeline — sRGB → linear → XYZ(D65) → LAB → LCh, CIE76 ΔE, §1.4's four harmony zones, §1.5's pattern interaction, §2.1 aggregation. Formality (0.20) is §2.3's super-linear `1-(Δf/40)^1.5` plus §3.1's outfit register. **§1.3's neutral band table did not work and is corrected** — it was written in HSL hue and applied in CIE hue, so the navy band (`h° 240–270`) matched none of five real navies (274–289) and olive-drab's chroma ceiling of 22 excluded every real olive-drab (18–31). Both bands — the only two the table exists for — classified their own subject as chromatic. Replaced with measured envelopes, pinned from both sides (13 must-be-neutral, 9 near-miss must-be-chromatic), and recorded in `docs/05` §0. **This reverses the doc's own worked example**: the olive polo is a neutral and the canonical outfit scores 0.97 on colour, not 0.91. |
+| P4-OUTFIT-05 | Done | `supabase/functions/_shared/scoring/` — 12 files, **129 unit tests**, pure functions with no database, provider or clock, which is what `docs/05` was written for. Silhouette (0.15) implements §4 in full: the §4.1 fit-pairing table, §4.2's **deliberately asymmetric** directional rule (a looser top over a tighter bottom is a volume-balance play; the same volumes reversed read as clothes that do not fit — with `d = −1` carved out because regular-over-relaxed is the most ordinary casual combination there is), and §4.3's body dampeners. Season/weather (0.10) and user preference (0.10) are in `subscores/context.ts`. **§4.3 modifiers can only dampen, never lift, and a test asserts it across the whole 5×5 fit matrix** — an engine that rewarded a garment for a man's chest measurement would be scoring the man. Two of §4.3's four rules are computable and two are not (no column stores garment length or break); the two that cannot run report themselves rather than being silently skipped. `FrameHarmonyScorer` remains the separate silhouette-on-wearer work. |
+| P4-OUTFIT-06 | Done | `supabase/functions/_shared/scoring/` — 12 files, **129 unit tests**, pure functions with no database, provider or clock, which is what `docs/05` was written for. Co-wear (0.10) is §2.7's Bayesian-smoothed positive rate with the doc's optimistic `α=2, β=1` prior, so an untested pair opens at 2/3 rather than 1/2 — absence of negative history is not evidence of a bad pairing, and a raw rate would structurally bury every new garment. Falls back from the specific pair to the role pair so a garment bought yesterday inherits how this user's tops and bottoms generally go, and marks itself degraded when it does. Occasion (0.05) returns §2.8's unconstrained-request default and names the missing column — `closet_items` has no `occasion_tags`; only `outfits` does. Availability (0.05) is the soft half of §2.9; the hard half is `wearableItems`, **widened beyond the doc to all seven `availability_state` values** — a jacket at the tailor, in a suitcase, lent out or lost is as impossible to wear as a dirty shirt. |
 | P4-OUTFIT-07 | Partial | `POST /outfits/generate` deployed and JWT-validated, returns `desiredCount` outfits. **Scoring is `LeastRecentlyWornScorer`, whose own header says "NOT the real compatibility scorer"** — every outfit's `reason` is an identical hardcoded string, violating the non-generic-reason criterion. No P95 measurement. |
 | P4-OUTFIT-08 | Not started | `outfits/index.ts` says "`POST /rank` -> not built yet". Client `rankOutfits()` 404s. |
 | P4-OUTFIT-09 | Not started | No unlock-count algorithm; `ProductEvaluation.outfitsUnlocked` is a passive field, never computed. |
