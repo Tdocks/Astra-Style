@@ -24,6 +24,7 @@ function garment(
     secondaryColors: (extras.secondaries ?? []).map((h) => rgbToLCh(hex(h))),
     pattern: extras.pattern ?? "solid",
     patternScale: extras.patternScale ?? null,
+    materials: [],
     formalityScore: null,
     fit: null,
     seasonality: [],

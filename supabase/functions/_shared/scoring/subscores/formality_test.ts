@@ -12,6 +12,7 @@ function garment(id: string, role: ScorableItem["role"], formality: number | nul
     secondaryColors: [],
     pattern: null,
     patternScale: null,
+    materials: [],
     formalityScore: formality,
     fit: null,
     seasonality: [],

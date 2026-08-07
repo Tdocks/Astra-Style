@@ -111,6 +111,14 @@ export interface ScorableItem {
   readonly secondaryColors: readonly LCh[];
   readonly pattern: Pattern | null;
   readonly patternScale: PatternScale | null;
+  /**
+   * The row's `material jsonb` array, lowercased by the mapper.
+   *
+   * Read only by §4.3's fit dampeners, which exempt a stretch fabric from the
+   * slim-cut penalty — a slim stretch trouser does not pull across the thigh
+   * the way a slim rigid one does.
+   */
+  readonly materials: readonly string[];
   /** 0–100. Null until the classifier has seen the garment. */
   readonly formalityScore: number | null;
   readonly fit: Fit | null;
