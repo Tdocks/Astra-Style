@@ -128,13 +128,14 @@ targets:
         # correct place for it and is already set to "Astra Style".
         PRODUCT_NAME: AstraStyle
         PRODUCT_MODULE_NAME: AstraStyle
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad: >-
-          UIInterfaceOrientationPortrait
-          UIInterfaceOrientationPortraitUpsideDown
-          UIInterfaceOrientationLandscapeLeft
-          UIInterfaceOrientationLandscapeRight
+        # NOTE: there are deliberately no `INFOPLIST_KEY_*` settings here.
+        # Xcode merges those into the bundle only when
+        # `GENERATE_INFOPLIST_FILE` is YES, and this target sets it NO
+        # (above) because it supplies its own Info.plist. Three of them —
+        # `UILaunchScreen_Generation` and both orientation keys — sat here
+        # doing nothing, read as if they were the source of truth, and are
+        # the reason a hand-edit of the plist looked like the only fix
+        # available. Their real homes are `info.properties` below.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_EMIT_LOC_STRINGS: YES
