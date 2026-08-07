@@ -70,15 +70,11 @@ public actor MockOutfitRepository: OutfitRepository {
             source: .aiGenerated
         )
         outfits[outfit.id] = outfit
-
-        let itemsByID = Dictionary(uniqueKeysWithValues: closetItems.map { ($0.id, $0) })
-        outfitItemsByOutfit[outfit.id] = recommendation.itemIDs.enumerated().compactMap { index, closetItemID in
-            guard
-                let category = itemsByID[closetItemID]?.category,
-                let role = OutfitItemRole(rawValue: category.rawValue)
-            else { return nil }
-            return OutfitItem(outfitID: outfit.id, closetItemID: closetItemID, role: role, sortOrder: index)
-        }
+        outfitItemsByOutfit[outfit.id] = OutfitItemAssembly.ownedItems(
+            itemIDs: recommendation.itemIDs,
+            outfitID: outfit.id,
+            closetItems: closetItems
+        )
 
         return outfit
     }

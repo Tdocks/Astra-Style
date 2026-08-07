@@ -182,7 +182,11 @@ extension AppContainer {
             profileRepository: LiveProfileRepository(apiClient: apiClient),
             closetRepository: closetRepository,
             closetImageURLResolver: LiveClosetImageURLResolver(),
-            outfitRepository: LiveOutfitRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue),
+            outfitRepository: LiveOutfitRepository(
+                apiClient: apiClient,
+                offlineQueue: offlineMutationQueue,
+                cache: SwiftDataOutfitCache(modelContainer: modelContainer)
+            ),
             kyraRepository: LiveKyraRepository(apiClient: apiClient),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
             shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
