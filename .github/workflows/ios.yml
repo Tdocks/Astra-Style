@@ -78,6 +78,14 @@ jobs:
       - name: Schema drift check (Swift enum <-> Postgres enum)
         run: python3 scripts/check_schema_drift.py
 
+      # Same family as the two drift checks above, different pair of files. The
+      # colour words iOS draws swatches for and the ones the compatibility
+      # scorer reasons about are one vocabulary kept in two languages; if they
+      # part, a man sees one olive and is reasoned about with another, and
+      # nothing crashes or logs to say so.
+      - name: Colour vocabulary drift (iOS swatches <-> scorer vocabulary)
+        run: python3 scripts/check_color_vocabulary.py
+
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
