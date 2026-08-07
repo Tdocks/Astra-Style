@@ -164,6 +164,25 @@ public enum PersistenceMapping {
         (try? JSONDecoder.astraDefault.decode([OutfitItem].self, from: persisted.encodedItems)) ?? []
     }
 
+    /// Mutates an existing `PersistedOutfit` in place to match `outfit`,
+    /// mirroring `update(_:with:)` for `PersistedClosetItem` above.
+    /// Deliberately leaves `encodedItems` untouched — `Outfit` carries no
+    /// item list of its own, and a caller with fresh items to cache calls
+    /// `OutfitCaching.upsert(_:items:)` or `upsertItems(_:forOutfit:)`
+    /// instead, which set it explicitly.
+    public static func update(_ persisted: PersistedOutfit, with outfit: Outfit) {
+        persisted.userID = outfit.userID
+        persisted.name = outfit.name
+        persisted.itemDescription = outfit.description
+        persisted.occasionTags = outfit.occasionTags
+        persisted.formalityScore = outfit.formalityScore
+        persisted.compatibilityScore = outfit.compatibilityScore
+        persisted.sourceRaw = outfit.source.rawValue
+        persisted.heroImageURLString = outfit.heroImageURL?.absoluteString
+        persisted.isFavorite = outfit.isFavorite
+        persisted.updatedAt = outfit.updatedAt
+    }
+
     // MARK: - DailyBrief
 
     public static func domainModel(from persisted: PersistedDailyBrief) -> DailyBrief {

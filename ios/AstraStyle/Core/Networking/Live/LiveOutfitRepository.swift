@@ -7,6 +7,24 @@
 //  generation, and packing are orchestration calls that require the
 //  Wardrobe Graph + weather/schedule context server-side (spec §14).
 //
+//  Offline behaviour (spec §7), stated precisely, mirroring
+//  `LiveClosetRepository`'s header:
+//
+//  * `updateOutfit` and `recordWear` fall back to `OfflineMutationQueue`
+//    when the write fails, and return the local value so the UI stays
+//    consistent. `saveOutfit` and `deleteOutfit` do NOT queue — both
+//    require a fresh session/id round-trip that a stale local value can't
+//    stand in for — and surface their error instead.
+//  * Successful reads and writes refresh `OutfitCaching`
+//    (`PersistedOutfit` via `SwiftDataOutfitCache`). A failed
+//    `fetchOutfits`/`fetchOutfit`/`fetchOutfitItems` serves the last
+//    cached value when one exists (spec §7 "Cached closet and outfits
+//    remain viewable").
+//  * `drainPendingMutations()` (`LiveOutfitRepository+Offline.swift`)
+//    replays the `.outfit`/`.outfitWear` backlog and IS actually called,
+//    after every successful network call below — P1-CORE-06: before this,
+//    those two mutation kinds were queued and never replayed by anything.
+//
 
 import Foundation
 import Supabase
@@ -14,30 +32,99 @@ import Supabase
 public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
     private let apiClient: AstraAPIClient
     private let supabase: SupabaseClient
-    private let offlineQueue: OfflineMutationQueue
+    let offlineQueue: OfflineMutationQueue
+    let writer: any OutfitWriting
+    private let cache: OutfitCaching
+    private let currentUserID: @Sendable () async -> UUID?
+    /// Test seams: when non-nil, `fetchOutfits`/`fetchOutfitItems` use
+    /// these instead of Postgrest, so cache write-through / offline
+    /// fallback can be asserted without a live Supabase project. Mirrors
+    /// `LiveClosetRepository.activeItemsFetcher`.
+    private let activeOutfitsFetcher: (@Sendable () async throws -> [Outfit])?
+    private let activeOutfitItemsFetcher: (@Sendable (UUID) async throws -> [OutfitItem])?
 
-    public init(
+    /// Guards against two concurrent drains replaying the same mutation
+    /// twice. See `LiveClosetRepository.drainLock`'s doc for why a lock is
+    /// sufficient here.
+    let drainLock = NSLock()
+    var isDraining = false
+
+    public convenience init(
         apiClient: AstraAPIClient,
         offlineQueue: OfflineMutationQueue,
+        cache: OutfitCaching,
         supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)
+    ) {
+        self.init(
+            apiClient: apiClient,
+            offlineQueue: offlineQueue,
+            supabase: supabase,
+            writer: SupabaseOutfitWriter(supabase: supabase),
+            cache: cache,
+            currentUserID: {
+                try? await supabase.auth.session.user.id
+            }
+        )
+    }
+
+    /// Internal so tests can substitute the writer, cache, and fetchers and
+    /// drive offline / cache behaviour without a live Supabase project.
+    init(
+        apiClient: AstraAPIClient,
+        offlineQueue: OfflineMutationQueue,
+        supabase: SupabaseClient,
+        writer: any OutfitWriting,
+        cache: OutfitCaching,
+        currentUserID: @escaping @Sendable () async -> UUID? = { nil },
+        activeOutfitsFetcher: (@Sendable () async throws -> [Outfit])? = nil,
+        activeOutfitItemsFetcher: (@Sendable (UUID) async throws -> [OutfitItem])? = nil
     ) {
         self.apiClient = apiClient
         self.offlineQueue = offlineQueue
         self.supabase = supabase
+        self.writer = writer
+        self.cache = cache
+        self.currentUserID = currentUserID
+        self.activeOutfitsFetcher = activeOutfitsFetcher
+        self.activeOutfitItemsFetcher = activeOutfitItemsFetcher
     }
 
     public func fetchOutfits() async throws -> [Outfit] {
         do {
-            return try await supabase.from("outfits").select().order("created_at", ascending: false).execute().value
+            let outfits: [Outfit]
+            if let activeOutfitsFetcher {
+                outfits = try await activeOutfitsFetcher()
+            } else {
+                outfits = try await supabase.from("outfits").select().order("created_at", ascending: false).execute().value
+            }
+            if let userID = await currentUserID() {
+                await cache.replaceAll(outfits, for: userID)
+            }
+            // Same rationale as `LiveClosetRepository.fetchItems`: a
+            // successful read is the cheapest reliable signal the network
+            // is back, and the outfit list is where Home/the outfits tab
+            // lands, so it's the natural moment to flush the backlog.
+            await drainPendingMutations()
+            return outfits
         } catch {
-            throw AstraError.network("Couldn't load your outfits.")
+            if let userID = await currentUserID() {
+                let cached = await cache.outfits(for: userID)
+                if !cached.isEmpty { return cached }
+            }
+            throw AstraError.network("Couldn't load your outfits. Showing your last saved copy if available.")
         }
     }
 
     public func fetchOutfit(id: UUID) async throws -> Outfit {
         do {
-            return try await supabase.from("outfits").select().eq("id", value: id).single().execute().value
+            let outfit: Outfit = try await supabase.from("outfits").select().eq("id", value: id).single().execute().value
+            await cache.upsert(outfit, items: nil)
+            return outfit
         } catch {
+            if let userID = await currentUserID(),
+               let cached = await cache.outfits(for: userID).first(where: { $0.id == id }) {
+                return cached
+            }
             throw AstraError.server("Couldn't load that outfit.")
         }
     }
@@ -45,25 +132,42 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
     public func fetchOutfits(ids: [UUID]) async throws -> [Outfit] {
         guard !ids.isEmpty else { return [] }
         do {
-            return try await supabase.from("outfits")
+            let outfits: [Outfit] = try await supabase.from("outfits")
                 .select()
                 .in("id", values: ids)
                 .execute()
                 .value
+            for outfit in outfits {
+                await cache.upsert(outfit, items: nil)
+            }
+            return outfits
         } catch {
+            if let userID = await currentUserID() {
+                let cached = await cache.outfits(for: userID).filter { ids.contains($0.id) }
+                if !cached.isEmpty { return cached }
+            }
             throw AstraError.server("Couldn't load those outfits.")
         }
     }
 
     public func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem] {
         do {
-            return try await supabase.from("outfit_items")
-                .select()
-                .eq("outfit_id", value: outfitID)
-                .order("sort_order", ascending: true)
-                .execute()
-                .value
+            let items: [OutfitItem]
+            if let activeOutfitItemsFetcher {
+                items = try await activeOutfitItemsFetcher(outfitID)
+            } else {
+                items = try await supabase.from("outfit_items")
+                    .select()
+                    .eq("outfit_id", value: outfitID)
+                    .order("sort_order", ascending: true)
+                    .execute()
+                    .value
+            }
+            await cache.upsertItems(items, forOutfit: outfitID)
+            return items
         } catch {
+            let cached = await cache.items(forOutfit: outfitID)
+            if !cached.isEmpty { return cached }
             throw AstraError.server("Couldn't load that outfit's items.")
         }
     }
@@ -108,7 +212,7 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
     /// already-loaded closet (`SliceViewModel` has this in memory already)
     /// — used only to resolve each item's `category` into
     /// `outfit_items.role`, since the recommendation itself carries no role
-    /// information, just a flat `item_ids` array.
+    /// information, just a flat `item_ids` array (`OutfitItemAssembly`).
     public func saveOutfit(from recommendation: OutfitRecommendation, name: String?, closetItems: [ClosetItem]) async throws -> Outfit {
         do {
             let session = try await supabase.auth.session
@@ -122,22 +226,17 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
             )
             let saved: Outfit = try await supabase.from("outfits").insert(outfit).select().single().execute().value
 
-            let itemsByID = Dictionary(uniqueKeysWithValues: closetItems.map { ($0.id, $0) })
-            let outfitItems: [OutfitItem] = recommendation.itemIDs.enumerated().compactMap { index, closetItemID in
-                // `outfit_items.role` reuses the `clothing_category` Postgres
-                // enum verbatim (see 20260728100400_outfits.sql's column
-                // comment), and `OutfitItemRole`'s raw values are a superset
-                // of `ClothingCategory`'s — every real category maps.
-                guard
-                    let category = itemsByID[closetItemID]?.category,
-                    let role = OutfitItemRole(rawValue: category.rawValue)
-                else { return nil }
-                return OutfitItem(outfitID: saved.id, closetItemID: closetItemID, role: role, sortOrder: index)
-            }
+            let outfitItems = OutfitItemAssembly.ownedItems(
+                itemIDs: recommendation.itemIDs,
+                outfitID: saved.id,
+                closetItems: closetItems
+            )
             if !outfitItems.isEmpty {
                 try await supabase.from("outfit_items").insert(outfitItems).execute()
             }
 
+            await cache.upsert(saved, items: outfitItems)
+            await drainPendingMutations()
             return saved
         } catch {
             throw AstraError.server("Couldn't save that outfit.")
@@ -146,16 +245,14 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
 
     public func updateOutfit(_ outfit: Outfit) async throws -> Outfit {
         do {
-            return try await supabase.from("outfits")
-                .update(outfit)
-                .eq("id", value: outfit.id)
-                .select()
-                .single()
-                .execute()
-                .value
+            let updated = try await writer.updateOutfit(outfit)
+            await cache.upsert(updated, items: nil)
+            await drainPendingMutations()
+            return updated
         } catch {
             let payload = try JSONEncoder.astraDefault.encode(outfit)
             await offlineQueue.enqueue(OfflineMutation(entity: .outfit, operation: .update, payloadData: payload))
+            await cache.upsert(outfit, items: nil)
             return outfit
         }
     }
@@ -163,6 +260,8 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
     public func deleteOutfit(id: UUID) async throws {
         do {
             try await supabase.from("outfits").delete().eq("id", value: id).execute()
+            await cache.remove(id: id)
+            await drainPendingMutations()
         } catch {
             throw AstraError.network("Couldn't delete that outfit while offline.")
         }
@@ -181,7 +280,9 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
                 rating: rating,
                 feedback: feedback
             )
-            return try await supabase.from("outfit_wears").insert(wear).select().single().execute().value
+            let recorded = try await writer.createWear(wear)
+            await drainPendingMutations()
+            return recorded
         } catch {
             let session = try? await supabase.auth.session
             let wear = OutfitWear(
