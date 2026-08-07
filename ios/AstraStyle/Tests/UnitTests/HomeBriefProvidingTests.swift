@@ -173,6 +173,33 @@ struct HomeBriefProvidingTests {
         #expect(!data.needsMoreClosetItems)
     }
 
+    // MARK: - Regenerate
+
+    /// `POST /daily-brief/generate` is idempotent per `brief_date`
+    /// (P4-HOME-02), so a regenerate that does not say so gets handed back
+    /// the outfits the user just asked to replace — §6.11's regenerate
+    /// control would look like it worked and change nothing.
+    @Test("Regenerating asks the server to rebuild, rather than re-reading the stored brief")
+    func regenerateIsForwardedToTheServer() async throws {
+        let outfitRepository = RecordingOutfitRepository()
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: outfitRepository,
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: MockWeatherService(),
+            calendarService: MockCalendarService(),
+            isGuest: { false }
+        )
+
+        _ = try await provider.loadTodayBrief(regenerate: true)
+        #expect(await outfitRepository.regenerateFlags == [true])
+
+        // And the ordinary path still asks for whatever already exists —
+        // a retry after a dropped connection must not rebuild.
+        _ = try await provider.loadTodayBrief(regenerate: false)
+        #expect(await outfitRepository.regenerateFlags == [true, false])
+    }
+
     @Test("A signed-in user whose profile fetch fails surfaces the error rather than an empty state")
     func signedInProfileFailurePropagates() async throws {
         let provider = DefaultHomeBriefProvider(
@@ -293,7 +320,7 @@ private actor FailIfCalledOutfitRepository: OutfitRepository {
         throw AstraError.server("unused")
     }
     func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { recordCall(); return nil }
-    func generateDailyBrief(for date: Date) async throws -> DailyBrief { recordCall(); throw AstraError.server("unused") }
+    func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief { recordCall(); throw AstraError.server("unused") }
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
         recordCall()
         throw AstraError.server("unused")
@@ -316,6 +343,44 @@ private struct AlwaysFailingProfileRepository: ProfileRepository {
     func generateStyleDNA() async throws -> StyleDNA { throw AstraError.server("boom") }
     func uploadReferenceImage(_ imageData: Data) async throws -> String { throw AstraError.server("boom") }
     func exportPersonalData() async throws -> URL { throw AstraError.server("boom") }
+}
+
+/// `OutfitRepository` double that records the `regenerate` flag each call
+/// carried. `fetchDailyBrief` returns nil so the provider always reaches
+/// `generateDailyBrief` — the cached-brief branch is a different test's
+/// subject, and letting it short-circuit here would make the assertion
+/// pass for the wrong reason.
+private actor RecordingOutfitRepository: OutfitRepository {
+    private(set) var regenerateFlags: [Bool] = []
+
+    func fetchOutfits() async throws -> [Outfit] { [] }
+    func fetchOutfit(id: UUID) async throws -> Outfit { SampleData.heroOutfit }
+    func fetchOutfits(ids: [UUID]) async throws -> [Outfit] { [] }
+    func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem] { [] }
+    func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation] { [] }
+    func rankOutfits(candidateOutfitIDs: [UUID], lockedClosetItemIDs: [UUID]) async throws -> [OutfitRecommendation] { [] }
+    func saveOutfit(from recommendation: OutfitRecommendation, name: String?, closetItems: [ClosetItem]) async throws -> Outfit {
+        SampleData.heroOutfit
+    }
+    func updateOutfit(_ outfit: Outfit) async throws -> Outfit { outfit }
+    func deleteOutfit(id: UUID) async throws {}
+    @discardableResult
+    func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
+        throw AstraError.unimplemented("unused")
+    }
+    func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { nil }
+    func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief {
+        regenerateFlags.append(regenerate)
+        return DailyBrief(
+            id: UUID(),
+            userID: SampleData.profile.id,
+            briefDate: date,
+            primaryOutfitID: SampleData.heroOutfit.id
+        )
+    }
+    func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
+        throw AstraError.unimplemented("unused")
+    }
 }
 
 /// `ClosetRepository` double whose `fetchItems()` always fails — the

@@ -1,5 +1,5 @@
 // ============================================================================
-// outfits/scorer.ts
+// _shared/scoring/leastRecentlyWorn.ts
 // ============================================================================
 // *** THIS IS NOT THE REAL COMPATIBILITY SCORER. ***
 //
@@ -20,14 +20,20 @@
 // ---------------------------------------------------------------------------
 // THE SEAM
 // ---------------------------------------------------------------------------
-// `OutfitScorer` is the interface every caller (currently just this
-// function's handler.ts) depends on. When the real `CompatibilityScorer`
-// (docs/05-wardrobe-graph.md) is built, it should implement this same
-// interface — likely moved to `_shared/scoring/` once `/outfits/rank` and
-// `/products/evaluate` also need it (docs/05-wardrobe-graph.md's header:
-// "a pure-function scoring core shared by both") — and `handler.ts` swaps
-// in the new implementation via its `Deps.scorer` field with no other
-// change required. No caller of this interface should ever come to depend
+// `OutfitScorer` is the interface every caller depends on. When the real
+// `CompatibilityScorer` (docs/05-wardrobe-graph.md) is built, it should
+// implement this same interface, and each caller swaps in the new
+// implementation via its `Deps.scorer` field with no other change required.
+//
+// This file moved from `outfits/scorer.ts` to `_shared/scoring/` on
+// 2026-08-06, on the terms its own header set out: a second caller arrived.
+// `daily-brief` needs the same placeholder to pick a primary outfit and its
+// alternatives, and one function reaching into another function's directory
+// would couple two separate deploy units (ADR 0013). Callers today are
+// `outfits/handler.ts` and `daily-brief/handler.ts`; `/outfits/rank` and
+// `/products/evaluate` are the next two named in
+// docs/05-wardrobe-graph.md's header ("a pure-function scoring core shared
+// by both"). No caller of this interface should ever come to depend
 // on `LeastRecentlyWornScorer`-specific behavior (e.g. "outfits are always
 // exactly 3 items") beyond what `OutfitScorer` promises, so that swap stays
 // a one-line change.

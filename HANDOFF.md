@@ -791,7 +791,9 @@ It must print nothing.
 
 **7a. `xcodegen generate` rewrites `ios/AstraStyle/Resources/Info.plist` wholesale**, because `project.yml`'s `info:` block owns that path. Anything hand-added to the plist disappears at the next regen with no warning. This already happened once: commit `913e43a1` added `UISupportedInterfaceOrientations` (App Store Connect rejects an upload without it) and a later regen silently deleted it — it was missing from the working tree again on 2026-08-06. The keys now live in `project.yml`'s `info.properties`, which is the only place they survive. **The `INFOPLIST_KEY_*` build settings did NOT cover this**: Xcode merges those only when `GENERATE_INFOPLIST_FILE` is `YES`, and this target sets it `NO` because it supplies its own plist. Three of them (`UILaunchScreen_Generation` and both orientation keys) sat in `settings.base` doing nothing while reading as the source of truth — they have been deleted, and removing them changed the generated plist not at all, which is the proof they were dead. Do not add an `INFOPLIST_KEY_*` to this target; add the key to `info.properties` instead.
 
-**8. `.github/workflows/edge-functions.yml` does not cover `profile/` or `style-dna/`.** Adding a new function directory requires editing **both** that workflow **and** the four hardcoded directory lists in `supabase/functions/deno.json` — and bumping `requiredNow` in the Swift test.
+**8. ~~`.github/workflows/edge-functions.yml` does not cover `profile/` or `style-dna/`.~~ Closed 2026-08-06.** The workflow now calls `deno task check|test|fmt-check|lint` instead of repeating the directory list, so `supabase/functions/deno.json` is the single list and a new function directory added there is covered by CI by construction. (The gap was real when written and had since half-closed on its own; the duplication that caused it is what got removed.)
+
+What still needs a second edit when you add a function: **`requiredNow` in `EndpointDeploymentMappingTests`.** Add the slug there the moment a production call path builds a URL for it, not once it is deployed — `daily-brief` sat in `expectedSlugs` and not in `requiredNow` while `HomeBriefProviding` called it on every load, so the test written to catch exactly that had a hole exactly where the bug was.
 
 **9. `ClosetRoute.filters` and `ClosetRoute.editItem` are provably dead enum cases.** Both resolve to honest placeholders; nothing pushes either (the filter panel is a sheet, the editor is presented from the detail screen which already holds the loaded item). Don't wire them to something wrong on the assumption they're wanted.
 
@@ -1096,9 +1098,9 @@ These used to be the “pick up next” list; they shipped before/with PR #12 �
 
 ### 13.2 Endpoints and their deployment state
 
-Four slugs are deployed to `anutsdzbxycaavmmkewo`, verified 2026-08-06 via
-`list_edge_functions`: `profile`, `style-dna`, `outfits`, `closet` — all
-`verify_jwt: true`. **"Built" and "deployed" are different facts and this table
+Five slugs are deployed to `anutsdzbxycaavmmkewo`, verified 2026-08-06 via
+`list_edge_functions`: `profile`, `style-dna`, `outfits`, `closet`,
+`daily-brief` — all `verify_jwt: true`. **"Built" and "deployed" are different facts and this table
 tracks the second**, because `closet` sat fully written and fully tested in the
 repo for five days while every client call to it 404'd.
 
@@ -1111,7 +1113,7 @@ repo for five days while every client call to it 404'd.
 | `closet/analyze-item` | POST | `closet` | ✅ deployed 2026-08-06 (mock vision provider) |
 | `closet/batch-analyze` | POST | `closet` | ✅ deployed 2026-08-06 (job + poll) |
 | `closet/batch-status/{uuid}` | GET | `closet` | ✅ deployed 2026-08-06 |
-| `daily-brief/generate` | POST | `daily-brief` | ❌ |
+| `daily-brief/generate` | POST | `daily-brief` | ✅ deployed 2026-08-06 (idempotent per `brief_date`) |
 | `kyra/respond` | POST | `kyra` | ❌ |
 | `products/extract` | POST | `products` | ❌ |
 | `products/evaluate` | POST | `products` | ❌ |

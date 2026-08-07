@@ -212,13 +212,14 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
         }
     }
 
-    public func generateDailyBrief(for date: Date) async throws -> DailyBrief {
+    public func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief {
         struct Body: Encodable, Sendable {
             let date: String
+            let regenerate: Bool
         }
         return try await apiClient.send(
             .generateDailyBrief,
-            body: Body(date: DateFormatter.astraDay.string(from: date)),
+            body: Body(date: DateFormatter.astraDay.string(from: date), regenerate: regenerate),
             as: DailyBrief.self
         )
     }

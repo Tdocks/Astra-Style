@@ -104,7 +104,7 @@ public actor MockOutfitRepository: OutfitRepository {
         briefsByDay[DateFormatter.astraDay.string(from: date)]
     }
 
-    public func generateDailyBrief(for date: Date) async throws -> DailyBrief {
+    public func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief {
         let brief = SampleData.dailyBrief(for: date)
         briefsByDay[DateFormatter.astraDay.string(from: date)] = brief
         return brief

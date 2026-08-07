@@ -98,7 +98,11 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
             brief = cached
         } else {
-            brief = try await outfitRepository.generateDailyBrief(for: .now)
+            // `regenerate` is threaded through rather than always false:
+            // the endpoint is idempotent per `brief_date`, so §6.11's
+            // regenerate control would otherwise return the outfits the
+            // user just asked to replace.
+            brief = try await outfitRepository.generateDailyBrief(for: .now, regenerate: regenerate)
         }
 
         // Each of these degrades independently to an empty/nil result on

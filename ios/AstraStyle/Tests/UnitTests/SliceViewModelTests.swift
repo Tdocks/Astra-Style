@@ -191,7 +191,7 @@ private actor StubOutfitRepository: OutfitRepository {
     }
 
     func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { nil }
-    func generateDailyBrief(for date: Date) async throws -> DailyBrief {
+    func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief {
         throw AstraError(category: .unknown, message: "not used by the slice")
     }
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {

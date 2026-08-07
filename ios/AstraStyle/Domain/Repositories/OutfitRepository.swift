@@ -50,8 +50,26 @@ public protocol OutfitRepository: Sendable {
 
     /// Calls `POST /daily-brief/generate` (spec §14) — used when no brief
     /// exists yet for today, or the user asks Kyra to regenerate it.
-    func generateDailyBrief(for date: Date) async throws -> DailyBrief
+    ///
+    /// `regenerate` has to be stated because the endpoint is idempotent per
+    /// `brief_date` (P4-HOME-02): without it, the second call of the day
+    /// returns the brief already stored, and §6.11's regenerate control
+    /// would hand the user back the same outfits he just asked to replace —
+    /// a button that appears to work and does nothing. Defaulted to `false`
+    /// so the ordinary "no brief yet" path cannot rebuild by accident: a
+    /// client retrying after a dropped connection must not replace outfits
+    /// a user is looking at.
+    func generateDailyBrief(for date: Date, regenerate: Bool) async throws -> DailyBrief
 
     /// Calls `POST /packing/generate` (spec §6.24, §14).
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan
+}
+
+public extension OutfitRepository {
+    /// The overwhelmingly common call — "today's brief, whatever already
+    /// exists" — kept as a default so every caller that does not mean
+    /// "rebuild" does not have to say so.
+    func generateDailyBrief(for date: Date) async throws -> DailyBrief {
+        try await generateDailyBrief(for: date, regenerate: false)
+    }
 }

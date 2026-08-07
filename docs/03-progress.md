@@ -41,13 +41,13 @@ lands data layers, protocols, and models long before the screens that use them.
 | 1 — Foundation | 25 | 13 | 12 | 0 |
 | 2 — Identity | 17 | 12 | 5 | 0 |
 | 3 — Closet | 27 | 15 | 9 | 3 |
-| 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
+| 4 — Outfit intelligence | 26 | 3 | 11 | 12 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 2 | 4 | 19 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **45** | **52** | **81** |
+| **Total** | **178** | **46** | **52** | **80** |
 
-Read that table carefully before drawing a conclusion from it. 45 of 178 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 46 of 178 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -241,7 +241,7 @@ pgvector ordering test.
 
 # PHASE 4 — OUTFIT INTELLIGENCE
 
-**2 Done · 11 Partial · 13 Not started.** The most misread phase. The Home tab is a near-complete
+**3 Done · 11 Partial · 12 Not started.** The most misread phase. The Home tab is a near-complete
 Phase 4 vertical build (19 files) sitting in `Features/Home/`, and the deployed outfit generator is
 deliberately a placeholder scorer, not the real one.
 
@@ -263,7 +263,7 @@ deliberately a placeholder scorer, not the real one.
 | P4-OUTFIT-14 | Partial | `recordWear()` writes `outfit_wears` and the `bump_closet_item_wear_stats()` trigger increments item counts. **Nothing anywhere writes a `style_feedback` row** — the model has zero writers. |
 | P4-OUTFIT-15 | Partial | Full Postgrest CRUD with correct `role`/`sort_order`/`is_required`. **No offline cache wired for reads** — `PersistedOutfit` is never read or written by the live repository. |
 | P4-HOME-01 | Done | `20260728100700_planning.sql` creates `daily_briefs` with RLS; live in production; isolation tested. |
-| P4-HOME-02 | Not started | No `supabase/functions/daily-brief/`. Client `generateDailyBrief()` targets a nonexistent function. Since 2026-08-06 that no longer reaches a user who has just onboarded — `loadTodayBrief` returns §6.11's empty state below five garments without calling it — and when it is reached the 404 maps to `.unimplemented` rather than a retryable `.server`, so the screen stops offering a retry that cannot work. The endpoint is still absent; only the failure is now honest. |
+| P4-HOME-02 | Done | `supabase/functions/daily-brief/` (`index.ts`/`handler.ts`/`schema.ts` + 11 Deno tests), **deployed 2026-08-06** to `anutsdzbxycaavmmkewo` with `verify_jwt: true`. **Both acceptance criteria verified against production** with a real JWT minted for a throwaway user with a six-garment closet (deleted afterwards; the cascade was confirmed empty): a populated closet returned a `primary_outfit_id` **and** one alternative, and a second identical call returned the same brief id with no second set of outfits written. `regenerate: true` rebuilt in place — same row, new primary — and `2026-02-31` returned 400 rather than silently landing in a different day's row. Outfits are persisted as real `outfits` + `outfit_items` rows **before** the brief references them, because `daily_briefs.primary_outfit_id` is a foreign key and the ids `POST /outfits/generate` returns are client-minted and never stored; roles and `sort_order` were checked in the live rows. Idempotency is enforced twice — a read in `handler.ts` and an upsert on the table's own `(user_id, brief_date)` constraint — because the read alone is a race. The scorer moved to `_shared/scoring/leastRecentlyWorn.ts` on the terms its own header set out (a second caller arrived); it is still the placeholder, not `docs/05` §2's real compatibility scorer. **Two §14 inputs are deliberately absent rather than invented:** `weather_snapshot` stays null because there is no server-side weather provider (`P4-HOME-05`), and `kyra_message` stays null because the only sentence available would be `LeastRecentlyWornScorer`'s single hardcoded `reason`, identical every day, dressed as a judgement. **Known gap, recorded rather than guessed at:** a regenerate leaves the previous brief's generated outfits active and unreferenced. Nothing surfaces them today (`P4-OUTFIT-11` is Not started), and the right policy — archive the unworn ones, keep the worn ones for `outfit_wears` history — is easier to settle once there is a screen to look at. |
 | P4-HOME-03 | Partial | `HeroOutfitCardView` renders every required element and wires all 4 actions. But Edit and Visualize both resolve to placeholders, and the displayed confidence comes from the placeholder scorer. |
 | P4-HOME-04 | Partial | Wardrobe-score, laundry-alert and upcoming-occasions modules built and wired. Home's own README admits purchase-opportunity never populates and `MonthlyProgressModuleView` is previewable but unwired. |
 | P4-HOME-05 | Not started | `weatherService` is never called in `loadTodayBrief`/`loadGuestBrief`; `WeatherService.currentSnapshot()` has **zero production call sites**. |

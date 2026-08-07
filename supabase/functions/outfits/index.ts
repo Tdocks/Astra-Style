@@ -37,7 +37,10 @@ import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.t
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { type ClosetRepository, handleGenerateOutfits } from "./handler.ts";
-import { type ClosetItemRow, LeastRecentlyWornScorer } from "./scorer.ts";
+import {
+  type ClosetItemRow,
+  LeastRecentlyWornScorer,
+} from "../_shared/scoring/leastRecentlyWorn.ts";
 import { serverError } from "../_shared/errors.ts";
 
 // Read once at cold start (per isolate), not per request: a misconfigured

@@ -3,7 +3,7 @@ import {
   type ClosetItemRow,
   LeastRecentlyWornScorer,
   SLICE_PLACEHOLDER_COMPATIBILITY_SCORE,
-} from "./scorer.ts";
+} from "./leastRecentlyWorn.ts";
 
 function item(
   id: string,

@@ -47,7 +47,7 @@ import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
 import { type OutfitRecommendationDTO, parseEnvelope, parseGenerateOutfitsBody } from "./schema.ts";
-import type { ClosetItemRow, OutfitScorer } from "./scorer.ts";
+import type { ClosetItemRow, OutfitScorer } from "../_shared/scoring/leastRecentlyWorn.ts";
 
 export interface ClosetRepository {
   /**
@@ -141,7 +141,7 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     const items = await deps.closetRepository.listCandidateItems(userId);
 
     // SEAM: `deps.scorer` is where the real CompatibilityScorer plugs in
-    // later — see outfits/scorer.ts's module header.
+    // later — see _shared/scoring/leastRecentlyWorn.ts's module header.
     const scored = deps.scorer.generate(items, {
       desiredCount: body.desiredCount,
       lockedItemIds: new Set(body.lockedClosetItemIds),

@@ -18,7 +18,10 @@ import { assertEquals, assertNotEquals } from "@std/assert";
 import type { AuthClient } from "../_shared/jwt.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { type ClosetRepository, handleGenerateOutfits, type HandlerDeps } from "./handler.ts";
-import { type ClosetItemRow, LeastRecentlyWornScorer } from "./scorer.ts";
+import {
+  type ClosetItemRow,
+  LeastRecentlyWornScorer,
+} from "../_shared/scoring/leastRecentlyWorn.ts";
 
 const VALID_LOOKING_JWT_A =
   "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyLWEifQ.dGhpc19pc19ub3RfYV9yZWFsX3NpZ25hdHVyZQ";
