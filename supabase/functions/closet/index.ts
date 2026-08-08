@@ -98,7 +98,18 @@ function buildProvider(authorizationHeader: string): VisionAnalysisProvider {
       // Renamed with the key, and for the same ADR 0004 reason: the model
       // override is a property of the vision capability, not of OpenAI.
       // Unset today, so the default is what runs.
-      model: Deno.env.get("VISION_PROVIDER_MODEL") ?? "gpt-5.6",
+      // `gpt-5.6-luna`, not `gpt-5.6`. The bare name is a 404 at the provider —
+      // there is no such model, only the -luna / -terra / -sol variants — and
+      // `docs/08` §2.5 names Luna specifically for this job.
+      //
+      // This cost a full round of the §2.5 pilot gate to find, and the way it
+      // failed is worth keeping: the provider threw, the adapter degraded to
+      // `degradedResultFromHints`, and the endpoint returned "New garment" at
+      // 0.2 confidence with all ten fields flagged below threshold. Nothing
+      // crashed and nothing lied — the honest degradation is exactly what made
+      // a wrong model name diagnosable from the response alone. A confident
+      // wrong guess here would have looked like a working analyser.
+      model: Deno.env.get("VISION_PROVIDER_MODEL") ?? "gpt-5.6-luna",
       async loadImageBytes(storagePath: string): Promise<Uint8Array> {
         const { data, error } = await supabase.storage.from("user-content").download(storagePath);
         if (error || !data) {
