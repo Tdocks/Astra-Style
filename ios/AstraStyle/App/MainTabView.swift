@@ -72,7 +72,7 @@ struct MainTabView: View {
                 )
             )
             .navigationDestination(for: HomeRoute.self) { route in
-                HomeDestinationView(route: route)
+                HomeDestinationView(route: route, container: container)
             }
         }
     }
