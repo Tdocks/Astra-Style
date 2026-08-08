@@ -18,9 +18,30 @@
 // `provider` below is the single line that decides which
 // `VisionAnalysisProvider` (spec §8 / docs/08 §2) backs these endpoints.
 // Default: `MockVisionAnalysisProvider`. Live OpenAI adapter when
-// `VISION_ANALYSIS_PROVIDER=openai` and `OPENAI_API_KEY` are set. A vendor
-// swap changes this file only — not handler.ts, not the DTO, not
+// `VISION_ANALYSIS_PROVIDER=openai` and `VISION_PROVIDER_API_KEY` are set.
+// A vendor swap changes this file only — not handler.ts, not the DTO, not
 // `AstraEndpoint`, not `ClosetRepository`, not a single Swift file.
+//
+// THE KEY IS `VISION_PROVIDER_API_KEY`, AND IT USED TO BE `OPENAI_API_KEY`,
+// WHICH IS WHY THIS NEVER RAN. Spec §25 and ADR 0004 name one environment
+// variable per CAPABILITY — `STYLIST_PROVIDER_API_KEY`,
+// `VISION_PROVIDER_API_KEY`, `IMAGE_PROVIDER_API_KEY`,
+// `EMBEDDING_PROVIDER_API_KEY` — precisely so a key can be rotated or
+// revoked for one capability without taking the others down with it. This
+// file asked for `OPENAI_API_KEY`, a name that appears in that scheme
+// nowhere and was never set on the project. The result was not an error: it
+// was six weeks of every scan silently taking the mock branch and
+// confidently labelling a pair of shoes "Top". A vendor-shaped name is also
+// the wrong shape on principle — the point of ADR 0004 is that this layer
+// does not know it is talking to OpenAI.
+//
+// AND THE FALLBACK NOW SAYS SO. A function configured for `openai` that
+// finds no key logs at error level before degrading. Silence was the
+// expensive part: the mock is a plausible-looking answer for a garment
+// nobody analysed, which is exactly the "confounded reading" CLAUDE.md's
+// governing rule forbids — absent is honest, a confident wrong category is
+// not. An unconfigured function (`VISION_ANALYSIS_PROVIDER` unset) stays
+// quiet, because running on the mock by choice is a decision, not a fault.
 //
 // NOTE ON SERVICE-ROLE: this function never constructs a service-role
 // client. Job rows and idempotency rows are owned by the caller; RLS with
@@ -58,12 +79,26 @@ const rateLimiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
 
 function buildProvider(authorizationHeader: string): VisionAnalysisProvider {
   const mode = (Deno.env.get("VISION_ANALYSIS_PROVIDER") ?? "mock").toLowerCase();
-  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  const apiKey = Deno.env.get("VISION_PROVIDER_API_KEY");
+  if (mode === "openai" && !apiKey) {
+    // The failure this whole comment block exists for. Loud, once per cold
+    // start, and it names the variable — the last version of this bug cost
+    // six weeks because nothing anywhere said which name was missing.
+    console.error(
+      "[closet] VISION_ANALYSIS_PROVIDER=openai but VISION_PROVIDER_API_KEY is not set. " +
+        "Falling back to the mock analyser: every scan will return a plausible-looking " +
+        "category that nothing measured. Set the secret (spec §25) or unset " +
+        "VISION_ANALYSIS_PROVIDER to run on the mock deliberately.",
+    );
+  }
   if (mode === "openai" && apiKey) {
     const supabase = createUserScopedClient(env, authorizationHeader);
     return new OpenAIVisionAnalysisProvider({
       apiKey,
-      model: Deno.env.get("OPENAI_VISION_MODEL") ?? "gpt-5.6",
+      // Renamed with the key, and for the same ADR 0004 reason: the model
+      // override is a property of the vision capability, not of OpenAI.
+      // Unset today, so the default is what runs.
+      model: Deno.env.get("VISION_PROVIDER_MODEL") ?? "gpt-5.6",
       async loadImageBytes(storagePath: string): Promise<Uint8Array> {
         const { data, error } = await supabase.storage.from("user-content").download(storagePath);
         if (error || !data) {
