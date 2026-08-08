@@ -2,7 +2,7 @@
 
 Owns garment capture and the device-side half of the computer vision pipeline (spec §6.16, §12).
 
-> **Status:** single-item capture + review + upload/analyze/save ship. Vision garment-region + OCR adapters exist behind protocols (Partial — manual criteria unrun). Batch/receipt/mirror modes are **not** built. Trust `docs/03-progress.md` (`P3-SCAN-*`).
+> **Status:** single-item capture + review + upload/analyze/save ship. Vision garment-region + OCR adapters exist behind protocols (Partial — manual criteria unrun). **Batch closet scan now has a UI** (`ScannerBatchCaptureView` + `ScannerBatchViewModel`, multi-select import → one batch analysis → the existing review screen walked one garment at a time); receipt/mirror modes are still **not** built. Trust `docs/03-progress.md` (`P3-SCAN-*`).
 
 ## What this module owns today
 
@@ -23,7 +23,8 @@ Owns garment capture and the device-side half of the computer vision pipeline (s
 
 - Region-restricted live capture quality on the ~10 Hz preview path (not safe for the capture budget — documented Partial on `P3-SCAN-02`).
 - On-device manual verification of segmentation / OCR acceptance criteria.
-- Batch / receipt / mirror capture modes (`P3-SCAN-12`).
+- Receipt / mirror capture modes (`P3-SCAN-12`).
+- Batch capture from the *camera*. `ScannerRoute.batchCloset` is import-only by design: a phone camera used twenty times in a row is a worse tool for "sit down with a pile of clothes" than a roll the user has already shot, and skipping the live session means the batch route never asks for camera permission.
 - Server background-removal cutout (`P3-SCAN-10`).
 
 ## Governing spec sections

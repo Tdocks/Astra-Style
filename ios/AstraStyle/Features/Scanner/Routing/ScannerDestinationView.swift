@@ -30,6 +30,11 @@ struct ScannerDestinationView: View {
     @State private var path: [ScannerRoute] = []
     @State private var captureViewModel: ScannerCaptureViewModel?
     @State private var reviewViewModel: ScannerReviewViewModel?
+    @State private var batchViewModel: ScannerBatchViewModel?
+    /// Drafts from a batch that have NOT been reviewed yet. The one on
+    /// screen is popped off when it is pushed, so this plus the review
+    /// screen's own draft is the whole set of uploaded-but-unsaved objects.
+    @State private var batchQueue: [UUID] = []
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -52,6 +57,7 @@ struct ScannerDestinationView: View {
         // Covers the swipe-dismiss, which reaches neither Close button.
         .onDisappear {
             discardUnsavedUpload()
+            discardQueuedBatch()
             container.captureDraftStore.removeAll()
         }
     }
@@ -75,8 +81,29 @@ struct ScannerDestinationView: View {
 
     private func closeScanner() {
         discardUnsavedUpload()
+        discardQueuedBatch()
         container.captureDraftStore.removeAll()
         dismiss()
+    }
+
+    /// A batch uploads every image before the user reviews any of them, so
+    /// abandoning after garment three strands seventeen objects in
+    /// `user-content` that nothing will ever reference. `discardUnsavedUpload`
+    /// only knows about the one on screen.
+    ///
+    /// The paths are read out before the `Task` starts, because the draft
+    /// store is cleared by the caller on the very next line — reading them
+    /// inside would find an empty store.
+    private func discardQueuedBatch() {
+        let paths = batchQueue.compactMap { container.captureDraftStore.draft(id: $0)?.storagePath }
+        batchQueue = []
+        guard !paths.isEmpty else { return }
+        let repository = container.closetRepository
+        Task {
+            for path in paths {
+                try? await repository.deleteCapturedImage(atPath: path)
+            }
+        }
     }
 
     private var showsChromeClose: Bool {
@@ -95,12 +122,7 @@ struct ScannerDestinationView: View {
         case .singleItem:
             captureRoot
         case .batchCloset:
-            FeaturePlaceholderView(
-                title: String(localized: "Batch Closet Scan", comment: "Scanner batch mode title"),
-                message: String(localized: "Scan several pieces in one sitting. That capture mode is not built yet — use single-item scan for now.",
-                                comment: "Honest gap: batch capture mode"),
-                systemImage: "square.stack.3d.up"
-            )
+            batchRoot
         case .receiptLabel:
             FeaturePlaceholderView(
                 title: String(localized: "Scan a Label", comment: "Scanner receipt/label mode title"),
@@ -173,6 +195,53 @@ struct ScannerDestinationView: View {
     }
 
     @ViewBuilder
+    private var batchRoot: some View {
+        if let batchViewModel {
+            ScannerBatchCaptureView(
+                viewModel: batchViewModel,
+                onReady: { draftIDs in
+                    guard let first = draftIDs.first else { return }
+                    batchQueue = Array(draftIDs.dropFirst())
+                    path.append(.review(capturedImageID: first))
+                }
+            )
+        } else {
+            ProgressView()
+                .tint(AstraColor.accentChampagne)
+                .task {
+                    if batchViewModel == nil {
+                        batchViewModel = ScannerBatchViewModel(
+                            dependencies: .init(
+                                draftStore: container.captureDraftStore,
+                                closetRepository: container.closetRepository
+                            )
+                        )
+                    }
+                }
+        }
+    }
+
+    /// Moves to the next garment in a batch, or finishes.
+    ///
+    /// Returns false when there is nothing left, so the caller can do
+    /// whatever it does at the end of a single-item scan instead. Clearing
+    /// `reviewViewModel` is what makes the pushed destination rebuild — the
+    /// review screen keys its `.task` on `draftID`, and the path length is
+    /// unchanged, so without this the same view model would be reused for a
+    /// different garment.
+    private func advanceBatch() -> Bool {
+        guard !batchQueue.isEmpty, !path.isEmpty else { return false }
+        let next = batchQueue.removeFirst()
+        reviewViewModel = nil
+        // Replace rather than append: appending would leave a twenty-deep
+        // stack of finished garments behind the one on screen, each of
+        // whose drafts has already been removed from the store.
+        path.removeLast()
+        path.append(.review(capturedImageID: next))
+        return true
+    }
+
+    @ViewBuilder
     private func reviewScreen(draftID: UUID) -> some View {
         Group {
             if let reviewViewModel {
@@ -185,6 +254,11 @@ struct ScannerDestinationView: View {
                         if let saved = reviewViewModel.savedItem {
                             onItemSaved?(saved)
                         }
+                        // Mid-batch this is "next garment", not "done". The
+                        // draft store is NOT cleared here, because the
+                        // remaining drafts are the rest of the queue.
+                        container.captureDraftStore.remove(id: draftID)
+                        if advanceBatch() { return }
                         container.captureDraftStore.removeAll()
                         dismiss()
                     },
@@ -196,6 +270,13 @@ struct ScannerDestinationView: View {
                         Task { await container.pendingScanQueue.remove(id: draftID) }
                         container.captureDraftStore.remove(id: draftID)
                         self.reviewViewModel = nil
+                        // In a batch there is no camera to go back to and
+                        // no way to re-shoot this one garment here, so
+                        // Retake means "skip it" — the photograph is gone
+                        // (discarded above) and the queue moves on. The
+                        // user re-picks it in another batch, or scans it
+                        // singly.
+                        if advanceBatch() { return }
                         if path.isEmpty {
                             dismiss()
                         } else {

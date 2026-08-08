@@ -28,6 +28,62 @@ struct FreeTierClosetCapTests {
         #expect(FreeTierLimits.maxClosetItems == 30)
     }
 
+    @Test("A batch that would not fit is refused BEFORE the vision spend, not at save")
+    func batchIsRefusedBeforeAnalysisWhenItWouldNotFit() async throws {
+        // The cap used to be checked only in `createItem`. A free-tier user
+        // two items short of it could hand over twenty photographs, wait
+        // through twenty vision calls, and be refused at the eighteenth save
+        // — having paid, in real provider spend, for eighteen readings he
+        // could never keep. Same cap, wrong end of the flow.
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: FreeTierLimits.maxClosetItems - 2, userID: userID)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { false }
+        )
+
+        let requests = (0..<5).map { index in
+            ClosetItemAnalysisRequest(imageData: Data([UInt8(index)]), storagePath: "p/\(index).jpg")
+        }
+
+        await #expect(throws: FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)) {
+            _ = try await repository.batchAnalyzeItems(requests)
+        }
+    }
+
+    @Test("A batch that fits is passed straight through")
+    func batchThatFitsIsAllowed() async throws {
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: FreeTierLimits.maxClosetItems - 5, userID: userID)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { false }
+        )
+
+        let requests = (0..<5).map { index in
+            ClosetItemAnalysisRequest(imageData: Data([UInt8(index)]), storagePath: "p/\(index).jpg")
+        }
+        let batch = try await repository.batchAnalyzeItems(requests)
+        #expect(batch.results.count == 5)
+    }
+
+    @Test("A premium account is not capped on batch either")
+    func premiumBatchIsUncapped() async throws {
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: FreeTierLimits.maxClosetItems, userID: userID)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { true }
+        )
+
+        let requests = [ClosetItemAnalysisRequest(imageData: Data([0]), storagePath: "p/0.jpg")]
+        let batch = try await repository.batchAnalyzeItems(requests)
+        #expect(batch.results.count == 1)
+    }
+
     @Test("The 30th item succeeds; the 31st is rejected with a typed free-tier error")
     func thirtiethSucceedsThirtyFirstIsRejected() async throws {
         let userID = UUID()

@@ -54,8 +54,29 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
         try await base.analyzeItem(request)
     }
 
+    /// Checks the cap BEFORE the batch is analysed, not at save.
+    ///
+    /// This used to be a bare pass-through, which meant a free-tier user two
+    /// items from the cap could hand over twenty photographs, wait through
+    /// twenty vision calls, and then be refused at the eighteenth `createItem`
+    /// — having paid, in real provider spend, for eighteen readings he could
+    /// never keep. The cap is the same cap; it was simply enforced at the
+    /// wrong end of the flow.
+    ///
+    /// The whole batch is refused rather than trimmed to whatever fits.
+    /// Analysing five of twenty and saying nothing is the silent loss
+    /// `ScannerBatchViewModel.Outcome` exists to make impossible, and
+    /// trimming would need to pick WHICH five — a choice the user is better
+    /// placed to make by choosing fewer photographs.
     public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
-        try await base.batchAnalyzeItems(requests)
+        if await isEntitledToPremium() == false {
+            let activeCount = try await base.fetchItems().count
+            let headroom = FreeTierLimits.maxClosetItems - activeCount
+            guard headroom >= requests.count else {
+                throw FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)
+            }
+        }
+        return try await base.batchAnalyzeItems(requests)
     }
 
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
