@@ -231,6 +231,39 @@ Deno.test("analyze-item returns a well-formed analysis for a valid request", asy
   assertEquals(json.data.ocr_text.includes("UNIQLO"), true);
 });
 
+Deno.test(
+  "a defaulted category is marked low-confidence rather than asserted",
+  async () => {
+    // The real device pass sends no `approximate_category` — nothing in
+    // `DeviceHintsExtraction` computes one — so this, not the test fixture
+    // above, is the shape every production request actually has. The mock
+    // provider defaults to "top"; what must not happen is defaulting to
+    // "top" and then reporting it at the same confidence as a reading,
+    // which would tell a man photographing shoes that he owns a crewneck
+    // sweater with nothing on screen to hedge it.
+    const body = analyzeBody();
+    const inner = (body as { body: Record<string, unknown> }).body;
+    const hints = inner.device_hints as Record<string, unknown>;
+    delete hints.approximate_category;
+
+    const response = await handleAnalyzeItem(analyzeRequest(body), buildAnalyzeDeps());
+    assertEquals(response.status, 200);
+    const json = await response.json();
+    const marked: string[] = json.data.fields_below_confidence_threshold;
+    assertEquals(marked.includes("category"), true);
+    assertEquals(marked.includes("subcategory"), true);
+    assertEquals(json.data.category.confidence < 0.6, true);
+  },
+);
+
+Deno.test("a read category is not marked low-confidence", async () => {
+  const response = await handleAnalyzeItem(analyzeRequest(), buildAnalyzeDeps());
+  const json = await response.json();
+  const marked: string[] = json.data.fields_below_confidence_threshold;
+  assertEquals(marked.includes("category"), false);
+  assertEquals(json.data.category.confidence > 0.6, true);
+});
+
 Deno.test("analyze-item replays a prior response for the same Idempotency-Key", async () => {
   const store = memoryIdempotencyStore();
   const deps = buildAnalyzeDeps({ idempotencyStore: store });

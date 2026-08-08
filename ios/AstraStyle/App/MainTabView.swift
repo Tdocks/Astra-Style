@@ -140,7 +140,7 @@ struct MainTabView: View {
             .navigationDestination(for: StudioRoute.self) { _ in
                 FeaturePlaceholderView(
                     title: String(localized: "Style Studio"),
-                    message: String(localized: "Detail screen placeholder — see Features/Studio/README.md."),
+                    message: String(localized: "This screen arrives with Style Studio itself."),
                     systemImage: "camera.viewfinder"
                 )
             }
@@ -165,7 +165,7 @@ struct MainTabView: View {
             .navigationDestination(for: DiscoverRoute.self) { _ in
                 FeaturePlaceholderView(
                     title: String(localized: "Discover"),
-                    message: String(localized: "Detail screen placeholder — see Features/Discover/README.md."),
+                    message: String(localized: "This screen arrives with Discover itself."),
                     systemImage: "safari"
                 )
             }
@@ -201,7 +201,7 @@ struct MainTabView: View {
             .navigationDestination(for: ProfileRoute.self) { _ in
                 FeaturePlaceholderView(
                     title: String(localized: "Profile"),
-                    message: String(localized: "Detail screen placeholder — see Features/Profile/README.md."),
+                    message: String(localized: "This screen arrives with Profile itself."),
                     systemImage: "person.crop.circle"
                 )
             }
@@ -252,6 +252,16 @@ struct MainTabView: View {
 /// Shared, honest "not yet built" screen used by every feature tab until
 /// its module lands. Deliberately not a dead end: it states what will be
 /// here and why, and remains fully accessible.
+///
+/// **The "Not built yet" line is part of the type, not of each caller's
+/// string.** Every one of these screens previously opened with a sentence
+/// of product copy — "See a look on yourself before you wear it" — and
+/// nothing else. Read on a device rather than in a diff, that is
+/// indistinguishable from a feature that is present and broken: the tester
+/// taps the tab, sees a confident claim, and waits for something to load.
+/// Putting the disclosure in the shared view means no future placeholder
+/// can be added without it, which is the only version of this that stays
+/// true.
 struct FeaturePlaceholderView: View {
     let title: String
     let message: String
@@ -263,11 +273,14 @@ struct FeaturePlaceholderView: View {
             VStack(spacing: AstraSpacing.md) {
                 Image(systemName: systemImage)
                     .astraIcon(.display)
-                    .foregroundStyle(AstraColor.accentChampagne)
+                    .foregroundStyle(AstraColor.textMuted)
                     .accessibilityHidden(true)
                 Text(title)
                     .astraText(.title2)
                     .foregroundStyle(AstraColor.textPrimary)
+                Text("Not built yet")
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
                 Text(message)
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)

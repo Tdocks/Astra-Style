@@ -96,6 +96,83 @@ struct HomeBriefProvidingTests {
         #expect(data.wardrobeScore != nil)
     }
 
+    // MARK: - Sparse closet (spec §6.11 empty state)
+    //
+    // The defect these pin: for weeks the §6.11 empty state was reachable
+    // only by guests. Every signed-in user — including one who had
+    // finished onboarding a minute earlier and owned nothing — went
+    // straight to `generateDailyBrief`, whose Edge Function does not exist
+    // (P4-HOME-02), and got an error screen reading "Something went wrong"
+    // where the spec calls for "Let's build your first look".
+
+    @Test("A signed-in user with fewer than five garments gets the empty state, not a brief request")
+    func sparseClosetSkipsBriefGeneration() async throws {
+        let outfitRepository = FailIfCalledOutfitRepository()
+        let closetRepository = MockClosetRepository(
+            items: Array(SampleData.closetItems.prefix(HomeBriefData.minimumItemsForOutfits - 1))
+        )
+
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: outfitRepository,
+            profileRepository: MockProfileRepository(),
+            closetRepository: closetRepository,
+            weatherService: MockWeatherService(),
+            calendarService: MockCalendarService(),
+            isGuest: { false }
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(await outfitRepository.callCount == 0)
+        #expect(data.needsMoreClosetItems)
+        #expect(data.primaryOutfit == nil)
+        // `.empty` carries its payload — the screen still greets him by
+        // name rather than going blank.
+        #expect(data.greetingName == SampleData.profile.greetingName)
+    }
+
+    /// The boundary the copy promises. "Add five pieces" must stop being
+    /// true at the fifth piece, or the screen repeats itself at him.
+    @Test("The fifth garment moves a signed-in user onto the real brief")
+    func fifthGarmentLeavesTheEmptyState() async throws {
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: MockOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(
+                items: Array(SampleData.closetItems.prefix(HomeBriefData.minimumItemsForOutfits))
+            ),
+            weatherService: MockWeatherService(),
+            calendarService: MockCalendarService(),
+            isGuest: { false }
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(data.primaryOutfit != nil)
+        #expect(!data.needsMoreClosetItems)
+    }
+
+    /// An unreachable closet is not an empty one. Telling a man with forty
+    /// garments to add five would be a worse lie than the error it
+    /// replaced, so the count check declines to guess and the old path
+    /// reports the failure honestly.
+    @Test("A closet that cannot be read falls through rather than claiming the closet is empty")
+    func unreadableClosetDoesNotFakeAnEmptyState() async throws {
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: MockOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: UnreachableClosetRepository(),
+            weatherService: MockWeatherService(),
+            calendarService: MockCalendarService(),
+            isGuest: { false }
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(data.primaryOutfit != nil)
+        #expect(!data.needsMoreClosetItems)
+    }
+
     @Test("A signed-in user whose profile fetch fails surfaces the error rather than an empty state")
     func signedInProfileFailurePropagates() async throws {
         let provider = DefaultHomeBriefProvider(
@@ -239,6 +316,30 @@ private struct AlwaysFailingProfileRepository: ProfileRepository {
     func generateStyleDNA() async throws -> StyleDNA { throw AstraError.server("boom") }
     func uploadReferenceImage(_ imageData: Data) async throws -> String { throw AstraError.server("boom") }
     func exportPersonalData() async throws -> URL { throw AstraError.server("boom") }
+}
+
+/// `ClosetRepository` double whose `fetchItems()` always fails — the
+/// "we do not know how many garments he owns" case, which must not be
+/// mistaken for "he owns none."
+private struct UnreachableClosetRepository: ClosetRepository {
+    func fetchItems() async throws -> [ClosetItem] { throw AstraError.network("The closet is unreachable.") }
+    func fetchItem(id: UUID) async throws -> ClosetItem { throw AstraError.network("unused") }
+    func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
+    func uploadCapturedImage(_ data: Data) async throws -> String { throw AstraError.network("unused") }
+    func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
+        throw AstraError.network("unused")
+    }
+    func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        throw AstraError.network("unused")
+    }
+    func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem { item }
+    func updateItem(_ item: ClosetItem) async throws -> ClosetItem { item }
+    func archiveItem(id: UUID) async throws {}
+    func markWorn(id: UUID, wornAt: Date) async throws -> ClosetItem { throw AstraError.network("unused") }
+    func updateLaundryState(id: UUID, state: LaundryState) async throws -> ClosetItem {
+        throw AstraError.network("unused")
+    }
+    func fetchWardrobeScore() async throws -> WardrobeScore { throw AstraError.network("unused") }
 }
 
 /// `ClosetRepository` double that behaves like `MockClosetRepository` for
