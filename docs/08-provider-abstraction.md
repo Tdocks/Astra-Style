@@ -388,6 +388,45 @@ One fault found here was not a request problem at all. The adapter filled `color
 
 What remains before the gate itself can be called: a labeled consented sample, an accuracy bar set as a product decision, and the whole path exercised through the deployed function over HTTP rather than the adapter in isolation.
 
+### 2.5.3 The pilot gate, as a runnable — `scripts/vision_pilot_gate.ts`
+
+§2.5's gate had been a paragraph since 2026-07-28. It is now a script. It runs the real `OpenAIVisionAnalysisProvider` and the real `closet/mapper.ts` over a labelled manifest, scores per-field accuracy, measures the server leg against §2.4's budget, and exits non-zero if any bar is missed. A run that cannot reach the vendor exits **2**, never 1 — "the gate failed" and "the gate did not run" must not look alike, which is the same mistake §2.5.2's fault 1 made in a different costume.
+
+```bash
+export VISION_PROVIDER_API_KEY=...
+deno run --allow-net --allow-read --allow-env scripts/vision_pilot_gate.ts \
+  --manifest fixtures/vision-pilot/manifest.jsonl --repetitions 3
+```
+
+**The proposed bar.** §2.5 says the bar "is a product decision to set before the pilot runs, not defined by this document". These live in the script so that changing them is a commit rather than an argument once the numbers are in, and they are deliberately not uniform — each is set by what a mistake in that field costs the user, not by how hard the field looks.
+
+| Field | Bar | Why that number |
+|---|---|---|
+| `category` | 98% | A wrong category is a garment in the wrong rail, excluded from every outfit its role should fill. Seven values, a closed enum, and the on-device hint as a fallback. |
+| `subcategory` | 80% | §2.5's own named risk ("knit polo vs. piqué polo"). Scored by keyword recall, not string equality — the question is whether the distinguishing words are there, not whether the model phrased it the labeller's way. |
+| `primary_color` | 90% | Feeds the §10 colour subscore at 25% weight. Scored on the head noun, so "dark brown" and "brown" agree. |
+| `pattern` | 85% | Genuine ambiguity (solid vs texture-only on a chenille shirt) is handled by letting the manifest list several acceptable answers, not by lowering the bar. |
+| `formality` | 85% | Within ±15 on the 0-100 scale — one rung of §3's table. §10 treats a 15-point gap as barely felt and 40 as disqualifying, so ±15 is the tolerance the engine already implies. |
+
+**A third measurement §2.5 does not ask for, and needs to.** The adapter cannot send `temperature` (§2.5.2, fault 3), so every reading is drawn at the model's own sampling temperature and *the same photograph does not produce the same answer twice*. An accuracy figure from one pass is therefore a sample of a distribution, not a measurement. The script takes `--repetitions` and reports how often repeat runs of one photo change their verdict; the proposed ceiling is **15% of photos per field**, which has no prior art in these documents and is a first guess set where a user rescanning a garment has a real chance of a different answer without demanding a determinism the API cannot give.
+
+**What running it actually showed.** Two consecutive invocations, same one photograph, twelve repetitions each — 24 readings in total:
+
+| | run A | run B |
+|---|---|---|
+| category | 91.7% (**one miss**) | 100% |
+| subcategory | 91.7% | 100% |
+| colour / pattern / formality | 100% | 100% |
+| latency p50 | 4035ms | 3776ms |
+| latency p95 | 5796ms | 4454ms |
+| verdict | **not cleared** | cleared |
+
+The two runs disagree, and that is the finding. Run B "clearing the gate" is not evidence the analyser is accurate; it is evidence that a gate stated over a single pass can be cleared by luck. Any bar in the table above must be read over repetitions or it means nothing.
+
+**Latency.** p50 landed at 3.8–4.0s against §2.4's ≤5.5s budget — comfortable, but the p95 of 5.8s in run A is *above* the p50 budget and the spread across 24 readings was 3.3s to 5.8s on one image at the 1024px cap. §2.4 states only a p50; a p95 is worth stating too, and the observed distribution suggests something near 8s rather than 6s. Note also that a low-confidence Terra retry pays this budget twice in sequence, so the tail matters more than the median for the 5–10% of scans §2.5 expects to escalate.
+
+**What this is not.** One photograph is not a pilot sample. With n=1 an accuracy percentage is a coin flip, and the numbers above are a smoke test of the harness rather than a result about the model. The gate stays **not run** until `fixtures/vision-pilot/manifest.jsonl` holds a labelled sample of real consented user-scan photographs — which no amount of engineering produces, because the labels are the part a person has to supply.
+
 ---
 
 ## 3. ImageGenerationProvider
