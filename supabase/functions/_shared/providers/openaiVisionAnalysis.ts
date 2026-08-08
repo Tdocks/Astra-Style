@@ -182,7 +182,21 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          temperature: 0.2,
+          // No `temperature`. This asked for 0.2 — determinism matters for a
+          // classifier, and a reproducible reading is the whole point of the
+          // confidence calibration below. The reasoning models reject it
+          // outright: HTTP 400, "Unsupported value: 'temperature' does not
+          // support 0.2 with this model. Only the default (1) value is
+          // supported." Sending it fails the entire request, so the choice is
+          // not "less deterministic" versus "more" — it is a working analyser
+          // versus none.
+          //
+          // Determinism is bought elsewhere instead: `strict: true` on the JSON
+          // schema pins the shape, and the system prompt pins the calibration.
+          // Do not add this back when a future model accepts it again without
+          // first checking that the pinned model still does — this failure was
+          // invisible from the endpoint, because the adapter degraded honestly
+          // and returned "New garment" at 0.2 confidence rather than throwing.
           response_format: {
             type: "json_schema",
             json_schema: {
