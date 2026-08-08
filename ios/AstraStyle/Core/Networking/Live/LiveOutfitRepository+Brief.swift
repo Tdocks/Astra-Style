@@ -97,6 +97,15 @@ extension DateFormatter {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.calendar = Calendar(identifier: .gregorian)
+        // `en_US_POSIX` is mandatory for a fixed-format formatter and was
+        // missing. Without it, `dateFormat` is interpreted through the user's
+        // locale: a phone set to a Buddhist or Japanese-era calendar formats
+        // "yyyy" as 2569 or 8, and the request carries a `brief_date` the
+        // server rejects — on that phone, every time, and on no phone here.
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        // Local, not UTC, and deliberately: `brief_date` is a calendar day in
+        // the wearer's life, not an instant. "What should I wear today" is
+        // asked in the timezone he is standing in.
         formatter.timeZone = .current
         return formatter
     }()}

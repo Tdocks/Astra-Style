@@ -75,7 +75,7 @@ public struct DailyBrief: Identifiable, Codable, Hashable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         userID = try container.decode(UUID.self, forKey: .userID)
-        briefDate = try container.decode(Date.self, forKey: .briefDate)
+        briefDate = try Self.decodeBriefDate(from: container)
         primaryOutfitID = try container.decodeIfPresent(UUID.self, forKey: .primaryOutfitID)
         alternativeOutfitIDs = try container.decodeIfPresent([UUID].self, forKey: .alternativeOutfitIDs) ?? []
         weatherSnapshot = try Self.decodeSnapshot(WeatherSnapshot.self, from: container, forKey: .weatherSnapshot)
@@ -96,6 +96,64 @@ public struct DailyBrief: Identifiable, Codable, Hashable, Sendable {
         }
         guard !raw.isEmpty else { return nil }
         return try container.decode(type, forKey: key)
+    }
+
+    /// `brief_date` is a Postgres `date`, not a `timestamptz`.
+    ///
+    /// PostgREST serializes a `date` column as `"2026-08-08"`, and both paths
+    /// that read this row decode with an ISO-8601 strategy that requires a
+    /// full timestamp — `AstraAPIClient`'s decoder and supabase-swift's. So a
+    /// perfectly good 200 threw `DecodingError.dataCorrupted`, the API client
+    /// turned it into `.server("Failed to parse the server's response.")`,
+    /// and Home rendered its error state over a brief the server had built
+    /// correctly.
+    ///
+    /// It stayed hidden because it could not fire until a closet crossed
+    /// `HomeBriefData.minimumItemsForOutfits` — below five items Home never
+    /// calls generate at all — and because `DailyBriefDecodingTests` fed the
+    /// decoder `"2026-08-06T00:00:00Z"`, a shape this wire has never once
+    /// carried. The tests agreed with the code and both were wrong about the
+    /// server.
+    ///
+    /// Fixed in the model rather than by loosening the API client's date
+    /// strategy, because that would only fix one of the two readers: the
+    /// cached-brief path goes through supabase-swift's own decoder, which
+    /// this repo does not configure. Fixing it here fixes both, and it is
+    /// also the narrower change — every OTHER date on the wire really is a
+    /// timestamp, and making the client lenient about all of them would trade
+    /// one silent misreading for a wider one.
+    ///
+    /// The full-timestamp fallback is not defensive padding: it is what makes
+    /// this decoder correct for a row read back through a path that ever does
+    /// return a timestamp, and it costs one line.
+    private static func decodeBriefDate(
+        from container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> Date {
+        let raw = try container.decode(String.self, forKey: .briefDate)
+        if let day = DateFormatter.astraDay.date(from: raw) { return day }
+        if let instant = ISO8601DateFormatter().date(from: raw) { return instant }
+        throw DecodingError.dataCorruptedError(
+            forKey: .briefDate,
+            in: container,
+            debugDescription: "brief_date must be YYYY-MM-DD or a full ISO-8601 timestamp; got \(raw)"
+        )
+    }
+
+    /// Symmetric with the decoder above, so a brief that is cached and read
+    /// back is the same brief. The synthesized encoder would write an ISO
+    /// timestamp that `decodeBriefDate` would then parse through its fallback
+    /// — surviving, but round-tripping through a shape the server never
+    /// sends, which is how the original mismatch went unnoticed for so long.
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(userID, forKey: .userID)
+        try container.encode(DateFormatter.astraDay.string(from: briefDate), forKey: .briefDate)
+        try container.encodeIfPresent(primaryOutfitID, forKey: .primaryOutfitID)
+        try container.encode(alternativeOutfitIDs, forKey: .alternativeOutfitIDs)
+        try container.encodeIfPresent(weatherSnapshot, forKey: .weatherSnapshot)
+        try container.encodeIfPresent(scheduleSnapshot, forKey: .scheduleSnapshot)
+        try container.encodeIfPresent(kyraMessage, forKey: .kyraMessage)
     }
 
     /// Empty-state trigger for Home (spec §6.11 "Empty state: Prompt to add

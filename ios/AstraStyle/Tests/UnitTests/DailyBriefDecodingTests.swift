@@ -35,7 +35,7 @@ struct DailyBriefDecodingTests {
         {
           "id": "11111111-1111-4111-8111-111111111111",
           "user_id": "22222222-2222-4222-8222-222222222222",
-          "brief_date": "2026-08-06T00:00:00Z",
+          "brief_date": "2026-08-06",
           "primary_outfit_id": null,
           "alternative_outfit_ids": [],
           "weather_snapshot": {},
@@ -55,7 +55,7 @@ struct DailyBriefDecodingTests {
         {
           "id": "11111111-1111-4111-8111-111111111111",
           "user_id": "22222222-2222-4222-8222-222222222222",
-          "brief_date": "2026-08-06T00:00:00Z",
+          "brief_date": "2026-08-06",
           "primary_outfit_id": "33333333-3333-4333-8333-333333333333",
           "alternative_outfit_ids": ["44444444-4444-4444-8444-444444444444"],
           "weather_snapshot": null,
@@ -77,7 +77,7 @@ struct DailyBriefDecodingTests {
         {
           "id": "11111111-1111-4111-8111-111111111111",
           "user_id": "22222222-2222-4222-8222-222222222222",
-          "brief_date": "2026-08-06T00:00:00Z",
+          "brief_date": "2026-08-06",
           "primary_outfit_id": null,
           "alternative_outfit_ids": [],
           "weather_snapshot": {
@@ -104,7 +104,7 @@ struct DailyBriefDecodingTests {
             {
               "id": "11111111-1111-4111-8111-111111111111",
               "user_id": "22222222-2222-4222-8222-222222222222",
-              "brief_date": "2026-08-06T00:00:00Z",
+              "brief_date": "2026-08-06",
               "primary_outfit_id": null,
               "alternative_outfit_ids": [],
               "weather_snapshot": { "temperature_high": 22.5 },
@@ -115,12 +115,21 @@ struct DailyBriefDecodingTests {
         }
     }
 
+    /// The `briefDate` here is a day boundary, not an arbitrary instant.
+    ///
+    /// It used to be `Date(timeIntervalSince1970: 1_785_000_000)` — 17:20 UTC
+    /// on a Saturday — and the test asserted that instant survived a round
+    /// trip. It cannot, and it should not: `daily_briefs.brief_date` is a
+    /// Postgres `date`, the wire carries "2026-07-25", and there is no time of
+    /// day in the question "what should I wear today". The old assertion was
+    /// true only of a shape the server never sends, which is the same reason
+    /// this suite's fixtures hid the decoding bug that broke Home.
     @Test("A brief round-trips through encode and decode")
     func roundTrips() throws {
         let original = DailyBrief(
             id: UUID(),
             userID: UUID(),
-            briefDate: Date(timeIntervalSince1970: 1_785_000_000),
+            briefDate: try #require(DateFormatter.astraDay.date(from: "2026-07-25")),
             primaryOutfitID: UUID(),
             alternativeOutfitIDs: [UUID(), UUID()],
             scheduleSnapshot: ScheduleSnapshot(eventCount: 3),
@@ -134,5 +143,58 @@ struct DailyBriefDecodingTests {
         let restored = try decoder.decode(DailyBrief.self, from: encoder.encode(original))
 
         #expect(restored == original)
+    }
+
+    @Test("brief_date decodes from the date-only string PostgREST actually sends")
+    func briefDateDecodesFromDateOnly() throws {
+        // The regression. `daily_briefs.brief_date` is a Postgres `date`, so
+        // the wire carries "2026-08-06". Under the API client's `.iso8601`
+        // strategy that threw, the 200 became "Failed to parse the server's
+        // response.", and Home showed an error over a brief the server had
+        // built correctly. Every fixture in this file used to say
+        // "2026-08-06T00:00:00Z" — a shape the wire has never carried, which
+        // is exactly why the tests and the code agreed and both were wrong.
+        let json = Data(#"""
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "user_id": "22222222-2222-2222-2222-222222222222",
+          "brief_date": "2026-08-06",
+          "primary_outfit_id": null,
+          "alternative_outfit_ids": [],
+          "weather_snapshot": {},
+          "schedule_snapshot": {},
+          "kyra_message": null
+        }
+        """#.utf8)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let brief = try decoder.decode(DailyBrief.self, from: json)
+
+        let day = Calendar(identifier: .gregorian).dateComponents(
+            [.year, .month, .day],
+            from: brief.briefDate
+        )
+        #expect(day.year == 2026)
+        #expect(day.month == 8)
+        #expect(day.day == 6)
+    }
+
+    @Test("A brief_date that is neither shape fails loudly rather than defaulting")
+    func unparseableBriefDateThrows() {
+        let json = Data(#"""
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "user_id": "22222222-2222-2222-2222-222222222222",
+          "brief_date": "the sixth of August",
+          "alternative_outfit_ids": []
+        }
+        """#.utf8)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        #expect(throws: DecodingError.self) {
+            _ = try decoder.decode(DailyBrief.self, from: json)
+        }
     }
 }
