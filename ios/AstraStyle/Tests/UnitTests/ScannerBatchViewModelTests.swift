@@ -26,7 +26,7 @@ struct ScannerBatchViewModelTests {
         let repository = BatchMockClosetRepository()
         let model = makeModel(store: store, repository: repository)
 
-        await model.importImages(payloads(3))
+        await model.importImages(payloads(3), selectedCount: 3)
 
         let outcome = try #require(readyOutcome(model))
         #expect(outcome.readyCount == 3)
@@ -51,7 +51,7 @@ struct ScannerBatchViewModelTests {
         let repository = BatchMockClosetRepository()
         let model = makeModel(store: CaptureDraftStore(), repository: repository)
 
-        await model.importImages(payloads(2))
+        await model.importImages(payloads(2), selectedCount: 2)
 
         #expect(repository.uploadCount == 2)
         #expect(repository.lastBatchStoragePaths.count == 2)
@@ -64,7 +64,7 @@ struct ScannerBatchViewModelTests {
         let model = makeModel(store: CaptureDraftStore(), repository: repository)
         let over = BatchScanLimits.maxItemsPerBatch + 5
 
-        await model.importImages(payloads(over))
+        await model.importImages(payloads(over), selectedCount: over)
 
         let outcome = try #require(readyOutcome(model))
         #expect(outcome.selected == over)
@@ -80,7 +80,7 @@ struct ScannerBatchViewModelTests {
         // The second payload is the one the pipeline refuses.
         let model = makeModel(store: store, repository: repository, unpreparable: [1])
 
-        await model.importImages(payloads(3))
+        await model.importImages(payloads(3), selectedCount: 3)
 
         let outcome = try #require(readyOutcome(model))
         #expect(outcome.readyCount == 2)
@@ -96,7 +96,7 @@ struct ScannerBatchViewModelTests {
         repository.failureReason = .noGarmentDetected
         let model = makeModel(store: store, repository: repository)
 
-        await model.importImages(payloads(3))
+        await model.importImages(payloads(3), selectedCount: 3)
 
         let outcome = try #require(readyOutcome(model))
         #expect(outcome.readyCount == 2)
@@ -113,7 +113,7 @@ struct ScannerBatchViewModelTests {
         repository.batchError = AstraError.network("offline")
         let model = makeModel(store: CaptureDraftStore(), repository: repository)
 
-        await model.importImages(payloads(4))
+        await model.importImages(payloads(4), selectedCount: 4)
 
         guard case .failed = model.phase else {
             Issue.record("expected .failed, got \(model.phase)")
@@ -129,10 +129,61 @@ struct ScannerBatchViewModelTests {
         repository.batchError = FreeTierClosetError.capReached(limit: 30)
         let model = makeModel(store: CaptureDraftStore(), repository: repository)
 
-        await model.importImages(payloads(3))
+        await model.importImages(payloads(3), selectedCount: 3)
 
         #expect(model.phase == .capReached(limit: 30))
         #expect(repository.liveStoragePaths.isEmpty)
+    }
+
+    @Test("Photos the library refuses to hand over are counted, not silently dropped")
+    func photosTheLibraryWouldNotVendAreCounted() async throws {
+        // The real shape of this on a phone: the user picks fifteen, two of
+        // them live in iCloud and are not on the device, `loadTransferable`
+        // returns nil for those two, and the view passes thirteen payloads.
+        // Before `selectedCount` existed the batch reported thirteen selected
+        // and a perfectly clean run.
+        let repository = BatchMockClosetRepository()
+        let model = makeModel(store: CaptureDraftStore(), repository: repository)
+
+        await model.importImages(payloads(13), selectedCount: 15)
+
+        let outcome = try #require(readyOutcome(model))
+        #expect(outcome.selected == 15)
+        #expect(outcome.couldNotLoad == 2)
+        #expect(outcome.readyCount == 13)
+        #expect(outcome.lostCount == 2)
+        #expect(!outcome.isCompletelyClean)
+    }
+
+    @Test("A selection the library could not vend AT ALL still reports the loss")
+    func everyPhotoFailingToLoadStillReports() async throws {
+        let repository = BatchMockClosetRepository()
+        let model = makeModel(store: CaptureDraftStore(), repository: repository)
+
+        await model.importImages([], selectedCount: 4)
+
+        let outcome = try #require(readyOutcome(model))
+        #expect(outcome.selected == 4)
+        #expect(outcome.couldNotLoad == 4)
+        #expect(outcome.readyCount == 0)
+        #expect(repository.uploadCount == 0)
+    }
+
+    @Test("A failed upload is reported as a failed upload, not as a bad photograph")
+    func uploadFailureIsNotBlamedOnThePhoto() async throws {
+        // `.imageUnusable` renders as "too blurry or too dark to read". Saying
+        // that about a photo the analyser never received is a fabricated
+        // diagnosis, and it sends the user to retake a picture that was fine.
+        let repository = BatchMockClosetRepository()
+        repository.failUploadIndices = [1]
+        let model = makeModel(store: CaptureDraftStore(), repository: repository)
+
+        await model.importImages(payloads(3), selectedCount: 3)
+
+        let outcome = try #require(readyOutcome(model))
+        #expect(outcome.uploadFailed == 1)
+        #expect(outcome.analysisFailures.isEmpty)
+        #expect(outcome.readyCount == 2)
     }
 
     @Test("An empty selection does nothing at all")
@@ -140,9 +191,12 @@ struct ScannerBatchViewModelTests {
         let repository = BatchMockClosetRepository()
         let model = makeModel(store: CaptureDraftStore(), repository: repository)
 
-        await model.importImages([])
+        await model.importImages([], selectedCount: 0)
 
-        #expect(model.phase == .idle)
+        // Nothing picked is not a batch. Distinct from the case above, where
+        // photos WERE picked and none of them could be loaded — that has a
+        // loss to report and this does not.
+        #expect(model.phase == .ready(ScannerBatchViewModel.Outcome()))
         #expect(repository.uploadCount == 0)
     }
 }
@@ -192,12 +246,19 @@ private final class BatchMockClosetRepository: ClosetRepository, @unchecked Send
     var batchError: Error?
     /// Positions within the submitted batch that come back failed.
     var failIndices: Set<Int> = []
+    /// Submission positions whose UPLOAD throws, as distinct from whose
+    /// analysis comes back failed.
+    var failUploadIndices: Set<Int> = []
     var failureReason: ClosetItemAnalysisFailureReason = .unknown
     private(set) var liveStoragePaths: Set<String> = []
     private(set) var lastBatchRequestIDs: [UUID] = []
     private(set) var lastBatchStoragePaths: [String?] = []
 
     func uploadCapturedImage(_ data: Data) async throws -> String {
+        if failUploadIndices.contains(uploadCount) {
+            uploadCount += 1
+            throw AstraError.network("upload failed")
+        }
         uploadCount += 1
         _ = data
         let path = "users/test/closet/\(UUID().uuidString.lowercased()).jpg"

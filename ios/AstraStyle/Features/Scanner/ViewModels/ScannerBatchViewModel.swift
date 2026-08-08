@@ -59,8 +59,16 @@ public final class ScannerBatchViewModel {
         public var draftIDs: [UUID]
         /// Chosen but over `BatchScanLimits.maxItemsPerBatch`.
         public var skippedOverLimit: Int
+        /// Chosen, but the photo library never handed over the bytes.
+        /// Usually an image that lives in iCloud and is not on the device.
+        /// Distinct from `unreadable`: nothing was ever looked at.
+        public var couldNotLoad: Int
         /// Chosen but not decodable as an image.
         public var unreadable: Int
+        /// Decoded fine, but the upload failed. Distinct from an analysis
+        /// failure: the analyser never saw this photo, so saying anything
+        /// about the photograph itself would be inventing a diagnosis.
+        public var uploadFailed: Int
         /// Uploaded fine, but the analyser could not read them.
         public var analysisFailures: [ClosetItemAnalysisFailureReason: Int]
         /// Everything the user picked, before any of the above.
@@ -73,13 +81,17 @@ public final class ScannerBatchViewModel {
         public init(
             draftIDs: [UUID] = [],
             skippedOverLimit: Int = 0,
+            couldNotLoad: Int = 0,
             unreadable: Int = 0,
+            uploadFailed: Int = 0,
             analysisFailures: [ClosetItemAnalysisFailureReason: Int] = [:],
             selected: Int = 0
         ) {
             self.draftIDs = draftIDs
             self.skippedOverLimit = skippedOverLimit
+            self.couldNotLoad = couldNotLoad
             self.unreadable = unreadable
+            self.uploadFailed = uploadFailed
             self.analysisFailures = analysisFailures
             self.selected = selected
         }
@@ -141,14 +153,31 @@ public final class ScannerBatchViewModel {
 
     // MARK: - The flow
 
-    public func importImages(_ images: [Data]) async {
-        guard !images.isEmpty else { return }
+    /// - Parameters:
+    ///   - images: the payloads the photo library actually handed over.
+    ///   - selectedCount: how many the user picked. **Not** `images.count`.
+    ///
+    /// Those two differ whenever `loadTransferable` returns nil, which on a
+    /// real phone happens for photos that live in iCloud and are not on the
+    /// device. This method previously took only the array and set
+    /// `selected = images.count`, so every photo the library declined to
+    /// hand over vanished before the accounting began: the summary reported
+    /// a clean batch that was several garments short, and `Outcome` — the
+    /// type that exists precisely to make that impossible — never saw them.
+    /// The caller has to say what was asked for, because it is the only one
+    /// that knows.
+    public func importImages(_ images: [Data], selectedCount: Int) async {
+        let couldNotLoad = max(0, selectedCount - images.count)
+        guard !images.isEmpty else {
+            phase = .ready(Outcome(couldNotLoad: couldNotLoad, selected: selectedCount))
+            return
+        }
 
-        let selected = images.count
         let accepted = Array(images.prefix(BatchScanLimits.maxItemsPerBatch))
         var outcome = Outcome(
-            skippedOverLimit: selected - accepted.count,
-            selected: selected
+            skippedOverLimit: images.count - accepted.count,
+            couldNotLoad: couldNotLoad,
+            selected: selectedCount
         )
 
         let prepared = prepareAll(accepted, outcome: &outcome)
@@ -225,11 +254,16 @@ public final class ScannerBatchViewModel {
                     storagePath: path
                 ))
             } catch {
-                // One image failing to upload costs the user that image.
-                // Counted as unusable rather than thrown, for the same
-                // reason the server's batch does not fail wholesale on one
-                // bad item.
-                outcome.analysisFailures[.imageUnusable, default: 0] += 1
+                // One image failing to upload costs the user that image,
+                // not the batch — the same bargain the server's batch makes.
+                //
+                // Counted as `uploadFailed`, NOT as `.imageUnusable`, which
+                // is what this used to do. `.imageUnusable` renders as "too
+                // blurry or too dark to read" — a statement about the
+                // photograph, made about a photograph the analyser never
+                // received. A network failure described as a bad photo sends
+                // the user to retake a picture that was fine.
+                outcome.uploadFailed += 1
             }
             phase = .uploading(done: index + 1, total: candidates.count)
         }

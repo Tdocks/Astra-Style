@@ -293,6 +293,26 @@ public final class ClosetViewModel {
         await load(showingSkeleton: true)
     }
 
+    /// Reload after something outside this screen changed the closet.
+    ///
+    /// `onAppear` cannot do this job: it early-returns unless the state is
+    /// still `.loading`, so it loads exactly once per screen lifetime, and
+    /// `.task` does not re-fire anyway when a sheet over the top is
+    /// dismissed — the presenting view never disappears. The result was a
+    /// closet that showed a stale count after a scan, and after fifteen
+    /// scans showed a stale count fifteen garments wrong. Pull-to-refresh
+    /// was the only cure, and nothing told the user to pull.
+    ///
+    /// No skeleton, for `refresh`'s reason: the grid is already on screen
+    /// with real garments in it, and blanking it reads as a crash.
+    public func reloadAfterExternalChange() async {
+        guard case .loading = state else {
+            await load(showingSkeleton: false)
+            return
+        }
+        await load(showingSkeleton: true)
+    }
+
     /// Pull-to-refresh. Deliberately does NOT drop back to the skeleton:
     /// `.refreshable` draws its own in-flight indicator directly above the
     /// content, and blanking the grid underneath it loses the user's

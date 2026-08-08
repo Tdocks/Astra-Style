@@ -180,6 +180,20 @@ public struct ClosetView: View {
         .task {
             await viewModel.onAppear()
         }
+        // The scanner and the add-item sheet both create garments this
+        // screen is showing, and neither of them can tell it so: a sheet
+        // does not remove the view underneath, so `.task` never re-fires.
+        // Watching the router's own modal state is the smallest true
+        // signal — when a modal that could have written to the closet goes
+        // away, re-read the closet.
+        .onChange(of: router.presentedModal?.id) { previous, current in
+            guard current == nil, previous != nil else { return }
+            Task { await viewModel.reloadAfterExternalChange() }
+        }
+        .onChange(of: isAddingItem) { wasPresented, isPresented in
+            guard wasPresented, !isPresented else { return }
+            Task { await viewModel.reloadAfterExternalChange() }
+        }
         .sheet(isPresented: $isAddingItem) {
             ClosetAddItemSheet(makeViewModel: viewModel.makeAddItemViewModel) {
                 isAddingItem = false

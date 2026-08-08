@@ -71,13 +71,22 @@ struct ScannerBatchCaptureView: View {
         .onChange(of: pickedItems) { _, items in
             guard !items.isEmpty else { return }
             Task {
-                // `loadTransferable` returning nil means the asset could not
-                // be vended — the same contract `ScannerCaptureView` and
-                // `OnboardingReferenceView` already treat as "nothing was
-                // chosen". Here it is per-photo, and a nil among twenty must
-                // not lose the other nineteen, so they are filtered out and
-                // the count difference falls through to the view model's
-                // own accounting.
+                // `loadTransferable` returning nil means the library would
+                // not hand the asset over — on a real phone, most often a
+                // photo that is in iCloud and not on the device. A nil among
+                // twenty must not lose the other nineteen, so nils are
+                // skipped here.
+                //
+                // The count is then passed separately. This comment used to
+                // claim "the count difference falls through to the view
+                // model's own accounting", and it did not: the view model
+                // saw only the surviving array, so every photo the library
+                // declined to vend disappeared with nothing to say it had.
+                // A summary that reports a clean batch several garments
+                // short is the exact failure `Outcome` was built to prevent,
+                // and it was introduced one layer above where `Outcome`
+                // could see it.
+                let selectedCount = items.count
                 var payloads: [Data] = []
                 for item in items {
                     if let data = try? await item.loadTransferable(type: Data.self) {
@@ -85,7 +94,7 @@ struct ScannerBatchCaptureView: View {
                     }
                 }
                 pickedItems = []
-                await viewModel.importImages(payloads)
+                await viewModel.importImages(payloads, selectedCount: selectedCount)
             }
         }
     }
@@ -212,10 +221,22 @@ struct ScannerBatchCaptureView: View {
                 comment: "Batch scan over-limit line"
             ))
         }
+        if outcome.couldNotLoad > 0 {
+            lines.append(String(
+                localized: "\(outcome.couldNotLoad) couldn't be loaded from your library — they may still be in iCloud. Open them in Photos once, then try again.",
+                comment: "Batch scan iCloud-not-downloaded line"
+            ))
+        }
         if outcome.unreadable > 0 {
             lines.append(String(
                 localized: "\(outcome.unreadable) couldn't be opened as a photo.",
                 comment: "Batch scan unreadable line"
+            ))
+        }
+        if outcome.uploadFailed > 0 {
+            lines.append(String(
+                localized: "\(outcome.uploadFailed) didn't finish uploading. Nothing wrong with the photos — try those again.",
+                comment: "Batch scan upload failure line"
             ))
         }
         for reason in ClosetItemAnalysisFailureReason.allCases {
