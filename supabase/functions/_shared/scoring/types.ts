@@ -72,16 +72,28 @@ export type Fit = "slim" | "tailored" | "regular" | "relaxed" | "oversized";
 export type LaundryState = "clean" | "worn_once" | "laundry" | "unavailable";
 
 /**
- * `condition` in `20260728100100_core_enums.sql`.
+ * `condition` in `20260728100100_core_enums.sql`, extended by
+ * `20260808120000_condition_damaged.sql`.
  *
- * §5.6 writes this scale as `excellent, good, fair, worn, damaged`. The
- * shipped enum is `new_with_tags, like_new, good, fair, worn` — five values,
- * not the doc's five, and not the same five: there is no `excellent` and no
- * `damaged`, and two values (`new_with_tags`, `like_new`) exist above `good`
- * where the doc has one. See `wardrobeScore.ts` for the value mapping this
- * produces and why.
+ * §5.6 writes this scale as `excellent, good, fair, worn, damaged`. The shipped
+ * enum is `new_with_tags, like_new, good, fair, worn, damaged` — six values,
+ * and still not the doc's names: there is no `excellent`, and two values
+ * (`new_with_tags`, `like_new`) sit above `good` where the doc has one.
+ *
+ * `damaged` was missing until 2026-08-08 and is not a cosmetic addition: it is
+ * §5.6's 0.0 rung, and without it a garment with a hole in it could not score
+ * below `worn` (0.25). The vision provider had been reading `damaged` correctly
+ * and `closet/mapper.ts` had been mapping it down to `worn` on the way in.
+ * See `wardrobeScore.ts` for the value mapping and `docs/05` §0 for the
+ * amendment.
  */
-export type Condition = "new_with_tags" | "like_new" | "good" | "fair" | "worn";
+export type Condition =
+  | "new_with_tags"
+  | "like_new"
+  | "good"
+  | "fair"
+  | "worn"
+  | "damaged";
 
 export type AvailabilityState =
   | "available"

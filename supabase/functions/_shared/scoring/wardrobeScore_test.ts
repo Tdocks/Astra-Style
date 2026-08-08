@@ -277,3 +277,129 @@ Deno.test("Archived items are excluded from the active count and every component
   const withoutArchived = computeWardrobeScore(active, TODAY);
   assertEquals(withArchived.activeItemCount, withoutArchived.activeItemCount);
 });
+
+// ── §5.2 fit confidence — the ceiling has to be reachable ───────────────────
+//
+// Written from §5.2's own text, not from `perItemFitConfidence`. The doc wraps
+// the per-item value in `clamp(·, 0, 1)`; a clamp is a claim about the range
+// the author expected, and these tests hold the implementation to it.
+
+function feedbackFor(
+  items: readonly WardrobeItem[],
+  signal: "positive" | "negative",
+): WardrobeContext {
+  return {
+    feedbackByItemId: new Map(
+      items.map((i) => [i.id, {
+        hasPositiveSignal: signal === "positive",
+        hasNegativeSignal: signal === "negative",
+      }]),
+    ),
+  };
+}
+
+Deno.test("§5.2: a wardrobe where every item is confirmed to fit scores 1.0", () => {
+  // The whole point of the component. If a user cannot reach the top of it by
+  // telling the app every garment he owns fits him, the component is measuring
+  // something other than what it is named after.
+  const wardrobe = makeWardrobe(8).map((w) => ({ ...w, fit: "regular" as Fit }));
+  const result = computeWardrobeScore(wardrobe, TODAY, feedbackFor(wardrobe, "positive"));
+  assertAlmostEquals(result.components.fitConfidence.value, 1, 1e-9);
+});
+
+Deno.test("§5.2: no feedback anywhere leaves the component at the 0.6 base", () => {
+  const wardrobe = makeWardrobe(8).map((w) => ({ ...w, fit: "regular" as Fit }));
+  const result = computeWardrobeScore(wardrobe, TODAY);
+  assertAlmostEquals(result.components.fitConfidence.value, 0.6, 1e-9);
+});
+
+Deno.test("§5.2: negative feedback bites harder than positive feedback reassures", () => {
+  // -0.5 against +0.4 is the doc's asymmetry and it is the right way round —
+  // one "this doesn't fit me" is stronger evidence than one "I like this".
+  const wardrobe = makeWardrobe(8).map((w) => ({ ...w, fit: "regular" as Fit }));
+  const base = computeWardrobeScore(wardrobe, TODAY).components.fitConfidence.value;
+  const up = computeWardrobeScore(wardrobe, TODAY, feedbackFor(wardrobe, "positive"))
+    .components.fitConfidence.value;
+  const down = computeWardrobeScore(wardrobe, TODAY, feedbackFor(wardrobe, "negative"))
+    .components.fitConfidence.value;
+  assert(down < base && base < up);
+  assert(
+    base - down > up - base,
+    "a negative signal must move the score further than a positive one",
+  );
+});
+
+// ── §5.4 colour cohesion — concentration, not evenness ──────────────────────
+//
+// §5.4's prose is the specification these test against: "A wardrobe
+// concentrated in 2–4 hue families plus neutrals scores high [...] one where
+// every item is a different, unrelated hue scores low."
+
+/** Chromatic items only, so the §5.4 `<4 chromatic items` edge case never fires. */
+function chromaticWardrobe(hexes: readonly string[]): WardrobeItem[] {
+  return hexes.map((h, i) =>
+    item(`c-${i}`, ROLE_CYCLE[i % ROLE_CYCLE.length]!, { colorHex: h, lastWornAt: OLD })
+  );
+}
+
+const RED = "C03030";
+const GREEN = "30A030";
+const BLUE = "3040C0";
+const MAGENTA = "B030A0";
+
+Deno.test("§5.4: one hue family is maximally cohesive", () => {
+  const result = computeWardrobeScore(chromaticWardrobe(Array(8).fill(RED)), TODAY);
+  assertAlmostEquals(result.components.colorCohesion.value, 1, 1e-9);
+});
+
+Deno.test("§5.4: two hue families, evenly split, scores high — not zero", () => {
+  // This is the regression. Normalising entropy by the number of *occupied*
+  // clusters makes an even two-family split score exactly 0 — the bottom of
+  // the scale for the palette §5.4 calls cohesive.
+  const result = computeWardrobeScore(
+    chromaticWardrobe([RED, RED, RED, RED, BLUE, BLUE, BLUE, BLUE]),
+    TODAY,
+  );
+  assert(
+    result.components.colorCohesion.value > 0.7,
+    `two even hue families should score high, got ${result.components.colorCohesion.value}`,
+  );
+});
+
+Deno.test("§5.4: cohesion falls monotonically as hue families are added", () => {
+  const cohesion = (hexes: readonly string[]) =>
+    computeWardrobeScore(chromaticWardrobe(hexes), TODAY).components.colorCohesion.value;
+
+  const one = cohesion(Array(8).fill(RED));
+  const two = cohesion([RED, RED, RED, RED, BLUE, BLUE, BLUE, BLUE]);
+  const three = cohesion([RED, RED, RED, BLUE, BLUE, BLUE, GREEN, GREEN, GREEN]);
+  const four = cohesion([RED, RED, BLUE, BLUE, GREEN, GREEN, MAGENTA, MAGENTA]);
+
+  assert(one > two && two > three && three > four, `${one} > ${two} > ${three} > ${four}`);
+  assert(four > 0, "four hue families is still a palette, not noise");
+});
+
+// ── §5.6 condition — the bottom rung exists now ─────────────────────────────
+
+Deno.test("§5.6: `damaged` scores strictly below `worn`", () => {
+  // Before `20260808120000_condition_damaged.sql` these two wardrobes were
+  // indistinguishable, because `damaged` had nowhere to land in the enum and
+  // `closet/mapper.ts` folded it into `worn` on the way in.
+  const worn = makeWardrobe(8).map((w) => ({ ...w, condition: "worn" as Condition }));
+  const damaged = makeWardrobe(8).map((w) => ({ ...w, condition: "damaged" as Condition }));
+
+  const wornScore = computeWardrobeScore(worn, TODAY).components.condition.value;
+  const damagedScore = computeWardrobeScore(damaged, TODAY).components.condition.value;
+
+  assert(damagedScore < wornScore, `${damagedScore} should be below ${wornScore}`);
+  assertAlmostEquals(damagedScore, 0, 1e-9);
+});
+
+Deno.test("§5.6: an all-damaged wardrobe is measured, not degraded", () => {
+  // `damaged` is an assessment, not a missing one. Confusing the two would put
+  // "we never looked at this" and "we looked and it is ruined" in the same
+  // bucket, which is precisely the distinction `Subscore.degraded` exists for.
+  const damaged = makeWardrobe(8).map((w) => ({ ...w, condition: "damaged" as Condition }));
+  const result = computeWardrobeScore(damaged, TODAY);
+  assertEquals(result.components.condition.degraded.length, 0);
+});

@@ -45,7 +45,7 @@ import {
   type Subscore,
   unitClamp,
 } from "./types.ts";
-import { colorClusterId } from "./equivalence.ts";
+import { CLUSTER_SPACE_SIZE, colorClusterId } from "./equivalence.ts";
 import { bodyMultiplier, type FitNote } from "./subscores/silhouette.ts";
 import {
   DEFAULT_GENERATION_OPTIONS,
@@ -90,10 +90,14 @@ const CONDITION_VALUE: Record<Condition, number> = {
   good: 0.8,
   fair: 0.5,
   worn: 0.25,
-  // No enum value maps to the doc's `damaged` (0.0) — the shipped scale has
-  // no rung for a garment too damaged to wear. That is a real product gap
-  // (a damaged item currently has no way to score below "worn"), not
-  // something this file can paper over by inventing a value nothing sets.
+  // §5.6's bottom rung, reachable since `20260808120000_condition_damaged.sql`.
+  // This comment used to record the absence as a product gap; it is worth
+  // keeping the shape of the gap, because it explains what the value is for.
+  // Without it the worst a garment could score was 0.25, so a wardrobe of
+  // ruined clothes and a wardrobe of well-loved ones were four points apart on
+  // a 100-point score. 0.0 is what "do not wear this" has to be worth for the
+  // condition component to mean anything.
+  damaged: 0.0,
 };
 
 /** Neutral prior for a garment whose condition was never assessed. Between `good` and `fair`, matching the "least-wrong midpoint" reasoning `formality.ts` uses for its own category defaults. */
@@ -332,10 +336,38 @@ function perItemFitConfidence(
   if (feedback?.hasNegativeSignal) adjustment = -0.5;
   else if (feedback?.hasPositiveSignal) adjustment = 0.4;
 
-  // §5.2's formula, literally: base 0.6, PLUS 0.4× the adjustment above (the
-  // adjustment is already ±0.4/±0.5, so this is a second, deliberate
-  // dampening — a positive signal moves the score 0.6→0.76, not 0.6→1.0).
-  let value = unitClamp(0.6 + 0.4 * adjustment);
+  // §5.2 prints `0.6 + 0.4 × feedbackAdjustment`, and that outer `0.4 ×` is a
+  // corruption. Applied literally it makes the adjustment a second dampening
+  // on values that are already ±0.4/−0.5, so the component tops out at 0.76
+  // and bottoms out at 0.4 — a range of 0.36 in the middle of a 0–1 scale.
+  //
+  // Three things say the coefficient is the error rather than the ±values:
+  //
+  //  1. `0.6 + 0.4` is exactly `1.0`. Dropping the coefficient makes the
+  //     best case land precisely on the ceiling. A leftover coefficient
+  //     producing a round number by accident is a coincidence; a formula
+  //     designed to reach its ceiling exactly is not.
+  //  2. §5.2 wraps this in `clamp(perItemFitConfidence_i, 0, 1)`. Under the
+  //     printed formula that clamp is unreachable in both directions — the
+  //     expression cannot leave [0.4, 0.76]. Authors do not clamp expressions
+  //     they believe are already bounded. Without the coefficient the clamp
+  //     does real work: −0.5 takes the value to 0.1 and the §4.3 body
+  //     multiplier can push it further.
+  //  3. Fit confidence would otherwise be the only component in §5 that
+  //     cannot reach 1.0 — versatility, occasion coverage, colour cohesion,
+  //     wear utilization, condition and redundancy control all can. A
+  //     permanent 24% haircut on a 15%-weighted component is 3.6 points of a
+  //     100-point score that no user could ever earn, for no stated reason.
+  //
+  // So the adjustment applies directly. Positive feedback on every item →
+  // 1.0; no feedback → 0.6; negative → 0.1. The asymmetry (−0.5 bites harder
+  // than +0.4 reassures) is the doc's own, and is the right way round: one
+  // "this doesn't fit" is stronger evidence than one "I like this".
+  //
+  // Recorded as amendment 8 in `docs/05` §0. Same class of finding as §5.1's
+  // versatility curve and adjudicated the same way — internal evidence, not
+  // preference.
+  let value = unitClamp(0.6 + adjustment);
 
   const mod = bodyMultiplier(item, fitNotes);
   value = unitClamp(value * mod.multiplier);
@@ -429,23 +461,39 @@ function computeColorCohesion(active: readonly WardrobeItem[]): Subscore {
     counts.set(cluster, (counts.get(cluster) ?? 0) + 1);
   }
   const total = withColor.length;
-  const nonEmptyClusters = counts.size;
 
-  let value: number;
-  if (nonEmptyClusters <= 1) {
-    // Every classified item shares one bucket — maximally cohesive, and
-    // Shannon entropy of a one-outcome distribution is 0 by definition, not
-    // a 0/0 this branch needs to guess at.
-    value = 1;
-  } else {
-    let entropy = 0;
-    for (const count of counts.values()) {
-      const p = count / total;
-      entropy -= p * Math.log2(p);
-    }
-    const normalisedEntropy = entropy / Math.log2(nonEmptyClusters);
-    value = unitClamp(1 - normalisedEntropy);
+  let entropy = 0;
+  for (const count of counts.values()) {
+    const p = count / total;
+    entropy -= p * Math.log2(p);
   }
+
+  // §5.4 prints the denominator as `log2(numNonEmptyClusters)` — the number of
+  // clusters the wardrobe *occupies*. That measures how evenly the items are
+  // spread across the buckets they already sit in, which is not the question
+  // §5.4 asks. Its own prose says "a wardrobe concentrated in 2–4 hue families
+  // plus neutrals scores high"; under the printed formula a wardrobe split
+  // evenly between exactly two hue families scores **0** — entropy 1.0 over
+  // log2(2) = 1.0 — which is the lowest cohesion the scale can express, for
+  // the most cohesive palette a person is likely to own. Every evenly-spread
+  // wardrobe scores 0 regardless of how few families it spans, and a single
+  // family divides by log2(1) = 0.
+  //
+  // Normalising by the size of the whole cluster space fixes both. Maximum
+  // possible entropy over 13 buckets is log2(13), so the ratio now answers
+  // "how much of the available spread does this wardrobe use", which is what
+  // concentration means. The numbers land where the prose says they should:
+  // one family → 1.0, two families evenly → 0.73, a realistic capsule (60%
+  // neutral, two chromatic families) → 0.63, all thirteen evenly → 0.0.
+  //
+  // The `nonEmptyClusters <= 1` special case is gone with it. Shannon entropy
+  // of a one-outcome distribution is 0, so a single-family wardrobe now falls
+  // out of the same arithmetic as everything else at exactly 1.0 — the branch
+  // existed only to dodge the division by zero the old denominator created.
+  //
+  // Recorded as amendment 9 in `docs/05` §0.
+  const maxEntropy = Math.log2(CLUSTER_SPACE_SIZE);
+  const value = unitClamp(1 - entropy / maxEntropy);
 
   return missing === 0
     ? measured(value)

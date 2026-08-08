@@ -16,6 +16,15 @@ import type { ClothingCategory, Fit, ScorableItem } from "./types.ts";
 
 /** §5.4: 12 hue bins of 30° each, indexed 0–11 starting at hue 0. */
 export const HUE_BIN_COUNT = 12;
+
+/**
+ * Every cluster `colorClusterId` can return: the 12 hue bins plus `"neutral"`.
+ *
+ * §5.4's entropy normalisation divides by `log2` of this, not by `log2` of the
+ * clusters a given wardrobe happens to occupy — see `computeColorCohesion` for
+ * why the difference is the whole meaning of the component.
+ */
+export const CLUSTER_SPACE_SIZE = HUE_BIN_COUNT + 1;
 const HUE_BIN_WIDTH = 360 / HUE_BIN_COUNT;
 
 /** Which of §5.4's 12 hue bins a hue angle falls in. Undefined below C* ≈ 2 — see `colorSpace.ts`. */

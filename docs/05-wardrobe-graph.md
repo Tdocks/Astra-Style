@@ -88,6 +88,69 @@ a two-seed draft that predates the n=40/80 seeds and the "+1" corruption.
 n=80 at the last segment's slope so volume never saturates the component) and
 drops "log-shaped". Pinned from both sides in `wardrobeScore_test.ts`.
 
+Three more surfaced in the same pass over §5, and were left standing at the
+time because each needed a decision rather than a fix. They are decided now.
+
+**8. §5.2's `0.4 ×` coefficient caps fit confidence at 0.76.** Printed as
+`0.6 + 0.4 × feedbackAdjustment` with `feedbackAdjustment ∈ {+0.4, 0, −0.5}`,
+the component's whole reachable range is **[0.4, 0.76]** — a user who tells
+Astra that every garment he owns fits him lands at 0.76 out of 1.0, and no
+user can ever reach the top of a component named "fit confidence". Three
+things say the coefficient is the corruption and not the ±values. `0.6 + 0.4`
+is exactly `1.0`, so removing it makes the best case land precisely on the
+ceiling — designed, not coincidental. §5.2 wraps the expression in
+`clamp(·, 0, 1)`, a clamp that under the printed formula is unreachable in
+both directions; authors do not clamp expressions they believe are already
+bounded, and without the coefficient it does real work (−0.5 takes the value
+to 0.1, and §4.3's body multiplier can push it further). And fit confidence
+would otherwise be the only one of §5's seven components that cannot reach
+1.0, costing every user 3.6 points of a 100-point score for no stated reason.
+The adjustment now applies directly: **1.0 / 0.6 / 0.1**. The asymmetry is the
+doc's own and is the right way round — one "this doesn't fit" is stronger
+evidence than one "I like this".
+
+**9. §5.4 normalizes entropy by the wrong denominator, and scores a two-colour
+wardrobe at 0.** `normalizedEntropy = ShannonEntropy / log2(numNonEmptyClusters)`
+divides by the number of clusters the wardrobe *occupies*, which measures how
+evenly its items are spread across the buckets they already sit in — not how
+few buckets it uses. A wardrobe split evenly between exactly two hue families
+gives entropy 1.0 over log2(2) = 1.0, so **cohesion 0**: the bottom of the
+scale, for the palette §5.4's own prose calls high-scoring ("a wardrobe
+concentrated in 2–4 hue families plus neutrals scores high"). Every evenly
+spread wardrobe scores 0 however few families it spans, and a single family
+divides by log2(1) = 0. The denominator is now `log2(13)` — the maximum
+possible entropy over the full cluster space of 12 hue bins plus neutral — so
+the ratio answers "how much of the available spread does this wardrobe use",
+which is what concentration means. One family → 1.0; two evenly → 0.73; a
+realistic capsule (60% neutral, two chromatic families) → 0.63; all thirteen
+evenly → 0.0. The `numNonEmptyClusters ≤ 1` special case disappears with it,
+since a single-outcome distribution has entropy 0 and now falls out of the
+same arithmetic.
+
+**10. §5.6's `damaged` rung had no value to land on.** The scale is
+`excellent=1.0, good=0.8, fair=0.5, worn=0.25, damaged=0.0`; the shipped
+`condition` enum was `new_with_tags, like_new, good, fair, worn`. So the 0.0
+rung was unreachable and a garment with a hole in it could not score below
+0.25 — a wardrobe of ruined clothes and a wardrobe of well-loved ones sat four
+points apart on a 100-point score. This one was not only a scoring gap: the
+vision provider's vocabulary has always included `damaged`, and
+`closet/mapper.ts` mapped it down to `worn` on the way in, so a correct reading
+of a ruined garment arrived in the closet as a wrong one. Unlike amendments
+3–6, the arbiter here is **the document, not the schema** — the schema was
+simply missing a value the document specifies, so
+`20260808120000_condition_damaged.sql` adds it rather than the document
+conceding. `damaged` is deliberately not folded into
+`availability_state.unavailable`: availability answers "can this be worn right
+now" and every other value in it is temporary or locational, while condition is
+a property of the garment that persists across all of them.
+
+Amendments 8 and 9 were invisible to CI because nothing tested either
+component's arithmetic — `wardrobeScore_test.ts` checked that every component
+was *reported*, not what any of them computed. Four regression tests now fail
+against the old behaviour and pass against the new; `check_schema_drift.py`
+gained the ability to read `alter type ... add value`, without which amendment
+10 would have made it report the correct Swift case as drift.
+
 ---
 
 ## 1. Color Space and Perceptual Color Model
@@ -489,7 +552,8 @@ Normalizing per-item versatility against a size-indexed expectation is what prev
 ```
 perItemFitConfidence_i =
   0.6 (base, unconfirmed)
-  + 0.4 × feedbackAdjustment_i
+  + feedbackAdjustment_i        // §0 amendment 8: was `0.4 ×` this, which
+                                // capped the component at 0.76
 
 feedbackAdjustment_i =
   +0.4 if any `style_feedback` on this item has signal ∈ {like, wore+rating≥4} and none negative
@@ -521,7 +585,11 @@ palette = the set of primary_color_lch across active items
 clusters = group palette into hue families (12 × 30° hue bins + a neutral bucket)
 
 component = 1 - normalizedEntropy(cluster sizes)
-  where normalizedEntropy = ShannonEntropy(clusterDistribution) / log2(numNonEmptyClusters)
+  where normalizedEntropy = ShannonEntropy(clusterDistribution) / log2(13)
+  // 13 = the whole cluster space (12 hue bins + neutral), NOT the number of
+  // clusters this wardrobe occupies. See §0 amendment 9: the latter scores an
+  // evenly-split two-colour wardrobe at 0, which contradicts the paragraph
+  // immediately below.
 ```
 
 A wardrobe concentrated in 2–4 hue families plus neutrals scores high (low entropy = high cohesion); one where every item is a different, unrelated hue scores low. **Edge case:** fewer than 4 chromatic items (mostly neutrals) → component defaults to `0.8` (neutrals-heavy is not incoherent, it's a valid capsule strategy — entropy over a near-empty chromatic set is not meaningful).
@@ -543,6 +611,10 @@ component = utilizationRate
 
 ```
 conditionValue: excellent=1.0, good=0.8, fair=0.5, worn=0.25, damaged=0.0
+  // Shipped enum names differ (§0 amendment 10): new_with_tags=1.0,
+  // like_new=0.9, good=0.8, fair=0.5, worn=0.25, damaged=0.0. `damaged` was
+  // added to the enum on 2026-08-08; before that this bottom rung was
+  // unreachable and the vision provider's `damaged` was folded into `worn`.
 component = weighted mean of conditionValue_i, weighted by itemVersatility_i (§5.1)
   (a damaged rarely-worn accessory should matter less to overall wardrobe health than a damaged frequently-worn workhorse item)
 ```
