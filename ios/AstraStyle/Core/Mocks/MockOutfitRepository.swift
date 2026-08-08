@@ -13,6 +13,12 @@ public actor MockOutfitRepository: OutfitRepository {
     private var outfitItemsByOutfit: [UUID: [OutfitItem]]
     private var wears: [OutfitWear] = []
     private var briefsByDay: [String: DailyBrief] = [:]
+    /// Every `style_feedback` row recorded, in insertion order. Exposed
+    /// via `recordedFeedback` for tests/previews that want to assert on it.
+    /// Named distinctly from `recordWear`'s `feedback: String?` parameter
+    /// below, which is an unrelated free-text field on `outfit_wears` —
+    /// same word, two different columns on two different tables.
+    private var feedbackEntries: [StyleFeedback] = []
 
     public init() {
         var seededOutfits = [SampleData.heroOutfit: SampleData.heroOutfitItems()]
@@ -94,6 +100,37 @@ public actor MockOutfitRepository: OutfitRepository {
         let wear = OutfitWear(id: UUID(), outfitID: outfitID, userID: SampleData.userID, wornAt: wornAt, occasion: occasion, rating: rating, feedback: feedback)
         wears.append(wear)
         return wear
+    }
+
+    /// Test/preview seam: every `outfit_wears` row recorded so far.
+    public func recordedWears() async -> [OutfitWear] {
+        wears
+    }
+
+    @discardableResult
+    public func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback {
+        let entry = StyleFeedback(
+            id: UUID(),
+            userID: SampleData.userID,
+            targetType: targetType,
+            targetID: targetID,
+            signal: signal,
+            reasonTags: reasonTags,
+            freeText: freeText
+        )
+        feedbackEntries.append(entry)
+        return entry
+    }
+
+    /// Test/preview seam: every `style_feedback` row recorded so far.
+    public func recordedFeedback() async -> [StyleFeedback] {
+        feedbackEntries
     }
 
     public func fetchDailyBrief(for date: Date) async throws -> DailyBrief? {

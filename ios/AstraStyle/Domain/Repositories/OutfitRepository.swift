@@ -45,6 +45,28 @@ public protocol OutfitRepository: Sendable {
     @discardableResult
     func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear
 
+    /// Writes one `style_feedback` row (spec §9 signals; P4-OUTFIT-14).
+    ///
+    /// Distinct from `recordWear`: a "wore it" is a real event against a
+    /// real `outfits` row and is what the `bump_closet_item_wear_stats()`
+    /// trigger keys off, while a like/dislike/skip/etc. is a durable
+    /// opinion signal that feeds the §10 compatibility formula's
+    /// "historical co-wear/feedback" term and can target an outfit, a
+    /// closet item, an outfit item, or a product candidate —
+    /// `targetType`/`targetID` are polymorphic per the `style_feedback`
+    /// migration's own comment, and this repository does not validate
+    /// `targetID` against the table `targetType` implies; the caller is
+    /// responsible for passing a real id (the same trade-off the
+    /// migration itself documents at the database layer).
+    @discardableResult
+    func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback
+
     /// Fetches the already-generated brief for a given date, if one exists.
     func fetchDailyBrief(for date: Date) async throws -> DailyBrief?
 
@@ -78,5 +100,16 @@ public extension OutfitRepository {
     /// "rebuild" does not have to say so.
     func generateDailyBrief(for date: Date) async throws -> DailyBrief {
         try await generateDailyBrief(for: date, regenerate: false, weather: nil)
+    }
+
+    /// `recordFeedback` without reason tags or free text — the common
+    /// "skip"/"dislike" tap, which carries only a signal. A default
+    /// parameter value on the protocol requirement itself would not be
+    /// honored when called through the `OutfitRepository` existential
+    /// (every call site in this app holds one), so this overload exists
+    /// for the same reason `generateDailyBrief(for:)` above does.
+    @discardableResult
+    func recordFeedback(targetType: StyleFeedbackTargetType, targetID: UUID, signal: StyleFeedbackSignal) async throws -> StyleFeedback {
+        try await recordFeedback(targetType: targetType, targetID: targetID, signal: signal, reasonTags: [], freeText: nil)
     }
 }

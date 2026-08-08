@@ -191,12 +191,8 @@ struct MainTabView: View {
                 message: String(localized: "An unlimited closet, the full Daily Brief, and a verdict before you buy."),
                 systemImage: "checkmark.seal"
             )
-        case .outfitBuilder:
-            FeaturePlaceholderView(
-                title: String(localized: "Outfit Builder"),
-                message: String(localized: "Build a look piece by piece, with Kyra checking your work as you go."),
-                systemImage: "tshirt"
-            )
+        case .outfitBuilder(let route):
+            OutfitBuilderDestinationView(route: route, container: container)
         case .studioGeneration:
             FeaturePlaceholderView(
                 title: String(localized: "Style Studio"),
