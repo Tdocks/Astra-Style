@@ -18,7 +18,7 @@ Deployed slug: `closet`. Client paths are `/functions/v1/closet/analyze-item`, e
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | _(unset / default)_                                                     | `MockVisionAnalysisProvider` — deterministic, offline, what CI and local serve use |
 | `VISION_ANALYSIS_PROVIDER=openai` **and** `VISION_PROVIDER_API_KEY` set | `OpenAIVisionAnalysisProvider` (`../_shared/providers/openaiVisionAnalysis.ts`)    |
-| `VISION_PROVIDER_MODEL` (optional)                                      | Model id; defaults to `gpt-5.6`                                                    |
+| `VISION_PROVIDER_MODEL` (optional)                                      | Model id; defaults to `gpt-5.6-luna`                                               |
 
 **The key is `VISION_PROVIDER_API_KEY` and this table used to say `OPENAI_API_KEY`.** That name is
 in neither spec §25's per-capability scheme nor ADR 0004's vocabulary, and it was never set on the
@@ -33,7 +33,7 @@ came back wrong, check `supabase secrets list` first.
 supabase secrets set \
   VISION_ANALYSIS_PROVIDER=openai \
   VISION_PROVIDER_API_KEY=... \
-  VISION_PROVIDER_MODEL=gpt-5.6
+  VISION_PROVIDER_MODEL=gpt-5.6-luna
 
 supabase functions deploy closet
 ```

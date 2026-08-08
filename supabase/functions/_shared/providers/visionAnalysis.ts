@@ -67,8 +67,21 @@ export interface GarmentAnalysisResult {
   readonly category: string;
   readonly subcategory: string;
   readonly confidence: number;
-  readonly colorLch: LchColor;
-  readonly secondaryColorsLch: readonly LchColor[];
+  /**
+   * Optional because a provider that reads colour as a *word* has not measured
+   * one. The live adapter asks the model for `primary_color_name`, which is
+   * also the only colour `closet/mapper.ts` reads — these two fields have no
+   * consumer at all today. Before they were optional the OpenAI adapter filled
+   * them with a literal `{ l: 50, c: 20, h: 240 }` for every garment scanned,
+   * which is a mid blue: a brown shirt carried a measurement saying blue.
+   * Harmless while unread, and exactly the kind of thing that stops being
+   * harmless the day someone wires it to the §10 colour subscore — the
+   * heaviest term in the whole engine at 25%.
+   *
+   * Absent is honest. A confounded reading is not.
+   */
+  readonly colorLch?: LchColor;
+  readonly secondaryColorsLch?: readonly LchColor[];
   readonly pattern: ProviderPattern;
   readonly patternScale?: "micro" | "small" | "medium" | "large";
   readonly material: readonly string[];

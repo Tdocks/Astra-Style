@@ -16,7 +16,7 @@
 import type { GarmentAnalysisResult } from "../_shared/providers/visionAnalysis.ts";
 import type { ClosetItemAnalysisResultDTO, DeviceHints, FieldSuggestionDTO } from "./schema.ts";
 
-const CATEGORIES = new Set([
+export const CATEGORIES = new Set([
   "top",
   "bottom",
   "outerwear",
@@ -43,8 +43,8 @@ const CONDITIONS: Record<string, string> = {
   damaged: "worn",
 };
 
-const FITS = new Set(["slim", "tailored", "regular", "relaxed", "oversized"]);
-const SEASONS = new Set(["spring", "summer", "fall", "winter", "all_season"]);
+export const FITS = new Set(["slim", "tailored", "regular", "relaxed", "oversized"]);
+export const SEASONS = new Set(["spring", "summer", "fall", "winter", "all_season"]);
 
 function suggestion<T>(value: T, confidence: number): FieldSuggestionDTO<T> {
   return { value, confidence };

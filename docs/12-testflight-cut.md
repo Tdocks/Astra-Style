@@ -23,7 +23,7 @@ After Phase 3 exit work lands, a TestFlight build is useful for:
 Still Partial / deferred (honest gaps):
 
 - Live vision defaults to **mock** until you set `VISION_ANALYSIS_PROVIDER=openai`
-  + `OPENAI_API_KEY` on the Supabase project (see `supabase/functions/closet/README.md`)
+  + `VISION_PROVIDER_API_KEY` on the Supabase project (see `supabase/functions/closet/README.md`)
 - Batch / receipt / mirror capture modes
 - Server background-removal fallback
 - Versatility metric, item insights, care instructions (Phase 4 data)
@@ -90,7 +90,7 @@ duplicate build numbers.
 On the Supabase project that `Secrets.xcconfig` targets:
 
 ```bash
-supabase secrets set VISION_ANALYSIS_PROVIDER=openai OPENAI_API_KEY=sk-...
+supabase secrets set VISION_ANALYSIS_PROVIDER=openai VISION_PROVIDER_API_KEY=...
 supabase functions deploy closet
 ```
 
