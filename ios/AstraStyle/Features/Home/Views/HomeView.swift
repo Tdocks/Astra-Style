@@ -76,8 +76,14 @@ public struct HomeView: View {
 
             weatherAffordance(for: data)
 
-            HomeEmptyStateView {
-                router.startScan()
+            HomeEmptyStateView(reason: data.emptyReason ?? .noOutfitYet) {
+                // A closet short of a whole role is a job for the batch
+                // path: he is about to photograph several trousers, not one.
+                if case .missingRoles = data.emptyReason {
+                    router.startScan(mode: .batchCloset)
+                } else {
+                    router.startScan()
+                }
             }
         }
     }

@@ -23,6 +23,9 @@ public struct HomeBriefData: Sendable {
     public var laundryAlertItemCount: Int
     public var upcomingOccasions: [Occasion]
     public var purchaseOpportunity: PurchaseOpportunity?
+    /// Everything wearable the man owns, by role. Carried so the empty state
+    /// can say something true — see `emptyReason`.
+    public var closetRoleCounts: [ClothingCategory: Int]
 
     public init(
         greetingName: String,
@@ -35,7 +38,8 @@ public struct HomeBriefData: Sendable {
         wardrobeScore: WardrobeScore?,
         laundryAlertItemCount: Int,
         upcomingOccasions: [Occasion],
-        purchaseOpportunity: PurchaseOpportunity?
+        purchaseOpportunity: PurchaseOpportunity?,
+        closetRoleCounts: [ClothingCategory: Int] = [:]
     ) {
         self.greetingName = greetingName
         self.weather = weather
@@ -48,12 +52,60 @@ public struct HomeBriefData: Sendable {
         self.laundryAlertItemCount = laundryAlertItemCount
         self.upcomingOccasions = upcomingOccasions
         self.purchaseOpportunity = purchaseOpportunity
+        self.closetRoleCounts = closetRoleCounts
     }
 
-    /// Drives the empty state (spec §6.11 "Prompt to add 5 closet items").
-    public var needsMoreClosetItems: Bool {
-        primaryOutfit == nil
+    /// The three roles an outfit needs before one can exist at all.
+    ///
+    /// Not a style opinion — a structural one. `generateCandidateOutfits`
+    /// builds top/bottom/shoes and returns nothing without all three, so a
+    /// closet missing any of them cannot produce a single outfit however
+    /// many garments it holds.
+    public static let requiredRoles: [ClothingCategory] = [.top, .bottom, .shoes]
+
+    public var missingRoles: [ClothingCategory] {
+        Self.requiredRoles.filter { (closetRoleCounts[$0] ?? 0) == 0 }
     }
+
+    public var closetItemCount: Int {
+        closetRoleCounts.values.reduce(0, +)
+    }
+
+    /// Why Home has no outfit to show, if it has none.
+    ///
+    /// This used to be a single `needsMoreClosetItems` computed as
+    /// `primaryOutfit == nil`, and the screen it drove said "Add five pieces
+    /// and Kyra can begin building real outfits." That sentence was read by a
+    /// man with fifteen garments in his closet, because he had photographed
+    /// fifteen shirts: the engine correctly built zero outfits, and the copy
+    /// told him he owned almost nothing.
+    ///
+    /// The state was right. The reading was confounded — "too few garments"
+    /// and "garments, but not the right kinds" are different facts, and
+    /// collapsing them produced advice that could not help. Following it
+    /// (adding five more shirts) would leave the screen exactly as it was.
+    public enum EmptyReason: Equatable, Sendable {
+        /// Fewer than `minimumItemsForOutfits` garments. §6.11's own case.
+        case tooFewItems(have: Int, need: Int)
+        /// Enough garments, but at least one role an outfit requires is
+        /// missing entirely.
+        case missingRoles([ClothingCategory])
+        /// Enough garments and every role present, and still no outfit —
+        /// nothing structural is wrong, so nothing structural is claimed.
+        case noOutfitYet
+    }
+
+    public var emptyReason: EmptyReason? {
+        guard primaryOutfit == nil else { return nil }
+        if closetItemCount < Self.minimumItemsForOutfits {
+            return .tooFewItems(have: closetItemCount, need: Self.minimumItemsForOutfits)
+        }
+        let missing = missingRoles
+        return missing.isEmpty ? .noOutfitYet : .missingRoles(missing)
+    }
+
+    /// Kept as the single "is Home empty" question the view model asks.
+    public var needsMoreClosetItems: Bool { emptyReason != nil }
 
     /// The closet size below which §6.11's empty state — not a Daily Brief —
     /// is the correct screen, taken from that section's own wording

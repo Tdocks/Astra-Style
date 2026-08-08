@@ -184,7 +184,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             // Populate this only once a real `ProductCandidate` and a real
             // `outfitsUnlocked` count are reachable together — a plausible
             // number for either half alone is worse than the empty module.
-            purchaseOpportunity: nil
+            purchaseOpportunity: nil,
+            closetRoleCounts: Self.roleCounts(of: closetItems ?? [])
         )
     }
 
@@ -201,6 +202,17 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
     public func requestWeatherPermission() async -> Bool {
         await weatherService.requestLocationPermissionIfNeeded()
+    }
+
+    /// Carried into `HomeBriefData` so the empty state can name what is
+    /// missing rather than guess at it.
+    ///
+    /// An empty dictionary when the closet read itself failed, which
+    /// `emptyReason` reads as "too few items" — the honest reading when the
+    /// count is genuinely unknown, and the same choice the `try?` on that
+    /// read already makes deliberately.
+    private static func roleCounts(of items: [ClosetItem]) -> [ClothingCategory: Int] {
+        Dictionary(grouping: items, by: \.category).mapValues(\.count)
     }
 
     // MARK: - Sparse-closet brief (spec §6.11 empty state)
@@ -245,7 +257,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             // endpoint deployed yet) and doubly true here: a closet this
             // sparse has no owned items to evaluate a candidate against in
             // the first place.
-            purchaseOpportunity: nil
+            purchaseOpportunity: nil,
+            closetRoleCounts: Self.roleCounts(of: closetItems)
         )
     }
 
