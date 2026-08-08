@@ -315,6 +315,29 @@ private actor FailIfCalledOutfitRepository: OutfitRepository {
     func updateOutfit(_ outfit: Outfit) async throws -> Outfit { recordCall(); throw AstraError.server("unused") }
     func deleteOutfit(id: UUID) async throws { recordCall() }
     @discardableResult
+    /// `P4-OUTFIT-14` added this verb to `OutfitRepository`. These Home
+    /// suites never exercise feedback, so it echoes rather than recording —
+    /// but it must exist, because a protocol gains members and every double
+    /// in the codebase has to follow.
+    func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback {
+        StyleFeedback(
+            id: UUID(),
+            userID: UUID(),
+            targetType: targetType,
+            targetID: targetID,
+            signal: signal,
+            reasonTags: reasonTags,
+            freeText: freeText,
+            createdAt: .now
+        )
+    }
+
     func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         recordCall()
         throw AstraError.server("unused")
@@ -366,6 +389,29 @@ private actor RecordingOutfitRepository: OutfitRepository {
     func updateOutfit(_ outfit: Outfit) async throws -> Outfit { outfit }
     func deleteOutfit(id: UUID) async throws {}
     @discardableResult
+    /// `P4-OUTFIT-14` added this verb to `OutfitRepository`. These Home
+    /// suites never exercise feedback, so it echoes rather than recording —
+    /// but it must exist, because a protocol gains members and every double
+    /// in the codebase has to follow.
+    func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback {
+        StyleFeedback(
+            id: UUID(),
+            userID: UUID(),
+            targetType: targetType,
+            targetID: targetID,
+            signal: signal,
+            reasonTags: reasonTags,
+            freeText: freeText,
+            createdAt: .now
+        )
+    }
+
     func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         throw AstraError.unimplemented("unused")
     }
@@ -495,6 +541,29 @@ private actor NoWeatherCachedBriefOutfitRepository: OutfitRepository {
     func updateOutfit(_ outfit: Outfit) async throws -> Outfit { outfit }
     func deleteOutfit(id: UUID) async throws {}
     @discardableResult
+    /// `P4-OUTFIT-14` added this verb to `OutfitRepository`. These Home
+    /// suites never exercise feedback, so it echoes rather than recording —
+    /// but it must exist, because a protocol gains members and every double
+    /// in the codebase has to follow.
+    func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback {
+        StyleFeedback(
+            id: UUID(),
+            userID: UUID(),
+            targetType: targetType,
+            targetID: targetID,
+            signal: signal,
+            reasonTags: reasonTags,
+            freeText: freeText,
+            createdAt: .now
+        )
+    }
+
     func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         throw AstraError.unimplemented("unused")
     }

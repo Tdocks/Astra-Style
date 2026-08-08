@@ -29,8 +29,8 @@ struct LocalCompatibilityScorerTests {
             name: "Fixture",
             category: .top,
             primaryColor: color,
-            formalityScore: formality,
             seasonality: seasonality,
+            formalityScore: formality,
             laundryState: laundry,
             availabilityState: availability
         )

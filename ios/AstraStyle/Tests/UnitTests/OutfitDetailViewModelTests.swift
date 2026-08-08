@@ -240,6 +240,27 @@ private actor StubOutfitRepository: OutfitRepository {
     }
 
     @discardableResult
+    /// `P4-OUTFIT-14` added this verb to `OutfitRepository`. This suite never
+    /// exercises feedback; the method exists so the double still conforms.
+    func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback {
+        StyleFeedback(
+            id: UUID(),
+            userID: UUID(),
+            targetType: targetType,
+            targetID: targetID,
+            signal: signal,
+            reasonTags: reasonTags,
+            freeText: freeText,
+            createdAt: .now
+        )
+    }
+
     func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         recordWearCallCount += 1
         lastRecordWearOutfitID = outfitID

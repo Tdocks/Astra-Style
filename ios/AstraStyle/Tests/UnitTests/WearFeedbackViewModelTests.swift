@@ -16,6 +16,12 @@ import Foundation
 import Testing
 @testable import AstraStyle
 
+/// `@MainActor` because `WearFeedbackViewModel` is, like every `@Observable`
+/// view model in this app (ADR 0006). Without it the initialiser cannot be
+/// called and `lastOutcome` cannot be read — Swift 6 reports the second as
+/// "non-Sendable type cannot exit main actor-isolated context", pointing at
+/// generated macro code rather than at the test.
+@MainActor
 @Suite("WearFeedbackViewModel")
 struct WearFeedbackViewModelTests {
 

@@ -25,6 +25,7 @@ struct OutfitOfflineDrainWiringTests {
         private var shouldFail: Bool
         private(set) var updatedOutfitIDs: [UUID] = []
         private(set) var createdWearIDs: [UUID] = []
+        private(set) var createdFeedbackIDs: [UUID] = []
 
         init(shouldFail: Bool) {
             self.shouldFail = shouldFail
@@ -44,6 +45,20 @@ struct OutfitOfflineDrainWiringTests {
             if shouldFail { throw AstraError.network("offline") }
             createdWearIDs.append(wear.id)
             return wear
+        }
+
+        /// Added when `P4-OUTFIT-14` gave `OutfitWriting` a third verb.
+        ///
+        /// Recorded and failable like the other two rather than left as a
+        /// `fatalError`: this suite's whole subject is that a queued mutation
+        /// this writer does not own is SKIPPED rather than dropped or replayed
+        /// (`OfflineMutationNotHandled`), and a stub that trapped on the newest
+        /// entity type would pass every existing test while making the one
+        /// interesting case unwritable.
+        func createFeedback(_ feedback: StyleFeedback) async throws -> StyleFeedback {
+            if shouldFail { throw AstraError.network("offline") }
+            createdFeedbackIDs.append(feedback.id)
+            return feedback
         }
     }
 

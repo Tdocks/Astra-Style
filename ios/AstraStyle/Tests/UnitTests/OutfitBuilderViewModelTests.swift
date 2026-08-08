@@ -16,6 +16,13 @@ import Foundation
 import Testing
 @testable import AstraStyle
 
+/// `@MainActor` for the same reason every other view-model suite here is:
+/// `OutfitBuilderViewModel` is `@MainActor @Observable` per ADR 0006, so
+/// without it neither the initialiser nor any observable property is reachable
+/// from the test. Swift 6 reports it against generated macro code rather than
+/// against the `#expect` that caused it, which makes it look far stranger than
+/// it is.
+@MainActor
 @Suite("OutfitBuilderViewModel")
 struct OutfitBuilderViewModelTests {
 

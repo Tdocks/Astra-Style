@@ -18,6 +18,10 @@ struct LiveOutfitRepositoryCacheTests {
     private actor NeverCalledOutfitWriter: OutfitWriting {
         func updateOutfit(_ outfit: Outfit) async throws -> Outfit { outfit }
         func createWear(_ wear: OutfitWear) async throws -> OutfitWear { wear }
+        // Third verb, added by `P4-OUTFIT-14`. Echoes like its siblings: this
+        // suite is about the read cache, and every writer method here exists
+        // only to satisfy the protocol.
+        func createFeedback(_ feedback: StyleFeedback) async throws -> StyleFeedback { feedback }
     }
 
     private func makeRepository(
