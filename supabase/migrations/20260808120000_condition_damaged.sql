@@ -28,9 +28,13 @@
 -- run best-to-worst and any `order by condition` stays meaningful.
 -- ============================================================================
 
-do $$ begin
-  alter type condition add value if not exists 'damaged' after 'worn';
-exception when duplicate_object then null; end $$;
+-- Deliberately NOT wrapped in the `do $$ ... exception when duplicate_object`
+-- guard the other enums in `20260728100100_core_enums.sql` use. That guard
+-- exists because `create type` has no `if not exists`; `alter type ... add
+-- value` does, so the guard would buy nothing — and Postgres refuses to run
+-- `ALTER TYPE ... ADD VALUE` from inside a function or DO block, so wrapping it
+-- would turn a working migration into a failing one. Idempotent as written.
+alter type condition add value if not exists 'damaged' after 'worn';
 
 comment on type condition is
   'Garment physical condition, set by CV inference (§12) and user-editable (§6.15). '
