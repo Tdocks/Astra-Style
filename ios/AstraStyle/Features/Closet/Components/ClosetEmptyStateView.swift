@@ -68,6 +68,11 @@ import SwiftUI
 struct ClosetEmptyStateView: View {
     let reason: ClosetViewModel.EmptyReason
     let onScan: () -> Void
+    /// Batch import. Offered only on the two genuinely-empty states, which is
+    /// where it is worth the most: a man with nothing in his closet is the one
+    /// person for whom twenty separate capture-wait-review cycles is the
+    /// difference between filling it and giving up.
+    let onScanSeveral: () -> Void
     let onAddManually: () -> Void
     let onClearSearch: () -> Void
     let onClearFilters: () -> Void
@@ -97,6 +102,16 @@ struct ClosetEmptyStateView: View {
                 .padding(.top, AstraSpacing.sm)
 
             if showsManualAdd {
+                Button(String(localized: "Add Several at Once",
+                              comment: "Closet empty state: batch scan call to action"),
+                       action: onScanSeveral)
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityHint(Text(String(
+                        localized: "Imports up to twenty photos of your clothes and reads them together",
+                        comment: "VoiceOver hint for the closet batch scan button"
+                    )))
+                    .accessibilityIdentifier("closet.empty.scanSeveral")
+
                 Button(manualAddTitle, action: onAddManually)
                     .buttonStyle(.astraSecondary)
                     .accessibilityHint(Text(manualAddHint))

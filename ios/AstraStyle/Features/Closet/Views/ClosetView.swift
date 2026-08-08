@@ -342,9 +342,23 @@ public struct ClosetView: View {
 
     /// Opens the scanner flow (spec §4 presents capture modally, and
     /// `AppRouter.startScan()` is the one entry point for it).
+    ///
+    /// A `Menu` rather than a plain button, because batch is a peer of
+    /// single-item capture and not a setting on it. It costs the common case
+    /// one tap, which is the honest price of having two modes at all — the
+    /// alternative considered was hiding batch behind a long press, and an
+    /// affordance nobody can find is the same as the placeholder this
+    /// replaced.
     private var scanButton: some View {
-        Button {
-            router.startScan()
+        Menu {
+            Button(String(localized: "Scan One Piece", comment: "Closet scan menu: single item"),
+                   systemImage: "camera.viewfinder") {
+                router.startScan()
+            }
+            Button(String(localized: "Add Several at Once", comment: "Closet scan menu: batch"),
+                   systemImage: "square.stack.3d.up") {
+                router.startScan(mode: .batchCloset)
+            }
         } label: {
             Image(systemName: "camera.viewfinder")
                 .astraIcon(.emphasis)
@@ -354,9 +368,9 @@ public struct ClosetView: View {
                 .frame(minWidth: AstraSize.minTapTarget, minHeight: AstraSize.minTapTarget)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .accessibilityLabel(Text(String(localized: "Scan an item", comment: "VoiceOver label for the closet scan button")))
-        .accessibilityHint(Text(String(localized: "Adds a piece to your closet with the camera", comment: "VoiceOver hint for the closet scan button")))
+        .accessibilityHint(Text(String(localized: "Adds a piece to your closet with the camera, one at a time or several together", comment: "VoiceOver hint for the closet scan button")))
+        .accessibilityIdentifier("closet.header.scan")
     }
 
     // MARK: - Content
@@ -495,6 +509,7 @@ public struct ClosetView: View {
         ClosetEmptyStateView(
             reason: reason,
             onScan: { router.startScan() },
+            onScanSeveral: { router.startScan(mode: .batchCloset) },
             onAddManually: { isAddingItem = true },
             onClearSearch: { viewModel.clearSearch() },
             onClearFilters: { viewModel.clearFilters() }

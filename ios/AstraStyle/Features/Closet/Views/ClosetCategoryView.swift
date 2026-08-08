@@ -185,6 +185,7 @@ public struct ClosetCategoryView: View {
                 ClosetEmptyStateView(
                     reason: reason,
                     onScan: { router.startScan() },
+                    onScanSeveral: { router.startScan(mode: .batchCloset) },
                     onAddManually: { isAddingItem = true },
                     onClearSearch: { viewModel.clearSearch() },
                     // Unreachable today and deliberately still wired: no
