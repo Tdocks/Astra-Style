@@ -10,7 +10,27 @@ function item(
   category: ClosetItemRow["category"],
   lastWornAt: string | null,
 ): ClosetItemRow {
-  return { id, category, last_worn_at: lastWornAt };
+  // Eleven nulls because `OutfitScorerRow` widened to the real closet table
+  // when the compatibility engine became the second `OutfitScorer` (see
+  // `outfitScorer.ts`). This scorer still reads three columns — it ranks by a
+  // calendar, not by cloth — so the padding lives here, once, rather than in
+  // every fixture below.
+  return {
+    id,
+    category,
+    last_worn_at: lastWornAt,
+    primary_color: null,
+    secondary_colors: null,
+    pattern: null,
+    material: null,
+    fit: null,
+    seasonality: null,
+    formality_score: null,
+    warmth_score: null,
+    water_resistance_score: null,
+    laundry_state: "clean",
+    availability_state: "available",
+  };
 }
 
 const NO_LOCKS = new Set<string>();

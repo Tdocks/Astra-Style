@@ -49,7 +49,7 @@ import { createLogger } from "../_shared/logger.ts";
 import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
-import type { ClosetItemRow, OutfitScorer } from "../_shared/scoring/leastRecentlyWorn.ts";
+import type { OutfitScorer, OutfitScorerRow } from "../_shared/scoring/outfitScorer.ts";
 import {
   type DailyBriefRow,
   mapBriefRowToWire,
@@ -72,7 +72,7 @@ export interface BriefRepository {
   findBrief(userId: string, briefDate: string): Promise<DailyBriefRow | null>;
 
   /** Non-archived, currently wearable candidate items. */
-  listCandidateItems(userId: string): Promise<ClosetItemRow[]>;
+  listCandidateItems(userId: string): Promise<OutfitScorerRow[]>;
 
   /**
    * Count of occasions starting within the brief's day, for

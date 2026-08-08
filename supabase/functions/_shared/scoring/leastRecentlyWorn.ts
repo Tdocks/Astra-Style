@@ -49,23 +49,6 @@ export type ClothingCategory =
   | "fragrance";
 
 /** The subset of `closet_items` columns (see supabase/migrations/20260728100300_closet.sql) this slice's scoring needs. */
-export interface ClosetItemRow {
-  id: string;
-  category: ClothingCategory;
-  last_worn_at: string | null;
-}
-
-export interface ScoredOutfit {
-  itemIds: string[];
-  compatibilityScore: number;
-  reason: string;
-}
-
-export interface OutfitScorerOptions {
-  desiredCount: number;
-  lockedItemIds: ReadonlySet<string>;
-  excludedItemIds: ReadonlySet<string>;
-}
 
 /**
  * The interface the real `CompatibilityScorer` will implement later — see
@@ -75,9 +58,6 @@ export interface OutfitScorerOptions {
  * this interface is about *which combination* to pick, not *whose* items
  * or *which items are eligible at all*.
  */
-export interface OutfitScorer {
-  generate(items: readonly ClosetItemRow[], options: OutfitScorerOptions): ScoredOutfit[];
-}
 
 /**
  * A required outfit needs exactly one item from each of these categories.
@@ -97,7 +77,7 @@ const REQUIRED_ROLES: readonly ClothingCategory[] = ["top", "bottom", "shoes"];
  */
 export const SLICE_PLACEHOLDER_COMPATIBILITY_SCORE = 65;
 
-function lastWornSortKey(item: ClosetItemRow): number {
+function lastWornSortKey(item: OutfitScorerRow): number {
   // Never-worn items (`last_worn_at === null`) sort first (most negative),
   // i.e. they are preferred over anything with a recorded wear — matching
   // the roadmap's "preferring least-recently-worn" instruction.
@@ -114,8 +94,22 @@ function lastWornSortKey(item: ClosetItemRow): number {
  * items. No color, formality, silhouette, weather, preference, co-wear, or
  * occasion signal is consulted — see the module header for why.
  */
+// The contract and its row type now live in `outfitScorer.ts` — see that
+// file's header for why they could not stay here once a second implementation
+// existed. Re-exported so existing importers of this module keep working.
+import type {
+  OutfitScorer,
+  OutfitScorerOptions,
+  OutfitScorerRow,
+  ScoredOutfit,
+} from "./outfitScorer.ts";
+
+export type { OutfitScorer, OutfitScorerOptions, OutfitScorerRow, ScoredOutfit };
+/** Historic name for the row type, kept so existing importers still resolve. */
+export type ClosetItemRow = OutfitScorerRow;
+
 export class LeastRecentlyWornScorer implements OutfitScorer {
-  generate(items: readonly ClosetItemRow[], options: OutfitScorerOptions): ScoredOutfit[] {
+  generate(items: readonly OutfitScorerRow[], options: OutfitScorerOptions): ScoredOutfit[] {
     const { desiredCount, lockedItemIds, excludedItemIds } = options;
     if (desiredCount <= 0) {
       return [];
@@ -132,7 +126,7 @@ export class LeastRecentlyWornScorer implements OutfitScorer {
       buckets.set(role, []);
     }
     for (const item of eligible) {
-      buckets.get(item.category)?.push(item);
+      buckets.get(item.category as ClothingCategory)?.push(item);
     }
     for (const bucket of buckets.values()) {
       bucket.sort((a, b) => lastWornSortKey(a) - lastWornSortKey(b));

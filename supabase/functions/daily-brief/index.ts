@@ -35,9 +35,9 @@ import {
 } from "./handler.ts";
 import type { DailyBriefRow } from "./schema.ts";
 import {
-  type ClosetItemRow,
-  LeastRecentlyWornScorer,
-} from "../_shared/scoring/leastRecentlyWorn.ts";
+  CompatibilityOutfitScorer,
+  type CompatibilityScorerRow,
+} from "../_shared/scoring/compatibilityScorer.ts";
 
 const env = readEdgeEnv();
 
@@ -46,9 +46,26 @@ const env = readEdgeEnv();
 // a retry loop or a bug, and each call can write five rows.
 const rateLimiter = createRateLimiter({ limit: 10, windowMs: 60_000 });
 
-const scorer = new LeastRecentlyWornScorer();
+// The real §10 engine as of `P4-OUTFIT-07`. `LeastRecentlyWornScorer` was
+// `P4-HOME-02`'s deliberate placeholder — least-recently-worn per role, one
+// fixed score, one hardcoded sentence — and it is retired here rather than
+// deleted, because its tests still document what a scorer must not do.
+//
+// Constructed with an empty context: the client's weather reaches the handler
+// as `weatherSnapshot` for the persisted row, but plumbing it into scoring
+// means parsing an untyped jsonb blob into `WeatherContext`, which belongs
+// with `P4-HOME-05`'s provider work rather than smuggled in here. Until then
+// the season/weather subscore takes its documented prior and reports itself
+// in `unmeasured` — the outfit is still ranked, and nothing claims it was
+// chosen for the weather.
+const scorer = new CompatibilityOutfitScorer();
 
-const CANDIDATE_ROLES = ["top", "bottom", "shoes"] as const;
+// Widened past the placeholder's three. That scorer could only fill one slot
+// per required role, so fetching outerwear was pointless; the real engine
+// scores outerwear and accessories through §2.1's pair weights and will use
+// them when they help. `roleFor` folds `watch` into `accessory` and drops
+// `fragrance`, which has nothing any formula here can read.
+const CANDIDATE_ROLES = ["top", "bottom", "shoes", "outerwear", "accessory", "watch"] as const;
 const WEARABLE_LAUNDRY_STATES = ["clean", "worn_once"] as const;
 
 const BRIEF_COLUMNS =
@@ -73,11 +90,20 @@ function generateRoute(req: Request): Promise<Response> {
       return (data as DailyBriefRow | null) ?? null;
     },
 
-    async listCandidateItems(userId: string): Promise<ClosetItemRow[]> {
+    async listCandidateItems(userId: string): Promise<CompatibilityScorerRow[]> {
       void userId;
       const { data, error } = await supabase
         .from("closet_items")
-        .select("id, category, last_worn_at")
+        // The whole row, not three fields of it. The placeholder needed `id`,
+        // `category` and `last_worn_at` because it looked at a calendar rather
+        // than at a garment; the real engine reads colour, formality, fit,
+        // materials, seasonality, warmth, water resistance and pattern,
+        // because that is what "do these go together" turns out to mean.
+        .select(
+          "id, category, subcategory, primary_color, secondary_colors, pattern, material, " +
+            "fit, seasonality, formality_score, warmth_score, water_resistance_score, " +
+            "laundry_state, availability_state, last_worn_at",
+        )
         .is("archived_at", null)
         .eq("availability_state", "available")
         .in("laundry_state", WEARABLE_LAUNDRY_STATES)
@@ -85,7 +111,7 @@ function generateRoute(req: Request): Promise<Response> {
       if (error) {
         throw serverError("Couldn't load your closet.");
       }
-      return (data ?? []) as ClosetItemRow[];
+      return (data ?? []) as unknown as CompatibilityScorerRow[];
     },
 
     async countOccasions(userId: string, briefDate: string): Promise<number> {

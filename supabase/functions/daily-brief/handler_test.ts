@@ -15,10 +15,8 @@
 import { assertEquals, assertNotEquals } from "@std/assert";
 import type { AuthClient } from "../_shared/jwt.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
-import {
-  type ClosetItemRow,
-  LeastRecentlyWornScorer,
-} from "../_shared/scoring/leastRecentlyWorn.ts";
+import { LeastRecentlyWornScorer } from "../_shared/scoring/leastRecentlyWorn.ts";
+import type { OutfitScorerRow } from "../_shared/scoring/outfitScorer.ts";
 import {
   type BriefRepository,
   handleGenerateDailyBrief,
@@ -33,14 +31,42 @@ const VALID_LOOKING_JWT_A =
 const USER_A_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BRIEF_DATE = "2026-08-06";
 
+/**
+ * A closet row carrying only the columns these tests care about.
+ *
+ * `OutfitScorerRow` widened to the real closet table when the compatibility
+ * engine replaced the least-recently-worn placeholder (`outfitScorer.ts`).
+ * These tests are about the HANDLER — write ordering, ownership, empty
+ * closets — and drive it through a stub scorer, so the eleven scoring columns
+ * are noise here. Padded once, in one place.
+ */
+function closetRow(id: string, category: string, lastWornAt: string | null): OutfitScorerRow {
+  return {
+    id,
+    category,
+    last_worn_at: lastWornAt,
+    primary_color: null,
+    secondary_colors: null,
+    pattern: null,
+    material: null,
+    fit: null,
+    seasonality: null,
+    formality_score: null,
+    warmth_score: null,
+    water_resistance_score: null,
+    laundry_state: "clean",
+    availability_state: "available",
+  };
+}
+
 /** Enough for the scorer to build more than one distinct outfit. */
-const POPULATED_CLOSET: ClosetItemRow[] = [
-  { id: "top-1", category: "top", last_worn_at: null },
-  { id: "top-2", category: "top", last_worn_at: "2026-01-01T00:00:00Z" },
-  { id: "bottom-1", category: "bottom", last_worn_at: null },
-  { id: "bottom-2", category: "bottom", last_worn_at: "2026-01-01T00:00:00Z" },
-  { id: "shoes-1", category: "shoes", last_worn_at: null },
-  { id: "shoes-2", category: "shoes", last_worn_at: "2026-01-01T00:00:00Z" },
+const POPULATED_CLOSET: OutfitScorerRow[] = [
+  closetRow("top-1", "top", null),
+  closetRow("top-2", "top", "2026-01-01T00:00:00Z"),
+  closetRow("bottom-1", "bottom", null),
+  closetRow("bottom-2", "bottom", "2026-01-01T00:00:00Z"),
+  closetRow("shoes-1", "shoes", null),
+  closetRow("shoes-2", "shoes", "2026-01-01T00:00:00Z"),
 ];
 
 function tokenMappedAuthClient(): AuthClient {
@@ -63,7 +89,7 @@ interface MemoryRepository extends BriefRepository {
   readonly writeLog: string[];
 }
 
-function memoryRepository(closet: ClosetItemRow[], occasions = 0): MemoryRepository {
+function memoryRepository(closet: OutfitScorerRow[], occasions = 0): MemoryRepository {
   const briefs = new Map<string, DailyBriefRow>();
   const createdOutfits: OutfitDraft[][] = [];
   const writeLog: string[] = [];
