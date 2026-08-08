@@ -1,6 +1,6 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { AppError } from "../_shared/errors.ts";
-import { parseEnvelope, parseGenerateOutfitsBody } from "./schema.ts";
+import { parseEnvelope, parseGenerateOutfitsBody, parseRankOutfitsBody } from "./schema.ts";
 
 const VALID_UUID = "550e8400-e29b-41d4-a716-446655440000";
 const OTHER_UUID = "11111111-2222-4333-8444-555555555555";
@@ -47,6 +47,8 @@ Deno.test("parseGenerateOutfitsBody parses a fully populated valid body", () => 
   assertEquals(parsed.desiredCount, 5);
 });
 
+const THIRD_UUID = "22222222-3333-4444-8555-666666666666";
+
 Deno.test("parseGenerateOutfitsBody rejects a non-object body", () => {
   const err = assertThrows(() => parseGenerateOutfitsBody("nope"), AppError);
   assertEquals(err.category, "validation");
@@ -70,6 +72,78 @@ Deno.test("parseGenerateOutfitsBody ignores an unexpected user_id field entirely
   const parsed = parseGenerateOutfitsBody({
     user_id: "11111111-1111-4111-8111-111111111111",
     desired_count: 2,
+  }) as unknown as Record<string, unknown>;
+  assertEquals("userId" in parsed, false);
+  assertEquals("user_id" in parsed, false);
+});
+
+// ---------------------------------------------------------------------------
+// parseRankOutfitsBody (P4-OUTFIT-08)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseRankOutfitsBody parses a minimal valid body", () => {
+  const parsed = parseRankOutfitsBody({ candidates: [{ item_ids: [VALID_UUID] }] });
+  assertEquals(parsed.candidates, [{ id: undefined, itemIds: [VALID_UUID] }]);
+  assertEquals(parsed.lockedClosetItemIds, []);
+});
+
+Deno.test("parseRankOutfitsBody parses a fully populated valid body", () => {
+  const parsed = parseRankOutfitsBody({
+    candidates: [
+      { id: VALID_UUID, item_ids: [OTHER_UUID, THIRD_UUID] },
+      { item_ids: [VALID_UUID] },
+    ],
+    locked_closet_item_ids: [OTHER_UUID],
+  });
+  assertEquals(parsed.candidates.length, 2);
+  assertEquals(parsed.candidates[0], { id: VALID_UUID, itemIds: [OTHER_UUID, THIRD_UUID] });
+  assertEquals(parsed.candidates[1], { id: undefined, itemIds: [VALID_UUID] });
+  assertEquals(parsed.lockedClosetItemIds, [OTHER_UUID]);
+});
+
+Deno.test("parseRankOutfitsBody rejects a non-object body", () => {
+  const err = assertThrows(() => parseRankOutfitsBody("nope"), AppError);
+  assertEquals(err.category, "validation");
+});
+
+Deno.test("parseRankOutfitsBody rejects a missing candidates field", () => {
+  assertThrows(() => parseRankOutfitsBody({}), AppError);
+});
+
+Deno.test("parseRankOutfitsBody rejects an empty candidates array", () => {
+  assertThrows(() => parseRankOutfitsBody({ candidates: [] }), AppError);
+});
+
+Deno.test("parseRankOutfitsBody rejects a candidate with an empty item_ids array", () => {
+  assertThrows(() => parseRankOutfitsBody({ candidates: [{ item_ids: [] }] }), AppError);
+});
+
+Deno.test("parseRankOutfitsBody rejects a candidate whose item_ids is missing", () => {
+  assertThrows(() => parseRankOutfitsBody({ candidates: [{}] }), AppError);
+});
+
+Deno.test("parseRankOutfitsBody rejects a malformed UUID inside a candidate's item_ids", () => {
+  assertThrows(
+    () => parseRankOutfitsBody({ candidates: [{ item_ids: ["not-a-uuid"] }] }),
+    AppError,
+  );
+});
+
+Deno.test("parseRankOutfitsBody rejects a malformed UUID in locked_closet_item_ids", () => {
+  assertThrows(
+    () =>
+      parseRankOutfitsBody({
+        candidates: [{ item_ids: [VALID_UUID] }],
+        locked_closet_item_ids: ["not-a-uuid"],
+      }),
+    AppError,
+  );
+});
+
+Deno.test("parseRankOutfitsBody ignores an unexpected user_id field entirely", () => {
+  const parsed = parseRankOutfitsBody({
+    user_id: "11111111-1111-4111-8111-111111111111",
+    candidates: [{ item_ids: [VALID_UUID] }],
   }) as unknown as Record<string, unknown>;
   assertEquals("userId" in parsed, false);
   assertEquals("user_id" in parsed, false);

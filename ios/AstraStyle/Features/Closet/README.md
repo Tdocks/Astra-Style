@@ -29,8 +29,8 @@ Domain seams this module builds on: `ClosetRepository`, `ClosetImageURLResolving
 
 ## Gaps still open
 
-- **The scan flow itself.** The closet's scan button reaches `AppRouter.startScan()`. Guests are gated before the modal opens. Capture UI ships; review / upload wiring still land later.
-- **Paywall UI for the free-tier 30-item cap.** Cap enforcement is at `FreeTierCappedClosetRepository` (guest 10 remains in `GuestClosetRepository`); the form surfaces a typed limit notice. Purchase / paywall chrome is Phase 7.
+- **The scan flow itself.** The closet's scan button reaches `AppRouter.startScan()`, which opens the modal for everyone (the guest gate that used to sit in front of it went with ADR 0014). Capture UI ships; review / upload wiring still land later.
+- **Paywall UI for the free-tier 30-item cap.** Cap enforcement is at `FreeTierCappedClosetRepository`; the form surfaces a typed limit notice. Purchase / paywall chrome is Phase 7.
 - **§6.15 insights** that need outfit/graph data (best pairings, redundancy, replacement).
 - **Dead route cases.** `ClosetRoute.filters` and `ClosetRoute.editItem` resolve to honest placeholders and nothing pushes them (filters are a sheet; edit is presented from detail with a loaded item). Do not wire them to the wrong thing on the assumption they are wanted.
 - **Wardrobe Score** — no `wardrobe_scores` table / scorer; the overview must not call `fetchWardrobeScore()` until one exists.

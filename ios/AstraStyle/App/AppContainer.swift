@@ -71,9 +71,6 @@ public final class AppContainer {
     /// Its own dependency rather than a method on `ClosetRepository`
     /// because it is not a repository: it owns no table, performs no
     /// mutation, and its whole behaviour is a caching policy over Storage.
-    /// Folding it into `ClosetRepository` would also force
-    /// `GuestClosetRepository` to implement a signing call that ADR 0011
-    /// says a guest must never make.
     public let closetImageURLResolver: ClosetImageURLResolving
 
     public let outfitRepository: OutfitRepository
@@ -81,14 +78,6 @@ public final class AppContainer {
     public let studioRepository: StudioRepository
     public let shoppingRepository: ShoppingRepository
     public let subscriptionRepository: SubscriptionRepository
-
-    // MARK: - Guest mode (spec §6.2; ADR 0011)
-
-    /// Transfers a guest's local closet items to a newly-authenticated
-    /// account. `closetRepository` above already routes guest calls to
-    /// local-only storage; this is the separate, explicit step that moves
-    /// that local data onto the real account once one exists.
-    public let guestMigrationService: GuestMigrationService
 
     // MARK: - Platform services
 
@@ -125,7 +114,6 @@ public final class AppContainer {
         studioRepository: StudioRepository,
         shoppingRepository: ShoppingRepository,
         subscriptionRepository: SubscriptionRepository,
-        guestMigrationService: GuestMigrationService,
         weatherService: WeatherService,
         calendarService: CalendarService,
         captureSession: any CaptureSessionControlling,
@@ -147,7 +135,6 @@ public final class AppContainer {
         self.studioRepository = studioRepository
         self.shoppingRepository = shoppingRepository
         self.subscriptionRepository = subscriptionRepository
-        self.guestMigrationService = guestMigrationService
         self.weatherService = weatherService
         self.calendarService = calendarService
         self.captureSession = captureSession
@@ -182,9 +169,8 @@ extension AppContainer {
         let pendingScanQueue = SwiftDataPendingScanQueue(modelContainer: modelContainer)
         let networkMonitor = SystemNetworkReachabilityMonitor()
         let subscriptionRepository = LiveSubscriptionRepository(apiClient: apiClient)
-        let closetStack = makeLiveClosetStack(
+        let closetRepository = makeLiveClosetStack(
             apiClient: apiClient,
-            sessionStore: sessionStore,
             offlineMutationQueue: offlineMutationQueue,
             modelContainer: modelContainer,
             subscriptionRepository: subscriptionRepository
@@ -194,18 +180,17 @@ extension AppContainer {
             sessionStore: sessionStore,
             authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
             profileRepository: LiveProfileRepository(apiClient: apiClient),
-            closetRepository: closetStack.guestAware,
-            // Not guest-aware, and does not need to be: a guest's closet
-            // has no storage paths to resolve (GuestClosetRepository
-            // returns `[]` from `fetchImages`), so this is never reached
-            // on a guest session.
+            closetRepository: closetRepository,
             closetImageURLResolver: LiveClosetImageURLResolver(),
-            outfitRepository: LiveOutfitRepository(apiClient: apiClient, offlineQueue: offlineMutationQueue),
+            outfitRepository: LiveOutfitRepository(
+                apiClient: apiClient,
+                offlineQueue: offlineMutationQueue,
+                cache: SwiftDataOutfitCache(modelContainer: modelContainer)
+            ),
             kyraRepository: LiveKyraRepository(apiClient: apiClient),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
             shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
             subscriptionRepository: subscriptionRepository,
-            guestMigrationService: closetStack.migration,
             weatherService: LiveWeatherService(),
             calendarService: LiveCalendarService(),
             captureSession: LiveCaptureSessionController(),
@@ -218,17 +203,19 @@ extension AppContainer {
         )
     }
 
-    /// Guest mode (spec §6.2; ADR 0011) + free-tier 30-cap (spec §16).
-    /// Migration writes through the capped live repository so guest→account
-    /// imports share the same 30-item check as feature creates.
+    /// The live closet stack: Postgres-backed CRUD behind spec §16's
+    /// free-tier 30-item cap.
+    ///
+    /// One wrapper, not two. `GuestAwareClosetRepository` used to sit on
+    /// top of this and route each call to local storage or to Supabase
+    /// depending on the session; ADR 0014 removed guest mode, so every
+    /// closet call now goes to one place and no call site has to ask which.
     private static func makeLiveClosetStack(
         apiClient: AstraAPIClient,
-        sessionStore: SessionStore,
         offlineMutationQueue: OfflineMutationQueue,
         modelContainer: ModelContainer,
         subscriptionRepository: SubscriptionRepository
-    ) -> (guestAware: ClosetRepository, migration: GuestMigrationService) {
-        let guestClosetStore = SwiftDataGuestClosetStore(modelContainer: modelContainer)
+    ) -> ClosetRepository {
         let liveClosetRepository = LiveClosetRepository(
             apiClient: apiClient,
             offlineQueue: offlineMutationQueue,
@@ -247,20 +234,7 @@ extension AppContainer {
                 }
             }
         )
-        let guestClosetRepository = GuestClosetRepository(
-            store: guestClosetStore,
-            currentGuestUserID: { await sessionStore.currentGuestUserID() }
-        )
-        let guestAware = GuestAwareClosetRepository(
-            isGuest: { await sessionStore.currentIsGuest() },
-            guestRepository: guestClosetRepository,
-            liveRepository: freeTierCappedClosetRepository
-        )
-        let migration = LiveGuestMigrationService(
-            closetRepository: freeTierCappedClosetRepository,
-            guestClosetStore: guestClosetStore
-        )
-        return (guestAware, migration)
+        return freeTierCappedClosetRepository
     }
 
     /// Preview / early-UI dependency graph. Every dependency is an
@@ -274,7 +248,6 @@ extension AppContainer {
         let sessionStore = SessionStore(apiClient: .previewClient, supabase: AstraSupabaseClientFactory.previewClient)
 
         let mockClosetRepository = MockClosetRepository()
-        let guestClosetStore = InMemoryGuestClosetStore()
         // Preview / `-astra-mock-backend` seeds an active Premium
         // subscription so closet UI tests are not blocked by the free
         // 30-item cap while exercising add flows against SampleData's
@@ -287,32 +260,17 @@ extension AppContainer {
                 (try? await subscriptionRepository.fetchCurrentSubscription())?.isEntitledToPremium ?? false
             }
         )
-        let guestClosetRepository = GuestClosetRepository(
-            store: guestClosetStore,
-            currentGuestUserID: { await sessionStore.currentGuestUserID() }
-        )
-        let guestAwareClosetRepository = GuestAwareClosetRepository(
-            isGuest: { await sessionStore.currentIsGuest() },
-            guestRepository: guestClosetRepository,
-            liveRepository: freeTierCappedClosetRepository
-        )
-        let guestMigrationService = LiveGuestMigrationService(
-            closetRepository: freeTierCappedClosetRepository,
-            guestClosetStore: guestClosetStore
-        )
-
         return AppContainer(
             sessionStore: sessionStore,
             authRepository: MockAuthRepository(sessionStore: sessionStore),
             profileRepository: MockProfileRepository(),
-            closetRepository: guestAwareClosetRepository,
+            closetRepository: freeTierCappedClosetRepository,
             closetImageURLResolver: MockClosetImageURLResolver(),
             outfitRepository: MockOutfitRepository(),
             kyraRepository: MockKyraRepository(),
             studioRepository: MockStudioRepository(),
             shoppingRepository: MockShoppingRepository(),
             subscriptionRepository: subscriptionRepository,
-            guestMigrationService: guestMigrationService,
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),
             captureSession: MockCaptureSessionController(isHardwareAvailable: false),

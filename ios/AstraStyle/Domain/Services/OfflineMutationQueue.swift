@@ -49,6 +49,12 @@ public struct OfflineMutation: Identifiable, Codable, Hashable, Sendable {
         case outfit
         case outfitWear
         case occasion
+        /// A `style_feedback` row (P4-OUTFIT-14: like/dislike/skip/etc. on
+        /// an outfit, closet item, or product candidate). Replayed by
+        /// `LiveOutfitRepository+Offline.swift` alongside `.outfitWear` —
+        /// same insert-with-a-client-minted-id shape, same reasoning for
+        /// why no conflict-resolution pass is needed.
+        case styleFeedback
     }
 
     public enum Operation: String, Codable, Sendable {

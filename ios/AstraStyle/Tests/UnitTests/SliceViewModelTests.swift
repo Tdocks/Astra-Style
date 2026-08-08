@@ -102,6 +102,8 @@ private actor StubClosetRepository: ClosetRepository {
         return "users/test/closet/stub.jpg"
     }
 
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
+
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError(category: .unknown, message: "not used by the slice — no camera/Vision in the slice")
     }
@@ -183,13 +185,28 @@ private actor StubOutfitRepository: OutfitRepository {
     func deleteOutfit(id: UUID) async throws {}
 
     @discardableResult
+    /// `P4-OUTFIT-14` added this verb to `OutfitRepository`. Echoes; this
+    /// suite never exercises feedback.
+    func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback {
+        StyleFeedback(
+            id: UUID(), userID: UUID(), targetType: targetType, targetID: targetID,
+            signal: signal, reasonTags: reasonTags, freeText: freeText, createdAt: .now
+        )
+    }
+
     func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         recordWearCallCount += 1
         return try recordWearResult.get()
     }
 
     func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { nil }
-    func generateDailyBrief(for date: Date) async throws -> DailyBrief {
+    func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
         throw AstraError(category: .unknown, message: "not used by the slice")
     }
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {

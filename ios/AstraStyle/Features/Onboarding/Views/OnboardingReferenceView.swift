@@ -54,11 +54,10 @@ struct OnboardingReferenceView: View {
 
     @State private var pickedItem: PhotosPickerItem?
     @State private var isShowingCamera = false
-    @State private var isGuest = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
-            ReferenceConsentPanel(isGuest: isGuest)
+            ReferenceConsentPanel()
 
             acknowledgment
 
@@ -70,7 +69,6 @@ struct OnboardingReferenceView: View {
                 storageFailureNotice(failure)
             }
         }
-        .task { isGuest = await model.isGuestSession() }
         .onChange(of: pickedItem) { _, item in
             guard let item else { return }
             Task {
@@ -276,7 +274,6 @@ struct OnboardingReferenceView: View {
 /// that is not built" — applies to interface copy at least as much as to a
 /// policy document, because this is the text the user actually reads.
 private struct ReferenceConsentPanel: View {
-    let isGuest: Bool
 
     /// Split out of the stack only because the sentence is longer than a line
     /// of source will hold. It is one paragraph on screen.
@@ -306,10 +303,7 @@ private struct ReferenceConsentPanel: View {
 
             ConsentRow(
                 title: String(localized: "Where it goes", comment: "Reference consent heading"),
-                detail: isGuest
-                    ? String(localized: "Nowhere. You're exploring as a guest, so nothing you add here leaves this phone — including this photo.",
-                             comment: "Reference consent detail, guest")
-                    : signedInDestination
+                detail: signedInDestination
             )
 
             ConsentRow(
@@ -399,7 +393,7 @@ enum ReferenceImagePreparation {
 
 #Preview("Reference — consent") {
     ScrollView {
-        ReferenceConsentPanel(isGuest: false)
+        ReferenceConsentPanel()
             .padding(AstraSpacing.pagePadding)
     }
     .background(AstraColor.backgroundPrimary)

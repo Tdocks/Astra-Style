@@ -77,7 +77,7 @@ public struct ClosetItemFormView: View {
         // empty spot to tap is a keyboard that stays up.
         .scrollDismissesKeyboard(.interactively)
         // Putting a field into edit is the man saying he is composing the
-        // next attempt, which makes the last one's message stale. The guest
+        // next attempt, which makes the last one's message stale. The
         // cap is exempt inside `acknowledgeFailure()` — it stays true
         // however much he retypes.
         .onChange(of: focused) { _, _ in viewModel.acknowledgeFailure() }
@@ -111,7 +111,7 @@ public struct ClosetItemFormView: View {
                 ClosetFormNotice(failure: failure)
             }
             // Shown alongside a recoverable failure, but not alongside the
-            // guest cap — `blockingReason` IS the cap's message there, and
+            // free-tier cap — `blockingReason` IS the cap's message there, and
             // the notice above has already said it once.
             if let reason = viewModel.blockingReason, viewModel.failure?.isRecoverable != false {
                 Text(reason)
@@ -644,8 +644,8 @@ private struct ClosetAddToListField: View {
 
 /// The post-submit message.
 ///
-/// Two treatments, because the two failures differ in kind: the guest cap
-/// is amber and permanent (nothing about it is retryable, and it ends with
+/// Two treatments, because the two failures differ in kind: the free-tier
+/// cap is amber and permanent (nothing about it is retryable, and it ends with
 /// what to do instead), an `AstraError` is destructive and transient (the
 /// button is still live behind it). Both name the state in WORDS as well as
 /// in colour — spec §19: a colour on its own is not a message.
@@ -674,8 +674,6 @@ private struct ClosetFormNotice: View {
 
     private var headline: String {
         switch failure {
-        case .guestCapReached:
-            String(localized: "That's the guest limit.", comment: "Closet form guest cap headline")
         case .freeTierCapReached:
             String(localized: "That's the free-plan limit.", comment: "Closet form free-tier cap headline")
         case .failed:

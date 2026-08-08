@@ -253,7 +253,7 @@ struct SliceCodableRoundTripTests {
     @Test("Closet enums match their Postgres types exactly")
     func closetEnumsMatchDatabaseEnumsExactly() {
         #expect(Set(ItemCondition.allCases.map(\.rawValue)) == [
-            "new_with_tags", "like_new", "good", "fair", "worn"
+            "new_with_tags", "like_new", "good", "fair", "worn", "damaged"
         ])
         #expect(Set(ClosetImageType.allCases.map(\.rawValue)) == [
             "front", "back", "label", "detail", "on_body", "other"

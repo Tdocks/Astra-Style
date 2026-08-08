@@ -1,6 +1,6 @@
 # ASTRA STYLE — ENGINEERING TASK BREAKDOWN
 
-178 tickets across Phases 1–7, grouped by phase then area. IDs follow `P{phase}-{AREA}-{nn}`. Spec references are to `00-master-spec.md`. Size: S = ≤1 day, M = 2–4 days, L = ~1 week, XL = 1.5–2+ weeks.
+179 tickets across Phases 1–7, grouped by phase then area. IDs follow `P{phase}-{AREA}-{nn}`. Spec references are to `00-master-spec.md`. Size: S = ≤1 day, M = 2–4 days, L = ~1 week, XL = 1.5–2+ weeks.
 
 ---
 
@@ -326,6 +326,16 @@ Scope: Implement the Edge Function that receives the full onboarding payload (go
 - A successful call sets `onboarding_completed_at` to a non-null timestamp, verified by a subsequent read.
 - Request schema validation rejects a malformed payload with a 4xx, not a 500.
 **Dependencies:** `P1-INFRA-05`, `P1-CORE-04`
+**Size:** M
+
+#### `P2-ONBOARD-13` — Offer the photo path in "add first closet items"
+Scope: Make photographing a garment the primary way through the spec §5.1 step 12 first-items step, using the existing Phase 3 scanner (capture → analyse → correct → save) presented as a sheet, with the typed three-field form retained beneath it. `P2-ONBOARD-09` shipped the typed form and met both of its criteria; this is a scope EXTENSION opened after the first internal TestFlight build, where the step read as a data-entry form one screen before the payoff and offered no way to use the photo→analyse→correct loop the product is built around (spec §5.3, §6.16, §12).
+**Acceptance criteria**
+- The photo control is on screen without scrolling at the default text size, and stays above the typed form in reading order at the largest Dynamic Type size (where nothing in this flow fits unscrolled, so "reachable, and still first" is the honest bar).
+- A garment saved through the scanner appears in the step's own list and makes the footer's forward button read "Continue" rather than offering a skip.
+- The step remains skippable: neither opening the scanner nor completing a scan can disable the forward button, and a backend that fails every write still cannot trap the user (`P2-ONBOARD-09`'s first criterion must continue to hold).
+- Exactly one `closet_items` row is written per photograph — the step records the scanner's write rather than repeating it.
+**Dependencies:** `P2-ONBOARD-09`, `P3-SCAN-05`, `P3-SCAN-09`
 **Size:** M
 
 ## CORE
@@ -1523,10 +1533,10 @@ Scope: Execute the complete spec §30 sequence (install, sign in, complete onboa
 | Phase | Tickets |
 |---|---|
 | Phase 1 — Foundation | 25 |
-| Phase 2 — Identity | 17 |
+| Phase 2 — Identity | 18 |
 | Phase 3 — Closet | 27 |
 | Phase 4 — Outfit intelligence | 26 |
 | Phase 5 — Kyra | 22 |
 | Phase 6 — Studio and commerce | 25 |
 | Phase 7 — Monetization and hardening | 36 |
-| **Total** | **178** |
+| **Total** | **179** |

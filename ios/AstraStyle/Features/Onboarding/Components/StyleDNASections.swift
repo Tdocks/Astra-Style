@@ -364,9 +364,9 @@ private struct LabelledList: View {
 /// (exactly three, one primary, a fourth tap refused rather than absorbed) end
 /// up enforced in one place and not the other.
 struct StyleDNAIdentityEditor: View {
-    /// "Regenerate" when there is a server to regenerate from, "Save" for a
-    /// guest whose answers only change the draft. Named by the caller because
-    /// only the caller knows which.
+    /// Named by the caller rather than hardcoded, so this editor can be
+    /// reused by a screen whose confirm means something other than
+    /// "regenerate".
     let confirmTitle: String
     let onConfirm: ([StyleIdentity], StyleIdentity?) -> Void
 

@@ -3,10 +3,9 @@
 //  AstraStyle
 //
 //  Spec §16 free-tier 30-item closet cap, enforced at the
-//  `ClosetRepository` boundary the same way `GuestClosetRepository`
-//  enforces the guest 10-item cap. `AppContainer` wraps the live (or
-//  mock) closet repository with this type before handing it to
-//  `GuestAwareClosetRepository`, so every signed-in create path shares
+//  `ClosetRepository` boundary rather than at each call site.
+//  `AppContainer` wraps the live (or mock) closet repository with this
+//  type and injects the result everywhere, so every create path shares
 //  one check.
 //
 //  Premium uncapping consults `isEntitledToPremium` — typically
@@ -45,6 +44,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
 
     public func uploadCapturedImage(_ data: Data) async throws -> String {
         try await base.uploadCapturedImage(data)
+    }
+
+    public func deleteCapturedImage(atPath storagePath: String) async throws {
+        try await base.deleteCapturedImage(atPath: storagePath)
     }
 
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {

@@ -3,8 +3,13 @@
 // ============================================================================
 // Optional live `VisionAnalysisProvider` adapter (docs/08 §2.5 — OpenAI
 // GPT-5.6 Luna). Constructed ONLY from `closet/index.ts` when
-// `VISION_ANALYSIS_PROVIDER=openai` and `OPENAI_API_KEY` are set. Never
-// imported by handlers or tests that should stay offline.
+// `VISION_ANALYSIS_PROVIDER=openai` and `VISION_PROVIDER_API_KEY` are set.
+// Never imported by handlers or tests that should stay offline.
+//
+// That key used to be read as `OPENAI_API_KEY` — a name in neither spec
+// §25's per-capability scheme nor ADR 0004's vocabulary, and never set on
+// the project, so this adapter had never once been constructed. See
+// `closet/index.ts`'s header for the whole diagnosis.
 //
 // The pre-launch menswear-subcategory accuracy pilot (docs/08 §2.5) is a
 // hard gate before this adapter serves real users — enabling it in a
@@ -31,7 +36,14 @@ export interface OpenAIVisionAnalysisDeps {
   readonly fetchImpl?: typeof fetch;
 }
 
-const RESULT_SCHEMA = {
+/**
+ * Exported for `openaiVisionAnalysis_test.ts` only. Nothing else should read
+ * it — vendor request shapes stay in this file per the header — but the
+ * invariants this schema has to satisfy are not checkable any other way, and
+ * every one of them was discovered by an HTTP 400 against a live endpoint
+ * during the `docs/08` §2.5 pilot gate rather than by anything in CI.
+ */
+export const RESULT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
@@ -48,11 +60,44 @@ const RESULT_SCHEMA = {
     "condition",
     "condition_confidence",
     "fields_below_confidence_threshold",
+    // The five below are the ones the model is allowed not to know. They are
+    // listed here anyway because `strict: true` rejects a schema whose
+    // `required` is not every key in `properties` — optionality is expressed
+    // by a nullable type, not by omission from this list. Getting that wrong
+    // fails the whole request with HTTP 400, not the one field.
+    "fit",
+    "size",
+    "seasonality",
+    "warmth_score",
+    "water_resistance_score",
   ],
   properties: {
-    category: { type: "string" },
+    // Closed vocabulary, because `closet/mapper.ts` has one and free text does
+    // not survive the trip. Asked for a bare string this returned "menswear
+    // top" — a better description of the garment than "top", and worthless:
+    // it misses `CATEGORIES`, falls to the device-hint branch at confidence
+    // 0.4, and trips `flags.add("category")`. The review screen would then ask
+    // the user to confirm a category the model had in fact identified with
+    // 0.95 confidence. Degradation paths should fire when something is
+    // genuinely uncertain, not when two vocabularies disagree about wording.
+    category: {
+      type: "string",
+      enum: ["top", "bottom", "outerwear", "shoes", "accessory", "watch", "fragrance"],
+      description: "The garment's slot. Use the closest match; do not invent a finer term.",
+    },
+    // Free text on purpose — this is the one field where specificity is the
+    // point, and nothing downstream matches it against a vocabulary.
     subcategory: { type: "string" },
-    confidence: { type: "number" },
+    // 0-1, and stated explicitly because the sibling attribute scores are
+    // 0-100. Naming the 0-100 convention in the system prompt without naming
+    // this one moved every confidence in the response onto 0-100 as well —
+    // 0.93 became 93 — which silently defeats `mapper.ts`'s `< 0.6` gate,
+    // the one check standing between a low-confidence reading and a
+    // confidently wrong closet item.
+    confidence: {
+      type: "number",
+      description: "Probability in 0-1 that the category and subcategory are right. Not 0-100.",
+    },
     primary_color_name: { type: "string" },
     secondary_color_names: { type: "array", items: { type: "string" } },
     pattern: {
@@ -60,7 +105,25 @@ const RESULT_SCHEMA = {
       enum: ["solid", "stripe", "check", "herringbone", "print", "texture-only"],
     },
     material: { type: "array", items: { type: "string" } },
-    formality_score: { type: "number" },
+    // The scale has to be in the schema, because the model will not guess it.
+    // Asked for a bare "formality_score" this returned 3 for a casual camp
+    // shirt — correct on an unstated 0-10 scale, and a garment barely more
+    // formal than pyjamas on the 0-100 scale that `closet_items.formality_score`
+    // actually enforces. The check constraint accepts 3 happily. Nothing would
+    // have caught it downstream; it would simply have made every outfit
+    // containing a scanned item score badly on the §10 formality subscore.
+    //
+    // The anchors are `docs/05` §3's table, thinned to the rungs a classifier
+    // can actually discriminate. Keep them in sync with that table.
+    formality_score: {
+      type: "number",
+      description: "Formality on a 0-100 scale (integer). Anchors: 0 graphic tee or " +
+        "athletic shorts; 20 heavyweight tee or distressed denim; 30 casual " +
+        "flannel or dark-wash jeans; 40 knit polo or relaxed chino; 50 casual " +
+        "button-down worn untucked; 60 fitted oxford or wool dress trouser; " +
+        "70 dress shirt without a tie; 80 dress shirt with a tie or matched " +
+        "suit; 100 white-tie formalwear. Not a 0-10 scale.",
+    },
     brand_guess: {
       anyOf: [
         {
@@ -69,7 +132,10 @@ const RESULT_SCHEMA = {
           required: ["name", "confidence"],
           properties: {
             name: { type: "string" },
-            confidence: { type: "number" },
+            confidence: {
+              type: "number",
+              description: "Probability in 0-1 that this brand is right. Not 0-100.",
+            },
           },
         },
         { type: "null" },
@@ -80,13 +146,59 @@ const RESULT_SCHEMA = {
       type: "string",
       enum: ["excellent", "good", "fair", "worn", "damaged"],
     },
-    condition_confidence: { type: "number" },
+    condition_confidence: {
+      type: "number",
+      description: "Probability in 0-1 that the condition is right. Not 0-100.",
+    },
     fields_below_confidence_threshold: { type: "array", items: { type: "string" } },
-    fit: { type: "string" },
-    size: { type: "string" },
-    seasonality: { type: "array", items: { type: "string" } },
-    warmth_score: { type: "number" },
-    water_resistance_score: { type: "number" },
+    // Nullable, and meant to be. A garment photographed folded has no legible
+    // fit; a garment with the label turned away has no legible size. `null`
+    // here is the model saying so, and the parser below turns it back into an
+    // absent field rather than a defaulted one — the same bargain as
+    // `brand_guess` above, and the reason the request asks for these at all.
+    fit: {
+      anyOf: [{
+        type: "string",
+        enum: ["slim", "tailored", "regular", "relaxed", "oversized"],
+      }, { type: "null" }],
+      description: "Cut of the garment, or null if the photograph does not show it.",
+    },
+    size: { anyOf: [{ type: "string" }, { type: "null" }] },
+    // Closed for the same reason: `mapper.ts` filters against `SEASONS` and
+    // drops anything else silently. "early fall" was a real answer, and it
+    // vanished — the item simply came back with one fewer season and no
+    // record that a reading had been discarded.
+    seasonality: {
+      anyOf: [{
+        type: "array",
+        items: {
+          type: "string",
+          enum: ["spring", "summer", "fall", "winter", "all_season"],
+        },
+      }, { type: "null" }],
+      description: "Seasons the garment suits. Use all_season only when it genuinely " +
+        "suits all four; otherwise list the individual seasons.",
+    },
+    // Both 0-100, both for the same reason as formality_score, and both got
+    // the same 0-10 answer before the scale was stated: warmth 2 and water
+    // resistance 0 for a mid-weight cotton shirt. `docs/05` §2.5 pins the
+    // meaning of the endpoints — warmth is read as an ideal wearing
+    // temperature, so an understated value does not merely rank low, it tells
+    // the weather subscore the garment belongs in a heatwave.
+    warmth_score: {
+      anyOf: [{ type: "number" }, { type: "null" }],
+      description: "Insulation on a 0-100 scale (integer), or null if not determinable. " +
+        "0 means ideal at about 30C (linen camp shirt); 50 means ideal at " +
+        "about 12C (mid-weight knit); 100 means ideal at about -5C (heavy " +
+        "down parka). Not a 0-10 scale.",
+    },
+    water_resistance_score: {
+      anyOf: [{ type: "number" }, { type: "null" }],
+      description: "Water resistance on a 0-100 scale (integer), or null if not " +
+        "determinable. 0 is untreated cotton or suede; 30 is the threshold " +
+        "below which a garment is treated as unsuitable for rain; 70 is a " +
+        "coated or waxed shell; 100 is a sealed hardshell. Not a 0-10 scale.",
+    },
   },
 } as const;
 
@@ -157,7 +269,11 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
     const system =
       "You are Astra Style's garment classifier. Return ONLY JSON matching the schema. " +
       "Classify menswear finely. Prefer device OCR text for brand/size over re-reading pixels. " +
-      "Calibrate confidence honestly — a wrong high-confidence brand is worse than a low guess.";
+      "Calibrate confidence honestly — a wrong high-confidence brand is worse than a low guess. " +
+      "Two different numeric conventions live in this schema and mixing them is the most " +
+      "damaging error you can make: every *confidence* is a probability in 0-1, while the " +
+      "attribute scores (formality, warmth, water resistance) are 0-100. Read each field's " +
+      "description before answering.";
 
     const userText = JSON.stringify({
       device_hints: hints ?? null,
@@ -177,7 +293,21 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
         },
         body: JSON.stringify({
           model: this.model,
-          temperature: 0.2,
+          // No `temperature`. This asked for 0.2 — determinism matters for a
+          // classifier, and a reproducible reading is the whole point of the
+          // confidence calibration below. The reasoning models reject it
+          // outright: HTTP 400, "Unsupported value: 'temperature' does not
+          // support 0.2 with this model. Only the default (1) value is
+          // supported." Sending it fails the entire request, so the choice is
+          // not "less deterministic" versus "more" — it is a working analyser
+          // versus none.
+          //
+          // Determinism is bought elsewhere instead: `strict: true` on the JSON
+          // schema pins the shape, and the system prompt pins the calibration.
+          // Do not add this back when a future model accepts it again without
+          // first checking that the pinned model still does — this failure was
+          // invisible from the endpoint, because the adapter degraded honestly
+          // and returned "New garment" at 0.2 confidence rather than throwing.
           response_format: {
             type: "json_schema",
             json_schema: {
@@ -266,8 +396,11 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
         category: asString(body["category"], hints?.approximateCategory ?? "top"),
         subcategory: asString(body["subcategory"], "Garment"),
         confidence: asNumber(body["confidence"], 0.5),
-        colorLch: { l: 50, c: 20, h: 240 },
-        secondaryColorsLch: [],
+        // No colorLch, deliberately. This adapter never sees a pixel value —
+        // it asks the model for a colour *name* and hands that to the mapper,
+        // which is the only colour the closet actually stores. What stood here
+        // was a hardcoded `{ l: 50, c: 20, h: 240 }`, returned for every
+        // garment ever scanned. See the field's comment in `visionAnalysis.ts`.
         pattern: mapPattern(asString(body["pattern"], "solid")),
         material: asStringArray(body["material"]),
         formalityAnchorLow: { label: "casual", score: 20 },

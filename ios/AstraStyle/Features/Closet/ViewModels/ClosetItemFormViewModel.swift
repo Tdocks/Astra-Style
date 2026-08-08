@@ -56,7 +56,7 @@
 //  "Outfit count" is derived from `outfit_items`, which is Phase 4, and is
 //  not an editable field in any case. Neither is invented here.
 //
-//  THE GUEST CAP IS NOT AN ERROR AND IS NOT A DISMISSAL. See
+//  THE FREE-TIER CAP IS NOT AN ERROR AND IS NOT A DISMISSAL. See
 //  `capReachedDoesNotCloseTheForm` in this file's tests and the note on
 //  `Failure` below.
 //
@@ -87,7 +87,7 @@ public final class ClosetItemFormViewModel {
     /// The things a submit can actually fail with, and the reason cap
     /// cases are distinct from a bare `AstraError`.
     ///
-    /// `GuestClosetError.capReached` and `FreeTierClosetError.capReached`
+    /// `FreeTierClosetError.capReached`
     /// are permanent facts about this session/tier, not transient failures
     /// with a retry — the next item past the limit will be refused every
     /// time it is offered. `AstraError` is the opposite: a network drop is
@@ -95,9 +95,8 @@ public final class ClosetItemFormViewModel {
     /// put a retry button in front of a condition retrying cannot clear,
     /// which is spec §22's dead-button bar failed by a different route.
     /// Same split, and the same reason, as
-    /// `OnboardingViewModel.AddItemState.guestCapReached`.
+    /// `OnboardingViewModel.AddItemState`'s cap case.
     public enum Failure: Equatable, Sendable {
-        case guestCapReached(limit: Int)
         case freeTierCapReached(limit: Int)
         case failed(AstraError)
 
@@ -112,8 +111,6 @@ public final class ClosetItemFormViewModel {
         /// copy someone has to maintain.
         public var message: String {
             switch self {
-            case .guestCapReached(let limit):
-                GuestClosetError.capReached(limit: limit).localizedDescription
             case .freeTierCapReached(let limit):
                 FreeTierClosetError.capReached(limit: limit).localizedDescription
             case .failed(let error):
@@ -127,7 +124,7 @@ public final class ClosetItemFormViewModel {
         /// keeps offering its submit button.
         public var isRecoverable: Bool {
             switch self {
-            case .guestCapReached, .freeTierCapReached: false
+            case .freeTierCapReached: false
             case .failed: true
             }
         }
@@ -186,8 +183,7 @@ public final class ClosetItemFormViewModel {
     ///
     /// A closure rather than a `SessionStore` because that is how the rest
     /// of the codebase passes this exact fact across an isolation boundary
-    /// (`AppContainer` hands `GuestClosetRepository` a
-    /// `currentGuestUserID` closure the same way), and because taking the
+    /// and because taking the
     /// store itself would drag a live Supabase client into every unit test
     /// of a form that never makes an auth call.
     private let currentUserID: (@Sendable () async -> UUID?)?
@@ -317,15 +313,10 @@ public final class ClosetItemFormViewModel {
             }
             onSaved?(saved)
 
-        } catch let error as GuestClosetError {
+        } catch let error as FreeTierClosetError {
             // Typed, and caught before `AstraError`, so the cap is
             // recognised without matching on a message string — the reason
-            // `GuestClosetError` is a separate type at all.
-            switch error {
-            case .capReached(let limit):
-                failure = .guestCapReached(limit: limit)
-            }
-        } catch let error as FreeTierClosetError {
+            // `FreeTierClosetError` is a separate type at all.
             switch error {
             case .capReached(let limit):
                 failure = .freeTierCapReached(limit: limit)
@@ -452,9 +443,6 @@ public extension ClosetItemFormViewModel {
     /// every reason it can be off has a sentence here and the view renders
     /// whichever one applies next to the button.
     var blockingReason: String? {
-        if case .guestCapReached(let limit) = failure {
-            return Failure.guestCapReached(limit: limit).message
-        }
         if case .freeTierCapReached(let limit) = failure {
             return Failure.freeTierCapReached(limit: limit).message
         }

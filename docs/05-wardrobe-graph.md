@@ -8,6 +8,151 @@ All formulas here are deterministic and side-effect-free given their inputs, spe
 
 ---
 
+## 0. Amendments made when this document was implemented (2026-08-07)
+
+Implementing §1–§4 as `supabase/functions/_shared/scoring/` surfaced six places
+where this document could not be followed as written. All six are corrected in
+the sections below; this section is the record of **why**, so nobody
+"restores" an earlier value later. The implementation is the arbiter for the
+first two and the shipped schema is the arbiter for the rest.
+
+**1. §1.3's neutral bands were written in HSL hue and applied in CIE hue.**
+The navy band was `h° 240–270`. Five real navies pushed through §1.2's own
+pipeline land at **274.4–289.2**; not one fell inside. Olive-drab's band capped
+chroma at 22 and real olive-drabs measure **17.7–30.6**. Both bands — the only
+two the table exists for, since black/grey/white are already caught by the
+`C* ≤ 12` rule — classified their own subject as chromatic. The cause is the
+trap §1.1 warns about: 240° is where blue sits in HSL, whose hue is an artifact
+of the RGB cube; in CIE LCh blue is near 280–300°. Bands replaced with measured
+envelopes and pinned from both sides in `colorSpace_test.ts`.
+
+**2. §2.2's worked example changes with it — 0.91 becomes 0.97.** Its olive
+polo was classified chromatic *because* the old band excluded it. Under the
+corrected band it is a neutral, all three pairs take the neutral route, and two
+clear the ≥30 lightness-contrast bonus. This is the better answer on the
+merits: olive is a canonical menswear neutral, and an engine that scored an
+olive polo as a chromatic element competing with stone trousers would be
+marking down one of the easiest outfits a man owns.
+
+**3. §2.5's warmth scale is 0–100, not 0–10.** `closet_items.warmth_score` is
+`smallint check (between 0 and 100)`. Read on the 0–10 scale, an overcoat at 85
+maps to an ideal temperature of −267°C and every winter garment scores zero
+against every forecast on earth. `water_resistance_score` is the same column
+type, so §2.5's "< 3" rain threshold becomes "< 30".
+
+**4. §2.9 excludes more than dirty items.** `availability_state` has seven
+values, not two: it also carries `in_alteration`, `packed_for_travel`,
+`lent_out` and `lost`. A jacket at the tailor, in a suitcase in another city,
+on a friend's floor or gone is exactly as impossible to put on as a dirty
+shirt. The hard filter excludes all of them.
+
+**5. §1.5's pattern rule cannot run — there is no `pattern_scale` column.**
+The whole rule turns on scale separation. The penalty is skipped and *reported*
+rather than run against a guessed scale; inventing the one fact a rule reads is
+worse than not running the rule.
+
+**6. §2.8 has no item-level input — `occasion_tags` exists only on `outfits`.**
+Item-level occasion relevance returns the section's own unconstrained-request
+default and names the missing column.
+
+Two smaller notes. `clothing_category` has `watch` and `fragrance`, which
+postdate §2.1's role table: `watch` folds into `accessory`, and `fragrance` is
+excluded from scoring entirely — it has no colour, silhouette or formality any
+formula here can read, and a scent cannot clash with trousers. And §2.3's third
+worked pair score is printed as 0.417 where `(28/40)^1.5` gives 0.41434; the
+document rounds `0.58566` to `0.583`.
+
+A seventh surfaced when §5 was implemented (2026-08-08). The seed table is the
+arbiter for this one:
+
+**7. §5.1's closed form never passed through its own seed table.** The seeds
+say n=5→3, n=15→12, n=40→35, n=80→60; `3 + 9.2 × ln(n/5 + 1)` evaluates to
+**9.38, 15.75, 23.2, 29.1** at those same four points. No curve of that family
+can fit them: from n=5→40 the seeds grow *superlinearly* (3× the items buys 4×
+the versatility, as raw per-item combinations do — they grow ~(n/3)²), and a
+concave log cannot, so "interpolated via" was never true of these seeds. The
+seeds are the operative values — §5.1's own prose re-asserts one ("half of the
+n=15 expectation of 12") and §5.10's versatility column only reproduces
+against them — and the formula fails at both ends of the range: at n=5 it
+demands 9.38 qualifying outfits per item where the best possible 2/2/1 split
+structurally caps the per-item mean at **2.4** (an expectation no closet can
+meet, contradicting §5.1's own "what's structurally achievable" definition),
+and at n=80 its target of 29 is trivially cleared by any large closet (~710
+raw combinations per item), pegging a 25%-weight component at 1.0 for volume
+alone — the exact failure §5.1's normalization exists to prevent, and the
+§5.8/master-spec failure mode of volume buying score. The formula looks like
+an unrefitted earlier draft: without the `+ 1`, `3 + 9.2 × ln(n/5)` hits
+n=5→3 exactly and lands 13.1 against the n=15 seed of 12 — a plausible fit to
+a two-seed draft that predates the n=40/80 seeds and the "+1" corruption.
+§5.1 now interpolates the seeds piecewise-linearly (0 below n=5; extended past
+n=80 at the last segment's slope so volume never saturates the component) and
+drops "log-shaped". Pinned from both sides in `wardrobeScore_test.ts`.
+
+Three more surfaced in the same pass over §5, and were left standing at the
+time because each needed a decision rather than a fix. They are decided now.
+
+**8. §5.2's `0.4 ×` coefficient caps fit confidence at 0.76.** Printed as
+`0.6 + 0.4 × feedbackAdjustment` with `feedbackAdjustment ∈ {+0.4, 0, −0.5}`,
+the component's whole reachable range is **[0.4, 0.76]** — a user who tells
+Astra that every garment he owns fits him lands at 0.76 out of 1.0, and no
+user can ever reach the top of a component named "fit confidence". Three
+things say the coefficient is the corruption and not the ±values. `0.6 + 0.4`
+is exactly `1.0`, so removing it makes the best case land precisely on the
+ceiling — designed, not coincidental. §5.2 wraps the expression in
+`clamp(·, 0, 1)`, a clamp that under the printed formula is unreachable in
+both directions; authors do not clamp expressions they believe are already
+bounded, and without the coefficient it does real work (−0.5 takes the value
+to 0.1, and §4.3's body multiplier can push it further). And fit confidence
+would otherwise be the only one of §5's seven components that cannot reach
+1.0, costing every user 3.6 points of a 100-point score for no stated reason.
+The adjustment now applies directly: **1.0 / 0.6 / 0.1**. The asymmetry is the
+doc's own and is the right way round — one "this doesn't fit" is stronger
+evidence than one "I like this".
+
+**9. §5.4 normalizes entropy by the wrong denominator, and scores a two-colour
+wardrobe at 0.** `normalizedEntropy = ShannonEntropy / log2(numNonEmptyClusters)`
+divides by the number of clusters the wardrobe *occupies*, which measures how
+evenly its items are spread across the buckets they already sit in — not how
+few buckets it uses. A wardrobe split evenly between exactly two hue families
+gives entropy 1.0 over log2(2) = 1.0, so **cohesion 0**: the bottom of the
+scale, for the palette §5.4's own prose calls high-scoring ("a wardrobe
+concentrated in 2–4 hue families plus neutrals scores high"). Every evenly
+spread wardrobe scores 0 however few families it spans, and a single family
+divides by log2(1) = 0. The denominator is now `log2(13)` — the maximum
+possible entropy over the full cluster space of 12 hue bins plus neutral — so
+the ratio answers "how much of the available spread does this wardrobe use",
+which is what concentration means. One family → 1.0; two evenly → 0.73; a
+realistic capsule (60% neutral, two chromatic families) → 0.63; all thirteen
+evenly → 0.0. The `numNonEmptyClusters ≤ 1` special case disappears with it,
+since a single-outcome distribution has entropy 0 and now falls out of the
+same arithmetic.
+
+**10. §5.6's `damaged` rung had no value to land on.** The scale is
+`excellent=1.0, good=0.8, fair=0.5, worn=0.25, damaged=0.0`; the shipped
+`condition` enum was `new_with_tags, like_new, good, fair, worn`. So the 0.0
+rung was unreachable and a garment with a hole in it could not score below
+0.25 — a wardrobe of ruined clothes and a wardrobe of well-loved ones sat four
+points apart on a 100-point score. This one was not only a scoring gap: the
+vision provider's vocabulary has always included `damaged`, and
+`closet/mapper.ts` mapped it down to `worn` on the way in, so a correct reading
+of a ruined garment arrived in the closet as a wrong one. Unlike amendments
+3–6, the arbiter here is **the document, not the schema** — the schema was
+simply missing a value the document specifies, so
+`20260808120000_condition_damaged.sql` adds it rather than the document
+conceding. `damaged` is deliberately not folded into
+`availability_state.unavailable`: availability answers "can this be worn right
+now" and every other value in it is temporary or locational, while condition is
+a property of the garment that persists across all of them.
+
+Amendments 8 and 9 were invisible to CI because nothing tested either
+component's arithmetic — `wardrobeScore_test.ts` checked that every component
+was *reported*, not what any of them computed. Four regression tests now fail
+against the old behaviour and pass against the new; `check_schema_drift.py`
+gained the ability to read `alter type ... add value`, without which amendment
+10 would have made it report the correct Swift case as drift.
+
+---
+
 ## 1. Color Space and Perceptual Color Model
 
 ### 1.1 Why not RGB
@@ -48,12 +193,41 @@ An item's primary color is classified **functional-neutral** if either:
 | Charcoal | 20–35 | 0–12 | any |
 | Gray | 35–75 | 0–10 | any |
 | White | 90–100 | 0–8 | any |
-| Stone / Bone / Cream | 75–92 | 5–18 | 70–95 |
-| Navy | 15–30 | 10–25 | 240–270 |
-| Olive-drab | 30–45 | 10–22 | 95–115 |
-| Tan / Camel | 55–75 | 15–30 | 60–80 |
+| Stone / Bone / Cream | 75–92 | 5–20 | 70–100 |
+| Navy | 8–32 | 12–30 | 270–295 |
+| Olive-drab | 28–50 | 12–32 | 100–120 |
+| Tan / Camel | 60–80 | 15–33 | 60–100 |
 
-Every closet item stores `primary_color_lch` and `is_functional_neutral` (precomputed at analysis time, not recomputed per scoring call).
+**Corrected 2026-08-07 — see §0 amendment 1.** The bottom four rows were
+originally `stone 70–95°`, `navy 240–270°`, `olive-drab C* 10–22`, `tan 60–80°`,
+and in that form the navy and olive-drab bands matched nothing at all. The
+values above are measured envelopes, not reasoned ones: real garment sRGB pushed
+through §1.2's pipeline and widened to what came out.
+
+**Chroma, not hue, is what separates a neutral from its saturated twin.** Cobalt
+measures h° 291 — squarely between two of the navies used to fit that band. What
+makes navy a neutral is that its saturation has been taken out: navy `C* 15–28`,
+cobalt `C* 63`. Every band above therefore leans on its chroma ceiling to do the
+discriminating, and widening one of those ceilings is the change most likely to
+start calling a royal-blue shirt a neutral. The nearest miss in the whole
+vocabulary is moss at `C* 35.2`, clearing olive-drab's ceiling by three points.
+
+~~Every closet item stores `primary_color_lch` and `is_functional_neutral`
+(precomputed at analysis time, not recomputed per scoring call).~~
+
+**Neither column exists, and adding them would have shipped the engine inert.**
+`closet_items.primary_color` is `text` — the word "olive" — because that is what
+a vision provider returns and what the §6.10 palette is written in. Migrating to
+precomputed columns would leave every existing row null, making colour (the
+heaviest component at 0.25) a flat 0.6 prior for every current user's entire
+closet.
+
+So the words resolve to LCh at scoring time, through
+`_shared/scoring/colorVocabulary.ts` — the server's copy of the 58-word
+vocabulary iOS already uses to draw Style DNA palette swatches, held in sync by
+`scripts/check_color_vocabulary.py`. A precomputed column, when it arrives,
+becomes a cache in front of that function rather than a replacement for it: the
+words will still be what the providers speak.
 
 ### 1.4 Harmony rules
 
@@ -126,13 +300,27 @@ Weights present in the outfit are renormalized to sum to 1.0 (e.g., an outfit wi
 | Stone trousers | (200,190,165) | 77 | 1 | 14 | 14 | 86° | Neutral (`C* ≤ 12`? no — but falls in Stone band: L*77∈[75,92], C*14∈[5,18], h°86∈[70,95] → **neutral**) |
 | White sneakers | (245,243,238) | 96 | 0 | 1 | 1 | — | Neutral (`C* ≤ 12`) |
 
-- Polo–Trousers: chromatic–neutral → base 0.90; polo `C*=31` not >55, no penalty → **0.90**
-- Polo–Shoes: chromatic–neutral → 0.90 (no chroma penalty) → **0.90**
-- Trousers–Shoes: neutral–neutral → base 0.95, `|L1-L2| = 19 < 30` so no contrast bonus → **0.95**
+**Recomputed 2026-08-07 — see §0 amendments 1 and 2.** The table above classified
+the polo chromatic on the strength of `C* = 31` exceeding the old olive-drab
+band's ceiling of 22. That ceiling excluded every real olive-drab garment and has
+been corrected to 32, so the polo — measured at `C* 28.9` through §1.2's
+pipeline — is a **neutral**, and all three pairs take the neutral–neutral route:
 
-Outfit color subscore = `0.35×0.90(top-bottom) + 0.20×0.90(top-shoes) + 0.20×0.95(bottom-shoes)`, renormalized over weights actually present (0.75 total since no outerwear/accessories) → `(0.315+0.180+0.190)/0.75 = 0.913`.
+- Polo (L\* 45) – Trousers (L\* 77): neutral–neutral, `|ΔL| = 32 ≥ 30` → 0.95 + 0.03 = **0.98**
+- Polo (L\* 45) – Shoes (L\* 96): neutral–neutral, `|ΔL| = 51 ≥ 30` → 0.95 + 0.03 = **0.98**
+- Trousers (L\* 77) – Shoes (L\* 96): neutral–neutral, `|ΔL| = 19 < 30`, no bonus → **0.95**
 
-**Color subscore = 0.91**, contributing `0.25 × 0.91 = 0.228` to the final compatibility score.
+Outfit color subscore = `0.35×0.98 + 0.20×0.98 + 0.20×0.95`, renormalized over the
+0.75 of weight actually present → `(0.343+0.196+0.190)/0.75 = 0.972`.
+
+**Color subscore = 0.97**, contributing `0.25 × 0.97 = 0.243` to the final
+compatibility score. The old figures were 0.91 and 0.228.
+
+That the score went *up* is the correct outcome, not a convenient one. Olive is
+a canonical menswear neutral — it anchors a hue the way navy and khaki do, which
+is precisely why §1.3 has a band for it — and three neutrals with real value
+separation is about as safe as an outfit gets. An engine that scored this
+combination at 0.91 was marking down one of the easiest outfits a man owns.
 
 ### 2.3 Formality alignment — weight 0.20
 
@@ -161,7 +349,14 @@ Defined fully in §4.
 
 ### 2.5 Season/weather suitability — weight 0.10
 
-**Inputs:** item `seasonality jsonb` (subset of `{spring, summer, fall, winter}`), `warmth_score` (0–10), `water_resistance_score` (0–10), target context: current or forecast temperature band and precipitation probability (from `get_weather`).
+**Inputs:** item `seasonality jsonb` (subset of `{spring, summer, fall, winter}`), `warmth_score` (**0–100**), `water_resistance_score` (**0–100**), target context: current or forecast temperature band and precipitation probability (from `get_weather`).
+
+**Scale corrected 2026-08-07 — see §0 amendment 3.** Both columns are
+`smallint check (between 0 and 100)`. This section originally stated them as
+0–10, and read that way an overcoat at `warmth_score` 85 maps to an ideal
+temperature of −267°C, so every winter garment scores zero against every
+forecast on earth. The mapping endpoints below are unchanged in meaning:
+`warmth 0 → 30°C`, `warmth 100 → −5°C`. The rain threshold is `< 30`, not `< 3`.
 
 **Computation (per item, then averaged across outfit items with equal weight):**
 ```
@@ -338,8 +533,12 @@ for each item i:
   itemVersatility_i = count(outfits containing i with outfit compatibility ≥ 0.65, deduplicated per §6.3 near-duplicate rule)
 
 expectedVersatility(n) = a size-indexed target curve, empirically seeded at:
-  n=5 → 3, n=15 → 12, n=40 → 35, n=80 → 60 (sublinear — diminishing returns as closet grows, log-shaped)
-  interpolated via expectedVersatility(n) = 3 + 9.2 × ln(n/5 + 1)   for n ≥ 5, else 0
+  n=5 → 3, n=15 → 12, n=40 → 35, n=80 → 60
+  (sublinear relative to raw combinatorics, which grow ~(n/3)² per item — but NOT log-shaped:
+   the seeds themselves grow superlinearly until §6.3 dedup flattens them past n≈40)
+  interpolated linearly between adjacent seed points for n ≥ 5, else 0;
+  past n=80, extended at the last segment's slope (+0.625/item) so the target keeps growing
+  and sheer closet volume can never saturate this component   (§0 amendment 7)
 
 normalizedVersatility_i = clamp(itemVersatility_i / expectedVersatility(n), 0, 1)
 
@@ -353,7 +552,8 @@ Normalizing per-item versatility against a size-indexed expectation is what prev
 ```
 perItemFitConfidence_i =
   0.6 (base, unconfirmed)
-  + 0.4 × feedbackAdjustment_i
+  + feedbackAdjustment_i        // §0 amendment 8: was `0.4 ×` this, which
+                                // capped the component at 0.76
 
 feedbackAdjustment_i =
   +0.4 if any `style_feedback` on this item has signal ∈ {like, wore+rating≥4} and none negative
@@ -385,7 +585,11 @@ palette = the set of primary_color_lch across active items
 clusters = group palette into hue families (12 × 30° hue bins + a neutral bucket)
 
 component = 1 - normalizedEntropy(cluster sizes)
-  where normalizedEntropy = ShannonEntropy(clusterDistribution) / log2(numNonEmptyClusters)
+  where normalizedEntropy = ShannonEntropy(clusterDistribution) / log2(13)
+  // 13 = the whole cluster space (12 hue bins + neutral), NOT the number of
+  // clusters this wardrobe occupies. See §0 amendment 9: the latter scores an
+  // evenly-split two-colour wardrobe at 0, which contradicts the paragraph
+  // immediately below.
 ```
 
 A wardrobe concentrated in 2–4 hue families plus neutrals scores high (low entropy = high cohesion); one where every item is a different, unrelated hue scores low. **Edge case:** fewer than 4 chromatic items (mostly neutrals) → component defaults to `0.8` (neutrals-heavy is not incoherent, it's a valid capsule strategy — entropy over a near-empty chromatic set is not meaningful).
@@ -407,6 +611,10 @@ component = utilizationRate
 
 ```
 conditionValue: excellent=1.0, good=0.8, fair=0.5, worn=0.25, damaged=0.0
+  // Shipped enum names differ (§0 amendment 10): new_with_tags=1.0,
+  // like_new=0.9, good=0.8, fair=0.5, worn=0.25, damaged=0.0. `damaged` was
+  // added to the enum on 2026-08-08; before that this bottom rung was
+  // unreachable and the vision provider's `damaged` was folded into `worn`.
 component = weighted mean of conditionValue_i, weighted by itemVersatility_i (§5.1)
   (a damaged rarely-worn accessory should matter less to overall wardrobe health than a damaged frequently-worn workhorse item)
 ```

@@ -23,7 +23,22 @@ import SwiftUI
 
 public struct OnboardingFlowView: View {
     @Environment(AppRouter.self) private var router
+    /// Needed only by the §5.1 step 12 scanner sheet, which is a composition
+    /// root: `ScannerDestinationView` builds its own view models from this.
+    /// Read here rather than in `OnboardingFirstItemsView` so the leaf screen
+    /// stays a function of the view model it was given.
+    @Environment(AppContainer.self) private var container
     @State private var model: OnboardingViewModel
+
+    /// Whether the §5.1 step 12 scanner is on screen.
+    ///
+    /// The scanner is presented as a sheet rather than pushed, and from here
+    /// rather than from inside the step, because it is a modal flow with its
+    /// own `NavigationStack` (capture → review) and its own Close semantics.
+    /// Pushing it onto the onboarding scaffold's chrome would give the user
+    /// two competing back affordances on the review screen and let the
+    /// footer's "Skip for now" sit under a camera preview.
+    @State private var isScanning = false
 
     public init(model: OnboardingViewModel) {
         _model = State(initialValue: model)
@@ -51,14 +66,25 @@ public struct OnboardingFlowView: View {
         // kill between screens still keeps what was typed on the current one.
         .onChange(of: model.draft) { _, _ in Task { await model.persist() } }
         .onChange(of: model.isFinished) { _, finished in
-            // Routing is keyed on the user finishing, not on the submission
-            // succeeding. Both outcomes of a submission reach the app — a
-            // guest's answers are saved locally and submitted at account
-            // creation (ADR 0011), so holding him on the onboarding screen
-            // would be punishing him for not having signed up yet — but the
-            // submission now runs when §6.10 OPENS, and routing off it would
-            // skip the screen entirely.
+            // Routing is keyed on the user FINISHING, not on the submission
+            // succeeding — a failed submit must not strand him on the last
+            // screen with no way forward. And it cannot be keyed on the
+            // submission anyway: that now runs when §6.10 OPENS, so routing
+            // off it would skip the screen entirely.
             if finished { router.routeState = .main }
+        }
+        // `.singleItem` and not `.batchCloset`: batch capture is an honest
+        // placeholder, and pointing the first-run flow at it would put a
+        // "not built yet" screen one tap inside onboarding.
+        .sheet(isPresented: $isScanning) {
+            ScannerDestinationView(
+                route: .singleItem,
+                container: container,
+                // Nothing is awaited and nothing is refetched. The garment is
+                // already written; this is the step being told about a write
+                // it did not make. See `didScanItem(_:)`.
+                onItemSaved: { model.didScanItem($0) }
+            )
         }
     }
 
@@ -99,7 +125,7 @@ public struct OnboardingFlowView: View {
             // `closet_items` rows through `ClosetRepository`, which is a
             // repository call and therefore not something a `View` may make
             // (CLAUDE.md: no network calls in views).
-            OnboardingFirstItemsView(model: model)
+            OnboardingFirstItemsView(model: model, onScanTapped: { isScanning = true })
         case .result:
             OnboardingResultView(model: model)
         }

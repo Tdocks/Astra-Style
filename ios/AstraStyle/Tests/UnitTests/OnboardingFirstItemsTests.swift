@@ -5,9 +5,10 @@
 //  §5.1 step 12 — "add first closet items, or skip".
 //
 //  The first test in this file is the Phase 2 exit criterion. Everything else
-//  is about the guest cap, which is the one way this step can legitimately
+//  is about the free-tier cap, which is the one way this step can legitimately
 //  refuse to do something — and therefore the one place a "skip is blocked"
-//  regression could plausibly hide.
+//  regression could plausibly hide. (It used to be the guest cap; guest mode
+//  was removed by ADR 0014 and the free-tier cap inherited the role.)
 //
 
 import Foundation
@@ -24,6 +25,8 @@ private actor FailingClosetRepository: ClosetRepository {
         _ = data
         return "users/test/closet/stub.jpg"
     }
+
+    func deleteCapturedImage(atPath storagePath: String) async throws { _ = storagePath }
 
     func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
         throw AstraError.network("offline")
@@ -48,7 +51,7 @@ private actor FailingClosetRepository: ClosetRepository {
 @Suite("Onboarding — first closet items (§5.1 step 12)")
 struct OnboardingFirstItemsTests {
 
-    private func makeSessionStore(isGuest: Bool) throws -> SessionStore {
+    private func makeSessionStore() throws -> SessionStore {
         let store = SessionStore(
             apiClient: AstraAPIClient(environment: .preview),
             supabase: AstraSupabaseClientFactory.previewClient,
@@ -59,16 +62,14 @@ struct OnboardingFirstItemsTests {
                 userID: UUID(),
                 accessToken: "test-token",
                 refreshToken: "test-refresh",
-                expiresAt: .now.addingTimeInterval(3600),
-                isGuest: isGuest
+                expiresAt: .now.addingTimeInterval(3600)
             )
         )
         return store
     }
 
     private func makeModel(
-        closetRepository: any ClosetRepository = MockClosetRepository(items: []),
-        isGuest: Bool = false
+        closetRepository: any ClosetRepository = MockClosetRepository(items: [])
     ) throws -> OnboardingViewModel {
         var draft = OnboardingDraft()
         draft.selectedIdentities = [.modernHeritage, .quietLuxury, .smartCasual]
@@ -79,16 +80,19 @@ struct OnboardingFirstItemsTests {
             profileRepository: MockProfileRepository(),
             closetRepository: closetRepository,
             referenceStore: InMemoryReferenceImageStore(),
-            sessionStore: try makeSessionStore(isGuest: isGuest),
+            sessionStore: try makeSessionStore(),
             draft: draft,
             step: .firstItems
         )
     }
 
-    /// A guest repository wired the way `AppContainer` wires it, so the cap
+    /// A capped repository wired the way `AppContainer` wires it, so the cap
     /// under test is the real one rather than a re-implementation.
-    private func makeGuestCloset(guestID: UUID) -> GuestClosetRepository {
-        GuestClosetRepository(store: InMemoryGuestClosetStore(), currentGuestUserID: { guestID })
+    private func makeCappedCloset() -> FreeTierCappedClosetRepository {
+        FreeTierCappedClosetRepository(
+            base: MockClosetRepository(items: []),
+            isEntitledToPremium: { false }
+        )
     }
 
     // MARK: The exit criterion
@@ -210,53 +214,103 @@ struct OnboardingFirstItemsTests {
         #expect(model.firstItems.isEmpty)
     }
 
-    // MARK: The guest cap (spec §6.2; ADR 0011)
+    // MARK: The photo path
+    //
+    // The scanner writes the garment itself, through the same
+    // `ClosetRepository` this step uses; `didScanItem` only tells the step
+    // about a write it did not make. Every test here uses
+    // `FailingClosetRepository`, which throws on `createItem` — so if this
+    // seam ever started writing, all three would fail rather than quietly
+    // creating two rows for one photograph.
 
-    @Test("A guest is told how many are left, counting what is already stored")
-    func guestAllowanceCountsExistingItems() async throws {
-        let guestID = UUID()
-        let closet = makeGuestCloset(guestID: guestID)
-        _ = try await closet.createItem(
-            ClosetItem(id: UUID(), userID: guestID, name: "Already here", category: .top), images: []
+    @Test("A scanned garment joins the list without a second write")
+    func scannedItemIsRecordedNotRewritten() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        let scanned = ClosetItem(
+            id: UUID(),
+            userID: UUID(),
+            name: "Navy field jacket",
+            category: .outerwear,
+            primaryColor: "navy"
         )
 
-        let model = try makeModel(closetRepository: closet, isGuest: true)
-        await model.prepareFirstItemsStep()
+        model.didScanItem(scanned)
 
-        // Nine, not ten. A resumed session that restarted the count would have
-        // the app disagreeing with its own repository about its own rule.
-        #expect(model.guestItemsRemaining == GuestLimits.maxClosetItems - 1)
+        #expect(model.firstItems.map(\.id) == [scanned.id])
+        // Named, not just "Saved" — this is how a man checks the analysis got
+        // the right garment without opening it again.
+        #expect(model.addItemState == .added(name: "Navy field jacket"))
     }
 
-    @Test("A signed-in user is shown no cap, because there isn't one")
-    func signedInHasNoAllowanceLine() async throws {
-        let model = try makeModel(closetRepository: MockClosetRepository())
-        await model.prepareFirstItemsStep()
-        #expect(model.guestItemsRemaining == nil)
+    @Test("A scanned garment makes the step look answered")
+    func scannedItemStopsTheFooterOfferingASkip() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        #expect(model.advanceIsSkip)
+
+        model.didScanItem(
+            ClosetItem(id: UUID(), userID: UUID(), name: "Brown suede derbies", category: .shoes)
+        )
+
+        // The footer's label comes from `stepHasAnyAnswer`, which reads
+        // `firstItems`. Without this, a man who had just scanned a garment
+        // would be offered "Skip for now" for the thing he had done.
+        #expect(!model.advanceIsSkip)
+        #expect(model.advanceTitle == "Continue")
     }
 
-    @Test("The eleventh guest item fails gracefully and still does not block the step")
-    func guestCapIsReachedGracefully() async throws {
-        let guestID = UUID()
-        let model = try makeModel(closetRepository: makeGuestCloset(guestID: guestID), isGuest: true)
+    @Test("A completion delivered twice lists the garment once")
+    func scannedItemIsNotListedTwice() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        let scanned = ClosetItem(id: UUID(), userID: UUID(), name: "Grey flannel trousers", category: .bottom)
+
+        model.didScanItem(scanned)
+        model.didScanItem(scanned)
+
+        #expect(model.firstItems.count == 1)
+    }
+
+    @Test("Scanning still cannot trap the user on the step")
+    func scanningDoesNotBlockReachingHome() async throws {
+        let model = try makeModel(closetRepository: FailingClosetRepository())
+        model.didScanItem(
+            ClosetItem(id: UUID(), userID: UUID(), name: "Charcoal overcoat", category: .outerwear)
+        )
+
+        #expect(model.canAdvance)
+        await model.advance()
+        #expect(model.step == .result)
+    }
+
+    // MARK: The free-tier cap (spec §16)
+    //
+    // This step can refuse exactly one thing — a write past the free-tier
+    // cap — so it is the only place a "skip is blocked" regression could
+    // plausibly hide. The cap is 30, and nobody reaches it in their first
+    // minute; these exist because the failure mode matters, not because the
+    // path is common.
+
+    @Test("Hitting the cap closes the form rather than leaving a control that always fails")
+    func capIsReachedGracefully() async throws {
+        let model = try makeModel(closetRepository: makeCappedCloset())
         await model.prepareFirstItemsStep()
 
-        for index in 1...GuestLimits.maxClosetItems {
+        // One past the cap: the 31st write is the one the repository refuses,
+        // so a loop that stops at 30 never reaches the state under test.
+        for index in 1...(FreeTierLimits.maxClosetItems + 1) {
             model.newItemName = "Item \(index)"
             model.newItemCategory = .top
             await model.addFirstItem()
         }
-        #expect(model.firstItems.count == GuestLimits.maxClosetItems)
-        #expect(model.guestItemsRemaining == 0)
-        #expect(model.addItemState == .guestCapReached(limit: GuestLimits.maxClosetItems))
-        // The form is closed rather than left open to a write that will be
-        // refused — a control that always fails is worse than one that is off.
-        model.newItemName = "Item 11"
+        #expect(model.firstItems.count == FreeTierLimits.maxClosetItems)
+        #expect(model.addItemState == .capReached(limit: FreeTierLimits.maxClosetItems))
+
+        // A control that always fails is worse than one that is off.
+        model.newItemName = "One too many"
         model.newItemCategory = .top
         #expect(!model.canAddItem)
 
         await model.addFirstItem()
-        #expect(model.firstItems.count == GuestLimits.maxClosetItems)
+        #expect(model.firstItems.count == FreeTierLimits.maxClosetItems)
 
         // And, still, the whole point:
         #expect(model.canAdvance)
@@ -264,42 +318,21 @@ struct OnboardingFirstItemsTests {
         #expect(model.step == .result)
     }
 
-    @Test("The cap is enforced by the repository, not only by the form")
-    func capSurvivesAFormThatForgetsIt() async throws {
-        let guestID = UUID()
-        let closet = makeGuestCloset(guestID: guestID)
-        let model = try makeModel(closetRepository: closet, isGuest: true)
-
-        // Deliberately NOT calling `prepareFirstItemsStep()`, so the view model
-        // has no allowance to check against — exactly the state a future screen
-        // that forgot the call would be in. The 11th write must still be
-        // refused, and the refusal must still be legible.
-        for index in 1...GuestLimits.maxClosetItems + 1 {
-            model.newItemName = "Item \(index)"
-            model.newItemCategory = .top
-            await model.addFirstItem()
-        }
-
-        #expect(model.firstItems.count == GuestLimits.maxClosetItems)
-        #expect(model.addItemState == .guestCapReached(limit: GuestLimits.maxClosetItems))
-    }
-
-    @Test("Removing a guest item frees a slot and reopens the form")
-    func removingFreesAGuestSlot() async throws {
-        let guestID = UUID()
-        let model = try makeModel(closetRepository: makeGuestCloset(guestID: guestID), isGuest: true)
+    @Test("Removing an item reopens the form")
+    func removingReopensTheForm() async throws {
+        let model = try makeModel(closetRepository: makeCappedCloset())
         await model.prepareFirstItemsStep()
 
-        for index in 1...GuestLimits.maxClosetItems {
+        for index in 1...(FreeTierLimits.maxClosetItems + 1) {
             model.newItemName = "Item \(index)"
             model.newItemCategory = .top
             await model.addFirstItem()
         }
+        #expect(model.addItemState == .capReached(limit: FreeTierLimits.maxClosetItems))
         let last = try #require(model.firstItems.first)
 
         await model.removeFirstItem(last)
 
-        #expect(model.guestItemsRemaining == 1)
         #expect(model.addItemState == .idle)
         model.newItemName = "Replacement"
         model.newItemCategory = .top

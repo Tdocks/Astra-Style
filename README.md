@@ -24,15 +24,15 @@ Do not start by auditing `HANDOFF.md` landmines.
 ## Status
 
 **Phase 3 of 7 — Closet — exit cut for internal TestFlight.** Closet is usable
-end to end (browse, filters, metrics, manual add/edit, free-tier/guest caps,
+end to end (browse, filters, metrics, manual add/edit, the free-tier cap,
 offline read cache). Single-item Scanner ships (capture/import → review → save →
 unlock report, offline queue). Batch/receipt/mirror, server cutout, and the live
 OpenAI vision pilot gate remain Partial. Outfit intelligence, Kyra, Style Studio,
 shopping, and subscriptions remain largely unbuilt.
 
-**Per-ticket status for all 178 tickets lives in
-[`docs/03-progress.md`](docs/03-progress.md)** (~45 Done / 52 Partial / 81 Not
-started — trust that file, not this paragraph). Enforced by
+**Per-ticket status for all 179 tickets lives in
+[`docs/03-progress.md`](docs/03-progress.md)** (~45 Done / 52 Partial / 80 Not
+started / 2 Withdrawn — trust that file, not this paragraph). Enforced by
 `scripts/check_progress.py` in CI.
 
 Cold-start narrative: [`HANDOFF.md`](HANDOFF.md). Phase plan:

@@ -81,31 +81,6 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
         return session
     }
 
-    public func continueAsGuest() async throws -> AuthSession {
-        // Guest mode is intentionally local-only (spec §6.2): a synthetic
-        // session with no server round trip, capped client-side by the
-        // repository layers that check `AuthSession.isGuest`.
-        let session = AuthSession(
-            userID: UUID(),
-            accessToken: "",
-            refreshToken: "",
-            expiresAt: .distantFuture,
-            isGuest: true
-        )
-        try await sessionStore.adopt(session)
-        return session
-    }
-
-    public func migrateGuestToAccount(identityToken: String, nonce: String) async throws -> AuthSession {
-        // Sign in for real, then the Live repositories are responsible for
-        // re-pointing any content created under the guest's local-only
-        // storage at the newly-authenticated user id (spec §7 "Guest
-        // migration to account"). That reconciliation is intentionally not
-        // performed here — it belongs to whichever repository owns the
-        // guest-local data (Closet, primarily).
-        try await signInWithApple(identityToken: identityToken, nonce: nonce)
-    }
-
     public func restoreSession() async throws -> AuthSession? {
         try await sessionStore.restoreSession()
     }

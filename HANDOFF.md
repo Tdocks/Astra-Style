@@ -2,7 +2,9 @@
 
 **For:** an AI builder picking this codebase up cold (Claude Code on the owner's Mac, or a cloud agent).
 **Written:** 2026-08-01, against `main` at `86edb74` (merge of PR #12 — Phase 3 exit for TestFlight).
-**Status at handoff:** 178 tickets tracked — **45 Done, 52 Partial, 81 Not started** (machine-checked by `scripts/check_progress.py`).
+**Status at handoff:** 179 tickets tracked — **45 Done, 52 Partial, 80 Not started, 2 Withdrawn** (machine-checked by `scripts/check_progress.py`; read the live numbers there, not here — see §10.1).
+
+**Since this was written (2026-08-06, PRs #24–#28, all stacked and open for review):** the four TestFlight defects are fixed — Home short-circuits to the §6.11 empty state below five garments instead of 404ing, a gateway 404 maps to a non-retryable `.unimplemented` with the request id on screen, the app icon is re-rendered full-bleed, and every placeholder says "Not built yet". Beyond those: the `closet` function is deployed and abandoned scan uploads are cleaned up (#25); `daily-brief` is built and deployed (#26); **guest mode is gone — an account is required before onboarding, ADR 0014** (#27); and the first-items step is photo-first (#28, `P2-ONBOARD-13`).
 
 ### ▶ Do this next (owner asked Claude on the Mac to own it)
 
@@ -253,7 +255,7 @@ So: **types are nonisolated by default.** Repositories do I/O off the main actor
 
 ### 4.5 Dependency injection
 
-`App/AppContainer.swift` — a `@MainActor @Observable final class`, no DI framework (ADR 0007). It exposes: `sessionStore`, `authRepository`, `profileRepository`, `closetRepository`, `closetImageURLResolver`, `outfitRepository`, `kyraRepository`, `studioRepository`, `shoppingRepository`, `subscriptionRepository`, `guestMigrationService`, `weatherService`, `calendarService`, `apiClient`, `analyticsClient`, `offlineMutationQueue`, `settings`.
+`App/AppContainer.swift` — a `@MainActor @Observable final class`, no DI framework (ADR 0007). It exposes: `sessionStore`, `authRepository`, `profileRepository`, `closetRepository`, `closetImageURLResolver`, `outfitRepository`, `kyraRepository`, `studioRepository`, `shoppingRepository`, `subscriptionRepository`, `weatherService`, `calendarService`, `apiClient`, `analyticsClient`, `offlineMutationQueue`, `settings`.
 
 - **`.live()`** wires every `Live*` type against one shared `AstraAPIClient`. The model container is `(try? AstraModelContainer.live()) ?? AstraModelContainer.preview()` — a corrupt store degrades to "no caching this session" rather than crashing.
 - **`.preview()`** wires every `Mock*` type. It passes `SessionStore(apiClient: .previewClient, supabase: ...previewClient)` **explicitly** rather than relying on the default, because the default evaluates `AstraEnvironment.current`, which `preconditionFailure`s in a process with no Info.plist secrets.
@@ -264,9 +266,9 @@ So: **types are nonisolated by default.** Repositories do I/O off the main actor
 
 | Flag | Effect |
 |---|---|
-| `-astra-reset-state` | Clears persisted session/guest data at launch. Every UI suite sets it. Not DEBUG-gated. |
+| `-astra-reset-state` | Clears the persisted session at launch. Every UI suite sets it. Not DEBUG-gated. |
 | `-astra-skip-onboarding` | Routes straight to the tab shell. |
-| `-astra-mock-backend` | Runs against `AppContainer.preview()`, already signed in to a throwaway non-guest session. **This is the lever for testing anything backend-dependent.** |
+| `-astra-mock-backend` | Runs against `AppContainer.preview()`, already signed in to a throwaway session. **This is the lever for testing anything backend-dependent**, and since ADR 0014 it is also the only account-free way into onboarding for a UI test. |
 | `-astra-theme light\|dark\|system` | Overrides the stored theme (needed because the app's `.preferredColorScheme` beats the simulator's `-UIUserInterfaceStyle`). |
 | env `ASTRA_VERTICAL_SLICE=1` | Boots `SliceRootView()` instead of the app. |
 
@@ -346,7 +348,7 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
 
 **`.unimplemented` is deliberately distinct from `.server`:** *"a `.server` failure is a runtime problem that might not happen next time; this one is a fact about the build — retrying will never help, and the UI should degrade (hide the module, disable the control) rather than offer a retry button that cannot succeed."* It is not retryable, which is what stops the Closet growing a dead "Try Again" button.
 
-Two other error types cross boundaries: **`GuestClosetError.capReached(limit:)`** (a distinct type, not an `AstraError` category, so call sites can catch "show the create-account prompt" without string-matching a message) and **`OfflineMutationNotHandled`** (thrown by a drain handler that doesn't own the mutation type it was handed — means "skip, don't fail, don't consume").
+Two other error types cross boundaries: **`FreeTierClosetError.capReached(limit:)`** (a distinct type, not an `AstraError` category, so call sites can catch the cap without string-matching a message) and **`OfflineMutationNotHandled`** (thrown by a drain handler that doesn't own the mutation type it was handed — means "skip, don't fail, don't consume").
 
 ### 4.9 The API client
 
@@ -363,7 +365,7 @@ Two other error types cross boundaries: **`GuestClosetError.capReached(limit:)`*
 
 SwiftData schema: `PersistedClosetItem`, `PersistedOutfit`, `PersistedDailyBrief`, `PersistedOfflineMutation`.
 
-**What `PersistedClosetItem` actually backs: guest-mode storage only.** `LiveClosetRepository.fetchItems()` reads straight from Supabase with **no local-cache fallback** and never touches it. So for an authenticated user, an offline cold start shows the error state rather than a cached closet. This is P3-CLOSET-02's stated Partial reason.
+**`PersistedClosetItem` now backs the signed-in read cache only** (`SwiftDataClosetItemCache`); it used to back guest storage as well, which is gone. The "no local-cache fallback" this paragraph used to describe is also gone — `LiveClosetRepository.fetchItems` write-throughs on success and serves cached rows when the network fetch fails, which is what moved P3-CLOSET-02 to Done.
 
 **`OfflineMutationQueue`** is FIFO, stops at the first genuine failure (preserving order, incrementing `attemptCount`), and treats `OfflineMutationNotHandled` as "skip, leave queued, don't count an attempt" since one queue serves several repositories. Its limitations, all stated in the codebase:
 
@@ -522,28 +524,40 @@ Named costs, accepted: grouped functions **share fate at runtime** (a crash-loop
 
 ---
 
-## 6. Guest mode — read before touching any write path
+## 6. ~~Guest mode~~ — removed (ADR 0014)
 
-**ADR 0011.** Guest mode is **fully local, with no server-side identity at all** until migration. Guest data lives only in SwiftData and local files, never under a placeholder `user_id` on Supabase. Supabase's official anonymous-auth pattern was explicitly rejected — it would create server-side data, cost and cleanup burden for every guest including the large fraction who never convert.
+**There is no guest mode.** An account is required before onboarding. Removed 2026-08-06 by
+[ADR 0014](docs/adr/0014-account-required-no-guest-mode.md), which supersedes 0011 and amends
+spec §6.2 and §7.
 
-**The enforcement is structural, not per-screen.** `GuestClosetRepository` holds **no `AstraAPIClient` or `SupabaseClient` property at all** — there is no HTTP-capable field a future edit could accidentally wire up. Every feature is handed `GuestAwareClosetRepository`, a pure per-call switch (`isGuest() ? guest : live`), and **that wrapper is the only `ClosetRepository` `AppContainer` ever hands to feature code.** So "guest mode never reaches Supabase, from any screen" is a property of the dependency graph.
+Deleted, not flagged off: `GuestClosetRepository`, `GuestAwareClosetRepository`,
+`GuestClosetStore` and both implementations, `GuestMigrationService` /
+`LiveGuestMigrationService`, `GuestProfileView(Model)`, `GuestLimits`, `CreateAccountReason` and
+the create-account sheet, `AuthSession.isGuest`, `SessionStore.isGuest` /
+`currentIsGuest()` / `currentGuestUserID()`, `AppRouter.blocksGuestScan`,
+`AppModalRoute.createAccount`, `OnboardingViewModel`'s `.guestPreview` and `.savedLocally`
+states, and the three test suites that pinned the behaviour.
 
-| Guest can | Guest cannot |
-|---|---|
-| Browse a local closet | Scan (`analyzeItem`/`batchAnalyzeItems` throw `AstraError.validation("Scanning isn't available in guest mode yet. Create an account to scan items.")` **with zero network I/O**) |
-| Add up to **10** items (`GuestLimits.maxClosetItems`) via the manual form | See a Wardrobe Score (`.validation("Wardrobe Score isn't available in guest mode.")`) |
-| Archive, mark worn | Have images (`fetchImages` returns `[]` unconditionally) |
-| Complete the whole onboarding flow, draft persisted locally | Have Style DNA generated (`styleDNAState = .guestPreview`, a real permanent outcome — no generation call is ever made) |
+**Read this part even though the feature is gone**, because two of its lessons are about the
+codebase and not about guests:
 
-Exceeding the cap throws **`GuestClosetError.capReached(limit: 10)`** — a distinct type, so call sites catch the condition rather than string-matching a message.
+1. **A branch added to fix one path can quietly become the only path that is right.** The guest
+   branch in `DefaultHomeBriefProvider` was added because a guest hit Home's error state — and
+   it then became the *only* path that reached §6.11's empty state. Every real user got an error
+   screen where the spec calls for an invitation, for weeks, and the branch structure is what
+   hid it.
+2. **ADR 0011 predicted its own data-loss bug and it shipped anyway.** Its Consequences section
+   said onboarding answers "must also be captured locally during guest onboarding and migrated,
+   not just closet scans". `LiveGuestMigrationService` migrated closet items and no profile
+   table. A named consequence is not a mitigated one.
 
-**Migration** (`LiveGuestMigrationService`) composes the local store with the **live** repository — never the guest-aware wrapper, which would loop migrated items back into guest storage. Ownership comes from `session.userID`, never from the local record. It migrates one item at a time, removing from local storage only after a successful `createItem`, and **stops at the first failure** — everything unmigrated including the failing item stays local, so it is retryable rather than silently partial.
+What remains and is easy to confuse with it: **the free-tier 30-item cap**
+(`FreeTierLimits`, `FreeTierCappedClosetRepository`, `FreeTierClosetError.capReached`) is a cap
+on a *signed-in* closet and is untouched. Both used to cap a closet, which is most of why they
+were confusable.
 
-**Named, accepted risks** (ADR 0011's own "Negative" section): guest data is at the mercy of the device until migration — device loss or app deletion before signup is unrecoverable by design. A shared device has no per-guest isolation.
-
-**A landmine this creates:** `ClosetView`'s scan button already calls `AppRouter.startScan()`. The moment a camera screen lands, a guest can open the camera, capture, wait through the pipeline, and hit a wall — **the exact dead-button failure §22 forbids, wearing a friendlier face.** The gate must be *before* the camera opens, which makes it a permission-timing question too (§7 says camera "when scanning" — a guest is never going to scan). **No ticket currently owns this.**
-
----
+If a trial path is ever wanted again, ADR 0014's Alternatives says where to start — and it is
+not what was deleted.
 
 ## 7. Feature-by-feature state
 
@@ -563,7 +577,7 @@ intro → goals → identity → measurements → appearance → lifestyle → q
 
 So `loadStyleDNA()` **submits first and generates second**, and §6.10's forward button only leaves the flow. The server generator is stateless with respect to the request body — it re-reads whatever is currently in the three profile tables.
 
-**The guest path is enforced by ordering, not by a check.** `uploadReferenceImageIfNeeded()` only runs *after* the guest branch's early return, so a guest's reference photo never leaves the device. That is the enforcement point for ADR 0011's photo rule — there is no separate guard anywhere else.
+**The reference photo uploads at submission, not at capture.** `uploadReferenceImageIfNeeded()` runs inside `submit()`, so nothing leaves the device until the answers do — which is also what keeps `removeReferenceImage()` a purely local operation with no remote object to chase.
 
 ### 7.2 The quiz imagery system — the most unusual thing in the repo
 
@@ -704,7 +718,7 @@ The display threshold moved off `FieldSuggestion` onto `AnalysisConfidence.lowCo
 
 ### 7.6 The six empty modules
 
-`Discover/`, `Kyra/`, `Outfits/`, `Shopping/`, `Studio/`, `Subscription/` contain **only a README.md**. `Profile/` has just `GuestProfileViewModel` + `GuestProfileView`. Every one of those READMEs is an accurate forward-looking spec, not an overclaim — but a reader skimming directory names will assume far more exists than does.
+`Discover/`, `Kyra/`, `Outfits/`, `Shopping/`, `Studio/`, `Subscription/` contain **only a README.md**, and since ADR 0014 so does `Profile/` — its two files were the guest profile. Every one of those READMEs is an accurate forward-looking spec, not an overclaim — but a reader skimming directory names will assume far more exists than does.
 
 ---
 
@@ -748,7 +762,8 @@ There is **no registered domain** — `astrastyle.app` returned RDAP 404 on 2026
 | XcodeGen | 0008 | Reviewable YAML diffs instead of `.pbxproj` merge conflicts. |
 | StoreKit 2 + server reconciliation, not RevenueCat | 0009 | Margin protection at $12.99/month, with named switch conditions. |
 | Image storage and retention | 0010 | Private buckets, signed URLs, `users/{user_id}/…`; abandoned references auto-delete (24h default), Studio outputs expire (30d default); **training opt-out defaults to off**. |
-| Guest mode fully local | 0011 | No server identity until sign-in; migration is user-initiated and resumable. |
+| ~~Guest mode fully local~~ | 0011 | **Superseded by 0014**: an account is required, guest mode removed. |
+| An account is required | 0014 | The trial path guest mode offered was never reachable; the branches it added cost more than it bought. |
 | Testing strategy | 0012 | Swift Testing for unit/integration, XCUITest for UI, unit-heavy pyramid. |
 | Edge Function routing | 0013 | §14 URL shapes preserved verbatim; 12 slugs, shared router. |
 
@@ -760,13 +775,20 @@ Ordered roughly by how expensive they are to hit.
 
 **1. The UUID-casing storage trap.** See §5.3. Silent 403 on every object, no error naming the cause. Documented in exactly two client-side doc comments and nowhere server-side.
 
-**2. Orphaned uploads.** `analyzeItem` uploads to Storage **then** calls the Edge Function, and there is still **no cleanup path** for an upload abandoned at the review screen, or for one whose analyze call fails. ADR 0010 defines a 24h sweep for *references* and nothing for closet captures, and `ClosetRepository` has no delete verb at all. Batch leaks N.
+**2. ~~Orphaned uploads and non-idempotent retry on a paid call.~~ Closed 2026-08-06.** Kept here because the *shape* of it recurs: `analyzeItem` uploads to Storage and then calls an Edge Function, so any failure between those two steps strands bytes nobody references.
 
-> **Updated 2026-08-06.** Two thirds of this landmine are closed. The `closet` function **is deployed** to `anutsdzbxycaavmmkewo` (it existed in the repo from `59e07361` but had never been deployed, and its migration `20260801120000_closet_analysis_jobs.sql` had never been applied — both done now), so analyze no longer 404s on every call. Idempotency is real: `AstraEndpoint.requiresIdempotencyKey` mints one key per logical call and reuses it across retries, and `closet_analysis_idempotency` replays the stored response, so one tap can no longer become three paid vision calls. **The storage leak is the part that remains** and is still unfixed.
+What closed it, in the order the three parts fell:
+- The `closet` function **is deployed** (it existed in the repo from `59e07361` and had never been deployed; `20260801120000_closet_analysis_jobs.sql` had never been applied — both done now), so analyze stopped 404ing on every call.
+- **Idempotency is real:** `AstraEndpoint.requiresIdempotencyKey` mints one key per logical call and reuses it across retries; `closet_analysis_idempotency` replays the stored response. One tap can no longer become three paid vision calls.
+- **`ClosetRepository.deleteCapturedImage(atPath:)` now exists**, and `ScannerReviewViewModel.discardUnsavedUpload()` runs on every non-save exit (Retake, both Close buttons, swipe-dismiss). `LiveClosetRepository.analyzeItem` / `batchAnalyzeItems` additionally delete what *they* uploaded on failure.
+
+Two rules to preserve if you touch this. **Only compensate for an upload you made** — a caller-supplied `storagePath` belongs to the caller, and the scanner deliberately keeps its path across an analyze retry so the retry does not re-upload; deleting it would pull the object out from under the retry. And **the batch stops compensating once the job is enqueued** — from then on the server owns those objects, and a poll that times out is not a reason to delete images a job is still working through.
+
+ADR 0010's 24h sweep for *reference* photos still does not exist. That is a separate gap.
 
 **3. Grouped-function fate-sharing puts a batch job in the interactive path's isolate.** ADR 0013 requires `analyze-item` and `batch-analyze` to be **one deployed function**, sharing one in-memory rate limiter and one deploy unit. Batch is bursty and long-running; single-item analysis is what a user is staring at. A 20-image batch will saturate the shared limiter and can OOM the isolate. **Design the batch as a job + poll from day one** — P3-SCAN-08's own scope permits "asynchronously or via polling". Note a polling endpoint is a *new* §14 endpoint, touching `AstraEndpoint`, `EndpointDeploymentMappingTests` and arguably the spec.
 
-**4. Guest mode dead-ends the scanner, and the scan button is already live.** See §6.
+**4. ~~Guest mode dead-ends the scanner.~~ Gone with guest mode (ADR 0014).** The scan button now opens the scanner for everyone who can reach it.
 
 **5. Nothing about the camera is testable, and the acceptance criteria are written as if it were.** No camera in the simulator, no fixture-image mechanism, no test-asset wiring in either target, storage RLS uncovered. P3-SCAN-01 criterion 2, P3-SCAN-02 (both), P3-SCAN-03 (both), P3-SCAN-10 criterion 1 and P3-SCAN-12 criterion 1 are **all manual-on-device**. If the capture layer is not isolated behind a protocol with the logic pulled into pure functions, the largest ticket in Phase 3 ships with **zero automated coverage**.
 
@@ -784,7 +806,9 @@ It must print nothing.
 
 **7a. `xcodegen generate` rewrites `ios/AstraStyle/Resources/Info.plist` wholesale**, because `project.yml`'s `info:` block owns that path. Anything hand-added to the plist disappears at the next regen with no warning. This already happened once: commit `913e43a1` added `UISupportedInterfaceOrientations` (App Store Connect rejects an upload without it) and a later regen silently deleted it — it was missing from the working tree again on 2026-08-06. The keys now live in `project.yml`'s `info.properties`, which is the only place they survive. **The `INFOPLIST_KEY_*` build settings did NOT cover this**: Xcode merges those only when `GENERATE_INFOPLIST_FILE` is `YES`, and this target sets it `NO` because it supplies its own plist. Three of them (`UILaunchScreen_Generation` and both orientation keys) sat in `settings.base` doing nothing while reading as the source of truth — they have been deleted, and removing them changed the generated plist not at all, which is the proof they were dead. Do not add an `INFOPLIST_KEY_*` to this target; add the key to `info.properties` instead.
 
-**8. `.github/workflows/edge-functions.yml` does not cover `profile/` or `style-dna/`.** Adding a new function directory requires editing **both** that workflow **and** the four hardcoded directory lists in `supabase/functions/deno.json` — and bumping `requiredNow` in the Swift test.
+**8. ~~`.github/workflows/edge-functions.yml` does not cover `profile/` or `style-dna/`.~~ Closed 2026-08-06.** The workflow now calls `deno task check|test|fmt-check|lint` instead of repeating the directory list, so `supabase/functions/deno.json` is the single list and a new function directory added there is covered by CI by construction. (The gap was real when written and had since half-closed on its own; the duplication that caused it is what got removed.)
+
+What still needs a second edit when you add a function: **`requiredNow` in `EndpointDeploymentMappingTests`.** Add the slug there the moment a production call path builds a URL for it, not once it is deployed — `daily-brief` sat in `expectedSlugs` and not in `requiredNow` while `HomeBriefProviding` called it on every load, so the test written to catch exactly that had a hole exactly where the bug was.
 
 **9. `ClosetRoute.filters` and `ClosetRoute.editItem` are provably dead enum cases.** Both resolve to honest placeholders; nothing pushes either (the filter panel is a sheet, the editor is presented from the detail screen which already holds the loaded item). Don't wire them to something wrong on the assumption they're wanted.
 
@@ -800,22 +824,19 @@ Structure: audit stamp → "How this file is kept honest" → status vocabulary 
 
 Row format: `| Ticket | Status | Evidence |`. Evidence cells cite specific files (and sometimes line ranges) in backticks, **bold the negative findings inline**, and state in the same cell exactly what is still missing and why the status isn't higher.
 
-Statuses, exactly four: **Done** (every criterion met, with evidence) · **Partial** (some met, others provably not, and the row says which) · **Not started** (no implementing code exists anywhere) · **Unverifiable** (a real criterion not settleable by reading code — needs a device, a sandbox purchase, App Store review, or subjective judgement; *"used honestly; it is not a synonym for Done"*).
+Statuses, exactly five: **Done** (every criterion met, with evidence) · **Partial** (some met, others provably not, and the row says which) · **Not started** (no implementing code exists anywhere) · **Unverifiable** (a real criterion not settleable by reading code — needs a device, a sandbox purchase, App Store review, or subjective judgement; *"used honestly; it is not a synonym for Done"*) · **Withdrawn** (added 2026-08-06 with ADR 0014's removal of guest mode: the feature was deleted by a decision, so its criteria can never be met — the row must name the withdrawing ADR and `check_progress.py` enforces that. `Done` would claim a capability nobody can use; `Not started` would erase work that was done and then deliberately removed).
 
 Ticket IDs: `P{1-7}-{AREA}-{nn}`. Areas seen: `INFRA`, `CORE`, `DS`, `AUTH`, `ONBOARD`, `CLOSET`, `SCAN`, `OUTFIT`, `KYRA`, `STUDIO`, `SHOP`, `SUB`, `PRIVACY`, `TEST`.
 
-Current counts:
+**Current counts live in `docs/03-progress.md`'s Summary table and nowhere else.**
 
-| Phase | Tickets | Done | Partial | Not started |
-|---|---|---|---|---|
-| 1 — Foundation | 25 | 13 | 12 | 0 |
-| 2 — Identity | 17 | 12 | 5 | 0 |
-| 3 — Closet | 27 | 5 | 9 | 13 |
-| 4 — Outfit intelligence | 26 | 2 | 11 | 13 |
-| 5 — Kyra | 22 | 1 | 3 | 18 |
-| 6 — Studio and commerce | 25 | 2 | 4 | 19 |
-| 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **178** | **35** | **52** | **91** |
+This section used to carry its own copy. It was wrong by ten tickets within a
+week — 35 Done against the real 45 — because nothing checked it and everyone
+updating a status updated the file CI reads. A second copy of a
+machine-checked number is not a convenience; it is a number that will
+eventually contradict the checked one, in a document whose whole job is to be
+the first thing a new builder trusts. `check_progress.py` verifies that table.
+Read it there.
 
 The discipline, quoted:
 
@@ -1019,7 +1040,7 @@ Read `supabase/functions/closet/README.md` and `docs/08-provider-abstraction.md`
 
 #### F. Smoke checklist on the iPhone (report results to the owner)
 
-1. Guest or Sign in with Apple → Home / Closet reachable.
+1. Sign in with Apple or email → Home / Closet reachable. (No guest entry — ADR 0014.)
 2. Manual add a garment → appears under category; detail wear count 0.
 3. Scan or **Import** a shirt → editable review → Save → unlock copy → **Done**.
 4. Airplane mode: Closet still shows cached items; start a scan → queued analysis copy; reconnect → analyze completes without re-capture.
@@ -1040,7 +1061,7 @@ Read `supabase/functions/closet/README.md` and `docs/08-provider-abstraction.md`
 
 Phase 3 exit for an internal phone cut:
 
-- Closet CRUD + free-tier 30-cap + guest 10-cap + offline read cache + `testAddGarment`
+- Closet CRUD + free-tier 30-cap + offline read cache + `testAddGarment`
 - Scanner single-item loop: capture/import → device hints → upload → analyze → review → save → unlock report
 - Offline: LWW closet conflict on drain; pending scan queue that analyzes on reconnect
 - App Icon + AccentColor asset catalog; `docs/12-testflight-cut.md`
@@ -1089,9 +1110,9 @@ These used to be the “pick up next” list; they shipped before/with PR #12 �
 
 ### 13.2 Endpoints and their deployment state
 
-Four slugs are deployed to `anutsdzbxycaavmmkewo`, verified 2026-08-06 via
-`list_edge_functions`: `profile`, `style-dna`, `outfits`, `closet` — all
-`verify_jwt: true`. **"Built" and "deployed" are different facts and this table
+Five slugs are deployed to `anutsdzbxycaavmmkewo`, verified 2026-08-06 via
+`list_edge_functions`: `profile`, `style-dna`, `outfits`, `closet`,
+`daily-brief` — all `verify_jwt: true`. **"Built" and "deployed" are different facts and this table
 tracks the second**, because `closet` sat fully written and fully tested in the
 repo for five days while every client call to it 404'd.
 
@@ -1104,7 +1125,7 @@ repo for five days while every client call to it 404'd.
 | `closet/analyze-item` | POST | `closet` | ✅ deployed 2026-08-06 (mock vision provider) |
 | `closet/batch-analyze` | POST | `closet` | ✅ deployed 2026-08-06 (job + poll) |
 | `closet/batch-status/{uuid}` | GET | `closet` | ✅ deployed 2026-08-06 |
-| `daily-brief/generate` | POST | `daily-brief` | ❌ |
+| `daily-brief/generate` | POST | `daily-brief` | ✅ deployed 2026-08-06 (idempotent per `brief_date`) |
 | `kyra/respond` | POST | `kyra` | ❌ |
 | `products/extract` | POST | `products` | ❌ |
 | `products/evaluate` | POST | `products` | ❌ |
@@ -1120,7 +1141,7 @@ repo for five days while every client call to it 404'd.
 | Protocol | Conformances |
 |---|---|
 | `AuthRepository` | Live, Mock |
-| `ClosetRepository` | Live, **Guest**, **GuestAware** (the one injected), Mock |
+| `ClosetRepository` | Live, **FreeTierCapped** (the one injected), Mock |
 | `ClosetImageURLResolving` | Live, Mock |
 | `OutfitRepository` | Live, Mock |
 | `KyraRepository` | Live, Mock |

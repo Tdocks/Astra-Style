@@ -12,6 +12,14 @@ public actor MockClosetRepository: ClosetRepository {
     private var items: [UUID: ClosetItem]
     private let previewBatchFailureIndex: Int?
 
+    /// Capture paths this mock has handed out and not yet been asked to
+    /// delete — the in-memory stand-in for objects sitting in
+    /// `user-content`. A test asserts on `uploadedPaths.isEmpty` to mean
+    /// "nothing was left behind", which is the property that actually
+    /// matters, rather than on a call count.
+    public private(set) var uploadedPaths: Set<String> = []
+    public private(set) var deletedPaths: [String] = []
+
     /// - Parameter previewBatchFailureIndex: which submission index of a
     ///   batch scan comes back failed. This exists for the same reason the
     ///   canned analysis below sets brand confidence to 0.52: the review
@@ -58,7 +66,17 @@ public actor MockClosetRepository: ClosetRepository {
     /// marking rule that a purely computed predicate would miss.
     public func uploadCapturedImage(_ data: Data) async throws -> String {
         _ = data
-        return "users/preview/closet/\(UUID().uuidString.lowercased()).jpg"
+        let path = "users/preview/closet/\(UUID().uuidString.lowercased()).jpg"
+        uploadedPaths.insert(path)
+        return path
+    }
+
+    /// Recorded rather than ignored: the thing worth asserting about
+    /// cleanup is that it happened for the right path and did not happen
+    /// after a successful save.
+    public func deleteCapturedImage(atPath storagePath: String) async throws {
+        uploadedPaths.remove(storagePath)
+        deletedPaths.append(storagePath)
     }
 
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {

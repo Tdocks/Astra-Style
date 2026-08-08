@@ -13,6 +13,12 @@ public actor MockOutfitRepository: OutfitRepository {
     private var outfitItemsByOutfit: [UUID: [OutfitItem]]
     private var wears: [OutfitWear] = []
     private var briefsByDay: [String: DailyBrief] = [:]
+    /// Every `style_feedback` row recorded, in insertion order. Exposed
+    /// via `recordedFeedback` for tests/previews that want to assert on it.
+    /// Named distinctly from `recordWear`'s `feedback: String?` parameter
+    /// below, which is an unrelated free-text field on `outfit_wears` —
+    /// same word, two different columns on two different tables.
+    private var feedbackEntries: [StyleFeedback] = []
 
     public init() {
         var seededOutfits = [SampleData.heroOutfit: SampleData.heroOutfitItems()]
@@ -70,15 +76,11 @@ public actor MockOutfitRepository: OutfitRepository {
             source: .aiGenerated
         )
         outfits[outfit.id] = outfit
-
-        let itemsByID = Dictionary(uniqueKeysWithValues: closetItems.map { ($0.id, $0) })
-        outfitItemsByOutfit[outfit.id] = recommendation.itemIDs.enumerated().compactMap { index, closetItemID in
-            guard
-                let category = itemsByID[closetItemID]?.category,
-                let role = OutfitItemRole(rawValue: category.rawValue)
-            else { return nil }
-            return OutfitItem(outfitID: outfit.id, closetItemID: closetItemID, role: role, sortOrder: index)
-        }
+        outfitItemsByOutfit[outfit.id] = OutfitItemAssembly.ownedItems(
+            itemIDs: recommendation.itemIDs,
+            outfitID: outfit.id,
+            closetItems: closetItems
+        )
 
         return outfit
     }
@@ -100,12 +102,47 @@ public actor MockOutfitRepository: OutfitRepository {
         return wear
     }
 
+    /// Test/preview seam: every `outfit_wears` row recorded so far.
+    public func recordedWears() async -> [OutfitWear] {
+        wears
+    }
+
+    @discardableResult
+    public func recordFeedback(
+        targetType: StyleFeedbackTargetType,
+        targetID: UUID,
+        signal: StyleFeedbackSignal,
+        reasonTags: [String],
+        freeText: String?
+    ) async throws -> StyleFeedback {
+        let entry = StyleFeedback(
+            id: UUID(),
+            userID: SampleData.userID,
+            targetType: targetType,
+            targetID: targetID,
+            signal: signal,
+            reasonTags: reasonTags,
+            freeText: freeText
+        )
+        feedbackEntries.append(entry)
+        return entry
+    }
+
+    /// Test/preview seam: every `style_feedback` row recorded so far.
+    public func recordedFeedback() async -> [StyleFeedback] {
+        feedbackEntries
+    }
+
     public func fetchDailyBrief(for date: Date) async throws -> DailyBrief? {
         briefsByDay[DateFormatter.astraDay.string(from: date)]
     }
 
-    public func generateDailyBrief(for date: Date) async throws -> DailyBrief {
-        let brief = SampleData.dailyBrief(for: date)
+    public func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
+        // Stores whatever weather it was handed, same as the live server —
+        // a preview/test that grants weather permission should see that
+        // reading persist onto the brief, not `SampleData`'s own fixture.
+        var brief = SampleData.dailyBrief(for: date)
+        brief.weatherSnapshot = weather
         briefsByDay[DateFormatter.astraDay.string(from: date)] = brief
         return brief
     }

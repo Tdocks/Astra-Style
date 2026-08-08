@@ -16,18 +16,18 @@
     "indentWidth": 2,
     "semiColons": true,
     "singleQuote": false,
-    "include": ["_shared/", "outfits/", "profile/", "style-dna/", "closet/"]
+    "include": ["_shared/", "outfits/", "profile/", "style-dna/", "closet/", "daily-brief/"]
   },
   "lint": {
-    "include": ["_shared/", "outfits/", "profile/", "style-dna/", "closet/"],
+    "include": ["_shared/", "outfits/", "profile/", "style-dna/", "closet/", "daily-brief/"],
     "rules": {
       "tags": ["recommended"]
     }
   },
   "tasks": {
-    "check": "deno check _shared/**/*.ts outfits/**/*.ts profile/**/*.ts style-dna/**/*.ts closet/**/*.ts",
-    "test": "deno test --allow-env _shared/ outfits/ profile/ style-dna/ closet/",
-    "fmt-check": "deno fmt --check _shared/ outfits/ profile/ style-dna/ closet/",
-    "lint": "deno lint _shared/ outfits/ profile/ style-dna/ closet/"
+    "check": "deno check _shared/**/*.ts outfits/**/*.ts profile/**/*.ts style-dna/**/*.ts closet/**/*.ts daily-brief/**/*.ts",
+    "test": "deno test --allow-env _shared/ outfits/ profile/ style-dna/ closet/ daily-brief/",
+    "fmt-check": "deno fmt --check _shared/ outfits/ profile/ style-dna/ closet/ daily-brief/",
+    "lint": "deno lint _shared/ outfits/ profile/ style-dna/ closet/ daily-brief/"
   }
 }

@@ -14,11 +14,17 @@ Deployed slug: `closet`. Client paths are `/functions/v1/closet/analyze-item`, e
 
 `index.ts` is the **only** place that constructs a `VisionAnalysisProvider`.
 
-| Env                                                            | Effect                                                                             |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| _(unset / default)_                                            | `MockVisionAnalysisProvider` — deterministic, offline, what CI and local serve use |
-| `VISION_ANALYSIS_PROVIDER=openai` **and** `OPENAI_API_KEY` set | `OpenAIVisionAnalysisProvider` (`../_shared/providers/openaiVisionAnalysis.ts`)    |
-| `OPENAI_VISION_MODEL` (optional)                               | Model id; defaults to `gpt-5.6`                                                    |
+| Env                                                                     | Effect                                                                             |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| _(unset / default)_                                                     | `MockVisionAnalysisProvider` — deterministic, offline, what CI and local serve use |
+| `VISION_ANALYSIS_PROVIDER=openai` **and** `VISION_PROVIDER_API_KEY` set | `OpenAIVisionAnalysisProvider` (`../_shared/providers/openaiVisionAnalysis.ts`)    |
+| `VISION_PROVIDER_MODEL` (optional)                                      | Model id; defaults to `gpt-5.6-luna`                                               |
+
+**The key is `VISION_PROVIDER_API_KEY` and this table used to say `OPENAI_API_KEY`.** That name is
+in neither spec §25's per-capability scheme nor ADR 0004's vocabulary, and it was never set on the
+project — so from the day this function shipped, every scan took the mock branch and confidently
+returned "Top" for whatever it was shown. Nothing said so. If you are reading this because a scan
+came back wrong, check `supabase secrets list` first.
 
 ### Flip to OpenAI for a pilot deploy
 
@@ -26,8 +32,8 @@ Deployed slug: `closet`. Client paths are `/functions/v1/closet/analyze-item`, e
 # Hosted project secrets (never commit keys)
 supabase secrets set \
   VISION_ANALYSIS_PROVIDER=openai \
-  OPENAI_API_KEY=sk-... \
-  OPENAI_VISION_MODEL=gpt-5.6
+  VISION_PROVIDER_API_KEY=... \
+  VISION_PROVIDER_MODEL=gpt-5.6-luna
 
 supabase functions deploy closet
 ```
@@ -36,12 +42,15 @@ Local serve:
 
 ```bash
 VISION_ANALYSIS_PROVIDER=openai \
-OPENAI_API_KEY=sk-... \
+VISION_PROVIDER_API_KEY=... \
 supabase functions serve closet
 ```
 
-If either `VISION_ANALYSIS_PROVIDER` is not `openai` or `OPENAI_API_KEY` is missing, the function
-**silently stays on the mock** — there is no half-wired live path.
+If `VISION_ANALYSIS_PROVIDER` is not `openai`, the function runs the mock quietly — that is a
+deliberate choice, not a fault. If it **is** `openai` and `VISION_PROVIDER_API_KEY` is missing, the
+function still falls back to the mock but now **logs at error level naming the missing variable**
+before it does. Silence was the expensive part: a mock result is a plausible-looking category for a
+garment nothing measured, which is the "confounded reading" CLAUDE.md's governing rule forbids.
 
 ### Pre-launch pilot gate checklist (must measure before real users)
 

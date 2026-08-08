@@ -86,6 +86,16 @@ public enum ItemCondition: String, Codable, CaseIterable, Sendable, Identifiable
     case good
     case fair
     case worn
+    /// `docs/05` §5.6's bottom rung — a garment too far gone to wear, worth
+    /// 0.0 to the wardrobe score where `.worn` is worth 0.25. Added late
+    /// (`20260808120000_condition_damaged.sql`); before that the vision
+    /// provider could read a garment as damaged and the server mapped it down
+    /// to `.worn` on the way in.
+    ///
+    /// Distinct from `AvailabilityState.unavailable`, which is about whether
+    /// a garment can be worn *right now*. A damaged coat that is also at the
+    /// tailor is both, and the two facts are stored separately.
+    case damaged
 }
 
 /// Garment fit, reused both as a closet item's actual fit and as a user's
@@ -674,6 +684,10 @@ public extension ItemCondition {
         case .good: String(localized: "Good", comment: "Item condition")
         case .fair: String(localized: "Fair", comment: "Item condition")
         case .worn: String(localized: "Well worn", comment: "Item condition")
+        // "Damaged", not "Ruined" or "Unwearable" — the user is describing a
+        // garment he still owns and may still repair, and the harsher words
+        // read as a verdict on his judgement for keeping it.
+        case .damaged: String(localized: "Damaged", comment: "Item condition")
         }
     }
 }

@@ -1,0 +1,22 @@
+// docs/08 §2.5 pilot-gate ground truth.
+//
+// One line per photograph. This file is the LABELS, and it is the part of the
+// gate that cannot be automated: someone has to look at each photograph and say
+// what it is, before the model does, or the gate is the model grading itself.
+//
+// Fields:
+//   category             exactly one of closet/mapper.ts's CATEGORIES
+//   subcategoryKeywords  every one must appear in the returned subcategory
+//   primaryColor         head nouns, ANY of which counts as right
+//   pattern              acceptable values, more than one where genuinely ambiguous
+//   formality            0-100 per docs/05 §3's anchor table; scored within ±15
+//
+// Listing several acceptable answers is not the same as lowering the bar. A
+// chenille shirt is defensibly `solid` and defensibly `texture-only`; marking
+// one of them wrong would measure the labeller's preference, not the model.
+//
+// CURRENT SAMPLE: 1 photograph. That is not a pilot sample and this gate does
+// not pretend otherwise — with n=1 an accuracy figure is a coin flip and the
+// numbers below are a smoke test of the harness. §2.5 asks for a labeled sample
+// of real consented user-scan photos; supplying it is the outstanding work.
+{"image": "probe-shirt-prepared.jpg", "note": "brown chenille/terry short-sleeve camp-collar button-up, label MASSIVE LUXURY / M", "category": "top", "subcategoryKeywords": ["shirt"], "primaryColor": ["brown"], "pattern": ["solid", "textured"], "formality": 40}

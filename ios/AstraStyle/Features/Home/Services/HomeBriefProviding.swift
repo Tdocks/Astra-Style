@@ -26,6 +26,21 @@ public protocol HomeBriefProviding: Sendable {
     func loadTodayBrief(regenerate: Bool) async throws -> HomeBriefData
 
     func markPrimaryOutfitWorn(_ data: HomeBriefData) async throws
+
+    /// Current weather-location authorization, read without prompting
+    /// (P4-HOME-05). `HomeViewModel` uses this to decide whether to show
+    /// the "enable weather" explanation — only when nobody has decided yet
+    /// — versus the honest denied state, versus nothing at all once
+    /// weather is already flowing through `loadTodayBrief`.
+    func weatherAuthorization() -> WeatherLocationAuthorization
+
+    /// Spec §7's in-context permission ask ("Location: when enabling
+    /// weather"). The one path from a live Home screen to
+    /// `WeatherService.requestLocationPermissionIfNeeded()` — see
+    /// `HomeViewModel.enableWeather()`, its only caller, which only calls
+    /// this after `WeatherOptInCardView` has already explained why.
+    /// Returns whether permission is now granted.
+    func requestWeatherPermission() async -> Bool
 }
 
 public final class DefaultHomeBriefProvider: HomeBriefProviding {
@@ -35,43 +50,21 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private let weatherService: WeatherService
     private let calendarService: CalendarService
 
-    /// Resolves the *current* session's guest status at call time (a guest
-    /// session can end mid-lifetime via migration, so this cannot be
-    /// captured once at construction) — injected rather than read from a
-    /// global so this type stays testable, matching the pattern
-    /// `GuestAwareClosetRepository` already uses for the same question.
-    /// Typically `{ await sessionStore.currentIsGuest() }` (see
-    /// `Core/Auth/SessionStore.swift`, backed by `AuthSession.isGuest`).
-    private let isGuest: @Sendable () async -> Bool
-
     public init(
         outfitRepository: OutfitRepository,
         profileRepository: ProfileRepository,
         closetRepository: ClosetRepository,
         weatherService: WeatherService,
-        calendarService: CalendarService,
-        isGuest: @escaping @Sendable () async -> Bool
+        calendarService: CalendarService
     ) {
         self.outfitRepository = outfitRepository
         self.profileRepository = profileRepository
         self.closetRepository = closetRepository
         self.weatherService = weatherService
         self.calendarService = calendarService
-        self.isGuest = isGuest
     }
 
     public func loadTodayBrief(regenerate: Bool) async throws -> HomeBriefData {
-        // Guests have no server-side profile row at all (ADR 0011: "no
-        // server-side identity at all" until migration), so
-        // `profileRepository.fetchCurrentProfile()` below would be a real
-        // Supabase call for a session that must never touch Supabase — and
-        // it would fail besides. Route guests to a brief built entirely
-        // from local state instead, matching the pattern already
-        // established in `AstraStyleApp.resolveLaunchRoute()`.
-        if await isGuest() {
-            return await loadGuestBrief()
-        }
-
         let profile = try await profileRepository.fetchCurrentProfile()
 
         // §6.11's empty state is a fact about the closet, not a failure of
@@ -82,7 +75,7 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // The count is read here rather than inferred from a nil
         // `primaryOutfitID` on the way back because that inference requires
         // the round trip to have succeeded. Before this check existed the
-        // empty state was reachable only by guests: every signed-in user
+        // empty state was reachable only by a guest session: every real user
         // went to `generateDailyBrief`, whose Edge Function is not built
         // (P4-HOME-02), and got an error screen where §6.11 specifies an
         // invitation. `try?` rather than `try` on purpose — if the closet
@@ -94,12 +87,53 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             return await loadSparseClosetBrief(profile: profile, closetItems: closetItems)
         }
 
-        let brief: DailyBrief
+        // Read before either branch below: both the cached-read path and the
+        // generate path want it, and reading it once keeps a slow/failing
+        // WeatherKit lookup from being attempted twice for one screen load.
+        // Never prompts — see `currentWeatherSnapshotIfAuthorized()`.
+        let weatherSnapshot = await currentWeatherSnapshotIfAuthorized()
+
+        let serverBrief: DailyBrief
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
-            brief = cached
+            serverBrief = cached
         } else {
-            brief = try await outfitRepository.generateDailyBrief(for: .now)
+            // `regenerate` is threaded through rather than always false:
+            // the endpoint is idempotent per `brief_date`, so §6.11's
+            // regenerate control would otherwise return the outfits the
+            // user just asked to replace.
+            serverBrief = try await outfitRepository.generateDailyBrief(
+                for: .now,
+                regenerate: regenerate,
+                weather: weatherSnapshot
+            )
         }
+
+        // THE CLIENT'S OWN READING WINS, ON BOTH PATHS.
+        //
+        // The cached path needs it for an obvious reason: a brief written this
+        // morning can predate the moment the user tapped "Enable Weather", and
+        // the header should say what Kyra can see NOW.
+        //
+        // The generate path needs it for a less obvious one, and it was a real
+        // bug — this overlay used to apply only to the cached branch. On the
+        // generate branch the snapshot goes UP to the server, is persisted, and
+        // comes back down on the returned row; so the header was reading a
+        // value it already held in a local variable, via a network round trip,
+        // and showed nothing at all whenever the server did not echo it back.
+        // Depending on a round trip to return something you are holding is
+        // fragile in the exact case where it matters — a slow or partial write
+        // and the header silently goes blank on a device that knows the
+        // weather perfectly well.
+        //
+        // Overlaying is NOT a write. Attaching a forecast to the persisted row
+        // on every Home read would cost a request per screen load for
+        // something nobody asked for; the row catches up the next time
+        // generation actually runs.
+        let brief = weatherSnapshot.map { snapshot in
+            var patched = serverBrief
+            patched.weatherSnapshot = snapshot
+            return patched
+        } ?? serverBrief
 
         // Each of these degrades independently to an empty/nil result on
         // failure via `try?` inside the wrapper — a hiccup fetching, say,
@@ -133,6 +167,23 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             wardrobeScore: wardrobeScore,
             laundryAlertItemCount: laundryCount,
             upcomingOccasions: occasions,
+            // Always nil, checked rather than assumed while building
+            // P4-HOME-04. `PurchaseOpportunityModuleView` only renders when
+            // this is non-nil (`HomeView.modules`), so the module is
+            // honestly absent rather than showing a fabricated candidate —
+            // there is nothing yet to hydrate it from. `computeUnlockCount`
+            // (P4-OUTFIT-09, `_shared/scoring/unlockCount.ts`) exists and is
+            // unit-tested, but nothing calls it: there is no deployed
+            // `products/` Edge Function at all (only `closet`, `daily-brief`,
+            // `outfits`, `profile`, `style-dna` are), so
+            // `ShoppingRepository.evaluateProduct`
+            // (`LiveShoppingRepository.swift`) is a real network call to an
+            // endpoint that does not exist yet — see `docs/02-task-breakdown
+            // .md`'s `P6-SHOP-04`, whose scope is exactly "reusing
+            // P4-OUTFIT-09's algorithm" and which this ticket does not own.
+            // Populate this only once a real `ProductCandidate` and a real
+            // `outfitsUnlocked` count are reachable together — a plausible
+            // number for either half alone is worse than the empty module.
             purchaseOpportunity: nil
         )
     }
@@ -144,11 +195,18 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         try await outfitRepository.recordWear(outfitID: outfitID, wornAt: .now, occasion: nil, rating: nil, feedback: nil)
     }
 
+    public func weatherAuthorization() -> WeatherLocationAuthorization {
+        weatherService.currentAuthorization()
+    }
+
+    public func requestWeatherPermission() async -> Bool {
+        await weatherService.requestLocationPermissionIfNeeded()
+    }
+
     // MARK: - Sparse-closet brief (spec §6.11 empty state)
 
-    /// The signed-in counterpart to `loadGuestBrief()`: a real profile, a
-    /// real closet, and deliberately no outfit — because there aren't
-    /// enough garments to build one from.
+    /// A real profile, a real closet, and deliberately no outfit —
+    /// because there aren't enough garments to build one from.
     ///
     /// `primaryOutfit` is nil, which is what drives
     /// `HomeBriefData.needsMoreClosetItems` and therefore
@@ -182,48 +240,11 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             wardrobeScore: wardrobeScore,
             laundryAlertItemCount: closetItems.filter { $0.laundryState == .laundry }.count,
             upcomingOccasions: occasions,
-            purchaseOpportunity: nil
-        )
-    }
-
-    // MARK: - Guest brief (ADR 0011; never touches Supabase)
-
-    /// Builds the guest Home brief from local state only — no
-    /// `profileRepository` or `outfitRepository` call, both of which are
-    /// Supabase-backed and neither of which has a guest-local counterpart
-    /// (there is no server-generated Daily Brief without an Edge Function
-    /// round trip). `closetRepository` is safe to use as-is: it's always
-    /// `GuestAwareClosetRepository` (see `AppContainer`), which already
-    /// routes a guest session's calls to on-device storage.
-    ///
-    /// A guest's brief therefore always has no primary outfit — outfit
-    /// generation is a server capability guests don't have — which drives
-    /// `HomeBriefData.needsMoreClosetItems`, so `HomeViewModel` renders the
-    /// real "Let's build your first look" empty state (spec §6.11) instead
-    /// of an error. The one thing that *is* real here is the local closet:
-    /// `fetchLaundryCount()` below reads it through the same guest-aware
-    /// repository, not a hardcoded zero.
-    private func loadGuestBrief() async -> HomeBriefData {
-        async let wardrobeScoreTask = fetchWardrobeScoreSafely()
-        async let laundryCountTask = fetchLaundryCount()
-
-        let wardrobeScore = await wardrobeScoreTask
-        let laundryCount = await laundryCountTask
-
-        let brief = DailyBrief(id: UUID(), userID: UUID(), briefDate: .now)
-
-        return HomeBriefData(
-            // Empty, not "there" — see DailyBriefHeaderView for why.
-            greetingName: "",
-            weather: nil,
-            schedule: nil,
-            brief: brief,
-            primaryOutfit: nil,
-            primaryOutfitItems: [],
-            alternativeOutfits: [],
-            wardrobeScore: wardrobeScore,
-            laundryAlertItemCount: laundryCount,
-            upcomingOccasions: [],
+            // See the main `loadTodayBrief` return's comment on this same
+            // field — the reason is identical (no purchase-evaluation
+            // endpoint deployed yet) and doubly true here: a closet this
+            // sparse has no owned items to evaluate a candidate against in
+            // the first place.
             purchaseOpportunity: nil
         )
     }
@@ -255,5 +276,24 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
     private func fetchLaundryCount() async -> Int {
         ((try? await closetRepository.fetchItems()) ?? []).filter { $0.laundryState == .laundry }.count
+    }
+
+    /// The client's own weather reading, or `nil` — never a guess and
+    /// never a prompt.
+    ///
+    /// Only ever fetches when `currentAuthorization()` already reports
+    /// `.authorized`. A `.notDetermined` result here does NOT fall through
+    /// to `requestLocationPermissionIfNeeded()`: that would put the system
+    /// permission dialog on screen the instant Home loads, with none of
+    /// `WeatherOptInCardView`'s explanation in front of it — exactly what
+    /// spec §7's "in context" requirement and this ticket's "never during
+    /// onboarding" note both rule out. Asking is `HomeViewModel
+    /// .enableWeather()`'s job, reachable only from that explicit button.
+    /// A `.denied` result also returns nil rather than calling
+    /// `currentSnapshot()` — it would only throw, and the caller already
+    /// knows the answer from `currentAuthorization()`.
+    private func currentWeatherSnapshotIfAuthorized() async -> WeatherSnapshot? {
+        guard weatherService.currentAuthorization() == .authorized else { return nil }
+        return try? await weatherService.currentSnapshot()
     }
 }

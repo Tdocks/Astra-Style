@@ -85,8 +85,8 @@ public enum PersistenceMapping {
     }
 
     /// Mutates an existing `PersistedClosetItem` in place to match `item`,
-    /// for update-in-place call sites (`SwiftDataGuestClosetStore.update`)
-    /// rather than delete+reinsert, which would needlessly churn the
+    /// for update-in-place call sites rather than delete+reinsert, which
+    /// would needlessly churn the
     /// SwiftData row's identity. Mirrors `persistedModel(from:pendingSync:)`
     /// field-for-field, minus `id`/`createdAt` (identity/history, never
     /// updated) and `primaryImageStoragePath` (not sourced from `ClosetItem`
@@ -162,6 +162,25 @@ public enum PersistenceMapping {
 
     public static func domainOutfitItems(from persisted: PersistedOutfit) -> [OutfitItem] {
         (try? JSONDecoder.astraDefault.decode([OutfitItem].self, from: persisted.encodedItems)) ?? []
+    }
+
+    /// Mutates an existing `PersistedOutfit` in place to match `outfit`,
+    /// mirroring `update(_:with:)` for `PersistedClosetItem` above.
+    /// Deliberately leaves `encodedItems` untouched — `Outfit` carries no
+    /// item list of its own, and a caller with fresh items to cache calls
+    /// `OutfitCaching.upsert(_:items:)` or `upsertItems(_:forOutfit:)`
+    /// instead, which set it explicitly.
+    public static func update(_ persisted: PersistedOutfit, with outfit: Outfit) {
+        persisted.userID = outfit.userID
+        persisted.name = outfit.name
+        persisted.itemDescription = outfit.description
+        persisted.occasionTags = outfit.occasionTags
+        persisted.formalityScore = outfit.formalityScore
+        persisted.compatibilityScore = outfit.compatibilityScore
+        persisted.sourceRaw = outfit.source.rawValue
+        persisted.heroImageURLString = outfit.heroImageURL?.absoluteString
+        persisted.isFavorite = outfit.isFavorite
+        persisted.updatedAt = outfit.updatedAt
     }
 
     // MARK: - DailyBrief

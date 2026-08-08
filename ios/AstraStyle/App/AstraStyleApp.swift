@@ -63,8 +63,8 @@ struct AstraStyleApp: App {
         if AstraFeatureFlags.usesMockBackend {
             // A throwaway signed-in session, adopted rather than restored:
             // `adopt` overwrites whatever the Keychain held, so this needs no
-            // sign-out first — which matters, because signing out of a
-            // non-guest session makes a network call this mode exists to avoid.
+            // sign-out first — which matters, because signing out makes a
+            // network call this mode exists to avoid.
             // The id is fresh per launch, which also scopes the onboarding
             // draft to this run and nothing else.
             try? appContainer.sessionStore.adopt(
@@ -75,8 +75,8 @@ struct AstraStyleApp: App {
                     expiresAt: .now.addingTimeInterval(3600)
                 )
             )
-            // Respect `-astra-skip-onboarding` the same way Apple / email /
-            // guest auth do via `AppRouter.postAuthenticationRoute`, so UI
+            // Respect `-astra-skip-onboarding` the same way Apple and email
+            // auth do via `AppRouter.postAuthenticationRoute`, so UI
             // tests can reach the Closet tab against mocks without walking
             // §6.3–§6.10 first (P3-TEST-02).
             return AppRouter.postAuthenticationRoute
@@ -97,35 +97,34 @@ struct AstraStyleApp: App {
             try await appContainer.sessionStore.restoreSession()
         }
 
-        let session: AuthSession?
+        // Whether a session came back, not what was in it. Removing guest mode
+        // removed the only reader of the session itself — the guest branch
+        // below asked it whether it was one — and a bound value nobody reads
+        // is a warning, which the CI warning gate treats as a failure.
+        // `sessionStore` holds the credentials the profile fetch needs.
+        //
+        // Still a switch rather than `if case .success`: a future
+        // `RestoreOutcome` case should have to be classified here, not fall
+        // through to whichever branch happens to be the default.
+        let hasSession: Bool
         switch restored {
         case .success(let value):
-            session = value
+            hasSession = value != nil
         case .timedOut, .failed:
-            session = nil
+            hasSession = false
         }
 
-        guard let session else {
+        guard hasSession else {
             // No stored session, or restoring it failed or timed out. All
             // resolve to Welcome: without credentials there is nothing else to
             // show.
             return .signedOut
         }
 
-        if session.isGuest {
-            // Guest sessions have no server-side profile row (ADR 0011: "no
-            // server-side identity at all"), so there is nothing to fetch —
-            // doing so anyway would be a real network call for a session that
-            // must never touch Supabase, and would fail besides, since a
-            // guest's access token is empty.
-            //
-            // This scaffold does not yet persist a local "guest completed
-            // onboarding" flag, so a restored guest always lands on `.main`
-            // rather than resuming a specific onboarding step. ADR 0011 names
-            // this gap explicitly under its negative consequences.
-            return .main
-        }
-
+        // Every restored session has a server-side profile row to ask about
+        // (ADR 0014), so there is no branch here any more — the guest case
+        // returned `.main` without fetching anything, because a guest had no
+        // row and an empty access token.
         let profileOutcome = await withDeadline(Self.splashDeadline) {
             try await appContainer.profileRepository.fetchCurrentProfile()
         }

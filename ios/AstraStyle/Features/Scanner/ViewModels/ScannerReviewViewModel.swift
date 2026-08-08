@@ -10,6 +10,7 @@
 
 import Foundation
 import Observation
+import OSLog
 
 @MainActor
 @Observable
@@ -88,6 +89,15 @@ public final class ScannerReviewViewModel {
     /// Phase-3 simplified unlock count after a successful save (P3-SCAN-11).
     /// `nil` until save completes; zero is a real answer ("nothing new yet").
     public internal(set) var outfitsUnlockedCount: Int?
+
+    /// The garment this flow created, once it exists.
+    ///
+    /// Exposed so a host that presented the scanner can learn what came back
+    /// — onboarding's first-items step appends it to the list it is
+    /// building. It is the repository's return value, not the locally-built
+    /// draft, so anything the server normalised on write is what the caller
+    /// sees rather than what was sent.
+    public private(set) var savedItem: ClosetItem?
 
     public var name: String = ""
     public var brand: String = ""
@@ -229,7 +239,7 @@ public final class ScannerReviewViewModel {
         )
 
         do {
-            _ = try await closetRepository.createItem(item, images: [image])
+            savedItem = try await closetRepository.createItem(item, images: [image])
             let corrected = fieldsCorrectedCount()
             analyticsClient.log(.closetItemAdded(category: item.category, source: .scan))
             if corrected > 0 {
@@ -254,6 +264,43 @@ public final class ScannerReviewViewModel {
             phase = .saveFailed(astra)
         }
     }
+
+    /// Removes the uploaded capture when the user leaves without saving.
+    ///
+    /// `uploadCapturedImage` puts bytes in `user-content` before the user
+    /// has decided anything. Retake, Close and a swipe-dismiss all end the
+    /// flow without a `ClosetItemImage` ever referencing that path, so
+    /// without this the object stays there permanently: nothing in Postgres
+    /// points at it, nothing in the app can show it, and it counts against
+    /// his storage. A batch leaves one per image.
+    ///
+    /// Three properties this deliberately has:
+    ///
+    /// - **It is a no-op after `.saved`.** A saved item's
+    ///   `ClosetItemImage.storagePath` is that exact path; deleting it
+    ///   would blank the garment he just added.
+    /// - **It clears `storagePath` first**, so a second call (Retake then
+    ///   Close, say) cannot ask the server to delete the same object twice.
+    /// - **It swallows the failure.** A cleanup that cannot reach the
+    ///   network must not trap the user on a screen he is trying to leave.
+    ///   The leak is logged so it is a known number rather than an
+    ///   invisible one; nothing about the flow depends on the result.
+    public func discardUnsavedUpload() async {
+        guard phase != .saved, let path = storagePath else { return }
+        storagePath = nil
+        if var draft = draftStore.draft(id: draftID) {
+            draft.storagePath = nil
+            draft.signedPreviewURL = nil
+            draftStore.update(draft)
+        }
+        do {
+            try await closetRepository.deleteCapturedImage(atPath: path)
+        } catch {
+            Self.logger.error("Abandoned scan capture left in storage: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static let logger = Logger(subsystem: "app.astrastyle", category: "scanner")
 
     public func isLowConfidence(_ field: AnalysisField) -> Bool {
         analysis?.isLowConfidence(field) ?? false

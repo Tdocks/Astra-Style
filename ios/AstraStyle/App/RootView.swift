@@ -46,12 +46,6 @@ struct RootView: View {
                                     ?? "anonymous"
                             ),
                             profileRepository: container.profileRepository,
-                            // The guest-aware wrapper, not the live repository:
-                            // §5.1 step 12 writes real closet items, and ADR
-                            // 0011 requires a guest's to stay on the device.
-                            // `GuestAwareClosetRepository` is what makes that a
-                            // property of the dependency graph rather than of
-                            // this call site remembering.
                             closetRepository: container.closetRepository,
                             // Scoped exactly like the draft store above, and for
                             // a sharper version of the same reason: this one
@@ -92,7 +86,7 @@ private struct LaunchingView: View {
 }
 
 /// Spec §6.2 Welcome/authentication. Minimal, real, functioning entry
-/// surface (Sign in with Apple, continue in guest mode); full email/OTP
+/// surface (Sign in with Apple, continue with email); full email/OTP
 /// flow and the remaining onboarding steps (§6.3-6.10) are owned by the
 /// Onboarding feature module — see Features/Onboarding/README.md
 /// (P2-ONBOARD tickets).
@@ -175,18 +169,13 @@ private struct SignedOutGateView: View {
                             }
                             .disabled(isAuthenticating)
 
-                            Button {
-                                Task { await continueAsGuest() }
-                            } label: {
-                                Text("Explore in guest mode")
-                                    .astraText(.callout)
-                                    .foregroundStyle(AstraColor.textSecondary)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(nil)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .disabled(isAuthenticating)
-                            .accessibilityHint(Text("Browse a limited demo without an account"))
+                            // There is deliberately no third action here.
+                            // "Explore in guest mode" used to sit below these
+                            // two; ADR 0014 removed it, because an account is
+                            // required before onboarding and the trial it
+                            // offered was never reachable — a guest could not
+                            // scan, could not be given a Style DNA, and could
+                            // not be handed an outfit.
 
                             if let authError {
                                 Text(authError)
@@ -354,14 +343,4 @@ private struct SignedOutGateView: View {
         }
     }
 
-    private func continueAsGuest() async {
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-        do {
-            _ = try await container.authRepository.continueAsGuest()
-            router.routeState = AppRouter.postAuthenticationRoute
-        } catch {
-            authError = error.localizedDescription
-        }
-    }
 }

@@ -338,14 +338,50 @@ PG_TYPE_RE = re.compile(
 )
 PG_MEMBER_RE = re.compile(r"'((?:[^'\\]|\\.)*)'")
 
+# `alter type <name> add value [if not exists] '<value>' [before|after '<anchor>']`
+#
+# This checker used to read `create type` blocks only, from one file. That was
+# true right up until an enum was first extended by a later migration, at which
+# point it reported the new Swift case as drift against a Postgres enum that
+# does in fact contain it -- a false failure, and the worst kind, because the
+# obvious way to make it pass is to delete the correct Swift case.
+#
+# Extensions are collected from every migration in filename order, which is the
+# order Supabase applies them, so a value added and an anchor referenced in a
+# later file both resolve the same way the database resolves them.
+PG_ALTER_RE = re.compile(
+    r"alter\s+type\s+(\w+)\s+add\s+value\s+(?:if\s+not\s+exists\s+)?"
+    r"'((?:[^'\\]|\\.)*)'"
+    r"(?:\s+(before|after)\s+'((?:[^'\\]|\\.)*)')?",
+    re.IGNORECASE,
+)
 
-def parse_pg_enums(text: str) -> list[PgEnum]:
+
+def parse_pg_enums(text: str, alterations: str = "") -> list[PgEnum]:
     enums = []
+    by_name: dict[str, list[str]] = {}
     for m in PG_TYPE_RE.finditer(text):
         name = m.group(1)
         body = m.group(2)
         members = [mm.group(1) for mm in PG_MEMBER_RE.finditer(body)]
+        by_name[name] = members
         enums.append(PgEnum(name=name, members=members))
+
+    # Apply `alter type ... add value` in the order the migrations run. An
+    # alteration naming a type this checker has never seen a `create type` for
+    # is ignored on purpose: it belongs to an enum outside the parsed sources,
+    # and inventing a type here would let a Swift enum match something that was
+    # never actually declared.
+    for m in PG_ALTER_RE.finditer(alterations):
+        name, value, position, anchor = m.group(1), m.group(2), m.group(3), m.group(4)
+        members = by_name.get(name)
+        if members is None or value in members:
+            continue
+        index = len(members)
+        if position and anchor in members:
+            index = members.index(anchor) + (0 if position.lower() == "before" else 1)
+        members.insert(index, value)
+
     return enums
 
 
@@ -379,8 +415,18 @@ def main() -> int:
     swift_text = read_all(args.swift_file, EXTRA_SWIFT_FILES, "Swift")
     sql_text = read_all(args.sql_file, EXTRA_SQL_FILES, "SQL")
 
+    # Every migration, in filename order, read only for `alter type ... add
+    # value`. Deliberately the whole directory rather than an EXTRA_SQL_FILES
+    # entry per migration: an enum extension that nobody remembers to register
+    # here is exactly the drift this checker exists to catch, and a checker
+    # that has to be maintained to keep working will eventually stop working.
+    migrations_dir = args.sql_file.parent
+    alteration_text = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(migrations_dir.glob("*.sql"))
+    )
+
     swift_enums = {e.name: e for e in parse_swift_enums(swift_text)}
-    pg_enums = {e.name: e for e in parse_pg_enums(sql_text)}
+    pg_enums = {e.name: e for e in parse_pg_enums(sql_text, alteration_text)}
 
     if not swift_enums:
         print(f"error: parsed zero Swift enums out of {args.swift_file} — parser is broken.", file=sys.stderr)

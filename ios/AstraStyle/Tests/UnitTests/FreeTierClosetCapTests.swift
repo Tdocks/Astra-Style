@@ -4,7 +4,6 @@
 //
 //  Ticket P3-CLOSET-11 — free-tier 30-item closet cap (spec §16), enforced
 //  at the `ClosetRepository` boundary via `FreeTierCappedClosetRepository`.
-//  Guest 10-item coverage remains in `GuestClosetRepositoryTests`.
 //
 
 import Foundation
@@ -97,33 +96,6 @@ struct FreeTierClosetCapTests {
             images: []
         )
         #expect(replacement.name == "Replacement")
-    }
-
-    @Test("GuestAware non-guest path still hits the free-tier wrapper")
-    func guestAwareNonGuestHitsFreeTierCap() async throws {
-        let userID = UUID()
-        let guestRepository = GuestClosetRepository(
-            store: InMemoryGuestClosetStore(),
-            currentGuestUserID: { UUID() }
-        )
-        let base = MockClosetRepository(items: [])
-        try await seed(base, count: FreeTierLimits.maxClosetItems, userID: userID)
-        let capped = FreeTierCappedClosetRepository(
-            base: base,
-            isEntitledToPremium: { false }
-        )
-        let repository = GuestAwareClosetRepository(
-            isGuest: { false },
-            guestRepository: guestRepository,
-            liveRepository: capped
-        )
-
-        do {
-            _ = try await repository.createItem(makeItem(userID: userID, name: "Over cap"), images: [])
-            Issue.record("Expected free-tier cap through GuestAwareClosetRepository")
-        } catch let error as FreeTierClosetError {
-            #expect(error == .capReached(limit: FreeTierLimits.maxClosetItems))
-        }
     }
 
     @Test("An expired subscription fixture resolves as non-premium for the cap")

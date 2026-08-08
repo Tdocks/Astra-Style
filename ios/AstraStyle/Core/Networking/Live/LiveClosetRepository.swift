@@ -33,8 +33,10 @@ import Foundation
 import Supabase
 
 public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
-    private let apiClient: AstraAPIClient
-    private let supabase: SupabaseClient
+    // Internal, not private: `LiveClosetRepository+Scan` is an extension in
+    // another file, and Swift's `private` is file-scoped.
+    let apiClient: AstraAPIClient
+    let supabase: SupabaseClient
     let offlineQueue: OfflineMutationQueue
     let writer: any ClosetWriting
     let conflictRecorder: OfflineConflictRecording
@@ -162,112 +164,6 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         }
     }
 
-    /// The wire element both analyze endpoints take: the uploaded object's
-    /// path plus the correlation id the server must echo back. Image bytes
-    /// go to Storage, never into the JSON body (`docs/08` §2's
-    /// `imageStoragePath`, "signed, private Supabase Storage path — never a
-    /// public URL").
-    private struct AnalyzeRequestElement: Encodable, Sendable {
-        let requestID: UUID
-        let storagePath: String
-        let imageType: ClosetImageType
-        let deviceHints: GarmentDeviceHints?
-
-        enum CodingKeys: String, CodingKey {
-            case requestID = "request_id"
-            case storagePath = "storage_path"
-            case imageType = "image_type"
-            case deviceHints = "device_hints"
-        }
-    }
-
-    private func uploadedElement(for request: ClosetItemAnalysisRequest) async throws -> AnalyzeRequestElement {
-        let path: String
-        if let existing = request.storagePath, !existing.isEmpty {
-            path = existing
-        } else {
-            path = try await uploadCapturedImage(request.imageData)
-        }
-        return AnalyzeRequestElement(
-            requestID: request.id,
-            storagePath: path,
-            imageType: request.imageType,
-            deviceHints: request.deviceHints
-        )
-    }
-
-    public func uploadCapturedImage(_ data: Data) async throws -> String {
-        try await uploadCaptured(imageData: data)
-    }
-
-    public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
-        // `AstraAPIClient` mints and retries under a stable Idempotency-Key
-        // for `.analyzeClosetItem` — see that type's `requiresIdempotencyKey`
-        // and HANDOFF §9.2. Do not wrap this call in a second retry loop.
-        try await apiClient.send(
-            .analyzeClosetItem,
-            body: uploadedElement(for: request),
-            as: ClosetItemAnalysisResult.self
-        )
-    }
-
-    public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
-        struct BatchRequest: Encodable, Sendable {
-            let items: [AnalyzeRequestElement]
-        }
-        // Uploads run in submission order rather than concurrently on
-        // purpose: the upload leg is bandwidth-bound on a phone, and firing
-        // N image uploads at once on a weak connection makes every one of
-        // them slower and the first result later. Analysis concurrency is
-        // the server's job — and even there it is job+poll, one item per
-        // status tick, so the interactive analyze-item path is not starved
-        // (HANDOFF §9.3).
-        var elements: [AnalyzeRequestElement] = []
-        elements.reserveCapacity(requests.count)
-        for request in requests {
-            elements.append(try await uploadedElement(for: request))
-        }
-        let job = try await apiClient.send(
-            .batchAnalyzeCloset,
-            body: BatchRequest(items: elements),
-            as: ClosetItemAnalysisBatchJob.self
-        )
-        return try await pollBatchJob(id: job.jobID, expectedCount: requests.count)
-    }
-
-    /// Polls `GET /closet/batch-status/:id` until the job is terminal.
-    ///
-    /// One item is advanced per server poll, so a 5-image batch needs at
-    /// least five successful polls — that is intentional isolate sharing,
-    /// not a client bug. Backoff grows gently so a brief generating gap
-    /// does not hammer the function.
-    private func pollBatchJob(id: UUID, expectedCount: Int) async throws -> ClosetItemAnalysisBatch {
-        var delayNanoseconds: UInt64 = 200_000_000 // 200ms
-        let maxDelayNanoseconds: UInt64 = 2_000_000_000
-        // Worst case: one advance per poll × item count, plus headroom for
-        // transient generating states with no new result.
-        let maxAttempts = max(expectedCount * 3, 6) + 10
-
-        for _ in 0..<maxAttempts {
-            let payload = try await apiClient.send(
-                .batchAnalyzeClosetStatus(id: id),
-                as: ClosetItemAnalysisBatchJobStatusPayload.self
-            )
-            if payload.status == .failed {
-                throw AstraError.server(
-                    payload.errorMessage ?? "Batch analysis failed.",
-                    requestID: nil
-                )
-            }
-            if payload.status.isTerminal {
-                return payload.asBatch
-            }
-            try await Task.sleep(nanoseconds: delayNanoseconds)
-            delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
-        }
-        throw AstraError.server("Batch analysis timed out before completing.", requestID: nil)
-    }
-
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         do {
             let created = try await writer.create(item, images: images)
@@ -344,56 +240,26 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     ///   `try?` and Home simply hides the module. The result was a screen
     ///   that has never once shown a real score and never reported why.
     ///
-    ///   The table is not the missing piece. `WardrobeScoring` (Domain/
-    ///   Services) is a protocol plus the §10 weights with **no conforming
-    ///   scorer anywhere**, so nothing in this repo can compute a score to
-    ///   put in such a table; adding the migration would produce a table
-    ///   that is permanently empty and a call that returns "no rows" instead
-    ///   of "relation does not exist" — the same blank module, with more
-    ///   schema to maintain. Implement the scorer (P4-OUTFIT-10) and then
-    ///   the table, in that order.
+    ///   Updated 2026-08-07 (P4-HOME-04): the scorer itself is no longer
+    ///   the missing piece — `computeWardrobeScore`
+    ///   (`supabase/functions/_shared/scoring/wardrobeScore.ts`, P4-OUTFIT-10)
+    ///   is implemented and unit-tested. What is still missing is
+    ///   everything between here and it: no `closet/` route calls it (only
+    ///   `analyze-item` / `batch-analyze` / `batch-status` are deployed —
+    ///   see `closet/index.ts`), and there is still no `wardrobe_scores`
+    ///   table (or any other persistence) for a route to write to or this
+    ///   method to read from. `WardrobeScoring` (Domain/Services) — a
+    ///   client-side protocol for an offline-safe estimate — still has no
+    ///   conforming type either. Wiring an Edge Function route to the now-
+    ///   real TypeScript scorer is P4-HOME-04's honest blocker, checked and
+    ///   confirmed rather than assumed while building that ticket: do not
+    ///   have this method fabricate a score from partial local data in the
+    ///   meantime — an unmeasured composite that LOOKS measured is exactly
+    ///   what "absent is honest; a confounded reading is not" forbids.
     public func fetchWardrobeScore() async throws -> WardrobeScore {
         throw AstraError.unimplemented(
             String(localized: "Your Wardrobe Score isn't ready yet.")
         )
-    }
-
-    // MARK: - Helpers
-
-    /// Uploads one captured image and returns its storage path.
-    ///
-    /// Two things here are load-bearing and were both wrong before:
-    ///
-    /// 1. The bucket is `user-content`. There is exactly one bucket
-    ///    (`20260728101000_storage_buckets.sql`) and it is not called
-    ///    "closet" — `closet` is a folder *inside* it, which is the whole
-    ///    point of the shared `users/{user_id}/...` prefix that migration
-    ///    documents. Uploading to a nonexistent bucket fails outright.
-    /// 2. The user id is lowercased. The four storage policies compare
-    ///    `(storage.foldername(name))[2]` against `auth.uid()::text`, and
-    ///    Postgres renders a uuid lowercase while Swift's
-    ///    `UUID.uuidString` is UPPERCASE. Without `.lowercased()` the path
-    ///    is well-formed, the bucket is right, and the insert is still
-    ///    rejected by RLS — the most expensive kind of wrong, because it
-    ///    looks correct in the debugger.
-    ///
-    /// The path has no `{closet_item_id}` segment (the migration's comment
-    /// illustrates `users/{uid}/closet/{closet_item_id}/{image_id}.jpg`)
-    /// because this runs during a scan, BEFORE the user has confirmed the
-    /// analysis and a `ClosetItem` exists. Only segments [1] and [2] are
-    /// policy-relevant, so this is a valid path under the same convention.
-    private func uploadCaptured(imageData: Data) async throws -> String {
-        do {
-            let session = try await supabase.auth.session
-            let userID = session.user.id.uuidString.lowercased()
-            let path = "users/\(userID)/closet/\(UUID().uuidString.lowercased()).jpg"
-            _ = try await supabase.storage
-                .from("user-content")
-                .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
-            return path
-        } catch {
-            throw AstraError.network("Couldn't upload that photo. Check your connection and try again.")
-        }
     }
 }
 

@@ -23,7 +23,7 @@ Each phase lists, in order: goal, ordered workstreams, hard dependencies, exit c
 5. Core networking (`APIClient` → Edge Functions), `AppContainer` DI, repository protocols (spec §8).
 6. SwiftData persistence container + offline write queue primitive.
 7. Root routing (`AppRouteState`), per-tab `NavigationStack` shell, modal coordinator (spec §27).
-8. Authentication: Sign in with Apple, email OTP, session restore, guest mode + migration (spec §7, §6.2).
+8. Authentication: Sign in with Apple, email OTP, session restore. ~~Guest mode + migration~~ — **withdrawn 2026-08-06, ADR 0014.**
 
 *Amended 2026-07-30: this list previously had 7 items and never named Storage buckets, CI, or*
 *secrets hygiene as their own workstreams, even though 3 of the 8 exit criteria below test exactly*
@@ -41,7 +41,7 @@ Each phase lists, in order: goal, ordered workstreams, hard dependencies, exit c
 
 - [ ] A fresh install launches to a marble splash screen and routes to Welcome within 1.4 s.
 - [ ] A user can sign in with Apple and land on an (empty) Home shell; killing and relaunching the app restores the session without re-authenticating.
-- [ ] A user can enter guest mode, and the client enforces a 10-item local cap without a network call.
+- [x] ~~A user can enter guest mode, and the client enforces a 10-item local cap without a network call.~~ **Withdrawn, ADR 0014.**
 - [ ] `profiles`, `style_profiles`, `body_profiles`, `lifestyle_profiles` exist in Supabase with RLS policies that block cross-user reads (verified by attempting a read with another user's JWT and getting zero rows, not an error).
 - [ ] Storage buckets are private; an unsigned direct URL to any object returns 403.
 - [ ] Tapping each of the 5 tab bar items navigates independently and preserves scroll/nav position when switching away and back.
@@ -128,7 +128,7 @@ Each phase lists, in order: goal, ordered workstreams, hard dependencies, exit c
 - [ ] Capturing a scan while offline queues it locally and completes analysis automatically once connectivity returns, without data loss.
 - [ ] The closet grid scrolls at 60 fps with 50+ items loaded (measured, not eyeballed).
 - [ ] Item detail shows wear count, cost-per-wear, and last-worn-at that update correctly after a "mark worn" action.
-- [ ] Guest mode blocks adding an 11th item with a clear upgrade prompt; free tier blocks a 31st item.
+- [ ] Free tier blocks a 31st item with a clear upgrade prompt. (The guest half of this criterion is withdrawn — ADR 0014.)
 - [ ] `closet_items` and `closet_item_images` RLS blocks cross-user access (same automated test pattern as Phase 1).
 
 **Effort**

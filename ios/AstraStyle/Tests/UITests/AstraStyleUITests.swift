@@ -63,7 +63,7 @@ final class AstraStyleUITests: XCTestCase {
     func testCompleteOnboarding() throws {
         throw XCTSkip(
             """
-            Not implemented: drive Welcome -> Sign in with Apple (or guest) -> style goals -> style \
+            Not implemented: drive Welcome -> Sign in with Apple -> style goals -> style \
             identity -> measurements -> lifestyle -> preference quiz -> Style DNA result -> Home, \
             then assert the Daily Brief is visible. Owner: P2-ONBOARD.
             """
@@ -132,7 +132,7 @@ final class AstraStyleUITests: XCTestCase {
         awaitElement(app.descendants(matching: .any)["closet.form.header"], "Add garment form")
 
         // Category first, while the keyboard is down — same lesson as
-        // `OnboardingCaptureStepsUITests.testAddingAFirstItemAsAGuest`.
+        // `OnboardingCaptureStepsUITests.testAddingAFirstItem`.
         let categoryChip = app.descendants(matching: .any)["closet.form.category.top"]
         awaitElement(categoryChip, "Tops category chip")
         categoryChip.tap()

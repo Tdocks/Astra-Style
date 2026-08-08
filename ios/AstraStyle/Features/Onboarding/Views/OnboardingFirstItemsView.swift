@@ -26,9 +26,26 @@
 //  find twenty-five garments on an onboarding screen, and the step would read
 //  as a management surface rather than a starting point.
 //
-//  NOTHING HERE TOUCHES THE SCANNER. `P3-SCAN-*` does not exist. A "scan
-//  instead" affordance would be the loudest control on the screen and the only
-//  one that cannot work.
+//  THE PHOTO PATH IS THE FIRST THING ON THE SCREEN. This header used to say
+//  "nothing here touches the scanner — a 'scan instead' affordance would be
+//  the loudest control on the screen and the only one that cannot work". That
+//  was true while the `closet` Edge Function was undeployed. It has shipped,
+//  so the loudest control on the screen is now the one that works best: point
+//  a camera at a garment and let the analysis fill in the fields, instead of
+//  typing three of them from memory.
+//
+//  The typed form stays underneath, and it is not a no-camera fallback — the
+//  scanner handles that itself by offering a Photos import. It stays because
+//  the garment might not be in front of him: at the cleaners, in a suitcase,
+//  on someone else's floor. Making the step conditional on where he is
+//  standing would be worse than making him type.
+//
+//  THIS SCREEN DOES NOT PRESENT THE SHEET. `onScanTapped` goes up to
+//  `OnboardingFlowView`, which owns the `AppContainer` the scanner's view
+//  models are built from. A `View` that reached into the container to
+//  construct a repository-backed view model would be a composition root in a
+//  leaf, which is the thing CLAUDE.md's "no network calls in views" rule is
+//  actually protecting against.
 //
 
 import SwiftUI
@@ -36,14 +53,17 @@ import SwiftUI
 struct OnboardingFirstItemsView: View {
     let model: OnboardingViewModel
 
+    /// Asks the flow to present the scanner. See the header: this screen
+    /// cannot build the scanner's view models, so it asks for the sheet
+    /// rather than opening one.
+    let onScanTapped: () -> Void
+
     @FocusState private var isNameFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
-            if let remaining = model.guestItemsRemaining {
-                guestAllowance(remaining)
-            }
-
+            scanCard
+            typeInsteadDivider
             addForm
 
             if !model.firstItems.isEmpty {
@@ -53,37 +73,66 @@ struct OnboardingFirstItemsView: View {
         .task { await model.prepareFirstItemsStep() }
     }
 
-    // MARK: - Guest allowance (spec §6.2; ADR 0011)
+    // MARK: - The photo path
 
-    /// Stated up front rather than discovered at the eleventh item.
+    /// The recommended way in, and the first thing on the screen.
     ///
-    /// The cap is enforced in `GuestClosetRepository` and this screen cannot
-    /// weaken it — but a limit a user only learns about by hitting it reads as
-    /// the app breaking, and the count is the whole reason a guest might
-    /// choose to sign in here rather than later.
-    private func guestAllowance(_ remaining: Int) -> some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            Text("GUEST MODE")
-                .astraText(.micro)
-                .foregroundStyle(AstraColor.accentChampagneAccessible)
-
-            Text(
-                remaining > 0
-                    ? String(
-                        format: String(localized: "You can keep %d more pieces on this phone. They stay here until you create an account.",
-                                       comment: "Guest closet allowance; %d is the number of items left"),
-                        remaining
-                      )
-                    : String(localized: "You've filled the ten pieces guest mode keeps on this phone. Create an account to add more.",
-                             comment: "Guest closet allowance, exhausted")
+    /// Says what happens after the shutter, not just what the button does.
+    /// The scanner's own review screen is where corrections are made and the
+    /// promise that they are POSSIBLE is what makes a man willing to let a
+    /// machine guess — without it, "Astra reads it" sounds like a decision
+    /// being taken away from him.
+    private var scanCard: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+            AstraSectionHeader(
+                title: String(localized: "Photograph something you own",
+                              comment: "First items scan section title"),
+                eyebrow: String(localized: "FASTEST WAY", comment: "First items scan section eyebrow")
             )
-            .astraText(.callout)
-            .foregroundStyle(AstraColor.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
+
+            Text("Astra reads the piece from the photo — kind, colour, brand where it can — and shows you everything it worked out before anything is saved. You can correct any of it.")
+                .astraText(.callout)
+                .foregroundStyle(AstraColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                isNameFocused = false
+                onScanTapped()
+            } label: {
+                HStack(spacing: AstraSpacing.xs) {
+                    Image(systemName: "camera.viewfinder")
+                        .astraIcon(.inline)
+                        .accessibilityHidden(true)
+                    Text("Take a photo")
+                }
+            }
+            .buttonStyle(.astraPrimary)
+            .accessibilityIdentifier("onboarding.firstItems.scan")
+            .accessibilityHint(
+                Text("Opens the camera. You'll see what Astra worked out and can change it before saving.",
+                     comment: "Scan button hint")
+            )
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Marks the typed form as the second option without calling it a lesser
+    /// one. "Or" alone would read as two equal choices; naming the case the
+    /// form is for is what stops a man photographing a shirt he does not have
+    /// with him.
+    private var typeInsteadDivider: some View {
+        HStack(spacing: AstraSpacing.sm) {
+            Rectangle()
+                .fill(AstraColor.divider)
+                .frame(height: 1)
+            Text("Or if it isn't to hand")
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            Rectangle()
+                .fill(AstraColor.divider)
+                .frame(height: 1)
+        }
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("onboarding.firstItems.guestAllowance")
     }
 
     // MARK: - The form
@@ -91,8 +140,8 @@ struct OnboardingFirstItemsView: View {
     private var addForm: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.md) {
             AstraSectionHeader(
-                title: String(localized: "Add something you own", comment: "First items section title"),
-                eyebrow: String(localized: "ONE AT A TIME", comment: "First items section eyebrow")
+                title: String(localized: "Describe it instead", comment: "First items typed form title"),
+                eyebrow: String(localized: "THREE FIELDS", comment: "First items typed form eyebrow")
             )
 
             LabelledField(
@@ -192,12 +241,12 @@ struct OnboardingFirstItemsView: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("onboarding.firstItems.added")
 
-        case .guestCapReached(let limit):
+        case .capReached(let limit):
             noticeCard(
-                headline: String(localized: "That's the guest limit.", comment: "Guest cap headline"),
+                headline: String(localized: "That's the free-plan limit.", comment: "Closet cap headline"),
                 detail: String(
-                    format: String(localized: "Guest mode keeps %d pieces on this phone. Create an account and Kyra keeps the whole closet — everything you've added comes with you.",
-                                   comment: "Guest cap detail; %d is the limit"),
+                    format: String(localized: "The free plan keeps %d pieces. You can carry on — the rest of onboarding doesn't need any more than this.",
+                                   comment: "Closet cap detail; %d is the limit"),
                     limit
                 ),
                 identifier: "onboarding.firstItems.capNotice"
@@ -396,7 +445,8 @@ private struct AddedItemRow: View {
                     apiClient: .previewClient,
                     supabase: AstraSupabaseClientFactory.previewClient
                 )
-            )
+            ),
+            onScanTapped: {}
         )
         .padding(AstraSpacing.pagePadding)
     }

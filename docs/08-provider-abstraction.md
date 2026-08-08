@@ -336,18 +336,96 @@ The live adapter is already wired in `supabase/functions/closet/index.ts` behind
 | Variable | Required for live? | Notes |
 |----------|--------------------|-------|
 | `VISION_ANALYSIS_PROVIDER` | yes — must equal `openai` | Any other value (including unset) → mock |
-| `OPENAI_API_KEY` | yes | Missing key → mock even if provider=`openai` |
-| `OPENAI_VISION_MODEL` | no | Defaults to `gpt-5.6` |
+| `VISION_PROVIDER_API_KEY` | yes | Missing key → mock even if provider=`openai`, and the fallback logs loudly |
+| `VISION_PROVIDER_MODEL` | no | Defaults to `gpt-5.6-luna` |
 
 ```bash
 supabase secrets set \
   VISION_ANALYSIS_PROVIDER=openai \
-  OPENAI_API_KEY=sk-... \
-  OPENAI_VISION_MODEL=gpt-5.6
+  VISION_PROVIDER_API_KEY=... \
+  VISION_PROVIDER_MODEL=gpt-5.6-luna
 supabase functions deploy closet
 ```
 
+> **Both variable names above changed, and the model default with them.** This
+> table used to say `OPENAI_API_KEY` and `OPENAI_VISION_MODEL`, defaulting to
+> `gpt-5.6`. All three were wrong in a way that could not be seen from the
+> outside: `OPENAI_API_KEY` is a name in neither §25's per-capability scheme nor
+> ADR 0004's vocabulary and was never set on the project, so the adapter had
+> never once been constructed — every scan silently took the mock — and
+> `gpt-5.6` is not a model, only the `-luna`/`-terra`/`-sol` variants are.
+> An operator following the old table would have set two secrets, deployed, seen
+> no error, and shipped the mock.
+
 Operator how-to and the pre-launch measurement checklist are duplicated for the deploy surface in `supabase/functions/closet/README.md`. **Flipping these secrets is not the same as completing the §2.5 pilot gate** — measure subcategory accuracy on a labeled consented sample before serving real users.
+
+### 2.5.2 First live run — what the adapter got wrong before it got anything right
+
+Run 2026-08-08 against one real photograph (a brown terry short-sleeve camp-collar shirt, care label reading "MASSIVE LUXURY / M"), through the real `OpenAIVisionAnalysisProvider` and the real `closet/mapper.ts`. **This is not the §2.5 pilot gate.** The gate needs a labeled sample and an accuracy bar; this was one photograph, and its purpose was to establish that the adapter functions at all before anyone spends a sample on it. It did not, five times over.
+
+Every fault below produced either a total request failure or a plausible-looking wrong answer, and **not one of them was visible from the endpoint's response**. The adapter degrades honestly on provider error — `degradedResultFromHints`, "New garment" at 0.2 confidence, all ten fields flagged — which is the correct production behaviour and also means a 400 from the vendor and a genuinely difficult photograph are indistinguishable from outside. Diagnosis required replaying the adapter's own request against the vendor with the error body printed.
+
+| # | Fault | Symptom | Would a reader have caught it? |
+|---|---|---|---|
+| 1 | Key read as `OPENAI_API_KEY`, a name never set on the project | Every scan silently took the mock, since the function shipped | No — no error, no log, correct-shaped response |
+| 2 | Model default `gpt-5.6` | HTTP 404 `model_not_found` → degraded fallback | No — looked like a hard photograph |
+| 3 | `temperature: 0.2` sent | HTTP 400, "Only the default (1) value is supported" | No — same degraded fallback |
+| 4 | Five schema properties absent from `required` | HTTP 400, `strict: true` rejects the whole schema | No — same degraded fallback |
+| 5 | No scale stated on the numeric fields | Formality **3** for a casual shirt, warmth **2**, water resistance **0** | **No, and this is the dangerous one** — 3 satisfies `formality_score between 0 and 100`, writes cleanly, and reads as nightwear to the §10 formality subscore |
+
+Fault 5 has a sting in the tail worth recording, because the obvious fix caused it. Stating "every numeric score is 0-100" in the system prompt moved the *confidences* onto 0-100 as well — `0.93` became `93` — which defeats `mapper.ts`'s `result.confidence < 0.6` gate, the single check standing between a low-confidence reading and a confidently wrong closet item. Two numeric conventions live in one schema and **both** have to be named, each ruling the other out by name. Naming one is worse than naming neither.
+
+Two further faults were of a different kind — the model answered well and the answer was discarded:
+
+- `category` came back `"menswear top"`. Accurate, absent from `mapper.ts`'s `CATEGORIES`, so `resolveCategory` fell to the device-hint branch at confidence 0.4 and flagged the field. A 0.97 reading was shown to the user as a guess to check.
+- `seasonality` included `"early fall"`. `mapper.ts` filters against `SEASONS` and drops non-members silently — the item came back one season short, with nothing recorded to say a reading had been thrown away.
+
+Both are fixed by closing the schema's vocabulary to exactly the mapper's, so the degraded paths fire when something is genuinely uncertain rather than when two vocabularies disagree about wording. `_shared/providers/openaiVisionAnalysis_test.ts` now pins that equality, along with the strict-mode invariants and both numeric conventions — seven tests, no network, each one a fault from the table above converted into something CI can catch.
+
+One fault found here was not a request problem at all. The adapter filled `colorLch` with a literal `{ l: 50, c: 20, h: 240 }` — a mid blue — for every garment ever scanned. Nothing reads it (`mapper.ts` uses `primaryColorName`), so nothing was wrong today; it was a measurement that had never been measured, sitting one wire-up away from the §10 colour subscore, the heaviest term in the engine at 25%. The field is now optional on `GarmentAnalysisResult` and the adapter omits it, which is what the absence of a pixel-level reading should look like.
+
+**After the fixes, on the same photograph:** category `top` (0.96), subcategory "short-sleeve casual button-up shirt", brand "Massive Luxury" (0.98, from the on-device OCR prior as §2.5 intends), size M, colour brown with a cream secondary, pattern solid, formality 35–45 across runs, warmth 25–30, seasonality spring/summer/fall, and `fit` and `material` correctly flagged below threshold — the model declining to commit on the two properties a single flat-lay photograph genuinely cannot settle. 4.1–4.9s end to end, inside §2.4's ≤5.5s p50 budget with little room. Run-to-run variance on the 0-100 scores is real (formality 35 vs 45) and expected: fault 3 means the sampler cannot be pinned, so **§2.4's budget and any accuracy bar the pilot sets must both be stated over repeated runs, not a single one**.
+
+What remains before the gate itself can be called: a labeled consented sample, an accuracy bar set as a product decision, and the whole path exercised through the deployed function over HTTP rather than the adapter in isolation.
+
+### 2.5.3 The pilot gate, as a runnable — `scripts/vision_pilot_gate.ts`
+
+§2.5's gate had been a paragraph since 2026-07-28. It is now a script. It runs the real `OpenAIVisionAnalysisProvider` and the real `closet/mapper.ts` over a labelled manifest, scores per-field accuracy, measures the server leg against §2.4's budget, and exits non-zero if any bar is missed. A run that cannot reach the vendor exits **2**, never 1 — "the gate failed" and "the gate did not run" must not look alike, which is the same mistake §2.5.2's fault 1 made in a different costume.
+
+```bash
+export VISION_PROVIDER_API_KEY=...
+deno run --allow-net --allow-read --allow-env scripts/vision_pilot_gate.ts \
+  --manifest fixtures/vision-pilot/manifest.jsonl --repetitions 3
+```
+
+**The proposed bar.** §2.5 says the bar "is a product decision to set before the pilot runs, not defined by this document". These live in the script so that changing them is a commit rather than an argument once the numbers are in, and they are deliberately not uniform — each is set by what a mistake in that field costs the user, not by how hard the field looks.
+
+| Field | Bar | Why that number |
+|---|---|---|
+| `category` | 98% | A wrong category is a garment in the wrong rail, excluded from every outfit its role should fill. Seven values, a closed enum, and the on-device hint as a fallback. |
+| `subcategory` | 80% | §2.5's own named risk ("knit polo vs. piqué polo"). Scored by keyword recall, not string equality — the question is whether the distinguishing words are there, not whether the model phrased it the labeller's way. |
+| `primary_color` | 90% | Feeds the §10 colour subscore at 25% weight. Scored on the head noun, so "dark brown" and "brown" agree. |
+| `pattern` | 85% | Genuine ambiguity (solid vs texture-only on a chenille shirt) is handled by letting the manifest list several acceptable answers, not by lowering the bar. |
+| `formality` | 85% | Within ±15 on the 0-100 scale — one rung of §3's table. §10 treats a 15-point gap as barely felt and 40 as disqualifying, so ±15 is the tolerance the engine already implies. |
+
+**A third measurement §2.5 does not ask for, and needs to.** The adapter cannot send `temperature` (§2.5.2, fault 3), so every reading is drawn at the model's own sampling temperature and *the same photograph does not produce the same answer twice*. An accuracy figure from one pass is therefore a sample of a distribution, not a measurement. The script takes `--repetitions` and reports how often repeat runs of one photo change their verdict; the proposed ceiling is **15% of photos per field**, which has no prior art in these documents and is a first guess set where a user rescanning a garment has a real chance of a different answer without demanding a determinism the API cannot give.
+
+**What running it actually showed.** Two consecutive invocations, same one photograph, twelve repetitions each — 24 readings in total:
+
+| | run A | run B |
+|---|---|---|
+| category | 91.7% (**one miss**) | 100% |
+| subcategory | 91.7% | 100% |
+| colour / pattern / formality | 100% | 100% |
+| latency p50 | 4035ms | 3776ms |
+| latency p95 | 5796ms | 4454ms |
+| verdict | **not cleared** | cleared |
+
+The two runs disagree, and that is the finding. Run B "clearing the gate" is not evidence the analyser is accurate; it is evidence that a gate stated over a single pass can be cleared by luck. Any bar in the table above must be read over repetitions or it means nothing.
+
+**Latency.** p50 landed at 3.8–4.0s against §2.4's ≤5.5s budget — comfortable, but the p95 of 5.8s in run A is *above* the p50 budget and the spread across 24 readings was 3.3s to 5.8s on one image at the 1024px cap. §2.4 states only a p50; a p95 is worth stating too, and the observed distribution suggests something near 8s rather than 6s. Note also that a low-confidence Terra retry pays this budget twice in sequence, so the tail matters more than the median for the 5–10% of scans §2.5 expects to escalate.
+
+**What this is not.** One photograph is not a pilot sample. With n=1 an accuracy percentage is a coin flip, and the numbers above are a smoke test of the harness rather than a result about the model. The gate stays **not run** until `fixtures/vision-pilot/manifest.jsonl` holds a labelled sample of real consented user-scan photographs — which no amount of engineering produces, because the labels are the part a person has to supply.
 
 ---
 

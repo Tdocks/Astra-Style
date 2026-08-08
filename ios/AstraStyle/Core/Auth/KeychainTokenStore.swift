@@ -100,18 +100,34 @@ private struct PersistedSession: Codable {
     let accessToken: String
     let refreshToken: String
     let expiresAt: Date
-    let isGuest: Bool
+
+    /// Decoded but unused. A Keychain item written by a build that still
+    /// had guest mode carries this key, and dropping the property outright
+    /// would make that item fail to decode — which `SessionStore
+    /// .restoreSession()` treats as a corrupt entry, clears, and routes to
+    /// Welcome. That is a survivable outcome (sign in again), but silently
+    /// signing out every existing user on upgrade is not the same thing as
+    /// removing a feature, so the key is tolerated and ignored.
+    ///
+    /// Note the value is not honoured: a restored *guest* session becomes
+    /// an ordinary session with an empty access token, whose first
+    /// authenticated call fails and routes to sign-in. That is the correct
+    /// destination for a guest after ADR 0014; there is no account to
+    /// restore him to.
+    ///
+    /// Safe to delete once no installed build can still be holding one.
+    private let isGuest: Bool?
 
     init(session: AuthSession) {
         userID = session.userID
         accessToken = session.accessToken
         refreshToken = session.refreshToken
         expiresAt = session.expiresAt
-        isGuest = session.isGuest
+        isGuest = nil
     }
 
     var session: AuthSession {
-        AuthSession(userID: userID, accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt, isGuest: isGuest)
+        AuthSession(userID: userID, accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
     }
 }
 

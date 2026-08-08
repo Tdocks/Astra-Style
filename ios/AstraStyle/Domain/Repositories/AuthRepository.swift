@@ -29,14 +29,9 @@ public protocol AuthRepository: Sendable {
     /// Verifies the code the user received by email.
     func verifyEmailOTP(email: String, code: String) async throws -> AuthSession
 
-    /// Starts a local-only guest session (spec §6.2 "Explore demo" /
-    /// "continue in limited guest mode").
-    func continueAsGuest() async throws -> AuthSession
-
-    /// Upgrades an existing guest session to a full account, preserving
-    /// locally-created data (spec §7 "Guest migration to account"). See
-    /// `signInWithApple(identityToken:nonce:)` for what `nonce` must be.
-    func migrateGuestToAccount(identityToken: String, nonce: String) async throws -> AuthSession
+    // There is no `continueAsGuest()` and no `migrateGuestToAccount(...)`.
+    // An account is required before onboarding (ADR 0014), so the only two
+    // ways into a session are the two above.
 
     /// Restores a previously-persisted session from Keychain, refreshing
     /// the access token if it has expired. Returns `nil` if there is no

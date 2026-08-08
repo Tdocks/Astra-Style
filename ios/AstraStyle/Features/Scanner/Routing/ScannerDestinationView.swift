@@ -16,6 +16,16 @@ struct ScannerDestinationView: View {
     let route: ScannerRoute
     let container: AppContainer
 
+    /// Called with the garment a completed scan created, before the modal
+    /// dismisses.
+    ///
+    /// For the scanner's own entry points this is nil: the Closet reloads
+    /// from the repository and does not need telling. Onboarding's
+    /// first-items step does — it shows the list IT is building, not the
+    /// closet, so a garment added through here would otherwise be saved and
+    /// invisible on the screen that asked for it.
+    var onItemSaved: ((ClosetItem) -> Void)?
+
     @Environment(\.dismiss) private var dismiss
     @State private var path: [ScannerRoute] = []
     @State private var captureViewModel: ScannerCaptureViewModel?
@@ -31,8 +41,7 @@ struct ScannerDestinationView: View {
                     if showsChromeClose {
                         ToolbarItem(placement: .cancellationAction) {
                             Button(String(localized: "Close", comment: "Dismiss scanner modal")) {
-                                container.captureDraftStore.removeAll()
-                                dismiss()
+                                closeScanner()
                             }
                             .foregroundStyle(AstraColor.textSecondary)
                         }
@@ -40,9 +49,34 @@ struct ScannerDestinationView: View {
                 }
         }
         .presentationBackground(AstraColor.backgroundPrimary)
+        // Covers the swipe-dismiss, which reaches neither Close button.
         .onDisappear {
+            discardUnsavedUpload()
             container.captureDraftStore.removeAll()
         }
+    }
+
+    /// Every exit that is not a save runs through here.
+    ///
+    /// The capture is already in `user-content` by the time the review
+    /// screen renders — `uploadCapturedImage` runs before the user has
+    /// decided anything — so leaving without saving strands the object with
+    /// nothing referencing it. Dropping the local draft, which is all this
+    /// used to do, removes the only thing that knew the path.
+    ///
+    /// The `Task` captures the view model strongly on purpose: it has to
+    /// outlive the dismissal that fires immediately after, or the cleanup
+    /// is cancelled by the very action that made it necessary. The view
+    /// model's own guard makes the call a no-op after a successful save.
+    private func discardUnsavedUpload() {
+        guard let viewModel = reviewViewModel else { return }
+        Task { await viewModel.discardUnsavedUpload() }
+    }
+
+    private func closeScanner() {
+        discardUnsavedUpload()
+        container.captureDraftStore.removeAll()
+        dismiss()
     }
 
     private var showsChromeClose: Bool {
@@ -94,8 +128,7 @@ struct ScannerDestinationView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button(String(localized: "Close", comment: "Dismiss scanner from review")) {
-                            container.captureDraftStore.removeAll()
-                            dismiss()
+                            closeScanner()
                         }
                         .foregroundStyle(AstraColor.textSecondary)
                     }
@@ -146,10 +179,20 @@ struct ScannerDestinationView: View {
                 ScannerReviewView(
                     viewModel: reviewViewModel,
                     onFinished: {
+                        // The unwrapped local from the `if let` above — the
+                        // same instance `ScannerReviewView` was handed, so
+                        // this reads the garment that screen actually saved.
+                        if let saved = reviewViewModel.savedItem {
+                            onItemSaved?(saved)
+                        }
                         container.captureDraftStore.removeAll()
                         dismiss()
                     },
                     onRetake: {
+                        // Retake is the abandonment the user is most likely
+                        // to repeat — three attempts at one garment leave
+                        // three orphans without this.
+                        discardUnsavedUpload()
                         Task { await container.pendingScanQueue.remove(id: draftID) }
                         container.captureDraftStore.remove(id: draftID)
                         self.reviewViewModel = nil

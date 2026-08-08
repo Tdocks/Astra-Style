@@ -47,6 +47,28 @@ struct HeroOutfitCardView: View {
                             .foregroundStyle(AstraColor.successOlive)
                     }
 
+                    // `outfit.description` is shown verbatim — deliberately no
+                    // client-side re-check against `OutfitRecommendation
+                    // .unmeasured` here, because `Outfit` (the persisted row
+                    // this view renders) carries no `unmeasured` field at
+                    // all: that array exists only on the transient
+                    // recommendation shape a save collapses into this
+                    // `description` string, and the filtering already
+                    // happened on the way in. `saveOutfit(from:)`
+                    // (LiveOutfitRepository) writes `recommendation.reason`
+                    // straight through, and every caller of that reason is
+                    // already honest by construction: `outfits/reason.ts`'s
+                    // `buildReason` only phrases a component whose OWN
+                    // `degraded` list is empty, and the Daily Brief's
+                    // current scorer (`LeastRecentlyWornScorer`, P4-HOME-02)
+                    // never claims anything about color/fit/style at all —
+                    // its one fixed reason names the rotation rule it used
+                    // and says outright that it isn't the real scorer. If
+                    // `Outfit` ever grows an `unmeasured`-shaped column, or
+                    // a screen starts rendering `OutfitRecommendation.reason`
+                    // directly instead of a saved `Outfit.description`,
+                    // that call site — not this one — is where
+                    // `recommendation.isFullyMeasured` must gate the copy.
                     if let description = outfit.description {
                         Text("Why this works")
                             .astraText(.micro)
@@ -89,21 +111,26 @@ struct HeroOutfitCardView: View {
     private var actionRow: some View {
         HStack(spacing: AstraSpacing.sm) {
             AstraButton(title: String(localized: "Wear This", comment: "Home hero card primary action"), isLoading: isMarkingWorn, action: onWearThis)
+                .accessibilityIdentifier("home.hero.wearThis")
 
             Button(action: onAlternatives) {
                 Label(String(localized: "Alternatives"), systemImage: "square.stack")
             }
             .buttonStyle(.bordered)
             .accessibilityHint(Text("Shows other outfit options for today"))
+            .accessibilityIdentifier("home.hero.alternatives")
 
             Menu {
                 Button(String(localized: "Edit Outfit"), systemImage: "slider.horizontal.3", action: onEdit)
+                    .accessibilityIdentifier("home.hero.edit")
                 Button(String(localized: "Visualize"), systemImage: "camera.viewfinder", action: onVisualize)
+                    .accessibilityIdentifier("home.hero.visualize")
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel(Text("More outfit actions"))
+            .accessibilityIdentifier("home.hero.moreActions")
         }
     }
 }

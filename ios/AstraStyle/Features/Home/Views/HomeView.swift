@@ -74,6 +74,8 @@ public struct HomeView: View {
             )
             .padding(.horizontal, AstraSpacing.pagePadding)
 
+            weatherAffordance(for: data)
+
             HomeEmptyStateView {
                 router.startScan()
             }
@@ -91,6 +93,8 @@ public struct HomeView: View {
             )
             .padding(.horizontal, AstraSpacing.pagePadding)
 
+            weatherAffordance(for: data)
+
             if let outfit = data.primaryOutfit {
                 HeroOutfitCardView(
                     outfit: outfit,
@@ -106,6 +110,32 @@ public struct HomeView: View {
             }
 
             modules(data)
+        }
+    }
+
+    /// Spec §7's in-context weather permission ask, and its honest fallback
+    /// (P4-HOME-05). Shown only while `data.weather` has nothing to say —
+    /// once real weather is on the header there is nothing left to ask
+    /// for or explain, and while `.authorized` but still nil (a transient
+    /// WeatherKit failure) this deliberately renders nothing further: the
+    /// header's own absence of a temperature already told the honest
+    /// story, and repeating it here would be noise, not information.
+    @ViewBuilder
+    private func weatherAffordance(for data: HomeBriefData) -> some View {
+        if data.weather == nil {
+            Group {
+                switch viewModel.weatherAuthorization {
+                case .notDetermined:
+                    WeatherOptInCardView(isRequesting: viewModel.isRequestingWeatherPermission) {
+                        Task { await viewModel.enableWeather() }
+                    }
+                case .denied:
+                    WeatherDeniedNoticeView()
+                case .authorized:
+                    EmptyView()
+                }
+            }
+            .padding(.horizontal, AstraSpacing.pagePadding)
         }
     }
 
@@ -228,4 +258,7 @@ private struct PreviewHomeBriefProvider: HomeBriefProviding {
     }
 
     func markPrimaryOutfitWorn(_ data: HomeBriefData) async throws {}
+
+    func weatherAuthorization() -> WeatherLocationAuthorization { .authorized }
+    func requestWeatherPermission() async -> Bool { true }
 }

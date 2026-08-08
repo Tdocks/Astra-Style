@@ -170,7 +170,15 @@ struct EndpointDeploymentMappingTests {
         // `outfits` shipped with the vertical slice; `profile` and
         // `style-dna` landed with Phase 2 (P2-ONBOARD-12, P2-CORE-02), which
         // is what makes onboarding completable at all.
-        let requiredNow: Set<String> = ["outfits", "profile", "style-dna", "closet"]
+        //
+        // `daily-brief` was added on 2026-08-06 and is the reason this set
+        // matters. It sat in `expectedSlugs` but not here for weeks while
+        // `HomeBriefProviding` called it on every load, so the one test
+        // written to catch exactly this had a hole exactly where the bug
+        // was: Home's 404 was invisible to CI. **A slug belongs here the
+        // moment a production call path builds a URL for it**, not once
+        // someone remembers.
+        let requiredNow: Set<String> = ["outfits", "profile", "style-dna", "closet", "daily-brief"]
         for slug in requiredNow {
             #expect(
                 functionDirectories.contains(slug),

@@ -8,24 +8,37 @@
 //  can be restored/inspected in one place), but which *view* each case
 //  maps to is this module's concern, not the App layer's.
 //
-//  Every destination here is a placeholder pending its owning feature's
-//  tickets (P4-OUTFIT for outfit/alternatives, P5-KYRA for the thread
-//  view, P6-SHOP for the product decision page) — Home only originates
-//  the navigation, it doesn't own the destination screens.
+//  Every destination here not yet listed under "What is built" is a
+//  placeholder pending its owning feature's tickets (P5-KYRA for the
+//  thread view, P6-SHOP for the product decision page) — Home only
+//  originates the navigation, it doesn't own the destination screens.
+//
+//  What is built: `.outfitDetail` — `Features/Outfits/Views
+//  /OutfitDetailView.swift` (spec §6.12, P4-OUTFIT-11). Takes `container`
+//  for the same reason `ClosetDestinationView` does: this is the
+//  composition root for screens PUSHED onto the Home tab's stack, so the
+//  view model is built here, where the full dependency graph is known,
+//  rather than inside the view itself.
 //
 
 import SwiftUI
 
 struct HomeDestinationView: View {
     let route: HomeRoute
+    let container: AppContainer
 
     var body: some View {
         switch route {
-        case .outfitDetail:
-            FeaturePlaceholderView(
-                title: String(localized: "Outfit Detail"),
-                message: String(localized: "The whole look, why it works, and what it's made of."),
-                systemImage: "tshirt"
+        case .outfitDetail(let outfitID):
+            OutfitDetailView(
+                viewModel: OutfitDetailViewModel(
+                    outfitID: outfitID,
+                    outfitRepository: container.outfitRepository,
+                    closetRepository: container.closetRepository,
+                    closetImageURLResolver: container.closetImageURLResolver,
+                    profileRepository: container.profileRepository,
+                    analyticsClient: container.analyticsClient
+                )
             )
         case .alternativeLooks:
             FeaturePlaceholderView(

@@ -18,8 +18,8 @@ struct DailyBriefHeaderView: View {
     var body: some View {
         HStack(alignment: .top, spacing: AstraSpacing.md) {
             VStack(alignment: .leading, spacing: AstraSpacing.xs) {
-                // An empty name means we have nobody to greet — a guest, or a
-                // profile with no display name. "Good evening, there." reads
+                // An empty name means we have nobody to greet — a profile
+                // with no display name. "Good evening, there." reads
                 // like a mail-merge fallback, which is the opposite of the
                 // personal stylist this screen is meant to be. Drop the clause
                 // entirely rather than filling it with a placeholder.

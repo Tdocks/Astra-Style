@@ -26,6 +26,19 @@ public final class LiveWeatherService: NSObject, WeatherService, CLLocationManag
         locationManager.delegate = self
     }
 
+    public func currentAuthorization() -> WeatherLocationAuthorization {
+        switch locationManager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            .authorized
+        case .denied, .restricted:
+            .denied
+        case .notDetermined:
+            .notDetermined
+        @unknown default:
+            .notDetermined
+        }
+    }
+
     public func requestLocationPermissionIfNeeded() async -> Bool {
         switch locationManager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:

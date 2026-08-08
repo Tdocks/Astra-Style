@@ -4,7 +4,7 @@
 //
 //  In-memory `ClosetItemCaching` for unit tests and for any preview path
 //  that constructs a `LiveClosetRepository` without SwiftData. Mirrors
-//  `InMemoryGuestClosetStore`.
+//  the SwiftData-backed cache.
 //
 
 import Foundation
