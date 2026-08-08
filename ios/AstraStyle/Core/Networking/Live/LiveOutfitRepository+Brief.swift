@@ -19,7 +19,7 @@
 import Foundation
 
 public extension LiveOutfitRepository {
-    public func fetchDailyBrief(for date: Date) async throws -> DailyBrief? {
+    func fetchDailyBrief(for date: Date) async throws -> DailyBrief? {
         do {
             return try await supabase.from("daily_briefs")
                 .select()
@@ -32,7 +32,7 @@ public extension LiveOutfitRepository {
         }
     }
 
-    public func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
+    func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
         struct Body: Encodable, Sendable {
             let date: String
             let regenerate: Bool
@@ -53,7 +53,7 @@ public extension LiveOutfitRepository {
         )
     }
 
-    public func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
+    func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
         struct Body: Encodable, Sendable {
             let destination: String
             let startDate: Date

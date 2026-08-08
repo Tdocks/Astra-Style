@@ -27,7 +27,16 @@ extension ScannerBatchViewModel {
     ///
     /// `public` because it is the default argument of a `public`
     /// initializer — Swift will not let one reference an internal symbol.
-    public static func liveDeviceHints(from data: Data) -> GarmentDeviceHints? {
+    ///
+    /// `nonisolated` for the other half of the same reason. This is an
+    /// extension on a `@MainActor` class, so without it the function inherits
+    /// main-actor isolation and cannot be a default value in
+    /// `Dependencies.init`, which is nonisolated because the nested struct is
+    /// — "main actor-isolated default value in a nonisolated context". Nothing
+    /// here touches main-actor state: both Vision adapters are `Sendable`
+    /// structs and `DeviceHintsExtraction.extract` is a pure function over a
+    /// `CGImage`.
+    public nonisolated static func liveDeviceHints(from data: Data) -> GarmentDeviceHints? {
         guard let image = decode(data) else { return nil }
         return DeviceHintsExtraction.extract(
             from: image,
@@ -36,7 +45,7 @@ extension ScannerBatchViewModel {
         )
     }
 
-    private static func decode(_ data: Data) -> CGImage? {
+    private nonisolated static func decode(_ data: Data) -> CGImage? {
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, options) else {
             return nil
