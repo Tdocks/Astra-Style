@@ -36,6 +36,9 @@ extension LiveOutfitRepository {
             case .outfitWear:
                 let wear = try JSONDecoder.astraDefault.decode(OutfitWear.self, from: mutation.payloadData)
                 _ = try await writer.createWear(wear)
+            case .styleFeedback:
+                let feedback = try JSONDecoder.astraDefault.decode(StyleFeedback.self, from: mutation.payloadData)
+                _ = try await writer.createFeedback(feedback)
             case .closetItem, .occasion:
                 // Not this repository's mutation — owned by
                 // `LiveClosetRepository` (`.closetItem`) or nothing yet

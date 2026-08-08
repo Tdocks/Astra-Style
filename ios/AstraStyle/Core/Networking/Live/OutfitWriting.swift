@@ -23,6 +23,14 @@ import Supabase
 protocol OutfitWriting: Sendable {
     func updateOutfit(_ outfit: Outfit) async throws -> Outfit
     func createWear(_ wear: OutfitWear) async throws -> OutfitWear
+    /// P4-OUTFIT-14: the `style_feedback` half of wear feedback capture
+    /// (like/dislike/skip/etc., distinct from the `outfit_wears` row
+    /// `createWear` inserts). Added alongside the other two rather than
+    /// given its own `FeedbackWriting` protocol — a queued
+    /// `.styleFeedback` mutation is replayed by the same drain loop, for
+    /// the same reason `OutfitWriting`'s header gives for `.outfit` /
+    /// `.outfitWear` living together.
+    func createFeedback(_ feedback: StyleFeedback) async throws -> StyleFeedback
 }
 
 /// The production conformance: plain Postgrest calls, no offline handling
@@ -44,6 +52,15 @@ struct SupabaseOutfitWriter: OutfitWriting {
     func createWear(_ wear: OutfitWear) async throws -> OutfitWear {
         try await supabase.from("outfit_wears")
             .insert(wear)
+            .select()
+            .single()
+            .execute()
+            .value
+    }
+
+    func createFeedback(_ feedback: StyleFeedback) async throws -> StyleFeedback {
+        try await supabase.from("style_feedback")
+            .insert(feedback)
             .select()
             .single()
             .execute()
