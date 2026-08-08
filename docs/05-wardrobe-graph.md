@@ -62,6 +62,32 @@ formula here can read, and a scent cannot clash with trousers. And §2.3's third
 worked pair score is printed as 0.417 where `(28/40)^1.5` gives 0.41434; the
 document rounds `0.58566` to `0.583`.
 
+A seventh surfaced when §5 was implemented (2026-08-08). The seed table is the
+arbiter for this one:
+
+**7. §5.1's closed form never passed through its own seed table.** The seeds
+say n=5→3, n=15→12, n=40→35, n=80→60; `3 + 9.2 × ln(n/5 + 1)` evaluates to
+**9.38, 15.75, 23.2, 29.1** at those same four points. No curve of that family
+can fit them: from n=5→40 the seeds grow *superlinearly* (3× the items buys 4×
+the versatility, as raw per-item combinations do — they grow ~(n/3)²), and a
+concave log cannot, so "interpolated via" was never true of these seeds. The
+seeds are the operative values — §5.1's own prose re-asserts one ("half of the
+n=15 expectation of 12") and §5.10's versatility column only reproduces
+against them — and the formula fails at both ends of the range: at n=5 it
+demands 9.38 qualifying outfits per item where the best possible 2/2/1 split
+structurally caps the per-item mean at **2.4** (an expectation no closet can
+meet, contradicting §5.1's own "what's structurally achievable" definition),
+and at n=80 its target of 29 is trivially cleared by any large closet (~710
+raw combinations per item), pegging a 25%-weight component at 1.0 for volume
+alone — the exact failure §5.1's normalization exists to prevent, and the
+§5.8/master-spec failure mode of volume buying score. The formula looks like
+an unrefitted earlier draft: without the `+ 1`, `3 + 9.2 × ln(n/5)` hits
+n=5→3 exactly and lands 13.1 against the n=15 seed of 12 — a plausible fit to
+a two-seed draft that predates the n=40/80 seeds and the "+1" corruption.
+§5.1 now interpolates the seeds piecewise-linearly (0 below n=5; extended past
+n=80 at the last segment's slope so volume never saturates the component) and
+drops "log-shaped". Pinned from both sides in `wardrobeScore_test.ts`.
+
 ---
 
 ## 1. Color Space and Perceptual Color Model
@@ -444,8 +470,12 @@ for each item i:
   itemVersatility_i = count(outfits containing i with outfit compatibility ≥ 0.65, deduplicated per §6.3 near-duplicate rule)
 
 expectedVersatility(n) = a size-indexed target curve, empirically seeded at:
-  n=5 → 3, n=15 → 12, n=40 → 35, n=80 → 60 (sublinear — diminishing returns as closet grows, log-shaped)
-  interpolated via expectedVersatility(n) = 3 + 9.2 × ln(n/5 + 1)   for n ≥ 5, else 0
+  n=5 → 3, n=15 → 12, n=40 → 35, n=80 → 60
+  (sublinear relative to raw combinatorics, which grow ~(n/3)² per item — but NOT log-shaped:
+   the seeds themselves grow superlinearly until §6.3 dedup flattens them past n≈40)
+  interpolated linearly between adjacent seed points for n ≥ 5, else 0;
+  past n=80, extended at the last segment's slope (+0.625/item) so the target keeps growing
+  and sheer closet volume can never saturate this component   (§0 amendment 7)
 
 normalizedVersatility_i = clamp(itemVersatility_i / expectedVersatility(n), 0, 1)
 

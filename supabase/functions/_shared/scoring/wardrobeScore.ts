@@ -191,26 +191,49 @@ function daysBetween(earlier: Date, later: Date): number {
 }
 
 /**
- * §5.1's interpolation formula, implemented exactly as written.
+ * §5.1's size-indexed versatility target: piecewise-linear through the seed
+ * table (n=5→3, 15→12, 40→35, 80→60), 0 below n=5, and extended past n=80 at
+ * the last segment's slope so the target keeps growing with closet size.
  *
- * IT DOES NOT REPRODUCE ITS OWN SEED TABLE. §5.1 states both "empirically
- * seeded at n=5→3, n=15→12, n=40→35, n=80→60" AND the closed form
- * `3 + 9.2 × ln(n/5+1)`. That formula evaluates to 9.38 at n=5, 15.75 at
- * n=15, 23.2 at n=40, and 29.1 at n=80 — nowhere near the seed values, and no
- * curve of this shape passes through all four (checked by least-squares
- * fitting two of the points and testing the other two). This is reported as
- * a doc-internal inconsistency, not resolved by inventing a coefficient that
- * hits the seed table instead: the formula is the operative definition (the
- * seed points are described as what it was fit AGAINST, not exact
- * checkpoints), so it is implemented literally. Nothing in this file depends
- * on hitting the seed table's exact numbers — `wardrobeScore_test.ts`'s
- * cold-start reproduction instead drives §5.9's damping arithmetic directly
- * off the doc's own worked example numbers, which is the part of §5.10 that
- * IS internally consistent.
+ * The doc originally printed a closed form alongside the seeds —
+ * `3 + 9.2 × ln(n/5+1)` — and the two disagree everywhere: 9.38/15.75/23.2/
+ * 29.1 at the four seed points. That is not a rounding gap. No curve of that
+ * family passes through the seeds (from n=5→40 they grow superlinearly, 3×
+ * the items buying 4× the versatility, as raw per-item combinations do —
+ * ~(n/3)² — and a concave log cannot), so "interpolated via" was never true.
+ * The seeds won the adjudication (§0 amendment 7) on three grounds: §5.1's
+ * own prose re-asserts a seed value ("half of the n=15 expectation of 12");
+ * at n=5 the formula's 9.38 exceeds the structural ceiling (a 2/2/1 split
+ * caps the per-item mean at 2.4 raw combinations, so no 5-item closet could
+ * ever meet the "expectation"); and at n=80 the formula's 29 is cleared by
+ * any large closet regardless of curation (~710 raw combinations per item),
+ * pegging a 25%-weight component at 1.0 for volume alone — the exact failure
+ * §5.1's normalisation exists to prevent. Piecewise-linear rather than a
+ * re-fitted smooth curve because the seeds are the only empirical commitments
+ * the doc makes; a new closed form would be a second guess dressed as a fit.
+ * The extension past n=80 keeps the anti-volume property: hold the target
+ * flat instead and a big-enough closet saturates by count alone.
  */
+const VERSATILITY_SEEDS: readonly (readonly [number, number])[] = [
+  [5, 3],
+  [15, 12],
+  [40, 35],
+  [80, 60],
+];
+
 export function expectedVersatility(activeItemCount: number): number {
   if (activeItemCount < 5) return 0;
-  return 3 + 9.2 * Math.log(activeItemCount / 5 + 1);
+  for (let s = 0; s < VERSATILITY_SEEDS.length - 1; s++) {
+    const [n0, v0] = VERSATILITY_SEEDS[s]!;
+    const [n1, v1] = VERSATILITY_SEEDS[s + 1]!;
+    if (activeItemCount <= n1) {
+      return v0 + (v1 - v0) * (activeItemCount - n0) / (n1 - n0);
+    }
+  }
+  const [nLast, vLast] = VERSATILITY_SEEDS[VERSATILITY_SEEDS.length - 1]!;
+  const [nPrev, vPrev] = VERSATILITY_SEEDS[VERSATILITY_SEEDS.length - 2]!;
+  const finalSlope = (vLast - vPrev) / (nLast - nPrev);
+  return vLast + finalSlope * (activeItemCount - nLast);
 }
 
 /**

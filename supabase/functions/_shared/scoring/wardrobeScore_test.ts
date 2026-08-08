@@ -4,6 +4,7 @@ import {
   confidenceOf,
   dampedScore,
   DEFAULT_WARDROBE_WEIGHTS,
+  expectedVersatility,
   type WardrobeContext,
   type WardrobeItem,
 } from "./wardrobeScore.ts";
@@ -171,6 +172,39 @@ Deno.test("Test 19 (§9): an artificially 'perfect' 3-item closet does not excee
   const result = computeWardrobeScore(perfect, TODAY, context);
   assert(result.score !== null);
   assert(result.score! <= 55, `expected <= 55, got ${result.score}`);
+});
+
+// ── §5.1 expectedVersatility (§0 amendment 7) ───────────────────────────────
+
+Deno.test("§5.1: expectedVersatility passes through all four seed points exactly", () => {
+  // The seeds, not the retired log formula, are the operative definition —
+  // see §0 amendment 7 and expectedVersatility's own comment. Pinned exactly
+  // so a future "simplification" back to a closed form has to face this test.
+  assertEquals(expectedVersatility(5), 3);
+  assertEquals(expectedVersatility(15), 12);
+  assertEquals(expectedVersatility(40), 35);
+  assertEquals(expectedVersatility(80), 60);
+});
+
+Deno.test("§5.1: below the n=5 floor there is no baseline — 0, not an extrapolation", () => {
+  assertEquals(expectedVersatility(0), 0);
+  assertEquals(expectedVersatility(4), 0);
+});
+
+Deno.test("§5.1: interpolation is linear between seeds and monotone throughout", () => {
+  assertAlmostEquals(expectedVersatility(10), 7.5, 1e-9); // midway 5→15: (3+12)/2
+  assertAlmostEquals(expectedVersatility(60), 47.5, 1e-9); // midway 40→80: (35+60)/2
+  let prev = 0;
+  for (let n = 5; n <= 120; n++) {
+    const v = expectedVersatility(n);
+    assert(v >= prev, `expectedVersatility not monotone at n=${n}`);
+    prev = v;
+  }
+});
+
+Deno.test("§5.1: past n=80 the target keeps climbing at the final slope, so volume alone can never saturate versatility", () => {
+  assertAlmostEquals(expectedVersatility(100), 60 + 20 * 0.625, 1e-9);
+  assert(expectedVersatility(200) > expectedVersatility(100));
 });
 
 // ── §5.10 worked cold-start table ───────────────────────────────────────────
