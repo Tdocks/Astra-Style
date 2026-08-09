@@ -276,7 +276,6 @@ private struct PreviewHomeBriefProvider: HomeBriefProviding {
                 primaryOutfitItems: SampleData.heroOutfitItems(),
                 alternativeOutfits: SampleData.alternativeOutfits,
                 wardrobeScore: SampleData.wardrobeScore,
-                laundryAlertItemCount: 2,
                 upcomingOccasions: MockCalendarService().events,
                 purchaseOpportunity: nil
             )
@@ -292,7 +291,6 @@ private struct PreviewHomeBriefProvider: HomeBriefProviding {
                 primaryOutfitItems: [],
                 alternativeOutfits: [],
                 wardrobeScore: nil,
-                laundryAlertItemCount: 0,
                 upcomingOccasions: [],
                 purchaseOpportunity: nil
             )

@@ -36,6 +36,18 @@ struct TodaysLookView: View {
     var onTapGarment: (LookGarment) -> Void
 
     var body: some View {
+        // Nothing to draw is drawn as nothing. An empty container carrying
+        // the label "Today's look" announces a look to VoiceOver that is not
+        // there — the outfit exists but its garments could not be joined,
+        // which happens when the closet read failed under a cached brief.
+        if garments.isEmpty {
+            EmptyView()
+        } else {
+            look
+        }
+    }
+
+    private var look: some View {
         VStack(spacing: AstraSpacing.md) {
             if let anchor {
                 garmentTile(anchor, height: AstraSize.lookAnchorHeight)
@@ -83,6 +95,11 @@ struct TodaysLookView: View {
                 url: garment.imageURL,
                 aspectRatio: 1,
                 thumbnail: .closetGridTile,
+                // The whole point of the cut-out is the shape of the
+                // garment; a plate behind it and a crop through it undo
+                // both halves of that.
+                showsBackground: false,
+                contentMode: .fit,
                 accessibilityDescription: garment.item.name
             )
             .frame(maxWidth: .infinity)

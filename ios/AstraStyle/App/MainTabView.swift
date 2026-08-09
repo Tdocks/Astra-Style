@@ -98,6 +98,12 @@ struct MainTabView: View {
                     // category chip instead of the closet tile.
                     currentUserID: { await container.sessionStore.currentUserID() },
                     analyticsClient: container.analyticsClient
+                ),
+                looksViewModel: ClosetLooksViewModel(
+                    outfitRepository: container.outfitRepository,
+                    closetRepository: container.closetRepository,
+                    profileRepository: container.profileRepository,
+                    imageURLResolver: container.closetImageURLResolver
                 )
             )
             .navigationDestination(for: ClosetRoute.self) { route in

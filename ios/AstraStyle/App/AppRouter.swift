@@ -93,6 +93,13 @@ public enum HomeRoute: Hashable, Sendable {
 public enum ClosetRoute: Hashable, Sendable {
     case category(ClothingCategory)
     case itemDetail(itemID: UUID)
+    /// A saved outfit, opened from the Closet's looks carousel.
+    ///
+    /// A second case rather than reusing `HomeRoute.outfitDetail`: each tab
+    /// owns its own `NavigationStack` path, so pushing a `HomeRoute` onto
+    /// `closetPath` would not resolve — `ClosetDestinationView` is the only
+    /// thing that reads this stack.
+    case outfitDetail(outfitID: UUID)
     case editItem(itemID: UUID)
     case scanner(mode: ScannerRoute)
     case colorSpectrum

@@ -161,7 +161,16 @@ public final class HomeViewModel {
         }
         do {
             let data = try await provider.loadTodayBrief(regenerate: regenerate)
-            state = data.needsMoreClosetItems ? .empty(data) : .loaded(data)
+            // A closet we could not read is a recoverable error, not an
+            // empty wardrobe. Before this branch existed the two arrived at
+            // the same screen, and it was the wrong one of the two: the
+            // empty state's advice ("add five pieces") cannot fix a dropped
+            // connection, and the retry that can fix it was not on screen.
+            if data.closetIsUnreadable, data.primaryOutfit == nil {
+                state = .failed(.network("Couldn't read your closet just now."))
+            } else {
+                state = data.needsMoreClosetItems ? .empty(data) : .loaded(data)
+            }
         } catch let error as AstraError {
             state = .failed(error)
         } catch {

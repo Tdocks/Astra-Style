@@ -13,6 +13,12 @@
 //  largest element on the screen was a permanent placeholder, above a
 //  garment list the app was holding and discarding.
 //
+//  IN `Domain/Models` RATHER THAN UNDER `Features/Home`, WHICH IS WHERE IT
+//  STARTED. Home was the first screen to need a drawable garment, but it is
+//  not the only one: the Closet's outfit carousel draws the same shape, and a
+//  type owned by one feature and imported by another is how two nearly-equal
+//  copies of it eventually appear.
+//
 //  `OutfitItem` alone cannot be drawn — it carries a `closetItemID` and a
 //  role, not a name or a photograph. This is the joined shape.
 //

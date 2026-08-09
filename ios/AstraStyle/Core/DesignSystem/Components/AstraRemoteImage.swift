@@ -62,6 +62,8 @@ public struct AstraRemoteImage: View {
     private let aspectRatio: CGFloat
     private let thumbnail: ImageDownsampling.ThumbnailSize?
     private let cornerRadius: CGFloat
+    private let showsBackground: Bool
+    private let contentMode: ContentMode
     private let accessibilityDescription: String
 
     @Environment(\.displayScale) private var displayScale
@@ -80,6 +82,14 @@ public struct AstraRemoteImage: View {
     ///     a large hero image, where downsampling to a tile size would be
     ///     visibly soft.
     ///   - cornerRadius: Defaults to `AstraSpacing.cardRadius`.
+    ///   - showsBackground: Whether to draw the `surfaceElevated` plate
+    ///     behind the image. `false` for background-removed cut-outs laid
+    ///     directly on the page — a plate behind a cut-out reinstates the
+    ///     rectangle the cut-out was made to remove.
+    ///   - contentMode: `.fill` crops to the frame, which is right for a
+    ///     square grid tile. `.fit` shows the whole garment, which is the
+    ///     only correct choice for a cut-out: cropping a silhouette cuts the
+    ///     shoulders off the shirt.
     ///   - accessibilityDescription: What the image shows, as a sentence.
     ///     Applied whatever the load state, so VoiceOver describes the
     ///     garment rather than announcing a placeholder.
@@ -88,18 +98,22 @@ public struct AstraRemoteImage: View {
         aspectRatio: CGFloat,
         thumbnail: ImageDownsampling.ThumbnailSize? = nil,
         cornerRadius: CGFloat = AstraSpacing.cardRadius,
+        showsBackground: Bool = true,
+        contentMode: ContentMode = .fill,
         accessibilityDescription: String
     ) {
         self.url = url
         self.aspectRatio = aspectRatio
         self.thumbnail = thumbnail
         self.cornerRadius = cornerRadius
+        self.showsBackground = showsBackground
+        self.contentMode = contentMode
         self.accessibilityDescription = accessibilityDescription
     }
 
     public var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(AstraColor.surfaceElevated)
+            .fill(showsBackground ? AstraColor.surfaceElevated : Color.clear)
             .aspectRatio(aspectRatio, contentMode: .fit)
             .overlay {
                 content
@@ -132,7 +146,7 @@ public struct AstraRemoteImage: View {
         case .loaded(let image):
             Image(uiImage: image)
                 .resizable()
-                .scaledToFill()
+                .aspectRatio(contentMode: contentMode)
                 .transition(.opacity)
         case .unavailable:
             Image(systemName: "hanger")

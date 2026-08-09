@@ -55,6 +55,18 @@ struct ClosetDestinationView: View {
                 )
             )
 
+        case .outfitDetail(let outfitID):
+            OutfitDetailView(
+                viewModel: OutfitDetailViewModel(
+                    outfitID: outfitID,
+                    outfitRepository: container.outfitRepository,
+                    closetRepository: container.closetRepository,
+                    closetImageURLResolver: container.closetImageURLResolver,
+                    profileRepository: container.profileRepository,
+                    analyticsClient: container.analyticsClient
+                )
+            )
+
         case .editItem:
             // `ClosetItemFormViewModel.editing(item:closetRepository:)`
             // takes a loaded `ClosetItem`, and this route carries only an

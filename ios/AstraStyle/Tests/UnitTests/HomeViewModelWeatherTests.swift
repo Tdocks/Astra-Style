@@ -106,7 +106,6 @@ private func fixtureBriefData() -> HomeBriefData {
         primaryOutfitItems: [],
         alternativeOutfits: [],
         wardrobeScore: nil,
-        laundryAlertItemCount: 0,
         upcomingOccasions: [],
         purchaseOpportunity: nil
     )

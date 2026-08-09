@@ -116,6 +116,7 @@ import SwiftUI
 
 public struct ClosetView: View {
     @State private var viewModel: ClosetViewModel
+    @State private var looksViewModel: ClosetLooksViewModel
     @Environment(AppRouter.self) private var router
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -153,8 +154,9 @@ public struct ClosetView: View {
     /// so it survives the view being rebuilt mid-scroll.
     private static let allItemsSectionID = "closet.all-items"
 
-    public init(viewModel: ClosetViewModel) {
+    public init(viewModel: ClosetViewModel, looksViewModel: ClosetLooksViewModel) {
         _viewModel = State(wrappedValue: viewModel)
+        _looksViewModel = State(wrappedValue: looksViewModel)
     }
 
     public var body: some View {
@@ -185,6 +187,9 @@ public struct ClosetView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.onAppear()
+        }
+        .task {
+            await looksViewModel.onAppear()
         }
         .onAppear { viewModel.prefersCutouts = showsCutouts }
         .onChange(of: showsCutouts) { _, prefers in
@@ -426,7 +431,14 @@ public struct ClosetView: View {
             emptyState(.closetIsEmpty)
         } else {
             categoryTiles(scrollProxy: scrollProxy)
+            // Above the metrics and the grid, because a look is what a man
+            // came here to find and a count of his trousers is not. It is
+            // below the category tiles rather than at the very top only so
+            // the screen still opens on something that is unambiguously his
+            // closet.
+            looksCarousel
             metricsRow
+            laundryAlert
             allItemsSection
         }
     }
@@ -448,6 +460,33 @@ public struct ClosetView: View {
             router.push(ClosetRoute.itemDetail(itemID: itemID))
         }
         .padding(.horizontal, AstraSpacing.pagePadding)
+    }
+
+    /// The outfit carousel. Its own view model, its own load, its own
+    /// failure — a looks endpoint that is down must not take the closet
+    /// grid down with it, and the two have no data in common beyond the
+    /// garments themselves.
+    private var looksCarousel: some View {
+        ClosetLooksCarouselView(
+            viewModel: looksViewModel,
+            onOpenLook: { router.push(ClosetRoute.outfitDetail(outfitID: $0)) },
+            onOpenGarment: { router.push(ClosetRoute.itemDetail(itemID: $0)) }
+        )
+    }
+
+    /// §6.11's laundry alert, rehomed from Home onto the screen the
+    /// garments live on. Drawn only when the wash is not empty — see
+    /// `ClosetLaundryAlertView`'s header for why it expands in place
+    /// rather than applying a filter.
+    @ViewBuilder
+    private var laundryAlert: some View {
+        let inTheWash = viewModel.laundryItems
+        if !inTheWash.isEmpty {
+            ClosetLaundryAlertView(items: inTheWash) { itemID in
+                router.push(ClosetRoute.itemDetail(itemID: itemID))
+            }
+            .padding(.horizontal, AstraSpacing.pagePadding)
+        }
     }
 
     private func categoryTiles(scrollProxy: ScrollViewProxy) -> some View {
@@ -572,13 +611,27 @@ struct ClosetItemGrid: View {
 
 // MARK: - Previews
 
+/// Built once for both previews rather than inline twice — the four
+/// dependencies are the same in each and a second copy is a second thing to
+/// keep in step.
+@MainActor
+private var previewLooksViewModel: ClosetLooksViewModel {
+    ClosetLooksViewModel(
+        outfitRepository: MockOutfitRepository(),
+        closetRepository: MockClosetRepository(),
+        profileRepository: MockProfileRepository(),
+        imageURLResolver: MockClosetImageURLResolver()
+    )
+}
+
 #Preview("Loaded") {
     NavigationStack {
         ClosetView(
             viewModel: ClosetViewModel(
                 closetRepository: MockClosetRepository(),
                 imageURLResolver: MockClosetImageURLResolver()
-            )
+            ),
+            looksViewModel: previewLooksViewModel
         )
     }
     .environment(AppRouter())
@@ -591,7 +644,8 @@ struct ClosetItemGrid: View {
             viewModel: ClosetViewModel(
                 closetRepository: MockClosetRepository(items: []),
                 imageURLResolver: MockClosetImageURLResolver()
-            )
+            ),
+            looksViewModel: previewLooksViewModel
         )
     }
     .environment(AppRouter())

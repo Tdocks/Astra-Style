@@ -71,63 +71,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         self.imageURLResolver = imageURLResolver
     }
 
-    /// Joins `outfit_items` to the garments they point at and signs their
-    /// images in one request.
-    ///
-    /// The closet is already in hand from the count check at the top of
-    /// `loadTodayBrief`, so the join costs nothing — no per-garment row
-    /// fetch, only the images. Order is `sortOrder`, which is the order the
-    /// scorer produced and therefore the order the look reads in.
-    ///
-    /// Everything here degrades to a missing picture rather than a missing
-    /// garment: a garment whose image will not sign still appears, named, in
-    /// its slot. A look that silently drops the shoes because a URL expired
-    /// would be telling the user to leave the house barefoot.
-    private func lookGarments(
-        for items: [OutfitItem],
-        closet: [ClosetItem]
-    ) async -> [LookGarment] {
-        guard !items.isEmpty else { return [] }
-        let byID = Dictionary(uniqueKeysWithValues: closet.map { ($0.id, $0) })
-        let ordered = items
-            .sorted { $0.sortOrder < $1.sortOrder }
-            .compactMap { item -> LookGarment? in
-                guard let closetItemID = item.closetItemID, let garment = byID[closetItemID] else {
-                    return nil
-                }
-                return LookGarment(item: garment, role: item.role)
-            }
-        guard !ordered.isEmpty else { return [] }
-
-        let repository = closetRepository
-        let pathsByGarmentID = await withTaskGroup(of: (UUID, String?).self) { group in
-            for garment in ordered {
-                group.addTask {
-                    let images = (try? await repository.fetchImages(forItem: garment.item.id)) ?? []
-                    let primary = images.first { $0.isPrimary } ?? images.first
-                    return (garment.item.id, primary?.displayStoragePath)
-                }
-            }
-            var collected: [UUID: String] = [:]
-            for await (id, path) in group where path != nil {
-                collected[id] = path
-            }
-            return collected
-        }
-
-        let signed = (try? await imageURLResolver.resolve(
-            storagePaths: Array(pathsByGarmentID.values)
-        )) ?? [:]
-
-        return ordered.map { garment in
-            var hydrated = garment
-            if let path = pathsByGarmentID[garment.item.id] {
-                hydrated.imageURL = signed[path]
-            }
-            return hydrated
-        }
-    }
-
     /// Today's brief, read from cache when one exists and generated when it
     /// does not, with the device's own weather reading laid over the top.
     ///
@@ -222,14 +165,12 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             in: DateInterval(start: .now, duration: 60 * 60 * 18),
             userID: profile.id
         )
-        async let laundryCountTask = fetchLaundryCount()
 
         let primaryOutfit = await primaryOutfitTask
         let primaryOutfitItems = await primaryOutfitItemsTask
         let alternativeOutfits = await alternativeOutfitsTask
         let wardrobeScore = await wardrobeScoreTask
         let occasions = await occasionsTask
-        let laundryCount = await laundryCountTask
 
         return HomeBriefData(
             greetingName: profile.greetingName,
@@ -240,7 +181,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             primaryOutfitItems: primaryOutfitItems,
             alternativeOutfits: alternativeOutfits,
             wardrobeScore: wardrobeScore,
-            laundryAlertItemCount: laundryCount,
             upcomingOccasions: occasions,
             // Always nil, checked rather than assumed while building
             // P4-HOME-04. `PurchaseOpportunityModuleView` only renders when
@@ -260,11 +200,17 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             // `outfitsUnlocked` count are reachable together — a plausible
             // number for either half alone is worse than the empty module.
             purchaseOpportunity: nil,
-            closetRoleCounts: Self.roleCounts(of: closetItems ?? []),
+            // `closetItems` nil means the fetch failed, and that is passed
+            // through as nil rather than flattened to an empty closet — see
+            // `HomeBriefData.closetRoleCounts`.
+            closetRoleCounts: closetItems.map(Self.roleCounts(of:)),
             // After the fan-out, not inside it: this needs the items the
             // fan-out is fetching, and running it concurrently would fetch
             // them twice.
-            lookGarments: await lookGarments(for: primaryOutfitItems, closet: closetItems ?? [])
+            lookGarments: await LookHydrator(
+                closetRepository: closetRepository,
+                imageURLResolver: imageURLResolver
+            ).hydrate(items: primaryOutfitItems, closet: closetItems ?? [])
         )
     }
 
@@ -302,8 +248,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     /// `primaryOutfit` is nil, which is what drives
     /// `HomeBriefData.needsMoreClosetItems` and therefore
     /// `HomeViewModel.ViewState.empty`. The header still greets him by
-    /// name and the laundry count is still real: `.empty` carries its
-    /// payload precisely so an empty screen is not a blank one.
+    /// name: `.empty` carries its payload precisely so an empty screen is
+    /// not a blank one.
     ///
     /// Weather and schedule are nil rather than fetched. Both arrive on
     /// the `DailyBrief` the server generates, and there is no honest way
@@ -329,7 +275,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             primaryOutfitItems: [],
             alternativeOutfits: [],
             wardrobeScore: wardrobeScore,
-            laundryAlertItemCount: closetItems.filter { $0.laundryState == .laundry }.count,
             upcomingOccasions: occasions,
             // See the main `loadTodayBrief` return's comment on this same
             // field — the reason is identical (no purchase-evaluation
@@ -364,10 +309,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
     private func fetchWardrobeScoreSafely() async -> WardrobeScore? {
         try? await closetRepository.fetchWardrobeScore()
-    }
-
-    private func fetchLaundryCount() async -> Int {
-        ((try? await closetRepository.fetchItems()) ?? []).filter { $0.laundryState == .laundry }.count
     }
 
     /// The client's own weather reading, or `nil` — never a guess and

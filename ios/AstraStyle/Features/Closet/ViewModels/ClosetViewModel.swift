@@ -476,6 +476,21 @@ public final class ClosetViewModel {
         ClosetMetrics.compute(for: allItems)
     }
 
+    /// Everything currently in the wash, for `ClosetLaundryAlertView`.
+    ///
+    /// Over `allItems` for the reason `metrics` is: this is a fact about the
+    /// wardrobe, not about the current query. A man who has typed "shirt"
+    /// into the search field has not stopped owning the trousers in the
+    /// hamper, and a laundry count that shrank as he searched would be
+    /// answering a question he did not ask.
+    ///
+    /// Read off the closet already in memory — no extra fetch. The Home
+    /// version of this alert called `fetchItems()` a second time for the
+    /// count alone, on a screen that had just fetched the same rows.
+    public var laundryItems: [ClosetItem] {
+        allItems.filter { $0.laundryState == .laundry }
+    }
+
     public func items(in category: ClothingCategory) -> [ClosetItem] {
         narrowed(state.items.filter { $0.category == category })
     }

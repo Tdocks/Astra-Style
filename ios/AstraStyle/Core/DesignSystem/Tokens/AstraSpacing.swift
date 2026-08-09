@@ -91,4 +91,19 @@ public enum AstraSize {
     /// height: an outfit is not a set of equal things, and a layout that
     /// gives the shirt and the watch the same square says otherwise.
     public static let lookSupportingHeight: CGFloat = 120
+
+    /// A whole outfit stacked head-to-toe in a carousel card.
+    ///
+    /// Taller than `lookAnchorHeight` because it holds three slots rather
+    /// than one, and fixed for the same reason everything else here is: the
+    /// carousel's cards must be the same height or the row jumps as it
+    /// pages. `LookSilhouetteView` divides this by frame proportion — the
+    /// SLICES move with the wearer, the total does not.
+    public static let silhouetteHeight: CGFloat = 340
+
+    /// The width of one outfit card in the closet carousel. Sized so a
+    /// second card is visibly peeking at the trailing edge on a 390pt
+    /// phone — a carousel whose second item is entirely off-screen reads as
+    /// a single static card and does not get swiped.
+    public static let silhouetteCardWidth: CGFloat = 260
 }
