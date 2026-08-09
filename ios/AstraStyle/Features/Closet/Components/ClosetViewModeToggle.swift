@@ -50,11 +50,17 @@ import SwiftUI
 struct ClosetViewModeToggle: View {
 
     @Binding private var selection: ClosetViewMode
+    /// Cut-outs share this menu rather than taking a fifth glyph on a header
+    /// row this file's neighbour already documents as barely fitting four.
+    /// They belong together anyway: both are "how the closet looks", neither
+    /// touches what is in it.
+    @Binding private var showsCutouts: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(selection: Binding<ClosetViewMode>) {
+    init(selection: Binding<ClosetViewMode>, showsCutouts: Binding<Bool>) {
         _selection = selection
+        _showsCutouts = showsCutouts
     }
 
     var body: some View {
@@ -68,6 +74,19 @@ struct ClosetViewModeToggle: View {
                 Text(String(localized: "View", comment: "Title of the closet layout menu"))
             }
             .pickerStyle(.inline)
+
+            Divider()
+
+            Toggle(isOn: $showsCutouts) {
+                Label(
+                    String(localized: "Cut Out Backgrounds", comment: "Closet display toggle"),
+                    systemImage: "person.and.background.dotted"
+                )
+            }
+            .accessibilityHint(Text(String(
+                localized: "Shows garments cut out from their backgrounds. Turn off to see the photographs as you took them.",
+                comment: "VoiceOver hint for the closet cut-out toggle"
+            )))
         } label: {
             Image(systemName: selection.symbolName)
                 .astraIcon(.emphasis)
@@ -121,6 +140,7 @@ struct ClosetViewModeToggle: View {
 
 private struct ClosetViewModeTogglePreview: View {
     @State private var mode: ClosetViewMode = .editorialGrid
+    @State private var showsCutouts = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.lg) {
@@ -134,7 +154,7 @@ private struct ClosetViewModeTogglePreview: View {
 
                 Spacer(minLength: AstraSpacing.sm)
 
-                ClosetViewModeToggle(selection: $mode)
+                ClosetViewModeToggle(selection: $mode, showsCutouts: $showsCutouts)
                 Image(systemName: "plus")
                     .astraIcon(.emphasis)
                     .foregroundStyle(AstraColor.accentChampagne)

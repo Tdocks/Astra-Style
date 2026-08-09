@@ -234,7 +234,12 @@ public final class ScannerReviewViewModel {
             closetItemID: itemID,
             imageType: .front,
             storagePath: storagePath,
-            backgroundRemovedPath: analysis?.normalizedImagePath,
+            // Device cut-out first, provider's second. `normalizedImagePath`
+            // is `VisionAnalysisProvider.removeBackground`'s output and is
+            // still always nil — that adapter is the documented FALLBACK for
+            // images the on-device pass cannot handle, so it is the fallback
+            // here too rather than the other way round.
+            backgroundRemovedPath: await uploadedCutoutPath() ?? analysis?.normalizedImagePath,
             isPrimary: true
         )
 
@@ -263,6 +268,35 @@ public final class ScannerReviewViewModel {
             )
             phase = .saveFailed(astra)
         }
+    }
+
+    /// Cuts the garment out of its background and uploads the result, or
+    /// returns nil and lets the raw photograph stand.
+    ///
+    /// Runs at save rather than at analyse, deliberately: a garment the user
+    /// abandons on the review screen never costs a second upload, and by the
+    /// time he taps Save the bytes are already in memory.
+    ///
+    /// Every failure here is nil, never a thrown error. A man who has just
+    /// corrected six fields and pressed Save must not be told his garment
+    /// could not be saved because a cosmetic pass on the photograph did not
+    /// work — `displayStoragePath` falls back to the capture on its own, and
+    /// he will see the photograph he took, which is what he would have seen
+    /// anyway.
+    ///
+    /// The cut-out is produced even when the closet is set to display raw
+    /// photographs. It is cheap, it is local, and storing it means turning
+    /// the setting back on is instant instead of a re-scan of the whole
+    /// wardrobe.
+    private func uploadedCutoutPath() async -> String? {
+        guard let data = localPreviewData else { return nil }
+        // Off the main actor: this is a Vision request and a full-frame
+        // re-encode, and the review screen is on screen while it runs.
+        let cutout = await Task.detached(priority: .userInitiated) {
+            BackgroundRemoval.cutout(from: data)
+        }.value
+        guard let cutout else { return nil }
+        return try? await closetRepository.uploadCapturedImage(cutout)
     }
 
     /// Removes the uploaded capture when the user leaves without saving.

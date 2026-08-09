@@ -88,6 +88,10 @@ public struct ClosetCategoryView: View {
 
     /// The same key `ClosetView` writes — see this file's header.
     @AppStorage("closet.viewMode") private var viewMode: ClosetViewMode = .editorialGrid
+    /// The same key `ClosetView` writes, for the same reason the view-mode
+    /// key is shared: a display preference the user set on one closet screen
+    /// and finds reverted on the other reads as the setting not working.
+    @AppStorage("closet.cutouts") private var showsCutouts = true
 
     public init(category: ClothingCategory, viewModel: ClosetViewModel) {
         self.category = category
@@ -140,12 +144,16 @@ public struct ClosetCategoryView: View {
         .toolbar {
             if isShowingGrid {
                 ToolbarItem(placement: .topBarTrailing) {
-                    ClosetViewModeToggle(selection: $viewMode)
+                    ClosetViewModeToggle(selection: $viewMode, showsCutouts: $showsCutouts)
                 }
             }
         }
         .task {
             await viewModel.onAppear()
+        }
+        .onAppear { viewModel.prefersCutouts = showsCutouts }
+        .onChange(of: showsCutouts) { _, prefers in
+            viewModel.prefersCutouts = prefers
         }
         // The same sheet the Closet root presents, from the same factory.
         // An empty category offers "Add One by Hand", and a button that

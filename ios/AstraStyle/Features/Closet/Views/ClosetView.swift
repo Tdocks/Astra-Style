@@ -142,6 +142,12 @@ public struct ClosetView: View {
     /// preference with the key visible at both call sites is easier to
     /// keep honest than one indirection away from either.
     @AppStorage("closet.viewMode") private var viewMode: ClosetViewMode = .editorialGrid
+    /// Display preference, so it persists per device and never travels with
+    /// the account — the same reasoning as `closet.viewMode` beside it. On by
+    /// default: the cut-out is what §6.15 describes, and a man who dislikes
+    /// one particular result turns it off rather than opting in to the
+    /// intended rendering.
+    @AppStorage("closet.cutouts") private var showsCutouts = true
 
     /// Anchor for the "All items" tile. A constant rather than a `UUID()`
     /// so it survives the view being rebuilt mid-scroll.
@@ -179,6 +185,12 @@ public struct ClosetView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.onAppear()
+        }
+        .onAppear { viewModel.prefersCutouts = showsCutouts }
+        .onChange(of: showsCutouts) { _, prefers in
+            // The view model clears its resolved URLs on this change, so the
+            // grid re-signs against whichever image the user just asked for.
+            viewModel.prefersCutouts = prefers
         }
         // The scanner and the add-item sheet both create garments this
         // screen is showing, and neither of them can tell it so: a sheet
@@ -287,7 +299,7 @@ public struct ClosetView: View {
         // search field beside it already passes, and the same one §22
         // applies to every other control on this screen.
         if isShowingWholeClosetGrid {
-            ClosetViewModeToggle(selection: $viewMode)
+            ClosetViewModeToggle(selection: $viewMode, showsCutouts: $showsCutouts)
         }
     }
 

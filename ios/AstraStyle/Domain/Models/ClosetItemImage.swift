@@ -50,9 +50,25 @@ public struct ClosetItemImage: Identifiable, Codable, Hashable, Sendable {
         case analysisMetadata = "analysis_metadata"
     }
 
-    /// The path to render in grids/detail — prefers the background-removed
-    /// cutout per spec §6.15 "Normalized cutout image", falling back to the
-    /// raw capture.
+    /// The path to render when the closet is showing cut-outs.
+    ///
+    /// Kept as the no-argument property because it is what §6.15 describes —
+    /// "Normalized cutout image" is the intended rendering, and the raw
+    /// capture is the fallback. `displayStoragePath(preferringCutout:)` is
+    /// for the surfaces that let the user say otherwise.
+    /// Cut-out or capture, as the user has asked for.
+    ///
+    /// The toggle behind this gates DISPLAY, not production: the cut-out is
+    /// made and stored whichever way the switch is set, so turning it on is
+    /// instant rather than a re-scan of the whole wardrobe, and turning it
+    /// off never destroys anything. On-device background removal is good but
+    /// not universal — a garment shot against a busy background can come out
+    /// with a bitten edge — and the setting is how a man says "that one
+    /// looked better as a photograph" without losing the option.
+    public func displayStoragePath(preferringCutout: Bool) -> String {
+        preferringCutout ? displayStoragePath : storagePath
+    }
+
     public var displayStoragePath: String {
         backgroundRemovedPath ?? storagePath
     }

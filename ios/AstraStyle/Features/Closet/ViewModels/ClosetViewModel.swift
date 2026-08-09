@@ -571,6 +571,25 @@ public final class ClosetViewModel {
         imageURLsByItemID[item.id]
     }
 
+    /// Whether the grid renders background-removed cut-outs.
+    ///
+    /// Owned by the view (`@AppStorage("closet.cutouts")`) and pushed down,
+    /// the same shape `closet.viewMode` already uses — this file's header
+    /// explains why a persisted display preference does not belong on a view
+    /// model that also holds server state.
+    ///
+    /// Changing it clears the resolved URLs, because they point at whichever
+    /// of the two images was chosen last time. Without the clear the grid
+    /// keeps showing cut-outs until something else forces a reload, and the
+    /// switch reads as broken.
+    public var prefersCutouts = true {
+        didSet {
+            guard prefersCutouts != oldValue else { return }
+            imageURLsByItemID.removeAll()
+            attemptedImageItemIDs.removeAll()
+        }
+    }
+
     // MARK: - Image resolution
 
     /// Registers a garment whose photograph is now on screen.
@@ -626,6 +645,9 @@ public final class ClosetViewModel {
         // already-`Sendable` repository rather than this `@MainActor`
         // view model.
         let repository = closetRepository
+        // Read once on the main actor, for the same reason `repository` is:
+        // the child tasks below must not touch this view model.
+        let prefersCutouts = self.prefersCutouts
 
         let pathsByItemID = await withTaskGroup(of: (UUID, String?).self, returning: [UUID: String].self) { group in
             for itemID in itemIDs {
@@ -635,7 +657,7 @@ public final class ClosetViewModel {
                     // "no photo", which is what the user would see anyway.
                     let images = (try? await repository.fetchImages(forItem: itemID)) ?? []
                     let primary = images.first { $0.isPrimary } ?? images.first
-                    return (itemID, primary?.displayStoragePath)
+                    return (itemID, primary?.displayStoragePath(preferringCutout: prefersCutouts))
                 }
             }
             var collected: [UUID: String] = [:]
