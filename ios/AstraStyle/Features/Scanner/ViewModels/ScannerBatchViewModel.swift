@@ -27,6 +27,7 @@
 
 import Foundation
 import Observation
+import OSLog
 
 @MainActor
 @Observable
@@ -132,6 +133,18 @@ public final class ScannerBatchViewModel {
         }
     }
 
+    /// Every loss is logged with its reason as PUBLIC text.
+    ///
+    /// `Logger`'s default is to redact interpolated values, which is right
+    /// for anything describing a garment or a person and wrong for this: a
+    /// failure category is not personal data, and redacting it meant the
+    /// device log said `<private>` exactly where the answer was. Diagnosing
+    /// a scan that failed on a real phone cost several rounds of guessing
+    /// because of it. Nothing here interpolates a filename, a storage path
+    /// or anything about the garment — only which of a fixed set of things
+    /// went wrong, and how many times.
+    private static let logger = Logger(subsystem: "app.astrastyle", category: "scanner.batch")
+
     public private(set) var phase: Phase = .idle
 
     private let dependencies: Dependencies
@@ -169,7 +182,9 @@ public final class ScannerBatchViewModel {
     public func importImages(_ images: [Data], selectedCount: Int) async {
         let couldNotLoad = max(0, selectedCount - images.count)
         guard !images.isEmpty else {
-            phase = .ready(Outcome(couldNotLoad: couldNotLoad, selected: selectedCount))
+            let nothingLoaded = Outcome(couldNotLoad: couldNotLoad, selected: selectedCount)
+            logOutcome(nothingLoaded)
+            phase = .ready(nothingLoaded)
             return
         }
 
@@ -182,17 +197,35 @@ public final class ScannerBatchViewModel {
 
         let prepared = prepareAll(accepted, outcome: &outcome)
         guard !prepared.isEmpty else {
+            logOutcome(outcome)
             phase = .ready(outcome)
             return
         }
 
         let uploaded = await uploadAll(prepared, outcome: &outcome)
         guard !uploaded.isEmpty else {
+            logOutcome(outcome)
             phase = .ready(outcome)
             return
         }
 
         await analyzeAll(uploaded, outcome: &outcome)
+    }
+
+    private func logOutcome(_ outcome: Outcome) {
+        guard !outcome.isCompletelyClean else {
+            Self.logger.info("batch clean: \(outcome.readyCount, privacy: .public) ready")
+            return
+        }
+        let analysis = outcome.analysisFailures.isEmpty
+            ? "none"
+            : outcome.analysisFailures
+                .map { "\($0.key.rawValue)=\($0.value)" }
+                .sorted()
+                .joined(separator: ",")
+        Self.logger.error(
+            "batch lost \(outcome.lostCount, privacy: .public)/\(outcome.selected, privacy: .public) — couldNotLoad=\(outcome.couldNotLoad, privacy: .public) overLimit=\(outcome.skippedOverLimit, privacy: .public) unreadable=\(outcome.unreadable, privacy: .public) uploadFailed=\(outcome.uploadFailed, privacy: .public) analysis=\(analysis, privacy: .public)"
+        )
     }
 
     // MARK: - Stages
@@ -299,7 +332,9 @@ public final class ScannerBatchViewModel {
             return
         } catch {
             await discard(uploaded.map(\.storagePath))
-            phase = .failed(asAstraError(error))
+            let astra = asAstraError(error)
+            Self.logger.error("batch analysis threw: \(astra.message, privacy: .public)")
+            phase = .failed(astra)
             return
         }
 
@@ -324,6 +359,7 @@ public final class ScannerBatchViewModel {
         }
         await discard(strandedPaths)
 
+        logOutcome(outcome)
         phase = .ready(outcome)
     }
 
