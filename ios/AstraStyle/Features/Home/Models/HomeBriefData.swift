@@ -26,6 +26,10 @@ public struct HomeBriefData: Sendable {
     /// Everything wearable the man owns, by role. Carried so the empty state
     /// can say something true — see `emptyReason`.
     public var closetRoleCounts: [ClothingCategory: Int]
+    /// Today's outfit, joined to the garments and their signed images.
+    /// Empty when there is no outfit, which is the same condition as
+    /// `primaryOutfit == nil` and is what `emptyReason` already reads.
+    public var lookGarments: [LookGarment]
 
     public init(
         greetingName: String,
@@ -39,7 +43,8 @@ public struct HomeBriefData: Sendable {
         laundryAlertItemCount: Int,
         upcomingOccasions: [Occasion],
         purchaseOpportunity: PurchaseOpportunity?,
-        closetRoleCounts: [ClothingCategory: Int] = [:]
+        closetRoleCounts: [ClothingCategory: Int] = [:],
+        lookGarments: [LookGarment] = []
     ) {
         self.greetingName = greetingName
         self.weather = weather
@@ -53,6 +58,7 @@ public struct HomeBriefData: Sendable {
         self.upcomingOccasions = upcomingOccasions
         self.purchaseOpportunity = purchaseOpportunity
         self.closetRoleCounts = closetRoleCounts
+        self.lookGarments = lookGarments
     }
 
     /// The three roles an outfit needs before one can exist at all.

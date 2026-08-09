@@ -33,7 +33,8 @@ struct HomeBriefProvidingTests {
             profileRepository: profileRepository,
             closetRepository: MockClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -64,7 +65,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: WardrobeScoreUnavailableClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -97,7 +99,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: closetRepository,
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -121,7 +124,8 @@ struct HomeBriefProvidingTests {
                 items: Array(SampleData.closetItems.prefix(HomeBriefData.minimumItemsForOutfits))
             ),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -141,7 +145,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: UnreachableClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -164,7 +169,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         _ = try await provider.loadTodayBrief(regenerate: true)
@@ -183,7 +189,8 @@ struct HomeBriefProvidingTests {
             profileRepository: AlwaysFailingProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: MockWeatherService(),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         await #expect(throws: AstraError.self) {
@@ -208,7 +215,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: weatherSpy,
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -226,7 +234,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: weatherSpy,
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -246,7 +255,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: weatherSpy,
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -266,7 +276,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: weatherSpy,
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         let data = try await provider.loadTodayBrief(regenerate: false)
@@ -281,7 +292,8 @@ struct HomeBriefProvidingTests {
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: MockWeatherService(permissionGranted: false, authorization: .denied),
-            calendarService: MockCalendarService()
+            calendarService: MockCalendarService(),
+            imageURLResolver: HomeStubURLResolver()
         )
 
         #expect(provider.weatherAuthorization() == .denied)
@@ -582,4 +594,15 @@ private actor NoWeatherCachedBriefOutfitRepository: OutfitRepository {
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
         throw AstraError.unimplemented("unused")
     }
+}
+
+/// Signing is not what these tests are about — every one of them asserts on
+/// which garments and counts come back, not on URLs. Returning nothing keeps
+/// `LookGarment.imageURL` nil, which is the same state a signing failure
+/// produces and which the view already renders as a garment with no picture.
+private struct HomeStubURLResolver: ClosetImageURLResolving {
+    func resolve(storagePath: String) async throws -> URL {
+        throw AstraError.unimplemented("Home never resolves a single path")
+    }
+    func resolve(storagePaths: [String]) async throws -> [String: URL] { [:] }
 }

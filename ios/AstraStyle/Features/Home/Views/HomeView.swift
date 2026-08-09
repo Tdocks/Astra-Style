@@ -88,44 +88,6 @@ public struct HomeView: View {
         }
     }
 
-    private func loadedContent(_ data: HomeBriefData) -> some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.lg) {
-            DailyBriefHeaderView(
-                greetingName: data.greetingName,
-                weather: data.weather,
-                schedule: data.schedule,
-                units: .imperial,
-                onTapKyra: { router.startAskKyra() }
-            )
-            .padding(.horizontal, AstraSpacing.pagePadding)
-
-            weatherAffordance(for: data)
-
-            if let outfit = data.primaryOutfit {
-                HeroOutfitCardView(
-                    outfit: outfit,
-                    weather: data.weather,
-                    units: .imperial,
-                    isMarkingWorn: viewModel.isMarkingWorn,
-                    onWearThis: { Task { await viewModel.markPrimaryOutfitWorn() } },
-                    onAlternatives: { router.push(HomeRoute.alternativeLooks(briefID: data.brief.id)) },
-                    onEdit: { router.presentModal(.outfitBuilder(.builder(startingOutfitID: outfit.id))) },
-                    onVisualize: { router.presentModal(.studioGeneration(outfitID: outfit.id)) }
-                )
-                .padding(.horizontal, AstraSpacing.pagePadding)
-            }
-
-            modules(data)
-        }
-    }
-
-    /// Spec §7's in-context weather permission ask, and its honest fallback
-    /// (P4-HOME-05). Shown only while `data.weather` has nothing to say —
-    /// once real weather is on the header there is nothing left to ask
-    /// for or explain, and while `.authorized` but still nil (a transient
-    /// WeatherKit failure) this deliberately renders nothing further: the
-    /// header's own absence of a temperature already told the honest
-    /// story, and repeating it here would be noise, not information.
     @ViewBuilder
     private func weatherAffordance(for data: HomeBriefData) -> some View {
         if data.weather == nil {
@@ -145,50 +107,126 @@ public struct HomeView: View {
         }
     }
 
-    /// Everything below the hero card: the optional Home modules, in the order
-    /// spec §5 lists them. Separate from `loadedContent` so the screen's spine
-    /// (greeting, then hero outfit, then modules) stays readable at a glance
-    /// and each module's presence condition is not buried in a long body.
-    @ViewBuilder
-    private func modules(_ data: HomeBriefData) -> some View {
-        if !data.alternativeOutfits.isEmpty {
-            AlternativeLooksCarouselView(outfits: data.alternativeOutfits) { outfit in
-                router.push(HomeRoute.outfitDetail(outfitID: outfit.id))
-            }
-            .padding(.horizontal, AstraSpacing.pagePadding)
-        }
-
-        if let wardrobeScore = data.wardrobeScore {
-            WardrobeScoreModuleView(score: wardrobeScore)
+    /// Home is one decision, not a dashboard.
+    ///
+    /// This screen used to stack NINE modules: greeting header, weather
+    /// affordance, hero card, alternatives carousel, wardrobe score, Kyra
+    /// insight, purchase opportunity, upcoming occasions, laundry alert. Every
+    /// one of them was individually defensible and the sum was an admin
+    /// console — nothing on it answered "what do I wear", and the one thing
+    /// that could, the garments themselves, was fetched on every load and
+    /// discarded unshown.
+    ///
+    /// What is left is the look, the reason, and two choices. The modules were
+    /// triaged rather than deleted: wardrobe score and the laundry alert are
+    /// facts about the WARDROBE and now live in the Closet, where a man is
+    /// already thinking about his clothes rather than about his morning.
+    /// Alternatives became the "Something Else" button. The purchase
+    /// opportunity was `nil` on every code path in the app and is honestly
+    /// absent until it is not.
+    private func loadedContent(_ data: HomeBriefData) -> some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.lg) {
+            todayLine(data)
                 .padding(.horizontal, AstraSpacing.pagePadding)
-        }
 
-        if let kyraMessage = data.brief.kyraMessage {
-            KyraInsightModuleView(message: kyraMessage)
-                .padding(.horizontal, AstraSpacing.pagePadding)
-        }
+            weatherAffordance(for: data)
 
-        if let opportunity = data.purchaseOpportunity {
-            PurchaseOpportunityModuleView(opportunity: opportunity) {
-                router.push(HomeRoute.productDecision(candidateID: opportunity.productCandidate.id))
-            }
-            .padding(.horizontal, AstraSpacing.pagePadding)
-        }
-
-        if !data.upcomingOccasions.isEmpty {
-            UpcomingOccasionsModuleView(occasions: data.upcomingOccasions) { occasion in
-                router.push(HomeRoute.occasionDetail(occasionID: occasion.id))
-            }
-            .padding(.horizontal, AstraSpacing.pagePadding)
-        }
-
-        if data.laundryAlertItemCount > 0 {
-            LaundryAlertModuleView(itemCount: data.laundryAlertItemCount) {
+            TodaysLookView(garments: data.lookGarments) { garment in
                 router.select(.closet)
+                router.push(ClosetRoute.itemDetail(itemID: garment.item.id))
             }
             .padding(.horizontal, AstraSpacing.pagePadding)
+
+            reason(data)
+                .padding(.horizontal, AstraSpacing.pagePadding)
+
+            actions(data)
+                .padding(.horizontal, AstraSpacing.pagePadding)
         }
     }
+
+    /// One quiet line: the day, and the weather if we have it.
+    ///
+    /// Replaces `DailyBriefHeaderView`, which greeted the man by name every
+    /// morning. He knows his name. What he does not know is whether it will
+    /// rain on the way to the car.
+    private func todayLine(_ data: HomeBriefData) -> some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+            Text(AstraDateFormatting.longWeekdayAndDate(Date.now))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+                .textCase(.uppercase)
+
+            Text(data.primaryOutfit?.name ?? String(
+                localized: "Today's look",
+                comment: "Home title when the outfit has no name"
+            ))
+                .astraText(.displayL)
+                .foregroundStyle(AstraColor.textPrimary)
+
+            if let weather = data.weather {
+                Text(AstraWeatherFormatting.temperatureRange(
+                    low: weather.temperatureLow,
+                    high: weather.temperatureHigh,
+                    units: .imperial
+                ))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("home.todayLine")
+    }
+
+    /// Why this, in Kyra's words.
+    ///
+    /// `kyra_message` is written by the server from the deterministic scorer,
+    /// not by Luna — P5-KYRA-02 is unbuilt. It is therefore honest but flat,
+    /// and it is shown as prose without a "Kyra says" frame, because framing a
+    /// scorer's sentence as a stylist speaking is the confounded reading this
+    /// repo keeps refusing. When the real voice lands, only the string
+    /// changes.
+    @ViewBuilder
+    private func reason(_ data: HomeBriefData) -> some View {
+        if let message = data.brief.kyraMessage ?? data.primaryOutfit?.description, !message.isEmpty {
+            Text(message)
+                .astraText(.body)
+                .foregroundStyle(AstraColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("home.reason")
+        }
+    }
+
+    private func actions(_ data: HomeBriefData) -> some View {
+        VStack(spacing: AstraSpacing.sm) {
+            AstraButton(
+                title: String(localized: "Wear This", comment: "Home primary action"),
+                isLoading: viewModel.isMarkingWorn
+            ) {
+                Task { await viewModel.markPrimaryOutfitWorn() }
+            }
+            .accessibilityIdentifier("home.wearThis")
+
+            Button {
+                // The carousel lives in the Closet, where browsing belongs.
+                // Home's job is to have decided; this is the door out of that
+                // decision, not a second one on the same screen.
+                router.select(.closet)
+            } label: {
+                Text(String(localized: "Something Else", comment: "Home secondary action"))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityHint(Text(String(
+                localized: "Browse other outfits in your closet",
+                comment: "VoiceOver hint for the Home alternatives action"
+            )))
+            .accessibilityIdentifier("home.somethingElse")
+        }
+    }
+
 }
 
 // MARK: - Previews

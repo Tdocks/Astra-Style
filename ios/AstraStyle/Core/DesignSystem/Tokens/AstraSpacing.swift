@@ -76,4 +76,19 @@ public enum AstraSize {
     /// it grows, and growing it would push the controls off an accessibility
     /// -size screen for no gain.
     public static let referencePreviewHeight: CGFloat = 220
+
+    /// The garment today's look is *about*, on Home.
+    ///
+    /// Fixed heights rather than aspect ratios, and for the same reason as
+    /// `referencePreviewHeight`: garment cut-outs have wildly different
+    /// proportions — a shoe is wide and short, a coat is tall and narrow —
+    /// and letting each one size itself would make the Wear This button
+    /// move several hundred points depending on what the scorer picked that
+    /// morning. The look holds its shape; the clothes inside it do not.
+    public static let lookAnchorHeight: CGFloat = 300
+
+    /// The pieces ranged beside the anchor. Deliberately less than half its
+    /// height: an outfit is not a set of equal things, and a layout that
+    /// gives the shirt and the watch the same square says otherwise.
+    public static let lookSupportingHeight: CGFloat = 120
 }

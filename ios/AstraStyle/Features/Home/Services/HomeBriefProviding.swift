@@ -49,50 +49,93 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private let closetRepository: ClosetRepository
     private let weatherService: WeatherService
     private let calendarService: CalendarService
+    /// Added so Home can draw the garments rather than a placeholder. Signing
+    /// is batched — one request for the whole look, not one per garment —
+    /// which is the reason `ClosetImageURLResolving` has a plural method at
+    /// all; see its own header.
+    private let imageURLResolver: ClosetImageURLResolving
 
     public init(
         outfitRepository: OutfitRepository,
         profileRepository: ProfileRepository,
         closetRepository: ClosetRepository,
         weatherService: WeatherService,
-        calendarService: CalendarService
+        calendarService: CalendarService,
+        imageURLResolver: ClosetImageURLResolving
     ) {
         self.outfitRepository = outfitRepository
         self.profileRepository = profileRepository
         self.closetRepository = closetRepository
         self.weatherService = weatherService
         self.calendarService = calendarService
+        self.imageURLResolver = imageURLResolver
     }
 
-    public func loadTodayBrief(regenerate: Bool) async throws -> HomeBriefData {
-        let profile = try await profileRepository.fetchCurrentProfile()
+    /// Joins `outfit_items` to the garments they point at and signs their
+    /// images in one request.
+    ///
+    /// The closet is already in hand from the count check at the top of
+    /// `loadTodayBrief`, so the join costs nothing — no per-garment row
+    /// fetch, only the images. Order is `sortOrder`, which is the order the
+    /// scorer produced and therefore the order the look reads in.
+    ///
+    /// Everything here degrades to a missing picture rather than a missing
+    /// garment: a garment whose image will not sign still appears, named, in
+    /// its slot. A look that silently drops the shoes because a URL expired
+    /// would be telling the user to leave the house barefoot.
+    private func lookGarments(
+        for items: [OutfitItem],
+        closet: [ClosetItem]
+    ) async -> [LookGarment] {
+        guard !items.isEmpty else { return [] }
+        let byID = Dictionary(uniqueKeysWithValues: closet.map { ($0.id, $0) })
+        let ordered = items
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .compactMap { item -> LookGarment? in
+                guard let closetItemID = item.closetItemID, let garment = byID[closetItemID] else {
+                    return nil
+                }
+                return LookGarment(item: garment, role: item.role)
+            }
+        guard !ordered.isEmpty else { return [] }
 
-        // §6.11's empty state is a fact about the closet, not a failure of
-        // the brief generator — a man who finished onboarding sixty seconds
-        // ago has nothing to be dressed in, and asking the server to build
-        // him an outfit anyway can only fail. Ask the closet first.
-        //
-        // The count is read here rather than inferred from a nil
-        // `primaryOutfitID` on the way back because that inference requires
-        // the round trip to have succeeded. Before this check existed the
-        // empty state was reachable only by a guest session: every real user
-        // went to `generateDailyBrief`, whose Edge Function is not built
-        // (P4-HOME-02), and got an error screen where §6.11 specifies an
-        // invitation. `try?` rather than `try` on purpose — if the closet
-        // itself is unreachable we genuinely do not know the count, and
-        // falling through to the old path surfaces that honestly instead
-        // of telling a man with forty garments that he owns nothing.
-        let closetItems = try? await closetRepository.fetchItems()
-        if let closetItems, closetItems.count < HomeBriefData.minimumItemsForOutfits {
-            return await loadSparseClosetBrief(profile: profile, closetItems: closetItems)
+        let repository = closetRepository
+        let pathsByGarmentID = await withTaskGroup(of: (UUID, String?).self) { group in
+            for garment in ordered {
+                group.addTask {
+                    let images = (try? await repository.fetchImages(forItem: garment.item.id)) ?? []
+                    let primary = images.first { $0.isPrimary } ?? images.first
+                    return (garment.item.id, primary?.displayStoragePath)
+                }
+            }
+            var collected: [UUID: String] = [:]
+            for await (id, path) in group where path != nil {
+                collected[id] = path
+            }
+            return collected
         }
 
-        // Read before either branch below: both the cached-read path and the
-        // generate path want it, and reading it once keeps a slow/failing
-        // WeatherKit lookup from being attempted twice for one screen load.
-        // Never prompts — see `currentWeatherSnapshotIfAuthorized()`.
-        let weatherSnapshot = await currentWeatherSnapshotIfAuthorized()
+        let signed = (try? await imageURLResolver.resolve(
+            storagePaths: Array(pathsByGarmentID.values)
+        )) ?? [:]
 
+        return ordered.map { garment in
+            var hydrated = garment
+            if let path = pathsByGarmentID[garment.item.id] {
+                hydrated.imageURL = signed[path]
+            }
+            return hydrated
+        }
+    }
+
+    /// Today's brief, read from cache when one exists and generated when it
+    /// does not, with the device's own weather reading laid over the top.
+    ///
+    /// Split out of `loadTodayBrief` because that function had grown past what
+    /// one screenful can hold; the two halves are independent — this one is
+    /// about where the brief comes from, the caller is about what Home needs
+    /// alongside it.
+    private func todaysBrief(regenerate: Bool, weather weatherSnapshot: WeatherSnapshot?) async throws -> DailyBrief {
         let serverBrief: DailyBrief
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
             serverBrief = cached
@@ -129,11 +172,43 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // on every Home read would cost a request per screen load for
         // something nobody asked for; the row catches up the next time
         // generation actually runs.
-        let brief = weatherSnapshot.map { snapshot in
+        return weatherSnapshot.map { snapshot in
             var patched = serverBrief
             patched.weatherSnapshot = snapshot
             return patched
         } ?? serverBrief
+    }
+
+    public func loadTodayBrief(regenerate: Bool) async throws -> HomeBriefData {
+        let profile = try await profileRepository.fetchCurrentProfile()
+
+        // §6.11's empty state is a fact about the closet, not a failure of
+        // the brief generator — a man who finished onboarding sixty seconds
+        // ago has nothing to be dressed in, and asking the server to build
+        // him an outfit anyway can only fail. Ask the closet first.
+        //
+        // The count is read here rather than inferred from a nil
+        // `primaryOutfitID` on the way back because that inference requires
+        // the round trip to have succeeded. Before this check existed the
+        // empty state was reachable only by a guest session: every real user
+        // went to `generateDailyBrief`, whose Edge Function is not built
+        // (P4-HOME-02), and got an error screen where §6.11 specifies an
+        // invitation. `try?` rather than `try` on purpose — if the closet
+        // itself is unreachable we genuinely do not know the count, and
+        // falling through to the old path surfaces that honestly instead
+        // of telling a man with forty garments that he owns nothing.
+        let closetItems = try? await closetRepository.fetchItems()
+        if let closetItems, closetItems.count < HomeBriefData.minimumItemsForOutfits {
+            return await loadSparseClosetBrief(profile: profile, closetItems: closetItems)
+        }
+
+        // Read before either branch below: both the cached-read path and the
+        // generate path want it, and reading it once keeps a slow/failing
+        // WeatherKit lookup from being attempted twice for one screen load.
+        // Never prompts — see `currentWeatherSnapshotIfAuthorized()`.
+        let weatherSnapshot = await currentWeatherSnapshotIfAuthorized()
+
+        let brief = try await todaysBrief(regenerate: regenerate, weather: weatherSnapshot)
 
         // Each of these degrades independently to an empty/nil result on
         // failure via `try?` inside the wrapper — a hiccup fetching, say,
@@ -185,7 +260,11 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             // `outfitsUnlocked` count are reachable together — a plausible
             // number for either half alone is worse than the empty module.
             purchaseOpportunity: nil,
-            closetRoleCounts: Self.roleCounts(of: closetItems ?? [])
+            closetRoleCounts: Self.roleCounts(of: closetItems ?? []),
+            // After the fan-out, not inside it: this needs the items the
+            // fan-out is fetching, and running it concurrently would fetch
+            // them twice.
+            lookGarments: await lookGarments(for: primaryOutfitItems, closet: closetItems ?? [])
         )
     }
 
