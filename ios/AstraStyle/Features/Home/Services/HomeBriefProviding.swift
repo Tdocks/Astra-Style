@@ -48,7 +48,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private let profileRepository: ProfileRepository
     private let closetRepository: ClosetRepository
     private let weatherService: WeatherService
-    private let calendarService: CalendarService
     /// Added so Home can draw the garments rather than a placeholder. Signing
     /// is batched — one request for the whole look, not one per garment —
     /// which is the reason `ClosetImageURLResolving` has a plural method at
@@ -60,14 +59,12 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         profileRepository: ProfileRepository,
         closetRepository: ClosetRepository,
         weatherService: WeatherService,
-        calendarService: CalendarService,
         imageURLResolver: ClosetImageURLResolving
     ) {
         self.outfitRepository = outfitRepository
         self.profileRepository = profileRepository
         self.closetRepository = closetRepository
         self.weatherService = weatherService
-        self.calendarService = calendarService
         self.imageURLResolver = imageURLResolver
     }
 
@@ -142,7 +139,7 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // of telling a man with forty garments that he owns nothing.
         let closetItems = try? await closetRepository.fetchItems()
         if let closetItems, closetItems.count < HomeBriefData.minimumItemsForOutfits {
-            return await loadSparseClosetBrief(profile: profile, closetItems: closetItems)
+            return loadSparseClosetBrief(profile: profile, closetItems: closetItems)
         }
 
         // Read before either branch below: both the cached-read path and the
@@ -153,24 +150,24 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
         let brief = try await todaysBrief(regenerate: regenerate, weather: weatherSnapshot)
 
-        // Each of these degrades independently to an empty/nil result on
-        // failure via `try?` inside the wrapper — a hiccup fetching, say,
-        // upcoming occasions should never block the primary outfit from
-        // rendering. Run them concurrently since none depend on another.
+        // Both degrade to nil/empty via `try?` inside the wrapper: a hiccup
+        // fetching the outfit's items should not cost the user the outfit's
+        // name and the reason for it. Concurrent because neither depends on
+        // the other.
+        //
+        // THIS FAN-OUT USED TO BE FIVE CALLS WIDE. The other three —
+        // alternative outfits, the wardrobe score, and the calendar's
+        // upcoming occasions — were fetched on every Home load and rendered
+        // by nothing after the screen became one look: two network round
+        // trips and a calendar read per morning, feeding fields no view
+        // read. (`fetchWardrobeScore()` throws `.unimplemented`
+        // unconditionally, so that one had never returned a value in
+        // production at all.) They come back when something draws them.
         async let primaryOutfitTask = fetchPrimaryOutfit(id: brief.primaryOutfitID)
         async let primaryOutfitItemsTask = fetchPrimaryOutfitItems(id: brief.primaryOutfitID)
-        async let alternativeOutfitsTask = fetchAlternativeOutfits(ids: brief.alternativeOutfitIDs)
-        async let wardrobeScoreTask = fetchWardrobeScoreSafely()
-        async let occasionsTask = calendarService.fetchUpcomingEvents(
-            in: DateInterval(start: .now, duration: 60 * 60 * 18),
-            userID: profile.id
-        )
 
         let primaryOutfit = await primaryOutfitTask
         let primaryOutfitItems = await primaryOutfitItemsTask
-        let alternativeOutfits = await alternativeOutfitsTask
-        let wardrobeScore = await wardrobeScoreTask
-        let occasions = await occasionsTask
 
         return HomeBriefData(
             greetingName: profile.greetingName,
@@ -179,27 +176,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             brief: brief,
             primaryOutfit: primaryOutfit,
             primaryOutfitItems: primaryOutfitItems,
-            alternativeOutfits: alternativeOutfits,
-            wardrobeScore: wardrobeScore,
-            upcomingOccasions: occasions,
-            // Always nil, checked rather than assumed while building
-            // P4-HOME-04. `PurchaseOpportunityModuleView` only renders when
-            // this is non-nil (`HomeView.modules`), so the module is
-            // honestly absent rather than showing a fabricated candidate —
-            // there is nothing yet to hydrate it from. `computeUnlockCount`
-            // (P4-OUTFIT-09, `_shared/scoring/unlockCount.ts`) exists and is
-            // unit-tested, but nothing calls it: there is no deployed
-            // `products/` Edge Function at all (only `closet`, `daily-brief`,
-            // `outfits`, `profile`, `style-dna` are), so
-            // `ShoppingRepository.evaluateProduct`
-            // (`LiveShoppingRepository.swift`) is a real network call to an
-            // endpoint that does not exist yet — see `docs/02-task-breakdown
-            // .md`'s `P6-SHOP-04`, whose scope is exactly "reusing
-            // P4-OUTFIT-09's algorithm" and which this ticket does not own.
-            // Populate this only once a real `ProductCandidate` and a real
-            // `outfitsUnlocked` count are reachable together — a plausible
-            // number for either half alone is worse than the empty module.
-            purchaseOpportunity: nil,
             // `closetItems` nil means the fetch failed, and that is passed
             // through as nil rather than flattened to an empty closet — see
             // `HomeBriefData.closetRoleCounts`.
@@ -256,32 +232,14 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     /// to put a forecast on a screen whose whole message is "there is
     /// nothing to dress you in yet" — a weather strip above that copy
     /// implies an outfit recommendation the app has not made.
-    private func loadSparseClosetBrief(profile: Profile, closetItems: [ClosetItem]) async -> HomeBriefData {
-        async let wardrobeScoreTask = fetchWardrobeScoreSafely()
-        async let occasionsTask = calendarService.fetchUpcomingEvents(
-            in: DateInterval(start: .now, duration: 60 * 60 * 18),
-            userID: profile.id
-        )
-
-        let wardrobeScore = await wardrobeScoreTask
-        let occasions = await occasionsTask
-
-        return HomeBriefData(
+    private func loadSparseClosetBrief(profile: Profile, closetItems: [ClosetItem]) -> HomeBriefData {
+        HomeBriefData(
             greetingName: profile.greetingName,
             weather: nil,
             schedule: nil,
             brief: DailyBrief(id: UUID(), userID: profile.id, briefDate: .now),
             primaryOutfit: nil,
             primaryOutfitItems: [],
-            alternativeOutfits: [],
-            wardrobeScore: wardrobeScore,
-            upcomingOccasions: occasions,
-            // See the main `loadTodayBrief` return's comment on this same
-            // field — the reason is identical (no purchase-evaluation
-            // endpoint deployed yet) and doubly true here: a closet this
-            // sparse has no owned items to evaluate a candidate against in
-            // the first place.
-            purchaseOpportunity: nil,
             closetRoleCounts: Self.roleCounts(of: closetItems)
         )
     }
@@ -301,14 +259,6 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private func fetchPrimaryOutfitItems(id: UUID?) async -> [OutfitItem] {
         guard let id else { return [] }
         return (try? await outfitRepository.fetchOutfitItems(outfitID: id)) ?? []
-    }
-
-    private func fetchAlternativeOutfits(ids: [UUID]) async -> [Outfit] {
-        (try? await outfitRepository.fetchOutfits(ids: ids)) ?? []
-    }
-
-    private func fetchWardrobeScoreSafely() async -> WardrobeScore? {
-        try? await closetRepository.fetchWardrobeScore()
     }
 
     /// The client's own weather reading, or `nil` — never a guess and

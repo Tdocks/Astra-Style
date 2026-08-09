@@ -316,9 +316,12 @@ public enum OutfitDetailCopy {
         }
     }
 
-    /// "Client meeting · Smart casual" — mirrors
-    /// `HeroOutfitCardView`'s occasion line exactly, so the same tags read
-    /// the same way on both screens.
+    /// "Client meeting · Smart casual".
+    ///
+    /// This used to be documented as mirroring Home's hero card, so the same
+    /// tags read the same way on both screens. That card is gone — Home is
+    /// one look now and names no occasions — which leaves this the only
+    /// occasion line in the app rather than one of two that had to agree.
     public static func occasionLine(_ occasionTags: [String]) -> String? {
         guard !occasionTags.isEmpty else { return nil }
         return occasionTags.joined(separator: " · ").capitalized

@@ -18,10 +18,6 @@ public struct HomeBriefData: Sendable {
     public var brief: DailyBrief
     public var primaryOutfit: Outfit?
     public var primaryOutfitItems: [OutfitItem]
-    public var alternativeOutfits: [Outfit]
-    public var wardrobeScore: WardrobeScore?
-    public var upcomingOccasions: [Occasion]
-    public var purchaseOpportunity: PurchaseOpportunity?
     /// Everything wearable the man owns, by role. Carried so the empty state
     /// can say something true — see `emptyReason`.
     ///
@@ -45,10 +41,6 @@ public struct HomeBriefData: Sendable {
         brief: DailyBrief,
         primaryOutfit: Outfit?,
         primaryOutfitItems: [OutfitItem],
-        alternativeOutfits: [Outfit],
-        wardrobeScore: WardrobeScore?,
-        upcomingOccasions: [Occasion],
-        purchaseOpportunity: PurchaseOpportunity?,
         closetRoleCounts: [ClothingCategory: Int]? = [:],
         lookGarments: [LookGarment] = []
     ) {
@@ -58,10 +50,6 @@ public struct HomeBriefData: Sendable {
         self.brief = brief
         self.primaryOutfit = primaryOutfit
         self.primaryOutfitItems = primaryOutfitItems
-        self.alternativeOutfits = alternativeOutfits
-        self.wardrobeScore = wardrobeScore
-        self.upcomingOccasions = upcomingOccasions
-        self.purchaseOpportunity = purchaseOpportunity
         self.closetRoleCounts = closetRoleCounts
         self.lookGarments = lookGarments
     }

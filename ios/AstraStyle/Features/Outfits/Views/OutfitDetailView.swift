@@ -23,19 +23,23 @@
 //  hook exists" (`P4-OUTFIT-11`'s acceptance criteria). Share hands a real
 //  string to the system share sheet.
 //
-//  NO ALTERNATIVES CAROUSEL HERE, ON PURPOSE. `AlternativeLooksCarouselView`
-//  (`Features/Outfits/Components`) is the shared component `P4-OUTFIT-13`
-//  asks for, and it is genuinely reusable — but "alternatives" is a
-//  property of a DAILY BRIEF (today's primary outfit and its siblings),
-//  not of an `Outfit` row. This screen is reached from a bare
-//  `outfitID: UUID` (`HomeRoute.outfitDetail`), with no brief in scope, so
-//  there is no honest set of "alternatives" to hand the carousel — the
-//  nearest available substitute would be an arbitrary sample of the
-//  user's other saved outfits, presented as if they were curated
-//  alternatives to this one, which they are not. Wiring the carousel to
-//  data it is not actually describing would be its own confounded
-//  reading. Left for whichever ticket threads brief context through this
-//  route (or adds a second, brief-scoped route case).
+//  NO ALTERNATIVES CAROUSEL HERE, AND THERE IS NO LONGER ONE TO ADD.
+//  `AlternativeLooksCarouselView` was `P4-OUTFIT-13`'s shared component,
+//  written to be reused by the Daily Brief and this screen. This screen
+//  never took it: "alternatives" is a property of a BRIEF (today's primary
+//  outfit and its siblings), not of an `Outfit` row, and this screen is
+//  reached from a bare `outfitID: UUID` with no brief in scope — the
+//  nearest substitute would be an arbitrary sample of the user's other
+//  saved outfits presented as curated alternatives to this one, which they
+//  are not.
+//
+//  Then Home became one look and dropped its alternatives module, which
+//  took the component's only real consumer with it, so the file is gone.
+//  Browsing other outfits now happens in the Closet's looks carousel,
+//  which is scoped to what it actually shows: every saved outfit, said to
+//  be exactly that. If a brief-scoped alternatives strip is ever wanted
+//  here, the honest version of it is a new component with the brief
+//  threaded through the route — not this one restored.
 //
 
 import SwiftUI
@@ -374,9 +378,10 @@ private struct OutfitDetailHeroSection: View {
             accessibilityDescription: heroDescription
         )
         .overlay(alignment: .bottomLeading) {
-            // Same §11/§13 guardrail as `HeroOutfitCardView`: a curated
-            // `heroImageURL` never carries the badge; a Style-Studio-only
-            // `generatedPreviewURL` always does.
+            // §11/§13's generated-image labelling, and now the only place
+            // in the app that applies it: a curated `heroImageURL` never
+            // carries the badge; a Style-Studio-only `generatedPreviewURL`
+            // always does.
             if outfit.heroImageURL == nil, outfit.generatedPreviewURL != nil {
                 GeneratedImageBadge()
                     .padding(AstraSpacing.sm)

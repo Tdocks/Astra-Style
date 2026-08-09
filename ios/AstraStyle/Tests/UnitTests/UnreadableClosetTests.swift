@@ -95,10 +95,6 @@ private func briefData(closetRoleCounts: [ClothingCategory: Int]?) -> HomeBriefD
         brief: DailyBrief(id: UUID(), userID: UUID(), briefDate: .now),
         primaryOutfit: nil,
         primaryOutfitItems: [],
-        alternativeOutfits: [],
-        wardrobeScore: nil,
-        upcomingOccasions: [],
-        purchaseOpportunity: nil,
         closetRoleCounts: closetRoleCounts
     )
 }

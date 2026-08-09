@@ -104,10 +104,6 @@ private func fixtureBriefData() -> HomeBriefData {
         brief: DailyBrief(id: UUID(), userID: UUID(), briefDate: .now, primaryOutfitID: UUID()),
         primaryOutfit: nil,
         primaryOutfitItems: [],
-        alternativeOutfits: [],
-        wardrobeScore: nil,
-        upcomingOccasions: [],
-        purchaseOpportunity: nil
     )
 }
 

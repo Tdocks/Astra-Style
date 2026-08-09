@@ -3,9 +3,11 @@
 //  AstraStyle
 //
 //  The app's one remote-image view. Replaces the `AsyncImage` that was
-//  inlined in Features/Home/Components/HeroOutfitCardView.swift, which was
-//  the only one in the codebase — promoted here before the closet grid adds
-//  a second, third and hundredth call site.
+//  inlined in Home's old hero card — at the time the only one in the
+//  codebase — promoted here before the closet grid added a second, third
+//  and hundredth call site. (That hero card is gone: it drew
+//  `heroImageURL ?? generatedPreviewURL`, two fields nothing ever wrote.
+//  `TodaysLookView` draws the garments instead.)
 //
 //  WHY NOT `AsyncImage`.
 //  `AsyncImage` hands back a decoded, full-resolution `Image` and gives no

@@ -63,16 +63,19 @@ public struct HomeView: View {
         }
     }
 
+    /// The same quiet day line the loaded screen opens with, then the reason
+    /// there is no look.
+    ///
+    /// This used to open with `DailyBriefHeaderView` — "Good morning,
+    /// Marcus" over a weather strip — while the loaded path had already
+    /// stopped greeting him. Two screens one tap apart addressing him
+    /// differently is the sort of seam that makes an app feel assembled
+    /// rather than designed, and the greeting was the half that had already
+    /// been argued down: he knows his name.
     private func emptyStateContent(_ data: HomeBriefData) -> some View {
         VStack(alignment: .leading, spacing: AstraSpacing.lg) {
-            DailyBriefHeaderView(
-                greetingName: data.greetingName,
-                weather: data.weather,
-                schedule: data.schedule,
-                units: .imperial,
-                onTapKyra: { router.startAskKyra() }
-            )
-            .padding(.horizontal, AstraSpacing.pagePadding)
+            dayLine
+                .padding(.horizontal, AstraSpacing.pagePadding)
 
             weatherAffordance(for: data)
 
@@ -145,6 +148,17 @@ public struct HomeView: View {
         }
     }
 
+    /// The date, and nothing else. Shared by the loaded screen and the empty
+    /// one so both open the same way — the empty screen has no outfit to
+    /// name and no forecast worth putting above "there is nothing to dress
+    /// you in yet", but it is still today.
+    private var dayLine: some View {
+        Text(AstraDateFormatting.longWeekdayAndDate(Date.now))
+            .astraText(.caption)
+            .foregroundStyle(AstraColor.textMuted)
+            .textCase(.uppercase)
+    }
+
     /// One quiet line: the day, and the weather if we have it.
     ///
     /// Replaces `DailyBriefHeaderView`, which greeted the man by name every
@@ -152,10 +166,7 @@ public struct HomeView: View {
     /// rain on the way to the car.
     private func todayLine(_ data: HomeBriefData) -> some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-            Text(AstraDateFormatting.longWeekdayAndDate(Date.now))
-                .astraText(.caption)
-                .foregroundStyle(AstraColor.textMuted)
-                .textCase(.uppercase)
+            dayLine
 
             Text(data.primaryOutfit?.name ?? String(
                 localized: "Today's look",
@@ -274,10 +285,6 @@ private struct PreviewHomeBriefProvider: HomeBriefProviding {
                 brief: SampleData.dailyBrief(),
                 primaryOutfit: SampleData.heroOutfit,
                 primaryOutfitItems: SampleData.heroOutfitItems(),
-                alternativeOutfits: SampleData.alternativeOutfits,
-                wardrobeScore: SampleData.wardrobeScore,
-                upcomingOccasions: MockCalendarService().events,
-                purchaseOpportunity: nil
             )
         case .empty:
             var brief = SampleData.dailyBrief()
@@ -289,10 +296,6 @@ private struct PreviewHomeBriefProvider: HomeBriefProviding {
                 brief: brief,
                 primaryOutfit: nil,
                 primaryOutfitItems: [],
-                alternativeOutfits: [],
-                wardrobeScore: nil,
-                upcomingOccasions: [],
-                purchaseOpportunity: nil
             )
         case .error:
             throw AstraError.network("Check your connection and try again.")

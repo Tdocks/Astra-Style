@@ -66,7 +66,6 @@ struct MainTabView: View {
                         profileRepository: container.profileRepository,
                         closetRepository: container.closetRepository,
                         weatherService: container.weatherService,
-                        calendarService: container.calendarService,
                         imageURLResolver: container.closetImageURLResolver
                     ),
                     analyticsClient: container.analyticsClient
