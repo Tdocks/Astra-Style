@@ -44,7 +44,34 @@ import {
   parseIdempotencyKey,
 } from "./schema.ts";
 
-const PROVIDER_TIMEOUT_MS = 5_500;
+/**
+ * When to give up on the vision provider.
+ *
+ * This was 5_500 — `docs/08` §2.4's "≤ 5.5s p50" budget, used as a hard
+ * abort deadline. Those are different quantities and confusing them is not a
+ * tuning mistake, it is a category error: a p50 is the MEDIAN, so an abort set
+ * at the p50 kills about half of all calls by construction. §2.5.3's own
+ * measurements said so before this shipped — p50 3.8-4.0s but p95 4.5-5.8s,
+ * with a maximum of 5796ms across 24 readings of a single easy photograph.
+ * The maximum was already past the deadline.
+ *
+ * It failed the way that arithmetic predicts: intermittently, on nothing the
+ * user did, and worst on the garments that take the model longest to read — a
+ * fine-striped textured knit on a cluttered sofa, exactly the photograph a man
+ * would expect an app called Astra Style to handle. The client reported it as
+ * "couldn't be read just now", which was true and useless.
+ *
+ * Aborting early does not even save money. The provider has begun generating
+ * and the tokens are billed whether or not we wait for the answer, so a
+ * too-short deadline pays full price for a result it throws away, and then
+ * pays again when the user rescans.
+ *
+ * 20s is a deadline, not a target. §2.4's budget is unchanged and still the
+ * thing to measure against; this is the point past which something is wrong
+ * rather than slow. Set from the tail with headroom, which is the only place a
+ * timeout can honestly come from.
+ */
+const PROVIDER_TIMEOUT_MS = 20_000;
 
 export interface IdempotencyStore {
   get(

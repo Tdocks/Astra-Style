@@ -89,9 +89,6 @@ struct ScannerCaptureView: View {
                     .accessibilityHidden(true)
             }
 
-            framingGuide
-                .allowsHitTesting(false)
-
             VStack(spacing: 0) {
                 if let guidance = viewModel.guidanceText {
                     guidanceBanner(guidance, severity: viewModel.guidanceSeverity)
@@ -100,7 +97,21 @@ struct ScannerCaptureView: View {
                         .transition(.opacity)
                 }
 
-                Spacer()
+                // The guide occupies the space BETWEEN the banner and the
+                // controls, rather than the whole screen behind them.
+                //
+                // It used to be a sibling of this VStack in the ZStack, so it
+                // spanned edge to edge and its lower border was drawn across
+                // the Import and Capture buttons. `allowsHitTesting(false)`
+                // meant taps still reached them, so this was "only" cosmetic —
+                // and it did not read as cosmetic at all. A champagne rule
+                // through the middle of two buttons reads as a disabled
+                // overlay, and the honest report was "nothing can be pressed",
+                // from a man who had no reason to try.
+                //
+                // §22 is about dead buttons. A live button that looks dead
+                // costs exactly as much.
+                framingGuide
 
                 if case .preparing = viewModel.phase {
                     ProgressView()
@@ -117,10 +128,16 @@ struct ScannerCaptureView: View {
         .animation(AstraMotion.standard, value: viewModel.guidanceText)
     }
 
+    /// Sized by the space it is given rather than by the screen — see the
+    /// call site. `frame(maxHeight: .infinity)` is what makes it take the
+    /// slack the `Spacer()` used to, so the controls keep their own room.
     private var framingGuide: some View {
         RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
             .strokeBorder(AstraColor.accentChampagne.opacity(0.55), lineWidth: 2)
-            .padding(AstraSpacing.xxxl)
+            .padding(.horizontal, AstraSpacing.xxxl)
+            .padding(.vertical, AstraSpacing.lg)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
 
