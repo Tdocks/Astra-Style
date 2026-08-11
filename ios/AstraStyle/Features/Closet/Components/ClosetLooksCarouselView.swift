@@ -80,12 +80,23 @@ struct ClosetLooksCarouselView: View {
                 onTapGarment: { onOpenGarment($0.item.id) }
             )
 
-            Text(look.outfit.name)
-                .astraText(.callout)
-                .foregroundStyle(AstraColor.textPrimary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                Text(look.outfit.name)
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                // The day it was built, because the server names every
+                // generated outfit "Today's Outfit" — four cards carrying
+                // the same three words are four cards the user cannot tell
+                // apart or refer to. The date is the one thing that
+                // genuinely differs and it is already on the row.
+                Text(AstraDateFormatting.longWeekdayAndDate(look.outfit.createdAt))
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
                 onOpenLook(look.outfit.id)

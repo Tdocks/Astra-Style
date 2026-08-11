@@ -34,6 +34,7 @@
 
 import Foundation
 import Observation
+import OSLog
 
 @MainActor
 @Observable
@@ -46,11 +47,32 @@ public final class ClosetLooksViewModel {
         public var id: UUID { outfit.id }
 
         /// Where this sits on the formality axis, for the tone jump.
-        /// `formalityScore` is nullable on `outfits`; a look with no score
-        /// cannot be compared and is skipped by the jump rather than
-        /// treated as a zero, which would make every unscored outfit read
-        /// as the most casual thing he owns.
-        var formality: Int? { outfit.formalityScore }
+        ///
+        /// `outfits.formality_score` is nullable AND, on every row the daily
+        /// brief has written so far, null — the generator does not populate
+        /// it. Reading only that column made both tone buttons permanently
+        /// inert: `nearestLook` needs a number for the current look before it
+        /// can find one on either side of it, so every tap fell through to
+        /// "that's the most relaxed look you've got", on all four outfits, in
+        /// both directions.
+        ///
+        /// The garments carry the number instead — `closet_items
+        /// .formality_score`, populated by the vision analyser on 19 of 20
+        /// pieces in the live closet — so the look's register is the mean of
+        /// the pieces in it. That is also the more honest figure: an outfit's
+        /// formality IS its garments', and a column on the outfit row would
+        /// only ever be a cached copy of this.
+        ///
+        /// Still nil when NO garment in the look has a score, because then
+        /// there is genuinely nothing to compare. Nil is not zero: treating
+        /// it as zero would make an unscored look read as the most casual
+        /// thing he owns and pull every "too dressy" tap onto it.
+        var formality: Int? {
+            if let stated = outfit.formalityScore { return stated }
+            let scores = garments.compactMap(\.item.formalityScore)
+            guard !scores.isEmpty else { return nil }
+            return scores.reduce(0, +) / scores.count
+        }
     }
 
     public enum ViewState: Sendable {
@@ -86,6 +108,8 @@ public final class ClosetLooksViewModel {
     /// button §22 rules out, arrived at from a direction that is easy to
     /// miss in testing because it only happens at the edges.
     public private(set) var nudgeNote: String?
+
+    private static let logger = Logger(subsystem: "app.astrastyle", category: "closet.looks")
 
     private let outfitRepository: OutfitRepository
     private let closetRepository: ClosetRepository
@@ -139,8 +163,18 @@ public final class ClosetLooksViewModel {
 
             state = looks.isEmpty ? .empty : .loaded(looks)
             focusedLookID = looks.first?.id
+            // `.public` on every value: the default redacts interpolations,
+            // and a diagnostic line reading "<private> outfits" is why the
+            // first pass at the batch-scan bug took three guesses.
+            // `.notice`, not `.info`: info-level entries live in the memory
+            // ring buffer and do not reach the device log stream, which is
+            // why the first diagnostic pass on this screen read back empty.
+            Self.logger.notice(
+                "looks loaded: outfits=\(outfits.count, privacy: .public) closet=\(closet.count, privacy: .public) drawable=\(looks.count, privacy: .public)"
+            )
             await loadFrame()
         } catch let error as AstraError {
+            Self.logger.error("looks failed: \(error.message, privacy: .public)")
             state = .failed(error)
         } catch {
             state = .failed(AstraError(category: .unknown, message: error.localizedDescription))

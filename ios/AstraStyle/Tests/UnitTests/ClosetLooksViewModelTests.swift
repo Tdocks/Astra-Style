@@ -100,8 +100,9 @@ struct ClosetLooksViewModelTests {
         // look he owns is dressier than he wants. Recording only the jumps
         // would throw exactly that signal away.
         let looks = [outfit(formality: 20)]
-        let repository = LooksOutfitRepository(outfits: looks)
-        let model = makeModel(repository: repository, closet: Array(SampleData.closetItems.prefix(3)))
+        let closet = Array(SampleData.closetItems.prefix(3))
+        let repository = LooksOutfitRepository(outfits: looks, garmentIDs: closet.map(\.id))
+        let model = makeModel(repository: repository, closet: closet)
         await model.onAppear()
 
         await model.nudge(.tooDressy)
@@ -111,14 +112,35 @@ struct ClosetLooksViewModelTests {
         #expect(repository.feedback.first?.targetID == looks[0].id)
     }
 
-    @Test("An unscored outfit is never the destination of a tone jump")
-    func outfitsWithNoFormalityScoreAreNotCandidates() async throws {
-        // `outfits.formality_score` is nullable. Treating nil as 0 would
-        // make every unscored look read as the most casual thing he owns,
-        // so one tap on "too dressy" would land on an outfit the app has no
-        // opinion about at all.
+    @Test("An outfit with no score of its own is ranked by the garments in it")
+    func formalityFallsBackToTheGarments() async throws {
+        // Every `outfits` row the daily brief has written carries a null
+        // `formality_score`. Reading only that column left both tone buttons
+        // permanently inert on real data — every tap fell through to the
+        // edge note. The garments have the number, so the look does.
+        let dressy = Array(SampleData.closetItems.prefix(3))          // mean ≈ 38
         let looks = [outfit(formality: 70), outfit(formality: nil)]
-        let model = makeModel(outfits: looks, closet: Array(SampleData.closetItems.prefix(3)))
+        let model = makeModel(outfits: looks, closet: dressy)
+        await model.onAppear()
+        model.focusedLookID = looks[0].id
+
+        await model.nudge(.tooDressy)
+
+        #expect(model.focusedLookID == looks[1].id)
+        #expect(model.nudgeNote == nil)
+    }
+
+    @Test("A look whose garments are all unscored is still not a destination")
+    func aTrulyUnscoredLookIsSkipped() async throws {
+        // Nil is not zero. If nothing in the look has a formality score
+        // there is no comparison to make, and treating the absence as 0
+        // would pull every "too dressy" tap onto the one look the app knows
+        // least about.
+        let unscored = (0..<3).map { index in
+            ClosetItem(id: UUID(), userID: UUID(), name: "Piece \(index)", category: .top)
+        }
+        let looks = [outfit(formality: 70), outfit(formality: nil)]
+        let model = makeModel(outfits: looks, closet: unscored)
         await model.onAppear()
         model.focusedLookID = looks[0].id
 
@@ -150,7 +172,15 @@ private func makeModel(
     closet: [ClosetItem] = SampleData.closetItems,
     bodyProfile: BodyProfile? = nil
 ) -> ClosetLooksViewModel {
-    makeModel(repository: LooksOutfitRepository(outfits: outfits), closet: closet, bodyProfile: bodyProfile)
+    // The outfit's items point at whatever closet this test passed. Pinning
+    // them to `SampleData` instead meant a test that supplied its own
+    // garments silently got an outfit joined to nothing, and the assertion
+    // it thought it was making was never reached.
+    makeModel(
+        repository: LooksOutfitRepository(outfits: outfits, garmentIDs: closet.prefix(3).map(\.id)),
+        closet: closet,
+        bodyProfile: bodyProfile
+    )
 }
 
 @MainActor
@@ -187,23 +217,25 @@ private func loaded(_ model: ClosetLooksViewModel) -> [ClosetLooksViewModel.Look
 /// the other view-model suites in this target use.
 private final class LooksOutfitRepository: OutfitRepository, @unchecked Sendable {
     private let outfits: [Outfit]
+    private let garmentIDs: [UUID]
     private(set) var feedback: [StyleFeedback] = []
 
-    init(outfits: [Outfit]) {
+    init(outfits: [Outfit], garmentIDs: [UUID]) {
         self.outfits = outfits
+        self.garmentIDs = garmentIDs
     }
 
     func fetchOutfits() async throws -> [Outfit] { outfits }
 
-    /// Three garments per outfit, pointing at the first three sample closet
-    /// items. A test that passes an empty closet is therefore exercising
-    /// "the row survived but its garments did not", which is a real state.
+    /// One `outfit_items` row per garment the test supplied. A test that
+    /// passes an empty closet therefore gets an outfit whose row survived
+    /// and whose garments did not, which is a real state.
     func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem] {
-        SampleData.closetItems.prefix(3).enumerated().map { index, item in
+        garmentIDs.enumerated().map { index, id in
             OutfitItem(
                 outfitID: outfitID,
-                closetItemID: item.id,
-                role: [.top, .bottom, .shoes][index],
+                closetItemID: id,
+                role: [.top, .bottom, .shoes][index % 3],
                 sortOrder: index
             )
         }
