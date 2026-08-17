@@ -6,8 +6,30 @@
 //  local cache and offline-first entities"). Only the entities spec §7
 //  requires to remain viewable offline are cached here: closet items,
 //  outfits, and daily briefs — plus the offline mutation queue itself.
-//  Everything else (Kyra threads, Style Studio history, product
-//  evaluations) is treated as network-first and simply not cached.
+//  Everything else (Style Studio history, product evaluations) is treated
+//  as network-first and simply not cached.
+//
+//  KYRA THREADS ARE NETWORK-FIRST BY DECISION, NOT BY OMISSION
+//  (P5-KYRA-18). The offline-cache criterion was weighed both ways and
+//  this is the recorded answer. A conversation with Kyra is generative:
+//  everything the screen can do — send, retry, act on a card — needs the
+//  network (spec §7 puts generative features behind connectivity), so a
+//  cached thread is a read-only transcript whose one use is rereading old
+//  advice. And that transcript would misrepresent itself offline: Kyra's
+//  messages carry cards that are ID references (`outfit_id`,
+//  `product_candidate_id` — see `supabase/functions/kyra/schema.ts`)
+//  hydrated at render time, and product candidates/evaluations are
+//  themselves not cached, so an offline transcript renders as prose with
+//  holes where its substance was. Caching the referenced rows too would
+//  mean mirroring most of the shopping domain to keep one modal readable
+//  on the subway — cost far out of proportion to the value. What the
+//  criterion is actually protecting the user from — a message composed
+//  offline being silently lost or silently queued — is handled where the
+//  message is composed: `KyraConversationViewModel` surfaces an explicit
+//  "Kyra needs a connection" state and disables send, rather than
+//  queue-and-hope. Revisit only if reread-offline becomes a real, observed
+//  need; the seam is `KyraRepository`, so a cache slots in behind the
+//  protocol without touching the screen.
 //
 
 import Foundation

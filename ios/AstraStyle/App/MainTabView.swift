@@ -38,14 +38,31 @@ struct MainTabView: View {
         }
     }
 
+    /// Every tab root carries the floating Ask Kyra orb — spec §4 lists
+    /// "Ask Kyra" as a GLOBAL action, and an entry point that exists on
+    /// some tabs is a navigation model the user has to memorize. It is
+    /// overlaid here, on the tab's content INSIDE the tab bar's safe area,
+    /// rather than on the `TabView` itself: the TabView's own frame
+    /// includes the tab bar, so an overlay there needs a guessed bottom
+    /// padding to clear it, and the guess breaks the day the bar's height
+    /// changes. Inside the content, the safe area does the arithmetic.
     @ViewBuilder
     private func tabRoot(for tab: AppTab) -> some View {
-        switch tab {
-        case .home: homeTab
-        case .closet: closetTab
-        case .studio: studioTab
-        case .discover: discoverTab
-        case .profile: profileTab
+        Group {
+            switch tab {
+            case .home: homeTab
+            case .closet: closetTab
+            case .studio: studioTab
+            case .discover: discoverTab
+            case .profile: profileTab
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            KyraAskButton {
+                router.startAskKyra()
+            }
+            .padding(.trailing, AstraSpacing.pagePadding)
+            .padding(.bottom, AstraSpacing.md)
         }
     }
 
@@ -171,18 +188,15 @@ struct MainTabView: View {
         // project bindings at all.
         @Bindable var router = router
         NavigationStack(path: $router.profilePath) {
-            FeaturePlaceholderView(
-                title: String(localized: "Profile"),
-                message: String(localized: "Your Style DNA, how your wardrobe is progressing, and full control over your data."),
-                systemImage: "person.crop.circle"
-            )
-            .navigationDestination(for: ProfileRoute.self) { _ in
-                FeaturePlaceholderView(
-                    title: String(localized: "Profile"),
-                    message: String(localized: "This screen arrives with Profile itself."),
-                    systemImage: "person.crop.circle"
-                )
-            }
+            // Real now, where it used to be a placeholder over a placeholder.
+            // The tab is deliberately thin — P7-HOME-05 owns the full profile
+            // and stats screen — but the two things behind it are the App
+            // Store's own gate (Guideline 5.1.1(v)), so they ship first and
+            // the rest of the tab grows around them.
+            ProfileView()
+                .navigationDestination(for: ProfileRoute.self) { route in
+                    ProfileDestinationView(route: route, container: container)
+                }
         }
     }
 
@@ -205,12 +219,8 @@ struct MainTabView: View {
                 message: String(localized: "Kyra is putting this look together on you."),
                 systemImage: "person.crop.rectangle"
             )
-        case .askKyra:
-            FeaturePlaceholderView(
-                title: String(localized: "Ask Kyra"),
-                message: String(localized: "Ask about an outfit, a purchase, or what to pack."),
-                systemImage: "bubble.left.and.text.bubble.right"
-            )
+        case .askKyra(let route):
+            KyraDestinationView(route: route, container: container)
         case .addOccasion:
             FeaturePlaceholderView(
                 title: String(localized: "Add an Occasion"),

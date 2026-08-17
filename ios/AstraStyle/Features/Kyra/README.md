@@ -20,6 +20,17 @@ Owns the Kyra conversation UI: chat, structured response cards, and style-memory
 - `Domain/Models/KyraOutgoingMessage.swift` — the attachment enum for the six input kinds.
 - `Core/Mocks/MockKyraRepository.swift` — returns a fully-populated structured response (including an outfit card and suggested actions) so card rendering can be built without a live model.
 
+## What is built (P5-KYRA-13/-14/-15, P5-TEST-02)
+
+- `Views/KyraConversationView.swift` — the conversation screen: transcript, composer, spec §21's state set (loading/empty/offline/recoverable error with conditional retry), and the thinking indicator (the §3 breathing orb).
+- `ViewModels/KyraConversationViewModel.swift` — send/retry/offline/action state. Offline is a stated "Kyra needs a connection" condition, never a silent queue — the client half of the P5-KYRA-18 decision recorded in `Core/Persistence/AstraModelContainer.swift`.
+- `Services/KyraCardHydrator.swift` + `Models/KyraRenderedCard.swift` — id-reference cards joined to drawable rows; a failed fetch degrades to an honest `.unavailable` card, never a fabricated one.
+- `Components/KyraCardView.swift` — the five card renderers (outfit reuses `LookSilhouetteView`/`AstraScoreMeter`, per P5-KYRA-14's component-reuse criterion). No `default:` branch: unknown card types are dropped at decode.
+- `Components/KyraComposerView.swift` + `KyraAttachmentPickers.swift` — text, photo, product link, closet item, outfit inputs. **Voice is P5-KYRA-16 and not yet present** (needs the mic permission).
+- `Components/KyraAskButton.swift` — the spec §4 global action, floated above the tab bar by `App/MainTabView.swift`.
+- Memory proposals render as visible notes (the server has already persisted them); the inspect/delete surface is **P5-KYRA-17, still open**, as is `.memories`' placeholder in `Routing/KyraDestinationView.swift`.
+
 ## Tickets
 
 Filled in by the **P5-KYRA** tickets in `docs/02-task-breakdown.md`.
+Open here: **P5-KYRA-16** (voice input), **P5-KYRA-17** (memory inspector).

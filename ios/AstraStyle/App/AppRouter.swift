@@ -153,7 +153,15 @@ public enum OutfitBuilderRoute: Hashable, Sendable {
 
 /// Destinations pushed on the Kyra conversation flow.
 public enum KyraRoute: Hashable, Sendable {
-    case thread(threadID: UUID)
+    /// `nil` means a NEW conversation. The server creates the
+    /// `kyra_threads` row on the first send (`POST /kyra/respond` with
+    /// `thread_id: null` — `supabase/functions/kyra/README.md`), so the
+    /// client cannot know the id before that response arrives. This case
+    /// used to be non-optional and `startAskKyra` papered over it by
+    /// minting a fresh `UUID()` — an id the database had never heard of,
+    /// which the first send would then have posted as if it named a real
+    /// thread. Optional is the honest shape.
+    case thread(threadID: UUID?)
     case memories
     case productCard(productID: UUID)
 }
@@ -294,7 +302,7 @@ public final class AppRouter {
     // MARK: - Global actions (spec §4 "Global actions")
 
     public func startAskKyra(threadID: UUID? = nil) {
-        presentModal(.askKyra(threadID.map(KyraRoute.thread) ?? .thread(threadID: UUID())))
+        presentModal(.askKyra(.thread(threadID: threadID)))
     }
 
     /// No gate in front of this any more. It used to check

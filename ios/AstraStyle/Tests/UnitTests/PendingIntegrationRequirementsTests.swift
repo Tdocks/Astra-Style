@@ -115,4 +115,26 @@ struct PendingIntegrationRequirementsTests {
         // Intentionally empty: the `.disabled` reason above IS the report.
         // Replace this body with the real snapshot tests and remove the trait.
     }
+
+    @Test(
+        "Account deletion end-to-end: DELETE /account against a live Supabase project, through the Storage purge and auth.admin.deleteUser cascade to a completed account_deletions row",
+        .disabled(
+            "Not implemented: requires a live Supabase project with the account Edge Function deployed and service-role credentials to observe the cascade's terminal state. AccountDeletionViewModelTests covers the client-side flow against a fake AuthRepository; this is the missing live-backend half. Owner: P7-PRIVACY-01/02. Spec §22 'Integration tests'."
+        )
+    )
+    func accountDeletionEndToEnd() {
+        // Intentionally empty: the `.disabled` reason above IS the report.
+        // Replace this body with the real integration test and remove the trait.
+    }
+
+    @Test(
+        "Personal data export: a signed export URL that resolves to a real, current snapshot of the user's data",
+        .disabled(
+            "Not implemented: there is no export Edge Function, scheduled job, or `exports` storage bucket anywhere in this codebase — `LiveProfileRepository.exportPersonalData()` signs a URL for an object nothing ever writes. No UI was built on top of it either (Features/Profile/README.md), per spec §22's 'no dead buttons'. Owner: P7-PRIVACY-03. Spec §29 'Export personal data'."
+        )
+    )
+    func personalDataExportEndToEnd() {
+        // Intentionally empty: the `.disabled` reason above IS the report.
+        // Replace this body with the real integration test and remove the trait.
+    }
 }

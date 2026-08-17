@@ -8,8 +8,8 @@
 //
 //  Flows that are not yet built remain `XCTSkip` placeholders so the gap
 //  shows up in Xcode/CI's test report rather than being silently missing.
-//  Written bodies (today: `testAddGarment`) launch against
-//  `-astra-mock-backend` and assert real Closet behaviour.
+//  Written bodies (today: `testAddGarment`, `testAskKyra`) launch against
+//  `-astra-mock-backend` and assert real behaviour.
 //
 //  DO NOT delete the remaining skips to make CI green — a deleted flow is
 //  an invisible one.
@@ -185,10 +185,63 @@ final class AstraStyleUITests: XCTestCase {
         )
     }
 
-    /// Spec §22 "Ask Kyra". Owner: P5-KYRA.
+    /// Spec §22 "Ask Kyra" / P5-TEST-02.
+    ///
+    /// Runs against `-astra-mock-backend` (`MockKyraRepository`, whose reply
+    /// carries an outfit card citing `SampleData.heroOutfit`) — the live
+    /// `kyra` Edge Function is not deployed yet (kyra/README.md), so the
+    /// ticket's "against a test/staging deployment" clause cannot be
+    /// satisfied by any client-side change; the flow, rendering, and
+    /// seeded-item assertions run unchanged against staging once it exists.
+    ///
+    /// Asserts the two things the skip owed: a STRUCTURED response (an
+    /// outfit card whose garments are the seeded closet's rows, not raw
+    /// text) and at least one live suggested action.
     func testAskKyra() throws {
-        throw XCTSkip(
-            "Not implemented: open the Ask Kyra modal, send a message, and assert a structured response renders (not raw unformatted text) with at least one suggested action. Owner: P5-KYRA."
+        app.launchArguments += [
+            "-astra-mock-backend",
+            "-astra-skip-onboarding"
+        ]
+        app.launch()
+        awaitElement(app.tabBars.firstMatch, "Main tab bar under mock backend")
+
+        // The Ask Kyra global action floats above the tab bar on every tab.
+        let askButton = app.descendants(matching: .any)["kyra.ask"]
+        awaitElement(askButton, "Ask Kyra orb")
+        askButton.tap()
+
+        // A new conversation's empty state IS the suggested prompts;
+        // tapping one must send it as a real message (P5-KYRA-15).
+        let firstPrompt = app.descendants(matching: .any)["kyra.prompt.0"]
+        awaitElement(firstPrompt, "First suggested prompt")
+        firstPrompt.tap()
+
+        // The reply renders structured: Kyra's message text, an outfit
+        // card, and a suggested action — not one blob of unformatted prose.
+        awaitElement(
+            app.descendants(matching: .any)["kyra.message.assistant"].firstMatch,
+            "Kyra's reply message"
+        )
+        let outfitCard = app.descendants(matching: .any)["kyra.card.outfit"].firstMatch
+        awaitElement(outfitCard, "Outfit card in Kyra's reply")
+
+        // The card's item references resolve to the closet seeded for the
+        // test user: the hero outfit's top is SampleData's Drake's "Knit
+        // Polo", and the silhouette labels each slot with the garment name.
+        let knitPolo = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", "Knit Polo")
+        ).firstMatch
+        XCTAssertTrue(
+            knitPolo.waitForExistence(timeout: timeout),
+            "Outfit card should render the seeded closet item 'Knit Polo'"
+        )
+
+        let suggestedAction = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "kyra.action.")
+        ).firstMatch
+        XCTAssertTrue(
+            suggestedAction.waitForExistence(timeout: timeout),
+            "Reply should surface at least one performable suggested action"
         )
     }
 

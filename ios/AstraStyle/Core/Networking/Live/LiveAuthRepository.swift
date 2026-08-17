@@ -89,8 +89,9 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
         try await sessionStore.signOut()
     }
 
-    public func deleteAccount() async throws {
-        _ = try await apiClient.send(.deleteAccount, as: AstraEmptyPayload.self)
+    public func deleteAccount() async throws -> AccountDeletionStatus {
+        let status = try await apiClient.send(.deleteAccount, as: AccountDeletionStatus.self)
         try await sessionStore.signOut()
+        return status
     }
 }

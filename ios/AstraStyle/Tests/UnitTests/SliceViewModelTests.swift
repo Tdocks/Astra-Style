@@ -74,7 +74,9 @@ private actor StubAuthRepository: AuthRepository {
         signOutCallCount += 1
     }
 
-    func deleteAccount() async throws {}
+    func deleteAccount() async throws -> AccountDeletionStatus {
+        AccountDeletionStatus(deletionID: UUID(), status: .pending)
+    }
 }
 
 /// Configurable `ClosetRepository` double.

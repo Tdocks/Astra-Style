@@ -51,8 +51,9 @@ public actor MockAuthRepository: AuthRepository {
         try? await sessionStore?.signOut()
     }
 
-    public func deleteAccount() async throws {
+    public func deleteAccount() async throws -> AccountDeletionStatus {
         session = nil
         try? await sessionStore?.signOut()
+        return AccountDeletionStatus(deletionID: UUID(), status: .pending)
     }
 }

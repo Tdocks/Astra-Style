@@ -40,7 +40,28 @@ public protocol AuthRepository: Sendable {
 
     func signOut() async throws
 
-    /// Permanently deletes the account and all associated data
+    /// Requests permanent deletion of the account and everything it owns
     /// (spec §15 "Data deletion", `DELETE /account`).
-    func deleteAccount() async throws
+    ///
+    /// Returns as soon as the server has ACCEPTED the request — HTTP 202 —
+    /// not once deletion has actually finished. `AccountDeletionStatus`'s
+    /// own header explains why its `status` can only ever be
+    /// `.pending`/`.processing`: the row cascade, the Storage purge, and
+    /// the `auth.users` delete all run server-side, after this call has
+    /// already returned (`account/handler.ts`'s "WHY THE CASCADE RUNS
+    /// AFTER THE RESPONSE" comment).
+    ///
+    /// Idempotent from the caller's perspective: calling this a second
+    /// time while a deletion is already in flight for the caller returns
+    /// the SAME existing job rather than starting a second one or
+    /// throwing (see `account/handler.ts`'s `requestDeletion` doc
+    /// comment) — nothing here has to guard against a double-tap or a
+    /// retried request landing twice.
+    ///
+    /// Signs the local session out as its last internal step, once the
+    /// server has acknowledged the request — matching
+    /// `LiveAuthRepository`'s existing order (delete, then sign out) so a
+    /// network failure on the DELETE call never leaves a session-less
+    /// client that cannot retry.
+    func deleteAccount() async throws -> AccountDeletionStatus
 }
