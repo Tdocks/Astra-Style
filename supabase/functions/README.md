@@ -58,6 +58,11 @@ supabase/functions/
     deterministicStylist.ts  The mock StylistReasoningProvider + the composer
     identityPlaybook.ts      Per-identity palettes, silhouettes, signature pieces
     schema.ts                Response DTO + the validator every provider must pass
+  account/                DELETE /account (P7-PRIVACY-01) — cascading account deletion
+    index.ts                 Wiring, incl. the two Supabase clients (caller-scoped +
+                              service-role) and the recursive Storage sweep
+    handler.ts               Orchestrates the migration's documented deletion sequence
+    schema.ts                Why this endpoint's request body has nothing to validate
 ```
 
 ## Why `POST /profile/complete-onboarding` writes through a Postgres function

@@ -20,8 +20,15 @@
 -- privileged helper functions) and documents the exact Edge Function
 -- orchestration the DELETE /account handler must perform around them.
 --
--- Required orchestration, in `supabase/functions/account-delete` (Edge
--- Function, service-role key, per §25):
+-- Required orchestration, in `supabase/functions/account` (Edge Function,
+-- service-role key, per §25) — NOT `account-delete`: Supabase routes
+-- `/functions/v1/{slug}/...` by the first path segment only, the client
+-- builds `DELETE {base}/account` (`AstraEndpoint.deleteAccount`), and
+-- `EndpointDeploymentMappingTests.expectedSlugs` on the iOS side requires
+-- the slug `account`. A function deployed as `account-delete` would 404 on
+-- every real call while every unit test on both sides stayed green — see
+-- docs/adr/0013-edge-function-routing.md, which documents this exact
+-- failure mode happening once already with `outfits-generate`:
 --   1. Validate the caller's JWT; get user_id.
 --   2. `select public.request_account_deletion();` (run with the user's own
 --      JWT/claims, or by the edge function passing through auth.uid() context)
