@@ -13,6 +13,13 @@ Which instructions you follow depends on who you are:
 Do not mix the streams: the marketing site does not change the iOS app; TestFlight
 does not require the website to be live first.
 
+## Git hosts
+
+GitHub (`origin`, `Tdocks/Astra-Style`) is the push. Cursor Origin
+(`tyler-dockswell/Astra-Style`) is an inbound mirror of GitHub — after a
+requested commit, push `origin` and confirm Origin’s `main` matches. See
+[`.cursor/rules/git-hosts.mdc`](.cursor/rules/git-hosts.mdc).
+
 ## Cloudflare MCP + skills (Cursor / Copilot / etc.)
 
 Official setup: https://developers.cloudflare.com/agent-setup/prompt.md

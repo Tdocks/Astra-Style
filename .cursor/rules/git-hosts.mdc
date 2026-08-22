@@ -1,0 +1,20 @@
+---
+description: Push Astra Style to GitHub; Cursor Origin is the inbound mirror of that push
+alwaysApply: true
+---
+
+# Git hosts
+
+- Git remote `origin` is GitHub: `https://github.com/Tdocks/Astra-Style.git`. Never replace or rewrite it.
+- Cursor Origin (`https://origin.cursor.com/tyler-dockswell/Astra-Style.git`) is an **inbound GitHub mirror**. Direct push to Origin is rejected; GitHub push is how Origin updates.
+- Optional remote name `cursor` may point at Origin for `ls-remote` / compare. Fetch stays GitHub.
+
+## After a requested commit
+
+This overrides the default “do not push unless asked” for this repo.
+
+1. `git push -u origin HEAD` (never `--force` unless the user explicitly asked).
+2. Confirm Origin `main` matches: `git ls-remote cursor refs/heads/main` or `origin repo view tyler-dockswell/Astra-Style --json lastPushedAt,mirrorStatus`.
+3. If Origin lags more than a minute, say so; do not add Origin as a second push URL on `origin` (a rejected mirror push would fail the GitHub push too).
+
+Still do not: force-push to `main`, skip hooks, commit `.env` / secrets / `.qa-shots` / `.xcodeproj`.
