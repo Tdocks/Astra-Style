@@ -9,7 +9,11 @@ import {
   type Subscore,
 } from "../_shared/scoring/types.ts";
 
-function garment(id: string, role: ScorableItem["role"]): ScorableItem {
+function garment(
+  id: string,
+  role: ScorableItem["role"],
+  over: Partial<ScorableItem> = {},
+): ScorableItem {
   return {
     id,
     category: role === "accessory" ? "accessory" : role,
@@ -27,6 +31,7 @@ function garment(id: string, role: ScorableItem["role"]): ScorableItem {
     waterResistanceScore: null,
     laundryState: "clean",
     availabilityState: "available",
+    ...over,
   };
 }
 
@@ -55,7 +60,7 @@ function scoreWith(overrides: Partial<Record<ComponentName, Subscore>>): Compati
 Deno.test("falls back to a structural sentence when every component is degraded", () => {
   const items = [garment("t", "top"), garment("b", "bottom"), garment("s", "shoes")];
   const reason = buildReason(items, scoreWith({}));
-  assertEquals(reason, "Put together from your closet: top, bottom, shoes.");
+  assertEquals(reason, "From what you own: top, bottom, shoes.");
 });
 
 Deno.test("never mentions a component the score itself marked degraded", () => {
@@ -79,13 +84,13 @@ Deno.test("combines up to two measured strong components, heaviest first", () =>
     items,
     scoreWith({ color: measured(0.9), formality: measured(0.85), silhouette: measured(0.9) }),
   );
-  assertEquals(reason, "The colors work well together and everything matches in formality.");
+  assertEquals(reason, "The colors work well together and the formality lines up.");
 });
 
 Deno.test("a measured but weak component is not claimed", () => {
   const items = [garment("t", "top"), garment("b", "bottom")];
   const reason = buildReason(items, scoreWith({ color: measured(0.5) }));
-  assertEquals(reason, "Put together from your closet: top, bottom.");
+  assertEquals(reason, "From what you own: top, bottom.");
 });
 
 Deno.test("role counts pluralize for more than one of the same role", () => {
@@ -97,5 +102,33 @@ Deno.test("role counts pluralize for more than one of the same role", () => {
     garment("a2", "accessory"),
   ];
   const reason = buildReason(items, scoreWith({}));
-  assertEquals(reason, "Put together from your closet: top, bottom, shoes, 2 accessories.");
+  assertEquals(reason, "From what you own: top, bottom, shoes, 2 accessories.");
+});
+
+Deno.test("names the colour words on the garments when colour is measured", () => {
+  const items = [
+    garment("t", "top", { colorName: "navy" }),
+    garment("b", "bottom", { colorName: "stone" }),
+  ];
+  const reason = buildReason(items, scoreWith({ color: measured(0.9) }));
+  assertEquals(reason, "Navy and Stone work together.");
+});
+
+Deno.test("a single named colour is not a pairing, so the generic phrase stays", () => {
+  const items = [
+    garment("t", "top", { colorName: "navy" }),
+    garment("b", "bottom"),
+  ];
+  const reason = buildReason(items, scoreWith({ color: measured(0.9) }));
+  assertEquals(reason, "The colors work well together.");
+});
+
+Deno.test("duplicate colour words are named once", () => {
+  const items = [
+    garment("t", "top", { colorName: "navy" }),
+    garment("b", "bottom", { colorName: "Navy" }),
+    garment("s", "shoes", { colorName: "white" }),
+  ];
+  const reason = buildReason(items, scoreWith({ color: measured(0.9) }));
+  assertEquals(reason, "Navy and White work together.");
 });

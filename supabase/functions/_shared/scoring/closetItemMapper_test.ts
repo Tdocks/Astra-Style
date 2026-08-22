@@ -31,6 +31,7 @@ Deno.test("maps a fully-populated row onto a ScorableItem", () => {
   assertEquals(item?.waterResistanceScore, 10);
   assertEquals(item?.laundryState, "clean");
   assertEquals(item?.availabilityState, "available");
+  assertEquals(item?.colorName, "navy");
   assertEquals(item?.primaryColor !== null, true);
   assertEquals(item?.isNeutral, true); // navy is a curated neutral band
 });

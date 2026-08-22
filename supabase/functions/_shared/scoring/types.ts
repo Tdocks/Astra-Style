@@ -161,6 +161,13 @@ export interface ScorableItem {
    * fact as null: never worn, so rotation has nothing to exclude.
    */
   readonly lastWornAt?: Date | null;
+  /**
+   * The closet row's colour WORD (`primary_color` text), not the resolved LCh.
+   *
+   * Copy names what he photographed ("navy", "stone"). Scoring still uses
+   * `primaryColor`. Optional so helpers that never had a word stay valid.
+   */
+  readonly colorName?: string | null;
 }
 
 /**

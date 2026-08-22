@@ -155,6 +155,13 @@ function parseLastWornAt(value: string | null | undefined): Date | null {
   return Number.isNaN(ms) ? null : new Date(ms);
 }
 
+/** Empty / whitespace-only colour words are absent, not a blank name in copy. */
+function parseColorName(value: string | null): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
 /**
  * Maps one `closet_items` row to a `ScorableItem`, or `null` when the row
  * carries no scoring signal at all — `category = 'fragrance'` (see
@@ -203,5 +210,6 @@ export function mapClosetItemRowToScorableItem(row: ClosetItemMapperRow): Scorab
     laundryState: row.laundry_state as LaundryState,
     availabilityState: row.availability_state as AvailabilityState,
     lastWornAt: parseLastWornAt(row.last_worn_at),
+    colorName: parseColorName(row.primary_color),
   };
 }

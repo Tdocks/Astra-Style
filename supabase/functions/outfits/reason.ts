@@ -34,8 +34,7 @@
 // about the one thing that is always true and always measured —
 // `availability`'s subscore is `measured()` unconditionally (see
 // `context.ts`; it has no degraded branch at all) — so falling back to a
-// plain "assembled from N available pieces" line is never a claim resting
-// on a prior.
+// plain "from what you own" line is never a claim resting on a prior.
 // ============================================================================
 
 import type { CompatibilityScore, ComponentName } from "../_shared/scoring/compatibility.ts";
@@ -60,7 +59,7 @@ const STRONG_ENOUGH = 0.8;
 
 const PHRASES: Partial<Record<ComponentName, string>> = {
   color: "the colors work well together",
-  formality: "everything matches in formality",
+  formality: "the formality lines up",
   silhouette: "the fits balance each other",
   seasonWeather: "it suits today's weather",
   userPreference: "it fits what you've told us you like",
@@ -88,6 +87,52 @@ function capitalize(text: string): string {
   return text.length === 0 ? text : text[0]!.toUpperCase() + text.slice(1);
 }
 
+function uniqueColorNames(items: readonly ScorableItem[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const item of items) {
+    const raw = item.colorName?.trim();
+    if (raw == null || raw === "") continue;
+    const key = raw.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(capitalize(raw));
+  }
+  return names;
+}
+
+function listWords(words: readonly string[]): string {
+  switch (words.length) {
+    case 0:
+      return "";
+    case 1:
+      return words[0]!;
+    case 2:
+      return `${words[0]} and ${words[1]}`;
+    default: {
+      const head = words.slice(0, -1).join(", ");
+      return `${head}, and ${words[words.length - 1]}`;
+    }
+  }
+}
+
+/**
+ * Colour copy names the words on the garments, not a generic "the colors
+ * work." Two named colours is the honest sentence; one named colour is not
+ * a pairing; zero falls back to the generic phrase so a measured-but-unnamed
+ * score is still sayable.
+ */
+function colorPhrase(items: readonly ScorableItem[]): string {
+  const names = uniqueColorNames(items);
+  if (names.length >= 2) return `${listWords(names)} work together`;
+  return PHRASES.color!;
+}
+
+function phraseFor(name: ComponentName, items: readonly ScorableItem[]): string | undefined {
+  if (name === "color") return colorPhrase(items);
+  return PHRASES[name];
+}
+
 /** The structural fallback: true of every outfit this function is ever called with, and never a scored claim. */
 function structuralFallback(items: readonly ScorableItem[]): string {
   const roleCounts = new Map<GarmentRole, number>();
@@ -96,7 +141,7 @@ function structuralFallback(items: readonly ScorableItem[]): string {
   }
   const parts = [...roleCounts.entries()]
     .map(([role, count]) => count > 1 ? `${count} ${ROLE_LABEL_PLURAL[role]}` : ROLE_LABEL[role]);
-  return `Put together from your closet: ${parts.join(", ")}.`;
+  return `From what you own: ${parts.join(", ")}.`;
 }
 
 /**
@@ -113,7 +158,7 @@ export function buildReason(
     const component = score.components[name];
     if (component.degraded.length > 0) continue; // not defensible — see header
     if (component.value < STRONG_ENOUGH) continue;
-    const phrase = PHRASES[name];
+    const phrase = phraseFor(name, items);
     if (!phrase) continue;
     claims.push(phrase);
     if (claims.length >= 2) break;
