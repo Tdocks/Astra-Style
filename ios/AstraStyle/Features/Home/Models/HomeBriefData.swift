@@ -18,8 +18,8 @@ public struct HomeBriefData: Sendable {
     public var brief: DailyBrief
     public var primaryOutfit: Outfit?
     public var primaryOutfitItems: [OutfitItem]
-    /// Everything wearable the man owns, by role. Carried so the empty state
-    /// can say something true — see `emptyReason`.
+    /// Everything he owns, by role. Carried so the empty state can say
+    /// something true — see `emptyReason`.
     ///
     /// OPTIONAL, AND NIL IS NOT ZERO. The provider reads the closet with
     /// `try?`, because a closet it cannot reach must not block the brief. That
@@ -29,6 +29,11 @@ public struct HomeBriefData: Sendable {
     /// find out", which is a different sentence from "there is nothing there"
     /// and has to be carried as one.
     public var closetRoleCounts: [ClothingCategory: Int]?
+    /// Owned garments that can go on a body today (`isWearableToday`), by
+    /// role. Distinct from `closetRoleCounts` because he can own bottoms and
+    /// still have none wearable — they are in the wash. Nil means we did not
+    /// separate the two, so `emptyReason` will not claim a wash it cannot see.
+    public var wearableRoleCounts: [ClothingCategory: Int]?
     /// Today's outfit, joined to the garments and their signed images.
     /// Empty when there is no outfit, which is the same condition as
     /// `primaryOutfit == nil` and is what `emptyReason` already reads.
@@ -42,6 +47,7 @@ public struct HomeBriefData: Sendable {
         primaryOutfit: Outfit?,
         primaryOutfitItems: [OutfitItem],
         closetRoleCounts: [ClothingCategory: Int]? = [:],
+        wearableRoleCounts: [ClothingCategory: Int]? = nil,
         lookGarments: [LookGarment] = []
     ) {
         self.greetingName = greetingName
@@ -51,6 +57,7 @@ public struct HomeBriefData: Sendable {
         self.primaryOutfit = primaryOutfit
         self.primaryOutfitItems = primaryOutfitItems
         self.closetRoleCounts = closetRoleCounts
+        self.wearableRoleCounts = wearableRoleCounts
         self.lookGarments = lookGarments
     }
 
@@ -65,6 +72,16 @@ public struct HomeBriefData: Sendable {
     public var missingRoles: [ClothingCategory] {
         let counts = closetRoleCounts ?? [:]
         return Self.requiredRoles.filter { (counts[$0] ?? 0) == 0 }
+    }
+
+    /// Roles he owns, but cannot put on today.
+    ///
+    /// Empty when wearable counts were not measured — claiming a wash from
+    /// silence is how "scan your first item" ended up in front of a man
+    /// whose closet was simply unreachable.
+    public var rolesInTheWash: [ClothingCategory] {
+        guard let owned = closetRoleCounts, let wearable = wearableRoleCounts else { return [] }
+        return Self.requiredRoles.filter { (owned[$0] ?? 0) > 0 && (wearable[$0] ?? 0) == 0 }
     }
 
     public var closetItemCount: Int {
@@ -98,6 +115,11 @@ public struct HomeBriefData: Sendable {
         /// Enough garments, but at least one role an outfit requires is
         /// missing entirely.
         case missingRoles([ClothingCategory])
+        /// He owns the role, but nothing in it is wearable today — typically
+        /// because it is in the wash. Distinct from `missingRoles`: telling
+        /// him to scan bottoms he already photographed is the confounded
+        /// reading.
+        case inTheWash([ClothingCategory])
         /// Enough garments and every role present, and still no outfit —
         /// nothing structural is wrong, so nothing structural is claimed.
         case noOutfitYet
@@ -114,7 +136,10 @@ public struct HomeBriefData: Sendable {
             return .tooFewItems(have: closetItemCount, need: Self.minimumItemsForOutfits)
         }
         let missing = missingRoles
-        return missing.isEmpty ? .noOutfitYet : .missingRoles(missing)
+        if !missing.isEmpty { return .missingRoles(missing) }
+        let inWash = rolesInTheWash
+        if !inWash.isEmpty { return .inTheWash(inWash) }
+        return .noOutfitYet
     }
 
     /// Kept as the single "is Home empty" question the view model asks.

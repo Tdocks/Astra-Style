@@ -180,6 +180,7 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             // through as nil rather than flattened to an empty closet — see
             // `HomeBriefData.closetRoleCounts`.
             closetRoleCounts: closetItems.map(Self.roleCounts(of:)),
+            wearableRoleCounts: closetItems.map { Self.roleCounts(of: $0.filter(\.isWearableToday)) },
             // After the fan-out, not inside it: this needs the items the
             // fan-out is fetching, and running it concurrently would fetch
             // them twice.
@@ -240,7 +241,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             brief: DailyBrief(id: UUID(), userID: profile.id, briefDate: .now),
             primaryOutfit: nil,
             primaryOutfitItems: [],
-            closetRoleCounts: Self.roleCounts(of: closetItems)
+            closetRoleCounts: Self.roleCounts(of: closetItems),
+            wearableRoleCounts: Self.roleCounts(of: closetItems.filter(\.isWearableToday))
         )
     }
 

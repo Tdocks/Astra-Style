@@ -78,6 +78,12 @@ export interface ClosetItemMapperRow {
   readonly water_resistance_score: number | null;
   readonly laundry_state: string;
   readonly availability_state: string;
+  /**
+   * Optional because some callers (product-candidate projections, older
+   * fixtures) have no wear history to give. The mapper treats missing the
+   * same as null: never worn.
+   */
+  readonly last_worn_at?: string | null;
 }
 
 const KNOWN_PATTERNS: ReadonlySet<string> = new Set<Pattern>([
@@ -142,6 +148,13 @@ function asSeasonArray(value: unknown): readonly Season[] {
   );
 }
 
+/** Null / missing / unparseable all mean "never worn", never an Invalid Date. */
+function parseLastWornAt(value: string | null | undefined): Date | null {
+  if (value == null || value === "") return null;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : new Date(ms);
+}
+
 /**
  * Maps one `closet_items` row to a `ScorableItem`, or `null` when the row
  * carries no scoring signal at all — `category = 'fragrance'` (see
@@ -189,5 +202,6 @@ export function mapClosetItemRowToScorableItem(row: ClosetItemMapperRow): Scorab
     // which are free text and genuinely need validating.
     laundryState: row.laundry_state as LaundryState,
     availabilityState: row.availability_state as AvailabilityState,
+    lastWornAt: parseLastWornAt(row.last_worn_at),
   };
 }

@@ -2,7 +2,7 @@
 //  HomeEmptyStateView.swift
 //  AstraStyle
 //
-//  Spec §6.11's empty state, split three ways.
+//  Spec §6.11's empty state, split four ways.
 //
 //  §21's example copy — "Add five pieces and Kyra can begin building real
 //  outfits." — is verbatim and still right, but only for the case it was
@@ -57,6 +57,8 @@ struct HomeEmptyStateView: View {
             String(localized: "Let's build your first look", comment: "Home empty state title")
         case .missingRoles:
             String(localized: "Almost there", comment: "Home empty state title, a role is missing")
+        case .inTheWash:
+            String(localized: "In the wash", comment: "Home empty state title, owned roles aren't wearable")
         case .noOutfitYet:
             String(localized: "No look for today yet", comment: "Home empty state title, nothing scored")
         }
@@ -81,6 +83,11 @@ struct HomeEmptyStateView: View {
                 localized: "Your closet has \(list(present(excluding: roles))). Kyra needs \(list(roles)) too before she can put a look together.",
                 comment: "Home empty state naming the garment roles the closet is missing"
             )
+        case .inTheWash(let roles):
+            String(
+                localized: "Your \(list(roles)) aren't available to wear. They're probably in the wash — open Closet to check, or scan another pair.",
+                comment: "Home empty state, owned roles exist but none are wearable today"
+            )
         case .noOutfitYet:
             String(
                 localized: "Everything Kyra needs is in your closet, but nothing came together today. Check what's in the wash, or add a piece.",
@@ -101,6 +108,8 @@ struct HomeEmptyStateView: View {
             // Naming what to go and photograph, because "Scan an Item" is
             // exactly what he has already been doing.
             String(localized: "Add \(list(roles))", comment: "Home empty state CTA naming the missing roles")
+        case .inTheWash:
+            String(localized: "Open Closet", comment: "Home empty state CTA, laundry lives in Closet")
         case .noOutfitYet:
             String(localized: "Add a Piece", comment: "Home empty state CTA")
         }

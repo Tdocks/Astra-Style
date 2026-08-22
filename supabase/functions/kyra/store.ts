@@ -56,6 +56,7 @@ const SCORABLE_COLUMNS = [
   "water_resistance_score",
   "laundry_state",
   "availability_state",
+  "last_worn_at",
 ].join(", ");
 
 const PACKET_COLUMNS =

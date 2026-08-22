@@ -96,10 +96,14 @@ public struct HomeView: View {
             weatherAffordance(for: data)
 
             HomeEmptyStateView(reason: data.emptyReason ?? .noOutfitYet) {
-                // Dogfood loop is Scan One (ADR 0015). Batch remains on
-                // Closet's scan menu; sending a missing-role CTA into it
-                // put a Partial surface on the only door Home has.
-                router.startScan()
+                if case .inTheWash = data.emptyReason {
+                    router.select(.closet)
+                } else {
+                    // Dogfood loop is Scan One (ADR 0015). Batch remains on
+                    // Closet's scan menu; sending a missing-role CTA into it
+                    // put a Partial surface on the only door Home has.
+                    router.startScan()
+                }
             }
         }
     }

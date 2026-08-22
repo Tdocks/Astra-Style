@@ -118,6 +118,28 @@ struct HomeBriefProvidingTests {
         #expect(!data.needsMoreClosetItems)
     }
 
+    @Test("Laundry bottoms stay in the owned count and drop out of the wearable count")
+    func laundryIsOwnedButNotWearable() async throws {
+        let closet = SampleData.closetItems.map { item -> ClosetItem in
+            var copy = item
+            if copy.category == .bottom { copy.laundryState = .laundry }
+            return copy
+        }
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: MockOutfitRepository(),
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(items: closet),
+            weatherService: MockWeatherService(),
+            imageURLResolver: HomeStubURLResolver()
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect((data.closetRoleCounts?[.bottom] ?? 0) > 0)
+        #expect((data.wearableRoleCounts?[.bottom] ?? 0) == 0)
+        #expect((data.wearableRoleCounts?[.top] ?? 0) > 0)
+    }
+
     // MARK: - Regenerate
 
     /// `POST /daily-brief/generate` is idempotent per `brief_date`

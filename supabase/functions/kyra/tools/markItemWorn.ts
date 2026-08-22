@@ -16,11 +16,12 @@
 // history and cost-per-wear stats.
 //
 // COUNTING HAPPENS IN THE DATABASE, NOT HERE. `outfit_wears` insert fires
-// `bump_closet_item_wear_stats()`, which increments `wear_count` and
-// advances `last_worn_at` for every closet item in the outfit. This module
-// must NOT also update those columns — that is the double-count P5-KYRA-10
-// warns about. `updated_wear_counts` in the response is a RE-READ of the
-// rows after insert, reporting what the trigger did.
+// `bump_closet_item_wear_stats()`, which increments `wear_count`, advances
+// `last_worn_at`, and moves `laundry_state` from `clean` to `worn_once` for
+// every closet item in the outfit. This module must NOT also update those
+// columns — that is the double-count P5-KYRA-10 warns about.
+// `updated_wear_counts` in the response is a RE-READ of the rows after
+// insert, reporting what the trigger did.
 //
 // `outfit_wears.outfit_id` is NOT NULL: a wear event is always of an
 // outfit. "I wore the navy blazer" with no outfit id therefore persists a

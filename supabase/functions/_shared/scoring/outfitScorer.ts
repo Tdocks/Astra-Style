@@ -22,11 +22,11 @@ import type { ClosetItemMapperRow } from "./closetItemMapper.ts";
 /**
  * A closet row as the scorers now receive it.
  *
- * The mapper's shape plus `last_worn_at`, which the mapper itself has no use
- * for — nothing in §2 asks when a garment was last worn — but the placeholder
- * scorer reads for its entire ranking, and rotation-aware scoring will want
- * later. Kept out of `ClosetItemMapperRow` rather than added to it, so the
- * mapper's input stays exactly the set of columns it reads.
+ * The mapper's shape plus a required `last_worn_at`. The mapper now reads
+ * that column when present (rotation in `generateCandidateOutfits`); it stays
+ * required here because the placeholder scorer ranks by it and `daily-brief`
+ * always selects it. Optional on `ClosetItemMapperRow` so callers without a
+ * wear timestamp can omit it.
  */
 export type OutfitScorerRow = ClosetItemMapperRow & {
   readonly last_worn_at: string | null;

@@ -153,6 +153,14 @@ export interface ScorableItem {
   readonly waterResistanceScore: number | null;
   readonly laundryState: LaundryState;
   readonly availabilityState: AvailabilityState;
+  /**
+   * When this garment was last worn, if ever.
+   *
+   * Optional so existing `garment()` test helpers and product-candidate
+   * projections (which have never been worn) stay valid. Absent is the same
+   * fact as null: never worn, so rotation has nothing to exclude.
+   */
+  readonly lastWornAt?: Date | null;
 }
 
 /**

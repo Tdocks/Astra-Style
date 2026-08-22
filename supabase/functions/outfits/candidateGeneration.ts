@@ -48,6 +48,11 @@ export interface GenerateCandidateOutfitsOptions {
   readonly excludedItemIds: ReadonlySet<string>;
   readonly context?: ScoringContext;
   readonly weights?: ComponentWeights;
+  /**
+   * Clock for freshness rotation. Production omits this and uses now;
+   * tests freeze it so "worn an hour ago" is a fact, not a race.
+   */
+  readonly now?: Date;
 }
 
 export interface GeneratedOutfit {
@@ -78,6 +83,43 @@ const BEAM_WIDTH = 8;
  */
 const ACCESSORY_POOL_CAP = 4;
 const MAX_ACCESSORIES_PER_OUTFIT = 2;
+
+/**
+ * How long a wear keeps a garment out of the next look, when he owns
+ * another in the same role.
+ *
+ * Twenty-four hours, not a calendar date: Wear This at 8am must not return
+ * the same shirt at 7am tomorrow, and may return it the morning after. The
+ * 0.05 availability weight cannot beat colour, so this is a hard drop of
+ * recently-worn candidates — not a scoring nudge. If dropping them would
+ * empty a role, they stay: the only look is still a look.
+ */
+const ROTATION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function wornWithinWindow(item: ScorableItem, now: Date): boolean {
+  const worn = item.lastWornAt;
+  if (worn == null) return false;
+  return now.getTime() - worn.getTime() < ROTATION_WINDOW_MS;
+}
+
+/**
+ * When a role has more than one wearable item, drop the ones worn inside
+ * `ROTATION_WINDOW_MS` — unless that would leave the role empty, or the
+ * item is locked (he asked for it).
+ */
+function applyFreshnessRotation(
+  byRole: Map<GarmentRole, ScorableItem[]>,
+  lockedItemIds: ReadonlySet<string>,
+  now: Date,
+): void {
+  for (const [role, items] of byRole) {
+    if (items.length <= 1) continue;
+    const fresh = items.filter((item) =>
+      lockedItemIds.has(item.id) || !wornWithinWindow(item, now)
+    );
+    if (fresh.length > 0) byRole.set(role, fresh);
+  }
+}
 
 interface PartialCombo {
   readonly items: readonly ScorableItem[];
@@ -184,6 +226,13 @@ function orderForDisplay(items: readonly ScorableItem[]): ScorableItem[] {
  * the same shape the rest of this codebase already uses for "no outfit is
  * currently possible" (see `LeastRecentlyWornScorer`'s empty-required-role
  * case).
+ *
+ * FRESHNESS ROTATION: when a required (or optional) role has two or more
+ * wearable items, garments worn in the last 24 hours are dropped before
+ * combinations are built. Wear This otherwise cannot change tomorrow's
+ * look — availability is 5% of the score and colour will keep winning.
+ * If dropping them would empty the role, they stay: the only look is
+ * still a look. A locked item is never rotated out.
  */
 export function generateCandidateOutfits(
   items: readonly ScorableItem[],
@@ -205,6 +254,8 @@ export function generateCandidateOutfits(
     if (bucket) bucket.push(item);
     else byRole.set(item.role, [item]);
   }
+
+  applyFreshnessRotation(byRole, options.lockedItemIds, options.now ?? new Date());
 
   const lockedByRole = new Map<GarmentRole, ScorableItem>();
   const lockedAccessories: ScorableItem[] = [];

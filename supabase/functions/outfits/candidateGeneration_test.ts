@@ -298,3 +298,119 @@ Deno.test("locking multiple accessories guarantees all of them appear together",
     assert(outfit.items.some((i) => i.id === "watch"));
   }
 });
+
+const NOON = new Date("2026-08-22T12:00:00.000Z");
+const AN_HOUR_AGO = new Date("2026-08-22T11:00:00.000Z");
+const YESTERDAY_MORNING = new Date("2026-08-21T11:00:00.000Z"); // 25h before NOON
+
+Deno.test("a recently worn top is dropped when the role has another", () => {
+  const closet = [
+    garment("top-1", "top", {
+      colorHex: "1F2A44",
+      formalityScore: 70,
+      fit: "tailored",
+      lastWornAt: AN_HOUR_AGO,
+    }),
+    garment("top-2", "top", { colorHex: "5C4433", formalityScore: 30, fit: "relaxed" }),
+    garment("bottom-1", "bottom", { colorHex: "36393D", formalityScore: 70, fit: "tailored" }),
+    garment("shoes-1", "shoes", { colorHex: "3B2A20", formalityScore: 70, fit: "regular" }),
+  ];
+  const outfits = generateCandidateOutfits(closet, {
+    desiredCount: 3,
+    lockedItemIds: NO_LOCKS,
+    excludedItemIds: NO_EXCLUSIONS,
+    now: NOON,
+  });
+  assert(outfits.length > 0);
+  for (const outfit of outfits) {
+    assert(outfit.items.some((i) => i.id === "top-2"));
+    assert(!outfit.items.some((i) => i.id === "top-1"));
+  }
+});
+
+Deno.test("the only item in a role stays even if it was worn an hour ago", () => {
+  const closet = [
+    garment("top-1", "top", { colorHex: "1F2A44", lastWornAt: AN_HOUR_AGO }),
+    garment("bottom-1", "bottom", { colorHex: "36393D" }),
+    garment("shoes-1", "shoes", { colorHex: "3B2A20" }),
+  ];
+  const outfits = generateCandidateOutfits(closet, {
+    desiredCount: 1,
+    lockedItemIds: NO_LOCKS,
+    excludedItemIds: NO_EXCLUSIONS,
+    now: NOON,
+  });
+  assertEquals(outfits.length, 1);
+  assert(outfits[0]!.items.some((i) => i.id === "top-1"));
+});
+
+Deno.test("when every item in a role was worn recently, outfits still generate", () => {
+  const closet = [
+    garment("top-1", "top", {
+      colorHex: "1F2A44",
+      formalityScore: 70,
+      fit: "tailored",
+      lastWornAt: AN_HOUR_AGO,
+    }),
+    garment("top-2", "top", {
+      colorHex: "5C4433",
+      formalityScore: 30,
+      fit: "relaxed",
+      lastWornAt: AN_HOUR_AGO,
+    }),
+    garment("bottom-1", "bottom", { colorHex: "36393D", formalityScore: 70, fit: "tailored" }),
+    garment("shoes-1", "shoes", { colorHex: "3B2A20", formalityScore: 70, fit: "regular" }),
+  ];
+  const outfits = generateCandidateOutfits(closet, {
+    desiredCount: 2,
+    lockedItemIds: NO_LOCKS,
+    excludedItemIds: NO_EXCLUSIONS,
+    now: NOON,
+  });
+  assert(outfits.length > 0);
+});
+
+Deno.test("a wear older than a day is not rotated out", () => {
+  const closet = [
+    garment("top-1", "top", {
+      colorHex: "1F2A44",
+      formalityScore: 70,
+      fit: "tailored",
+      lastWornAt: YESTERDAY_MORNING,
+    }),
+    garment("top-2", "top", { colorHex: "5C4433", formalityScore: 30, fit: "relaxed" }),
+    garment("bottom-1", "bottom", { colorHex: "36393D", formalityScore: 70, fit: "tailored" }),
+    garment("shoes-1", "shoes", { colorHex: "3B2A20", formalityScore: 70, fit: "regular" }),
+  ];
+  const outfits = generateCandidateOutfits(closet, {
+    desiredCount: 6,
+    lockedItemIds: NO_LOCKS,
+    excludedItemIds: NO_EXCLUSIONS,
+    now: NOON,
+  });
+  assert(outfits.some((outfit) => outfit.items.some((i) => i.id === "top-1")));
+});
+
+Deno.test("a locked recently-worn item is not rotated out", () => {
+  const closet = [
+    garment("top-1", "top", {
+      colorHex: "1F2A44",
+      formalityScore: 70,
+      fit: "tailored",
+      lastWornAt: AN_HOUR_AGO,
+    }),
+    garment("top-2", "top", { colorHex: "5C4433", formalityScore: 30, fit: "relaxed" }),
+    garment("bottom-1", "bottom", { colorHex: "36393D", formalityScore: 70, fit: "tailored" }),
+    garment("shoes-1", "shoes", { colorHex: "3B2A20", formalityScore: 70, fit: "regular" }),
+  ];
+  const outfits = generateCandidateOutfits(closet, {
+    desiredCount: 3,
+    lockedItemIds: new Set(["top-1"]),
+    excludedItemIds: NO_EXCLUSIONS,
+    now: NOON,
+  });
+  assert(outfits.length > 0);
+  for (const outfit of outfits) {
+    assert(outfit.items.some((i) => i.id === "top-1"));
+  }
+});

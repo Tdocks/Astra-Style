@@ -111,3 +111,20 @@ Deno.test("null formality/warmth/water-resistance pass through as null, not a de
   assertEquals(item?.warmthScore, null);
   assertEquals(item?.waterResistanceScore, null);
 });
+
+Deno.test("last_worn_at parses to a Date when the row has one", () => {
+  const item = mapClosetItemRowToScorableItem(
+    row({ last_worn_at: "2026-08-22T08:00:00.000Z" }),
+  );
+  assertEquals(item?.lastWornAt?.toISOString(), "2026-08-22T08:00:00.000Z");
+});
+
+Deno.test("a missing last_worn_at is never-worn, not a guess", () => {
+  const item = mapClosetItemRowToScorableItem(row());
+  assertEquals(item?.lastWornAt, null);
+});
+
+Deno.test("an unparseable last_worn_at degrades to never-worn rather than Invalid Date", () => {
+  const item = mapClosetItemRowToScorableItem(row({ last_worn_at: "not a timestamp" }));
+  assertEquals(item?.lastWornAt, null);
+});

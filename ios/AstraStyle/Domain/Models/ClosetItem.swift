@@ -146,7 +146,14 @@ public struct ClosetItem: Identifiable, Codable, Hashable, Sendable {
     public var isArchived: Bool { archivedAt != nil }
 
     /// Whether the item can be scheduled into today's outfit right now.
+    ///
+    /// Matches the server's `isWearable`: `clean` and `worn_once` are both
+    /// wearable; `laundry` / `unavailable` are not. Worn-once is a rotation
+    /// nudge, not a hard filter — excluding it here made Home treat a shirt
+    /// he wore yesterday as if it were in the wash.
     public var isWearableToday: Bool {
-        !isArchived && laundryState == .clean && availabilityState == .available
+        !isArchived
+            && (laundryState == .clean || laundryState == .wornOnce)
+            && availabilityState == .available
     }
 }
