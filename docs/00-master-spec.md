@@ -190,6 +190,11 @@ Do not place marble behind dense text.
 4. **Discover**
 5. **Profile**
 
+**(Amended 2026-08-22, ADR 0015.)** The five tabs remain the information
+architecture. Until Studio and Discover serve the Wardrobe Graph, dogfood
+chrome is Home, Closet, and Profile. Unfinished tabs must not sit in the bar
+advertising "Not built yet" every session.
+
 ### Global actions
 
 - Ask Kyra.
@@ -214,14 +219,15 @@ Use `NavigationStack` per tab with independent paths. Preserve tab navigation st
 4. Continue.
 5. Sign in with Apple or email. **(Amended 2026-08-06, ADR 0014: an account is required; guest mode is removed.)**
 6. Kyra introduction.
-7. Style identity onboarding.
-8. Body and fit profile.
-9. Lifestyle, climate, budget, and occasion profile.
-10. Style preference visual quiz.
-11. Optional selfie/body reference capture.
-12. Add first closet items or skip.
-13. Generate initial Style DNA.
-14. Show first Daily Brief.
+7. Style identity onboarding. **(Required. ADR 0015 first-run keeps this as the one required answer.)**
+8. Taste-snapshot visual quiz — at most three comparisons. **(Amended 2026-08-22, ADR 0015. Catalog remains 12–20 pairs; the front door asks three. Remaining axes, including silhouette, are deferred until the closet has signal.)**
+9. Add first closet items (photo-first, one to three) or skip.
+10. Generate initial Style DNA.
+11. Show first Daily Brief.
+
+Body/fit, appearance, lifestyle, goals, and optional reference capture remain
+specified screens. They are **not** in the first-run sequence (ADR 0015). They
+may be asked later; they must not block Home.
 
 ### 5.2 Daily use
 
@@ -393,7 +399,12 @@ Explain why each is used and allow omission.
 
 ### 6.9 Onboarding — Style preference quiz
 
-Show paired images. Ask which outfit the user would rather wear. Use 12–20 comparisons to infer:
+Show paired images. Ask which outfit the user would rather wear. The **catalog**
+holds 12–20 comparisons covering:
+
+**(Amended 2026-08-22, ADR 0015.)** First-run asks at most three of those
+comparisons (a taste snapshot). A sparse vector is a valid Style DNA input;
+unasked axes stay absent, never faked. Infer, across the catalog:
 
 - Color tolerance.
 - Formality.

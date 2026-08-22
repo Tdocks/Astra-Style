@@ -55,7 +55,8 @@ class OnboardingCaptureUITestCase: XCTestCase {
         app.launchArguments += [
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
-            "-astra-reset-state"
+            "-astra-reset-state",
+            "-astra-full-onboarding"
         ]
     }
 

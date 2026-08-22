@@ -207,14 +207,19 @@ struct StyleQuizEngineSequencingTests {
     @Test("Ordering spreads across axes rather than following the manifest")
     func orderingCoversBreadthFirst() throws {
         let engine = StyleQuizEngine(catalog: try lopsidedCatalog())
-        let firstThree = engine.comparisons.prefix(3).map(\.id)
+        let asked = Set(engine.comparisons.map(\.id))
+        let axes = Set(engine.comparisons.flatMap(\.probedDimensions))
 
-        // The point is the man who answers three and leaves — a meaningful share
-        // of users on the highest-drop-off surface in the app. In manifest order
-        // he hands over three readings of colour and nothing else. Ordered for
-        // coverage his three answers touch three different axes.
-        #expect(Set(firstThree) == ["colour-01", "formality-01", "silhouette-01"])
-        #expect(engine.comparisons.count == 6)
+        // The man who answers the snapshot and leaves still gets breadth, not
+        // three colour pairs. Silhouette is deferred (one pair, permanently
+        // .low), so it is not one of the three.
+        #expect(asked.contains("colour-01"))
+        #expect(asked.contains("formality-01"))
+        #expect(!asked.contains("silhouette-01"))
+        #expect(axes.contains(.colourTolerance))
+        #expect(axes.contains(.formality))
+        #expect(!axes.contains(.silhouette))
+        #expect(engine.comparisons.count == 3)
     }
 
     @Test("Priority decides the opener among equally useful comparisons")
@@ -239,15 +244,26 @@ struct StyleQuizEngineSequencingTests {
         }
     }
 
-    @Test("A run is capped at the twenty comparisons spec §6.9 allows")
-    func runIsCappedAtTwenty() throws {
+    @Test("A run is capped at the three-comparison taste snapshot")
+    func runIsCappedAtTasteSnapshot() throws {
         let many = (1...30).map {
             QuizPairSpec("pair-\($0)", nil, [("formality", 1.0)])
         }
         let engine = StyleQuizEngine(catalog: try catalog(many))
         #expect(engine.catalog.pairs.count == 30)
         #expect(engine.comparisonCount == StyleQuizEngine.maximumComparisons)
-        #expect(engine.comparisonCount == 20)
+        #expect(engine.comparisonCount == 3)
+    }
+
+    @Test("Silhouette-only pairs are not spent on the first-run snapshot")
+    func silhouetteOnlyPairsAreDeferred() throws {
+        let engine = StyleQuizEngine(catalog: try catalog([
+            QuizPairSpec("formality-01", 5, [("formality", 1.0)]),
+            QuizPairSpec("silhouette-01", 1, [("silhouette", 1.0)]),
+            QuizPairSpec("texture-01", 10, [("texture", 1.0)])
+        ]))
+        #expect(!engine.comparisons.map(\.id).contains("silhouette-01"))
+        #expect(engine.comparisons.map(\.id).contains("formality-01"))
     }
 
     @Test("Answering walks the sequence and then finishes")
@@ -264,7 +280,7 @@ struct StyleQuizEngineSequencingTests {
 
         #expect(engine.nextComparison(given: answers) == nil)
         #expect(engine.isFinished(given: answers))
-        #expect(engine.answeredCount(given: answers) == 6)
+        #expect(engine.answeredCount(given: answers) == engine.comparisonCount)
     }
 
     @Test("Re-answering replaces in place rather than appending")

@@ -69,6 +69,17 @@ public final class HomeViewModel {
 
     public private(set) var isMarkingWorn = false
     public private(set) var isRegenerating = false
+    public private(set) var isRefreshing = false
+
+    /// Wear This already wrote today's `outfit_wears` row. A second tap
+    /// would duplicate the signal; the button stays on screen as "Worn
+    /// today" so the man can see the tap landed.
+    public private(set) var hasMarkedWorn = false
+
+    /// Wear This failed. Stays off the brief itself — same rule as
+    /// `OutfitDetailViewModel.actionError` — so a dropped write does not
+    /// replace Today's Outfit with an error screen.
+    public private(set) var actionError: AstraError?
 
     /// Drives `WeatherOptInCardView`/the denied-state notice (P4-HOME-05).
     /// Starts `.notDetermined` — the same value a brand-new install's
@@ -100,7 +111,37 @@ public final class HomeViewModel {
         // button calls.
         weatherAuthorization = provider.weatherAuthorization()
         guard case .loading = state else { return }
-        await load(regenerate: false)
+        await load(regenerate: false, showingSkeleton: true)
+    }
+
+    /// Reload after the scanner (or any other closet-writing modal) closes.
+    ///
+    /// Closet already does this (`ClosetViewModel.reloadAfterExternalChange`).
+    /// Home did not: `.task` / `onAppear` fire once, a sheet does not
+    /// destroy the view underneath, and the man who just photographed a
+    /// piece came back to the same "0 of 5" empty state with no instruction
+    /// to pull. Pull-to-refresh was the only cure.
+    ///
+    /// No skeleton when content is already on screen — blanking Today's
+    /// Outfit (or the empty-state count) reads as a crash. Regenerates
+    /// only from `.empty`: a cached brief written earlier today with
+    /// `primary_outfit_id` nil would otherwise survive the missing shoe
+    /// he just scanned, and Wear This would stay unreachable.
+    public func reloadAfterExternalChange() async {
+        let regenerate: Bool
+        let showingSkeleton: Bool
+        switch state {
+        case .empty:
+            regenerate = true
+            showingSkeleton = false
+        case .loaded:
+            regenerate = false
+            showingSkeleton = false
+        case .loading, .failed:
+            regenerate = false
+            showingSkeleton = true
+        }
+        await load(regenerate: regenerate, showingSkeleton: showingSkeleton)
     }
 
     /// Spec §7's "Location: when enabling weather", requested in context on
@@ -125,38 +166,52 @@ public final class HomeViewModel {
         // looking at was generated/read before weather existed, and a
         // fresh `loadTodayBrief()` is what actually attaches it (see
         // `DefaultHomeBriefProvider`'s cached-vs-generate weather overlay).
-        await load(regenerate: false)
+        await load(regenerate: false, showingSkeleton: false)
     }
 
     public func refresh() async {
-        await load(regenerate: false)
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await load(regenerate: false, showingSkeleton: false)
     }
 
     public func regenerate() async {
         guard !isRegenerating else { return }
         isRegenerating = true
         defer { isRegenerating = false }
-        await load(regenerate: true)
+        await load(regenerate: true, showingSkeleton: false)
     }
 
     public func markPrimaryOutfitWorn() async {
-        guard case .loaded(let data) = state, let outfitID = data.primaryOutfit?.id, !isMarkingWorn else { return }
+        guard case .loaded(let data) = state,
+              let outfitID = data.primaryOutfit?.id,
+              !isMarkingWorn,
+              !hasMarkedWorn
+        else { return }
         isMarkingWorn = true
+        actionError = nil
         defer { isMarkingWorn = false }
         do {
             try await provider.markPrimaryOutfitWorn(data)
+            hasMarkedWorn = true
             analyticsClient.log(.outfitMarkedWorn(outfitID: outfitID))
+        } catch let error as AstraError {
+            actionError = error
+            isOffline = await networkMonitor.isOffline()
         } catch {
-            // Marking worn failing doesn't invalidate the whole brief —
-            // surface it as a transient condition rather than replacing
-            // the loaded content with an error screen.
+            actionError = AstraError(category: .unknown, message: error.localizedDescription)
             isOffline = await networkMonitor.isOffline()
         }
     }
 
-    private func load(regenerate: Bool) async {
+    public func clearActionError() {
+        actionError = nil
+    }
+
+    private func load(regenerate: Bool, showingSkeleton: Bool) async {
         isOffline = await networkMonitor.isOffline()
-        if !regenerate {
+        if showingSkeleton {
             state = .loading
         }
         do {
@@ -169,12 +224,23 @@ public final class HomeViewModel {
             if data.closetIsUnreadable, data.primaryOutfit == nil {
                 state = .failed(.network("Couldn't read your closet just now."))
             } else {
+                let previousBriefID = currentBriefID
                 state = data.needsMoreClosetItems ? .empty(data) : .loaded(data)
+                if data.brief.id != previousBriefID {
+                    hasMarkedWorn = false
+                }
             }
         } catch let error as AstraError {
             state = .failed(error)
         } catch {
             state = .failed(AstraError(category: .unknown, message: error.localizedDescription))
+        }
+    }
+
+    private var currentBriefID: UUID? {
+        switch state {
+        case .loaded(let data), .empty(let data): data.brief.id
+        case .loading, .failed: nil
         }
     }
 }

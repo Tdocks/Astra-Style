@@ -3,6 +3,9 @@
 //  AstraStyle
 //
 //  The five-tab shell (spec §4): Home, Closet, Studio, Discover, Profile.
+//  Dogfood chrome is Home, Closet, Profile (ADR 0015) until Studio and
+//  Discover serve the Wardrobe Graph. `AppTab.chromeTabs` is the bar;
+//  unfinished cases remain routable for QA behind a Debug flag.
 //  Each tab owns an independent `NavigationStack` bound to its own path in
 //  `AppRouter`, so tab state survives switching tabs. SF Symbols per tab are
 //  defined on `AppTab` in AppRouter.swift; gold indicates the active tab per
@@ -19,7 +22,7 @@ struct MainTabView: View {
         @Bindable var router = router
 
         TabView(selection: $router.selectedTab) {
-            ForEach(AppTab.allCases) { tab in
+            ForEach(AppTab.chromeTabs) { tab in
                 tabRoot(for: tab)
                     .tabItem {
                         Label {

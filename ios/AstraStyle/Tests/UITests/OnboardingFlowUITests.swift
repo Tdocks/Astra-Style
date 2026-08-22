@@ -141,13 +141,9 @@ final class OnboardingFlowUITests: XCTestCase {
     func testWalkTheWholeFlow() {
         enterOnboarding()
         walkIntro()
-        walkGoals()
         walkIdentity()
-        walkMeasurements()
-        walkAppearance()
-        walkLifestyle()
         walkPreferenceQuiz()
-        walkCaptureSteps()
+        walkFirstItems()
         walkResult()
     }
 
@@ -158,19 +154,24 @@ final class OnboardingFlowUITests: XCTestCase {
         awaitElement(app.buttons["onboarding.begin"], "Intro")
         app.buttons["onboarding.begin"].tap()
 
-        awaitElement(app.buttons["onboarding.goal.find_signature_style"], "Goals")
-        app.buttons["onboarding.goal.find_signature_style"].tap()
+        awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity")
+        usleep(600_000)
+        app.swipeUp()
+        usleep(400_000)
+        app.buttons["onboarding.identity.creative"].scrollIntoView(in: app)
+        for identity in ["smart_casual", "modern_heritage", "quiet_luxury"] {
+            selectIdentityCard(identity)
+        }
         app.buttons["onboarding.advance"].tap()
 
-        awaitElement(app.buttons["onboarding.back"], "Identity: back button")
+        awaitElement(app.buttons["onboarding.back"], "Quiz: back button")
         app.buttons["onboarding.back"].tap()
 
-        awaitElement(app.buttons["onboarding.goal.find_signature_style"], "Goals again")
+        awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity again")
         capture("32-Onboarding-Back-Preserved")
-        // isSelected is the accessibility trait the row sets when chosen.
         XCTAssertTrue(
-            app.buttons["onboarding.goal.find_signature_style"].isSelected,
-            "Going back lost the selected goal"
+            app.buttons["onboarding.identity.quiet_luxury"].isSelected,
+            "Going back lost the selected identity"
         )
     }
 
@@ -178,8 +179,10 @@ final class OnboardingFlowUITests: XCTestCase {
     /// is the densest in the app — a label, a field, a unit and a button on one
     /// row. It is where truncation shows up first.
     func testMeasurementsAtLargestDynamicType() {
-        app.launchArguments += ["-UIPreferredContentSizeCategoryName",
-                                "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            "-astra-full-onboarding"
+        ]
         enterOnboarding()
         awaitElement(app.buttons["onboarding.begin"], "Intro at AX5")
         app.buttons["onboarding.begin"].tap()
@@ -565,9 +568,6 @@ private extension OnboardingFlowUITests {
     private func walkToStyleDNAResult() {
         app.buttons["onboarding.begin"].tap()
 
-        awaitElement(app.buttons["onboarding.advance"], "Goals")
-        app.buttons["onboarding.advance"].tap()
-
         awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity")
 
         // Walk to the far end of the grid and back before tapping anything.
@@ -598,7 +598,7 @@ private extension OnboardingFlowUITests {
         app.buttons["onboarding.advance"].tap()
 
         // Everything between identity and the result is skippable.
-        for step in ["measurements", "appearance", "lifestyle", "quiz", "reference", "firstItems"] {
+        for step in ["quiz", "firstItems"] {
             let forward = app.buttons["onboarding.advance"]
             guard awaitElement(forward, "Forward button on \(step)") else { return }
             forward.waitForStableFrame()
@@ -824,24 +824,8 @@ private extension OnboardingFlowUITests {
         app.buttons["onboarding.advance"].tap()
     }
 
-    /// §5.1 steps 11 and 12, passed through without answering either.
-    ///
-    /// Deliberately shallow. Both steps have their own suite —
-    /// `OnboardingCaptureStepsUITests` — because the §29 consent gate and the
-    /// closet cap need more assertions than a pass-through walk should carry.
-    /// What this covers is the part only the full walk can: that neither step
-    /// interrupts the sequence, and that both are captured in the same
-    /// review pass as every other screen.
-    private func walkCaptureSteps() {
-        awaitElement(app.buttons["onboarding.advance"], "Reference photo step")
-        usleep(400_000)
-        capture("30d-Onboarding-Reference")
-        XCTAssertTrue(
-            app.buttons["onboarding.advance"].isEnabled,
-            "The reference photo step is optional but its forward button is disabled"
-        )
-        app.buttons["onboarding.advance"].tap()
-
+    /// §5.1 first items, passed through without answering.
+    private func walkFirstItems() {
         awaitElement(app.buttons["onboarding.firstItems.add"], "First closet items step")
         usleep(400_000)
         capture("30e-Onboarding-FirstItems")

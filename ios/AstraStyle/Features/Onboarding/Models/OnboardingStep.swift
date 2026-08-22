@@ -2,12 +2,14 @@
 //  OnboardingStep.swift
 //  AstraStyle
 //
-//  The ordered sequence of spec §5.1 steps 6–13 (screens §6.3–§6.10, plus the
-//  two §5.1-only steps that sit between the quiz and the result).
+//  Every onboarding screen the product owns, plus the first-run sequence
+//  ADR 0015 actually walks.
 //
-//  Declared as an enum with an explicit order rather than inferred from an
-//  array of views, so that progress, resumption, and "can I skip this" are
-//  answerable without touching the view layer — and testable without a UI.
+//  `allCases` is declaration order — the full specified wall, including
+//  deferred screens (goals, measurements, appearance, lifestyle, reference).
+//  Those cases stay so later Profile/Home prompts can reuse the same views
+//  without inventing a second flow. First-run navigation, progress, and
+//  resumption read `activeSequence`, not `allCases`.
 //
 
 import Foundation
@@ -20,13 +22,9 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
     case appearance     // §6.7 Appearance profile
     case lifestyle      // §6.8 Lifestyle
     case quiz           // §6.9 Style preference quiz
-    // The two steps between the quiz and the result have no §6.x screen
-    // section of their own — they are §5.1 steps 11 and 12, and their order
-    // relative to everything else comes from that list rather than from §6.
-    // Declared here in that order because `allCases` IS the flow: `next`,
-    // `previous`, `answerablePosition` and the progress bar all read off it,
-    // so declaring `firstItems` before `reference` would reorder the product,
-    // not just this file.
+    // The two capture steps have no §6.x screen section of their own.
+    // They stay in declaration order for Comparable / draft clamping.
+    // First-run navigation uses `activeSequence` (ADR 0015), not `allCases`.
     case reference      // §5.1 step 11 — optional selfie/body reference capture
     case firstItems     // §5.1 step 12 — add first closet items, or skip
     case result         // §6.10 Style DNA result
@@ -34,20 +32,43 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
     public var id: String { rawValue }
 
     public static func < (lhs: OnboardingStep, rhs: OnboardingStep) -> Bool {
-        lhs.index < rhs.index
+        lhs.declarationIndex < rhs.declarationIndex
     }
 
-    var index: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+    /// Position in `allCases`. Used for Comparable and for clamping a restored
+    /// draft that parked on a deferred step. Navigation itself uses
+    /// `activeSequence`.
+    var declarationIndex: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 
-    /// Steps the user answers. Excludes `intro` (nothing to answer) and
-    /// `result` (an outcome, not a question), so the progress indicator counts
-    /// what a user would count.
-    ///
-    /// Showing "1 of 8" on a screen that only says hello, and again on the
-    /// results page, makes the flow feel longer than it is and the progress bar
-    /// dishonest.
+    /// Intro → identity → quiz → first items → result. The dogfood front door
+    /// (ADR 0015). Everything else in `allCases` is deferred, not deleted.
+    public static let firstRunSequence: [OnboardingStep] = [
+        .intro, .identity, .quiz, .firstItems, .result
+    ]
+
+    /// First-run unless Debug launched with `-astra-full-onboarding`, which
+    /// restores the specified wall so consent-gate tests can still reach
+    /// the reference step.
+    public static var activeSequence: [OnboardingStep] {
+        AstraFeatureFlags.includesDeferredOnboardingSteps
+            ? Array(allCases)
+            : firstRunSequence
+    }
+
+    /// Steps the user answers on the active sequence. Excludes `intro` and
+    /// `result`, so the progress indicator counts what a user would count.
     public static var answerableSteps: [OnboardingStep] {
-        allCases.filter { $0 != .intro && $0 != .result }
+        activeSequence.filter { $0 != .intro && $0 != .result }
+    }
+
+    /// Jump a restored draft off a deferred step onto the next first-run
+    /// screen. A man who got as far as measurements on an older build must
+    /// not resume onto a screen the current front door does not walk — and
+    /// must not be sent back to identity after he already answered it.
+    public func clampedToActiveSequence() -> OnboardingStep {
+        let sequence = Self.activeSequence
+        if sequence.contains(self) { return self }
+        return sequence.first { $0 > self } ?? sequence.last ?? .result
     }
 
     /// 1-based position among the answerable steps, or nil for intro/result.
@@ -102,7 +123,7 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
             String(localized: "Where you go and what you spend shapes what's actually useful to recommend.",
                    comment: "Onboarding step rationale")
         case .quiz:
-            String(localized: "A few quick comparisons. There is no right answer.",
+            String(localized: "Three quick comparisons. There is no right answer. The rest can wait.",
                    comment: "Onboarding step rationale")
         case .reference:
             // Deliberately leads with "nothing here needs it". A stylist app
@@ -112,7 +133,7 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
             String(localized: "Optional, and nothing else in Astra needs it. The next screen says exactly what would happen to the photo before you choose.",
                    comment: "Onboarding step rationale")
         case .firstItems:
-            String(localized: "Add one or two things you own, or skip — you can build your closet whenever you like.",
+            String(localized: "Photograph one to three things you own, or skip — Home is waiting either way.",
                    comment: "Onboarding step rationale")
         case .result:
             String(localized: "What Kyra took from your answers. Edit anything that's wrong.",
@@ -133,14 +154,18 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
     }
 
     public var next: OnboardingStep? {
-        let all = Self.allCases
-        guard let i = all.firstIndex(of: self), i + 1 < all.count else { return nil }
-        return all[i + 1]
+        let sequence = Self.activeSequence
+        if let i = sequence.firstIndex(of: self) {
+            guard i + 1 < sequence.count else { return nil }
+            return sequence[i + 1]
+        }
+        let clamped = clampedToActiveSequence()
+        return clamped == self ? nil : clamped
     }
 
     public var previous: OnboardingStep? {
-        let all = Self.allCases
-        guard let i = all.firstIndex(of: self), i > 0 else { return nil }
-        return all[i - 1]
+        let sequence = Self.activeSequence
+        guard let i = sequence.firstIndex(of: self), i > 0 else { return nil }
+        return sequence[i - 1]
     }
 }

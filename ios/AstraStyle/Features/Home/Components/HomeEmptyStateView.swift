@@ -68,10 +68,14 @@ struct HomeEmptyStateView: View {
     /// which is not a safe transform in every language this may ship in.
     private var message: String {
         switch reason {
-        case .tooFewItems:
-            // §21's copy, verbatim, for the case §21 was describing.
-            String(localized: "Add five pieces and Kyra can begin building real outfits.",
-                   comment: "Home empty state, closet under the minimum")
+        case .tooFewItems(let have, let need):
+            if have == 0 {
+                String(localized: "Photograph a piece you own. Wear This needs a top, bottom, and shoes — start with one.",
+                       comment: "Home empty state, closet empty")
+            } else {
+                String(localized: "\(have) of \(need) pieces in. Keep going — Wear This also needs a top, bottom, and shoes.",
+                       comment: "Home empty state, closet growing toward the minimum")
+            }
         case .missingRoles(let roles):
             String(
                 localized: "Your closet has \(list(present(excluding: roles))). Kyra needs \(list(roles)) too before she can put a look together.",
@@ -87,8 +91,12 @@ struct HomeEmptyStateView: View {
 
     private var callToAction: String {
         switch reason {
-        case .tooFewItems:
-            String(localized: "Scan Your First Item", comment: "Home empty state CTA")
+        case .tooFewItems(let have, _):
+            if have == 0 {
+                String(localized: "Scan Your First Item", comment: "Home empty state CTA, empty closet")
+            } else {
+                String(localized: "Scan Another Piece", comment: "Home empty state CTA, closet growing")
+            }
         case .missingRoles(let roles):
             // Naming what to go and photograph, because "Scan an Item" is
             // exactly what he has already been doing.

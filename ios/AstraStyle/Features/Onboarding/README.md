@@ -6,22 +6,15 @@ Owns first-launch, sign-in, and the full onboarding flow that produces a new use
 
 - Splash routing hand-off, Welcome/authentication (Sign in with Apple, email OTP — an account is required, ADR 0014) — note a minimal placeholder version of this screen currently lives in `App/RootView.swift` (`SignedOutGateView`) purely so the app has something to show for `AppRouteState.signedOut`; this module should absorb and replace it.
 - Kyra introduction (§6.3).
-- Style goals multi-select (§6.4).
-- Style identity card selection (§6.5).
-- Measurements and fit (§6.6).
-- Appearance profile (§6.7) — note: spec §9's data model has no dedicated table for appearance fields; §6.6's `BodyProfile.fitNotes` is the closest persisted home for anything collected here until the schema is extended (see the top-level README's "spec ambiguities" section).
-- Lifestyle profile (§6.8).
-- Style preference visual quiz (§6.9).
-- Optional selfie/body reference capture (§5.1 step 11) — no §6.x screen section of its own, so
-  its brief is §29 (informed consent before collection, honest disclosure, deletion) plus ADR 0010
-  (private bucket, `users/{user_id}/references/...`, retention). The consent copy stands alone
-  rather than linking out, because
-  `AstraLegal.isPublished` is `false` and every document URL is `nil`. Nothing is uploaded at
-  capture time — see `OnboardingViewModel.uploadReferenceImageIfNeeded()`.
-- Add first closet items, or skip (§5.1 step 12) — writes real `closet_items` rows through
-  `ClosetRepository`, behind spec §16's free-tier cap. Deliberately a three-field form;
-  `P3-CLOSET-08` owns the full editor, and nothing here depends on the scanner.
+- Style identity card selection (§6.5) — the one required first-run answer.
+- Taste-snapshot visual quiz (§6.9, ADR 0015) — at most three comparisons; remaining axes deferred.
+- Add first closet items, photo-first, or skip (§5.1) — writes real `closet_items` rows through
+  `ClosetRepository`, behind spec §16's free-tier cap.
 - Style DNA result + edit/regenerate (§6.10).
+
+Deferred from first-run (screens still exist; `-astra-full-onboarding` walks them in Debug):
+goals (§6.4), measurements (§6.6), appearance (§6.7), lifestyle (§6.8), optional reference
+capture. An account is required before any of this (ADR 0014).
 
 ## Governing spec sections
 

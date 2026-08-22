@@ -283,34 +283,41 @@ struct OnboardingStepTests {
         // Derived rather than hardcoded. A literal count here was wrong on the
         // first run and would have to be edited every time a step is added —
         // which is exactly when the assertion should still hold on its own.
-        #expect(OnboardingStep.answerableSteps.count == OnboardingStep.allCases.count - 2)
+        #expect(OnboardingStep.answerableSteps.count == OnboardingStep.firstRunSequence.count - 2)
         #expect(OnboardingStep.intro.answerablePosition == nil)
         #expect(OnboardingStep.result.answerablePosition == nil)
-        #expect(OnboardingStep.goals.answerablePosition == 1)
+        #expect(OnboardingStep.identity.answerablePosition == 1)
+        #expect(OnboardingStep.goals.answerablePosition == nil)
         // The last answerable step must report the final position, or the
         // progress bar never fills and the flow feels unfinished at the end.
         #expect(
             OnboardingStep.answerableSteps.last?.answerablePosition
                 == OnboardingStep.answerableSteps.count
         )
+        #expect(OnboardingStep.answerableSteps == [.identity, .quiz, .firstItems])
     }
 
-    /// The order is the product, not a detail of this enum: `next`,
-    /// `previous`, the progress bar and resumption all read off `allCases`.
-    /// Spec §5.1 puts the reference photo at step 11 and the first closet
-    /// items at 12, between the quiz and Style DNA generation.
-    @Test("The two capture steps sit exactly where §5.1 puts them")
-    func captureStepsFollowSpecOrder() {
-        #expect(OnboardingStep.quiz.next == .reference)
-        #expect(OnboardingStep.reference.next == .firstItems)
+    /// ADR 0015: first-run skips the reference selfie. The cases stay on
+    /// the enum so a later Profile prompt can reuse the screen.
+    @Test("First-run jumps from the quiz to first items")
+    func firstRunSkipsDeferredCapture() {
+        #expect(OnboardingStep.quiz.next == .firstItems)
         #expect(OnboardingStep.firstItems.next == .result)
-        #expect(OnboardingStep.reference.previous == .quiz)
-        #expect(OnboardingStep.firstItems.previous == .reference)
-        // Both are answerable, so both count toward the progress the user
-        // sees — a step that renders a screen but is missing from the
-        // denominator makes the bar jump.
-        #expect(OnboardingStep.answerableSteps.contains(.reference))
+        #expect(OnboardingStep.firstItems.previous == .quiz)
+        #expect(OnboardingStep.identity.previous == .intro)
+        #expect(OnboardingStep.intro.next == .identity)
+        #expect(!OnboardingStep.answerableSteps.contains(.reference))
         #expect(OnboardingStep.answerableSteps.contains(.firstItems))
+        #expect(OnboardingStep.allCases.contains(.reference))
+        #expect(OnboardingStep.allCases.contains(.goals))
+    }
+
+    @Test("A draft parked on a deferred step clamps forward")
+    func deferredDraftClampsForward() {
+        #expect(OnboardingStep.goals.clampedToActiveSequence() == .identity)
+        #expect(OnboardingStep.measurements.clampedToActiveSequence() == .quiz)
+        #expect(OnboardingStep.reference.clampedToActiveSequence() == .firstItems)
+        #expect(OnboardingStep.identity.clampedToActiveSequence() == .identity)
     }
 
     @Test("Only the identity step is required")
@@ -327,10 +334,10 @@ struct OnboardingStepTests {
         while let next = step.next {
             step = next
             visited += 1
-            #expect(visited <= OnboardingStep.allCases.count, "cycle in the step sequence")
+            #expect(visited <= OnboardingStep.firstRunSequence.count, "cycle in the step sequence")
         }
         #expect(step == .result)
-        #expect(visited == OnboardingStep.allCases.count)
+        #expect(visited == OnboardingStep.firstRunSequence.count)
     }
 
     @Test("Every step has a rationale, because a form that doesn't say why is abandoned")

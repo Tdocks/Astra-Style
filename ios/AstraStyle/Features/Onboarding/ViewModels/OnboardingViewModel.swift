@@ -141,7 +141,7 @@ public final class OnboardingViewModel {
     public func restore() async {
         guard let saved = await store.load() else { return }
         draft = saved
-        step = saved.furthestStepReached
+        step = saved.furthestStepReached.clampedToActiveSequence()
         await restoreReferenceImage()
     }
 

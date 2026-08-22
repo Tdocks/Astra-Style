@@ -322,7 +322,7 @@ struct OnboardingReferenceTests {
         // remove, and submission would carry an empty upload.
         #expect(model.draft.referenceImageFilename == nil)
         #expect(model.referenceImageData == nil)
-        #expect(model.step == .reference)
+        #expect(model.step == .firstItems)
     }
 
     @Test("A resumed draft brings the photo back")

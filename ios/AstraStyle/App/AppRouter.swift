@@ -33,6 +33,20 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     case discover
     case profile
 
+    /// Tabs drawn in the bar. Studio and Discover stay specified cases;
+    /// they are hidden until they serve the graph (ADR 0015).
+    public static var chromeTabs: [AppTab] {
+        AstraFeatureFlags.showsUnfinishedChrome ? Array(allCases) : dogfoodTabs
+    }
+
+    /// Home, Closet, Profile — the dogfood bar. `allCases` stays five so
+    /// routing and tests that name the specified tabs do not have to lie.
+    public static let dogfoodTabs: [AppTab] = [.home, .closet, .profile]
+
+    public var isShownInChrome: Bool {
+        Self.chromeTabs.contains(self)
+    }
+
     public var id: String { rawValue }
 
     /// String-Catalog-ready: the literal here is both the extraction key and
@@ -211,9 +225,15 @@ public final class AppRouter {
         }
     }
 
-    /// The currently selected tab. Persists across app relaunch via
-    /// `AppStorage`-backed restoration performed by `MainTabView`.
-    public var selectedTab: AppTab = .home
+    /// The currently selected tab. Hidden Studio/Discover selections
+    /// (an older build, or a deep link) fall back to Home (ADR 0015).
+    public var selectedTab: AppTab = .home {
+        didSet {
+            if !selectedTab.isShownInChrome {
+                selectedTab = .home
+            }
+        }
+    }
 
     // Independent navigation stacks — one per tab — so switching tabs never
     // discards where the user was (spec §4).

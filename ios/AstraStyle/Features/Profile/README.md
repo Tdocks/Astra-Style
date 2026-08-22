@@ -6,13 +6,11 @@ Owns the Profile tab: identity, stats, Style Journey, and privacy controls (spec
 
 `P7-PRIVACY-02` (in-app account deletion) and `P7-PRIVACY-03` (personal data export) are the
 only two tickets built here so far — both App Store Guideline 5.1.1(v)/spec §15/§29 gates for
-shipping to any external tester. Everything else this module will eventually own (profile
-header, Style DNA summary, Wardrobe Score, items owned, outfits created, cost per wear,
-most-worn colors, monthly spend, Style Journey timeline, subscription status, preferences) is
-`P7-HOME-05` and other later tickets, and is deliberately NOT here yet — see `ProfileView.swift`'s
-header for why a stats dashboard was not built to fill the space.
+shipping to any external tester. ADR 0015 added About (marketing version + build) and an
+honest "this build" inventory so dogfood can tell binaries apart without growing the
+`P7-HOME-05` stats dashboard.
 
-- `ProfileView.swift` — the tab root. One row: "Privacy & Data".
+- `ProfileView.swift` — About (version + build), this-build inventory, Privacy & Data.
 - `Routing/ProfileDestinationView.swift` — resolves `ProfileRoute`. Two cases are real
   (`.privacyAndData`, `.accountDeletion`); the other six are honest `FeaturePlaceholderView`s for
   screens owned by other tickets.

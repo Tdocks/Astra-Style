@@ -5,11 +5,10 @@
 //  The Profile tab's root (spec §4, §6.22). Deliberately thin: the full
 //  profile-and-stats screen — Style DNA summary, Wardrobe Score, items
 //  owned, cost per wear, Style Journey — is `P7-HOME-05`'s scope, not
-//  this pass's. What this pass owns is `P7-PRIVACY-02`/`P7-PRIVACY-03`:
-//  somewhere honest to reach account deletion from. Building a stats
-//  dashboard here to look less bare would be building the wrong ticket's
-//  screen under this one's number, and something P7-HOME-05 would then
-//  have to either keep in step with or tear out.
+//  this pass's. ADR 0015 added About (marketing version + build) and an
+//  honest live/next inventory so dogfood can tell binaries apart without
+//  growing that dashboard. Privacy & Data remains the App Store gate
+//  (`P7-PRIVACY-02`/`P7-PRIVACY-03`).
 //
 //  NO IDENTITY HEADER, ON PURPOSE. `Profile.displayName`/`avatarURL` are
 //  real, fetchable fields, and a "Hi, [name]" line would be an easy
@@ -32,6 +31,8 @@ public struct ProfileView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AstraSpacing.xl) {
                 title
+                aboutCard
+                whatsLiveCard
                 privacyAndDataRow
                 Spacer(minLength: 0)
             }
@@ -49,6 +50,60 @@ public struct ProfileView: View {
             .astraText(.displayL)
             .foregroundStyle(AstraColor.textPrimary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var aboutCard: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+            Text(String(localized: "About", comment: "Profile about section title"))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+            AstraCard {
+                VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                    Text("Astra Style")
+                        .astraText(.headline)
+                        .foregroundStyle(AstraColor.textPrimary)
+                    Text(AstraAppVersion.current.displayLabel)
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .monospacedDigit()
+                        .accessibilityIdentifier("profile.about.version")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Astra Style \(AstraAppVersion.current.displayLabel)"))
+    }
+
+    /// Honest inventory of this binary. Studio and Discover are specified
+    /// and unfinished; naming them here as next — not as tabs — is the
+    /// §22 version of that fact (ADR 0015).
+    private var whatsLiveCard: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+            Text(String(localized: "This build", comment: "Profile what's-live section title"))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+            AstraCard {
+                VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                    Text(String(
+                        localized: "Live: Home (Today's Outfit and Wear This), Closet, Scan One Piece, Ask Kyra.",
+                        comment: "Profile what's live"
+                    ))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    Text(String(
+                        localized: "Next: Style Studio and Discover, when they serve the wardrobe graph — not as storefronts.",
+                        comment: "Profile what's next"
+                    ))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .accessibilityIdentifier("profile.whatsLive")
     }
 
     private var privacyAndDataRow: some View {

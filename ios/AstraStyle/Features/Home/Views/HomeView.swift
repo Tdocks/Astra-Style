@@ -42,6 +42,22 @@ public struct HomeView: View {
         .task {
             await viewModel.onAppear()
         }
+        // Same signal Closet already watches: a sheet does not tear down
+        // this view, so `.task` never re-fires after Scan One. Without
+        // this, Home keeps the pre-scan empty count until pull-to-refresh.
+        .onChange(of: router.presentedModal?.id) { previous, current in
+            guard current == nil, previous != nil else { return }
+            Task { await viewModel.reloadAfterExternalChange() }
+        }
+        .alert(
+            Text(actionFailureTitle),
+            isPresented: actionErrorPresented,
+            presenting: viewModel.actionError
+        ) { _ in
+            Button(dismissTitle) { viewModel.clearActionError() }
+        } message: { error in
+            Text(error.message)
+        }
     }
 
     @ViewBuilder
@@ -80,13 +96,10 @@ public struct HomeView: View {
             weatherAffordance(for: data)
 
             HomeEmptyStateView(reason: data.emptyReason ?? .noOutfitYet) {
-                // A closet short of a whole role is a job for the batch
-                // path: he is about to photograph several trousers, not one.
-                if case .missingRoles = data.emptyReason {
-                    router.startScan(mode: .batchCloset)
-                } else {
-                    router.startScan()
-                }
+                // Dogfood loop is Scan One (ADR 0015). Batch remains on
+                // Closet's scan menu; sending a missing-role CTA into it
+                // put a Partial surface on the only door Home has.
+                router.startScan()
             }
         }
     }
@@ -143,7 +156,7 @@ public struct HomeView: View {
             reason(data)
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
-            actions(data)
+            actions
                 .padding(.horizontal, AstraSpacing.pagePadding)
         }
     }
@@ -210,14 +223,15 @@ public struct HomeView: View {
         }
     }
 
-    private func actions(_ data: HomeBriefData) -> some View {
+    private var actions: some View {
         VStack(spacing: AstraSpacing.sm) {
             AstraButton(
-                title: String(localized: "Wear This", comment: "Home primary action"),
+                title: wearThisTitle,
                 isLoading: viewModel.isMarkingWorn
             ) {
-                Task { await viewModel.markPrimaryOutfitWorn() }
+                markWorn()
             }
+            .disabled(viewModel.hasMarkedWorn)
             .accessibilityIdentifier("home.wearThis")
 
             Button {
@@ -236,6 +250,41 @@ public struct HomeView: View {
             )))
             .accessibilityIdentifier("home.somethingElse")
         }
+    }
+
+    /// Haptics live here, not in the view model — same rule as
+    /// `OutfitDetailView.markWorn()` so a unit test never reaches for the
+    /// Taptic Engine, and success fires on the write, not the tap.
+    private func markWorn() {
+        Task {
+            await viewModel.markPrimaryOutfitWorn()
+            if viewModel.actionError == nil, viewModel.hasMarkedWorn {
+                AstraHaptics.success()
+            }
+        }
+    }
+
+    private var wearThisTitle: String {
+        viewModel.hasMarkedWorn
+            ? String(localized: "Worn today", comment: "Home Wear This after a successful write")
+            : String(localized: "Wear This", comment: "Home primary action")
+    }
+
+    private var actionFailureTitle: String {
+        String(localized: "Couldn't record that", comment: "Home Wear This failure alert title")
+    }
+
+    private var dismissTitle: String {
+        String(localized: "OK", comment: "Dismisses the Home Wear This failure alert")
+    }
+
+    private var actionErrorPresented: Binding<Bool> {
+        Binding(
+            get: { viewModel.actionError != nil },
+            set: { isPresented in
+                if !isPresented { viewModel.clearActionError() }
+            }
+        )
     }
 
 }

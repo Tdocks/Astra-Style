@@ -205,7 +205,7 @@ public struct ClosetView: View {
         // away, re-read the closet.
         .onChange(of: router.presentedModal?.id) { previous, current in
             guard current == nil, previous != nil else { return }
-            Task { await viewModel.reloadAfterExternalChange() }
+            Task { await viewModel.reloadAfterExternalChange(); await looksViewModel.reload() }
         }
         .onChange(of: isAddingItem) { wasPresented, isPresented in
             guard wasPresented, !isPresented else { return }

@@ -153,7 +153,7 @@ final class ScreenQAUITests: XCTestCase {
 
     // MARK: - Main shell
 
-    /// Lands in the five-tab shell.
+    /// Lands in the dogfood tab shell (Home, Closet, Profile — ADR 0015).
     ///
     /// Deliberately does NOT walk §6.3–§6.10. It used to, back when onboarding
     /// was a single placeholder screen with one "Skip for now" button, and that
@@ -185,17 +185,23 @@ final class ScreenQAUITests: XCTestCase {
     func testEveryTab() {
         enterMainShell()
 
-        // Ordered as they appear in the tab bar (spec §4).
-        let tabs = ["Home", "Closet", "Studio", "Discover", "Profile"]
+        // Ordered as they appear in the dogfood tab bar (ADR 0015).
+        let tabs = ["Home", "Closet", "Profile"]
         for (index, tab) in tabs.enumerated() {
             let button = app.tabBars.buttons[tab]
             awaitElement(button, "Tab bar item: \(tab)")
             button.tap()
-            // Let the transition settle before capturing, or the screenshot
-            // catches a half-faded screen and looks like a rendering bug.
             usleep(600_000)
             capture(String(format: "%02d-Tab-%@", 5 + index, tab))
         }
+        XCTAssertFalse(
+            app.tabBars.buttons["Studio"].exists,
+            "Studio is unfinished and must not sit in the tab bar"
+        )
+        XCTAssertFalse(
+            app.tabBars.buttons["Discover"].exists,
+            "Discover is unfinished and must not sit in the tab bar"
+        )
     }
 
     /// Phase 1 exit criterion, verified through the UI rather than only at the
@@ -213,7 +219,7 @@ final class ScreenQAUITests: XCTestCase {
         let closetAnchor = app.staticTexts["My Closet"].firstMatch
         awaitElement(closetAnchor, "Closet root")
 
-        for tab in ["Home", "Studio", "Discover", "Profile"] {
+        for tab in ["Home", "Profile"] {
             app.tabBars.buttons[tab].tap()
             usleep(200_000)
         }

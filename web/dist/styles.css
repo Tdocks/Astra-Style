@@ -219,11 +219,8 @@ section h2 {
   margin: 0 0 0.85rem;
 }
 
-section p {
-  margin: 0;
-  color: var(--text2);
-  font-size: 1.05rem;
-  max-width: 34rem;
+section p + p {
+  margin-top: 1rem;
 }
 
 .band {

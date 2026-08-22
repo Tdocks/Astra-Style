@@ -27,14 +27,28 @@ import Foundation
 
 public struct StyleQuizEngine: Sendable {
 
-    /// Spec §6.9's upper bound. A catalog larger than this is not an error — it
-    /// is a healthy content library — but a single user is asked at most twenty
-    /// comparisons, because the twenty-first is a worse trade than the drop-off
-    /// it costs on the highest-abandonment screen in the app.
-    public static let maximumComparisons = StyleQuizCatalog.specifiedComparisonRange.upperBound
+    /// Spec §6.9's catalog upper bound — how large a library may grow.
+    /// First-run asks far fewer (see `firstRunMaximumComparisons`); a catalog
+    /// larger than twenty is not an error, it is a healthy content library.
+    public static let catalogUpperBound = StyleQuizCatalog.specifiedComparisonRange.upperBound
 
-    /// Spec §6.9's lower bound, and the floor below which the early-stop rule
-    /// refuses to fire no matter how confident the vector already looks.
+    /// ADR 0015: the front door is a taste snapshot, not the twelve-to-twenty
+    /// wall. Three coverage-ordered comparisons, then the closet.
+    public static let firstRunMaximumComparisons = 3
+
+    /// Axes first-run will not spend a comparison on. `silhouette` ships as
+    /// a single pair, so confidence cannot rise above `.low` — asking it
+    /// here would burn one of three questions on something Kyra may not
+    /// state back. Remaining axes stay in the catalog for later.
+    public static let deferredFirstRunDimensions: Set<StyleDimension> = [.silhouette]
+
+    /// How many comparisons one first-run user is asked.
+    public static let maximumComparisons = firstRunMaximumComparisons
+
+    /// Spec §6.9's lower bound for a *full* quiz, and the floor below which
+    /// the early-stop rule refuses to fire. With a three-comparison snapshot
+    /// this can never fire, and that is the point: we stop because the
+    /// snapshot is done, not because the vector looks confident.
     public static let minimumComparisonsBeforeEarlyStop =
         StyleQuizCatalog.specifiedComparisonRange.lowerBound
 
@@ -46,8 +60,11 @@ public struct StyleQuizEngine: Sendable {
 
     public init(catalog: StyleQuizCatalog) {
         self.catalog = catalog
+        let eligible = catalog.pairs.filter { pair in
+            !pair.probedDimensions.isSubset(of: Self.deferredFirstRunDimensions)
+        }
         self.comparisons = Array(
-            StyleQuizEngine.orderedForCoverage(catalog.pairs).prefix(Self.maximumComparisons)
+            StyleQuizEngine.orderedForCoverage(eligible).prefix(Self.maximumComparisons)
         )
     }
 

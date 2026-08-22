@@ -98,6 +98,7 @@ public struct OutfitDetailView: View {
                 onSchedule: { router.presentModal(.addOccasion) },
                 onEdit: { router.presentModal(.outfitBuilder(.builder(startingOutfitID: detail.outfit.id))) },
                 onVisualize: { router.presentModal(.studioGeneration(outfitID: detail.outfit.id)) },
+                showsStudioActions: AstraFeatureFlags.showsUnfinishedChrome,
                 onCompleteLook: { candidateID in
                     router.push(HomeRoute.productDecision(candidateID: candidateID))
                 }
@@ -147,6 +148,9 @@ private struct OutfitDetailContent: View {
     let onSchedule: () -> Void
     let onEdit: () -> Void
     let onVisualize: () -> Void
+    /// Style Studio is specified but unfinished. Showing Visualize here is
+    /// the same "Not built yet" chrome ADR 0015 took off the tab bar.
+    let showsStudioActions: Bool
     let onCompleteLook: (UUID) -> Void
 
     private var outfit: Outfit { detail.outfit }
@@ -273,10 +277,12 @@ private struct OutfitDetailContent: View {
                 first: ActionSpec(title: scheduleTitle, identifier: "outfitDetail.action.schedule", action: onSchedule),
                 second: ActionSpec(title: editTitle, identifier: "outfitDetail.action.edit", action: onEdit)
             )
-            actionsGroup(
-                first: ActionSpec(title: visualizeTitle, identifier: "outfitDetail.action.visualize", action: onVisualize),
-                second: nil
-            )
+            if showsStudioActions {
+                actionsGroup(
+                    first: ActionSpec(title: visualizeTitle, identifier: "outfitDetail.action.visualize", action: onVisualize),
+                    second: nil
+                )
+            }
 
             ShareLink(item: OutfitDetailCopy.shareText(for: outfit)) {
                 Label(shareTitle, systemImage: "square.and.arrow.up")

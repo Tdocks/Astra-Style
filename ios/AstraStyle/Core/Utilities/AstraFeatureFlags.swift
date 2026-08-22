@@ -95,6 +95,33 @@ public enum AstraFeatureFlags {
         #endif
     }
 
+    /// When `true`, first-run onboarding includes the deferred screens
+    /// (goals, measurements, appearance, lifestyle, reference) so Debug
+    /// UITests can still reach the §29 consent gate. Release ignores the
+    /// argument. See ADR 0015.
+    ///
+    /// Usage: `-astra-full-onboarding`.
+    public static var includesDeferredOnboardingSteps: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-astra-full-onboarding")
+        #else
+        false
+        #endif
+    }
+
+    /// When `true`, Studio and Discover appear in the tab bar. Default is
+    /// off: those tabs are specified but unfinished, and advertising
+    /// "Not built yet" every session is the week-1 uninstall (ADR 0015).
+    ///
+    /// Usage: `-astra-show-unfinished-chrome`.
+    public static var showsUnfinishedChrome: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-astra-show-unfinished-chrome")
+        #else
+        false
+        #endif
+    }
+
     /// Forces a theme at launch, overriding the stored preference.
     ///
     /// Needed because the app applies its OWN `.preferredColorScheme(...)`,

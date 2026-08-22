@@ -90,7 +90,7 @@ struct OnboardingFirstItemsView: View {
                 eyebrow: String(localized: "FASTEST WAY", comment: "First items scan section eyebrow")
             )
 
-            Text("Astra reads the piece from the photo — kind, colour, brand where it can — and shows you everything it worked out before anything is saved. You can correct any of it.")
+            Text("Photograph one to three pieces you actually wear. Astra reads kind and colour from the photo and shows you the guess before anything is saved.")
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
