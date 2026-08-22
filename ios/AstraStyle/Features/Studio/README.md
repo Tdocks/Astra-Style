@@ -2,7 +2,14 @@
 
 Owns Style Studio: visual try-on / outfit visualization (spec §6.17, §13).
 
+## Status
+
+**Wave E is live as Visualize / See this on you**, after terms-versioned
+consent (`StudioConsentTerms.currentVersion`). The Studio tab stays off the
+bar. Default image provider is mock.
+
 ## What this module owns
+
 
 - Reference image selection/capture with explicit ownership/permission consent (§6.17 Safety).
 - Outfit/item/theme selection controls, prompt presets, and the advanced controls (preserve face/body/hair, background, pose, formality, season, color palette).

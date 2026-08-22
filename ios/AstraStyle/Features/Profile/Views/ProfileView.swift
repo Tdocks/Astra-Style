@@ -86,14 +86,14 @@ public struct ProfileView: View {
             AstraCard {
                 VStack(alignment: .leading, spacing: AstraSpacing.sm) {
                     Text(String(
-                        localized: "Live: Home (Today's Outfit and Wear This), Closet, Scan One Piece, Ask Kyra.",
+                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you), Closet, Scan One Piece, Discover (your lookbooks), Ask Kyra.",
                         comment: "Profile what's live"
                     ))
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     Text(String(
-                        localized: "Next: Style Studio and Discover, when they serve the wardrobe graph — not as storefronts.",
+                        localized: "Not live: Style Studio as a tab (Visualize is the door), shopping feeds, or a women's catalog. Women is a second graph, not a switch.",
                         comment: "Profile what's next"
                     ))
                     .astraText(.callout)

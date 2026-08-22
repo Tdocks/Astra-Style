@@ -39,9 +39,10 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         AstraFeatureFlags.showsUnfinishedChrome ? Array(allCases) : dogfoodTabs
     }
 
-    /// Home, Closet, Profile — the dogfood bar. `allCases` stays five so
-    /// routing and tests that name the specified tabs do not have to lie.
-    public static let dogfoodTabs: [AppTab] = [.home, .closet, .profile]
+    /// Home, Closet, Discover, Profile. Studio stays off the bar; Visualize
+    /// / See this on you is the generate door (Wave E). Discover lists his
+    /// outfits as lookbooks (Wave F), which is the graph, not a storefront.
+    public static let dogfoodTabs: [AppTab] = [.home, .closet, .discover, .profile]
 
     public var isShownInChrome: Bool {
         Self.chromeTabs.contains(self)

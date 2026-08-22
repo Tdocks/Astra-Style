@@ -44,6 +44,9 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
         guard request.hasUserConsent else {
             throw AstraError.validation("Please confirm you have permission to use this photo before generating a preview.")
         }
+        guard request.consentTermsVersion == StudioConsentTerms.currentVersion else {
+            throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
+        }
         return try await apiClient.send(.generateStudio, body: StudioGenerateBody(request), as: StudioGeneration.self)
     }
 
@@ -81,6 +84,7 @@ private struct StudioGenerateBody: Encodable, Sendable {
     let formality: FormalityLevel?
     let season: Season?
     let colorPalette: [String]
+    let consent: StudioConsentAttestation
 
     init(_ request: StudioGenerationRequest) {
         referenceImagePath = request.referenceImagePath
@@ -95,6 +99,10 @@ private struct StudioGenerateBody: Encodable, Sendable {
         formality = request.formality
         season = request.season
         colorPalette = request.colorPalette
+        consent = StudioConsentAttestation(
+            acknowledged: request.hasUserConsent,
+            termsVersion: request.consentTermsVersion
+        )
     }
 
     enum CodingKeys: String, CodingKey {
@@ -110,5 +118,6 @@ private struct StudioGenerateBody: Encodable, Sendable {
         case formality
         case season
         case colorPalette = "color_palette"
+        case consent
     }
 }

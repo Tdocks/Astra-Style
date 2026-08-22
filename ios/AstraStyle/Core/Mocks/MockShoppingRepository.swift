@@ -12,6 +12,9 @@ public actor MockShoppingRepository: ShoppingRepository {
     private var catalog: [ProductCandidate]
     private var wishlist: Set<UUID> = []
     private var purchased: Set<UUID> = []
+    private var evaluationOverride: ProductEvaluation?
+    private var extractError: AstraError?
+    private var evaluateError: AstraError?
 
     public init() {
         catalog = [
@@ -52,7 +55,20 @@ public actor MockShoppingRepository: ShoppingRepository {
         ]
     }
 
+    public func setEvaluationOverride(_ evaluation: ProductEvaluation?) {
+        evaluationOverride = evaluation
+    }
+
+    public func setExtractError(_ error: AstraError?) {
+        extractError = error
+    }
+
+    public func setEvaluateError(_ error: AstraError?) {
+        evaluateError = error
+    }
+
     public func extractProduct(from url: URL) async throws -> ProductCandidate {
+        if let extractError { throw extractError }
         if let existing = catalog.first(where: { $0.canonicalURL == url }) {
             return existing
         }
@@ -62,7 +78,21 @@ public actor MockShoppingRepository: ShoppingRepository {
     }
 
     public func evaluateProduct(candidateID: UUID) async throws -> ProductEvaluation {
-        ProductEvaluation(
+        if let evaluateError { throw evaluateError }
+        if let evaluationOverride {
+            return ProductEvaluation(
+                userID: evaluationOverride.userID,
+                productCandidateID: candidateID,
+                compatibilityScore: evaluationOverride.compatibilityScore,
+                redundancyScore: evaluationOverride.redundancyScore,
+                outfitsUnlocked: evaluationOverride.outfitsUnlocked,
+                expectedCostPerWear: evaluationOverride.expectedCostPerWear,
+                verdict: evaluationOverride.verdict,
+                reasoning: evaluationOverride.reasoning,
+                createdAt: evaluationOverride.createdAt
+            )
+        }
+        return ProductEvaluation(
             userID: SampleData.userID,
             productCandidateID: candidateID,
             compatibilityScore: 84,
@@ -72,6 +102,13 @@ public actor MockShoppingRepository: ShoppingRepository {
             verdict: .consider,
             reasoning: "Strong color match to your existing palette, but you already own two similar outer layers — I'd wait for a sale unless this replaces one of them."
         )
+    }
+
+    public func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {
+        guard let candidate = catalog.first(where: { $0.id == id }) else {
+            throw AstraError.server("Couldn't load that product.")
+        }
+        return candidate
     }
 
     public func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] {

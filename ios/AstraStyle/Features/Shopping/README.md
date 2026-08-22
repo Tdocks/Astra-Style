@@ -2,7 +2,14 @@
 
 Owns the shopping-decision flow: product link analysis, "Shop the look", and the Product Decision Page (spec §5.5, §6.18, §6.19).
 
+## Status
+
+**Wave D is the door, not the store.** Home paste → extract → evaluate → this
+module's decision page. Wishlist, Shop the look, and curated catalog browsing
+are still out.
+
 ## What this module owns
+
 
 - Product link paste/analysis flow and the resulting compatibility/redundancy/verdict breakdown (§5.5, §6.19).
 - "Shop the look" (§6.18): owned-vs-missing item breakdown for an outfit, retailer/price/size display with affiliate disclosure, wishlist, higher/lower-cost alternatives.

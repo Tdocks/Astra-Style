@@ -29,6 +29,10 @@ public struct StudioGenerationRequest: Sendable {
     /// expected to reject a request where this is `false`.
     public var hasUserConsent: Bool
 
+    /// Must match `StudioConsentTerms.currentVersion` / the Edge Function
+    /// `CURRENT_STUDIO_CONSENT_TERMS_VERSION`. Stale values 400.
+    public var consentTermsVersion: String
+
     public init(
         referenceImagePath: String,
         outfitID: UUID? = nil,
@@ -42,7 +46,8 @@ public struct StudioGenerationRequest: Sendable {
         formality: FormalityLevel? = nil,
         season: Season? = nil,
         colorPalette: [String] = [],
-        hasUserConsent: Bool
+        hasUserConsent: Bool,
+        consentTermsVersion: String = StudioConsentTerms.currentVersion
     ) {
         self.referenceImagePath = referenceImagePath
         self.outfitID = outfitID
@@ -57,6 +62,7 @@ public struct StudioGenerationRequest: Sendable {
         self.season = season
         self.colorPalette = colorPalette
         self.hasUserConsent = hasUserConsent
+        self.consentTermsVersion = consentTermsVersion
     }
 }
 

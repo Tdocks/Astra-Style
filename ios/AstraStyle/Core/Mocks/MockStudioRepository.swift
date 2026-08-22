@@ -27,6 +27,9 @@ public actor MockStudioRepository: StudioRepository {
         guard request.hasUserConsent else {
             throw AstraError.validation("Please confirm you have permission to use this photo before generating a preview.")
         }
+        guard request.consentTermsVersion == StudioConsentTerms.currentVersion else {
+            throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
+        }
         let generation = StudioGeneration(
             id: UUID(),
             userID: SampleData.userID,

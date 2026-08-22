@@ -26,4 +26,4 @@ Owns Kyra's Daily Brief — the Home tab and the app's default landing screen af
 
 - The "Purchase opportunity" module renders when `HomeBriefData.purchaseOpportunity` is populated, but `DefaultHomeBriefProvider` never populates it yet — that requires `ShoppingRepository` integration and belongs to **P6-SHOP**.
 - `MonthlyProgressModuleView` exists and is previewable but isn't wired into `HomeView` yet — it needs monthly wear/spend aggregation, which is Style Journey's concern (**P7-SUB**).
-- Every non-Home destination reached from `HomeRoute` (outfit detail, alternatives list, Kyra thread, occasion detail, monthly review, product decision) currently resolves to a `FeaturePlaceholderView` — see `HomeDestinationView.swift` for exactly which ticket owns each (**P4-OUTFIT**, **P5-KYRA**, **P6-SHOP**, **P7-SUB**).
+- Every non-Home destination reached from `HomeRoute` except outfit detail and the product decision page currently resolves to a `FeaturePlaceholderView` — see `HomeDestinationView.swift`.

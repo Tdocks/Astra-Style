@@ -52,6 +52,19 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
         return try await apiClient.send(.evaluateProduct, body: Body(productCandidateID: candidateID), as: ProductEvaluation.self)
     }
 
+    public func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {
+        do {
+            return try await supabase.from("product_candidates")
+                .select()
+                .eq("id", value: id)
+                .single()
+                .execute()
+                .value
+        } catch {
+            throw AstraError.server("Couldn't load that product.")
+        }
+    }
+
     public func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] {
         do {
             var query = supabase.from("product_candidates").select()

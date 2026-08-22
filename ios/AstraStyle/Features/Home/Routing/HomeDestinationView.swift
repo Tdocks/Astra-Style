@@ -14,11 +14,11 @@
 //  originates the navigation, it doesn't own the destination screens.
 //
 //  What is built: `.outfitDetail` — `Features/Outfits/Views
-//  /OutfitDetailView.swift` (spec §6.12, P4-OUTFIT-11). Takes `container`
-//  for the same reason `ClosetDestinationView` does: this is the
-//  composition root for screens PUSHED onto the Home tab's stack, so the
-//  view model is built here, where the full dependency graph is known,
-//  rather than inside the view itself.
+//  /OutfitDetailView.swift` (spec §6.12, P4-OUTFIT-11). `.productDecision`
+//  — `Features/Shopping/Views/ProductDecisionView.swift` (Wave D paste-a-
+//  link don't-buy). Takes `container` for the same reason
+//  `ClosetDestinationView` does: this is the composition root for screens
+//  PUSHED onto the Home tab's stack, so the view model is built here.
 //
 
 import SwiftUI
@@ -64,11 +64,12 @@ struct HomeDestinationView: View {
                 message: String(localized: "What you wore, what you bought, and what's worth changing."),
                 systemImage: "chart.line.uptrend.xyaxis"
             )
-        case .productDecision:
-            FeaturePlaceholderView(
-                title: String(localized: "Product Decision"),
-                message: String(localized: "Whether this is worth buying, and what it would actually add."),
-                systemImage: "cart"
+        case .productDecision(let candidateID):
+            ProductDecisionView(
+                viewModel: ProductDecisionViewModel(
+                    candidateID: candidateID,
+                    shoppingRepository: container.shoppingRepository
+                )
             )
         }
     }

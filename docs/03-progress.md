@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-22 (ADR 0015 first-run taste snapshot; Studio/Discover off the tab bar; Profile About + build 2; Home reloads after Scan One and Wear This fail-loud); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
+**Last audited:** 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -44,9 +44,9 @@ lands data layers, protocols, and models long before the screens that use them.
 | 3 — Closet | 27 | 15 | 9 | 3 |
 | 4 — Outfit intelligence | 26 | 15 | 8 | 3 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
-| 6 — Studio and commerce | 25 | 2 | 4 | 19 |
+| 6 — Studio and commerce | 25 | 9 | 12 | 4 |
 | 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **179** | **57** | **49** | **71** |
+| **Total** | **179** | **64** | **57** | **56** |
 
 Read that table carefully before drawing a conclusion from it. 57 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -321,40 +321,35 @@ design, not evidence of build.
 
 # PHASE 6 — STUDIO AND COMMERCE
 
-**2 Done · 4 Partial · 19 Not started.** Data layers live in production and the request models are
-complete and spec-accurate; nothing renders them. The image vendor was resolved ahead of any
-build: **OpenAI, called directly with our own key, and nothing else** — Studio on `gpt-image-1.5`,
-quiz imagery and reference generation on `gpt-image-2` (`docs/15` §5, `docs/16` §4). The
-previously-named vendor is dropped outright, so P6-STUDIO-03's provider adapter has one target
-and `docs/10`'s integration detail is history rather than a spec.
+**9 Done · 12 Partial · 4 Not started.** Wave D wired paste → extract → evaluate → decision page. Wave E is Visualize / See this on you after terms-versioned consent (Studio tab still off). Wave F lists his outfits as Discover lookbooks. Wave G is not a ticket here — see `docs/adr/0016-women-is-a-second-graph.md`. The image vendor remains **OpenAI, called directly with our own key, and nothing else**, and the default Studio provider stays mock until that spend is explicit (`docs/15` §5, `docs/16` §4).
 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P6-STUDIO-01 | Done | `20260728100800_studio_and_subscriptions.sql` creates `studio_generations`; cross-user RLS tested. |
-| P6-STUDIO-02 | Not started | No reference-image capture UI. |
-| P6-STUDIO-03 | Not started | No `ImageGenerationProvider` protocol file — referenced only in comments. |
-| P6-STUDIO-04 | Not started | No `supabase/functions/studio/`. |
-| P6-STUDIO-05 | Not started | No prompt-template assembly; `docs/10` and `docs/15` are design-only. |
-| P6-STUDIO-06 | Not started | No status endpoint; client `fetchStatus(generationID:)` calls an undeployed route. |
-| P6-STUDIO-07 | Not started | No cost-control, caching, or retention job. |
-| P6-STUDIO-08 | Not started | No UI; `Features/Studio/` empty. |
-| P6-STUDIO-09 | Partial | Data model complete and spec-exact — all 8 `StudioPromptPreset` cases, background, pose, preserve-face/proportions/hair, formality, season, palette. **Zero UI exposes any of it.** |
-| P6-STUDIO-10 | Not started | No generation-state UI. |
-| P6-STUDIO-11 | Not started | No gallery UI, though repository fetch/delete methods exist. |
-| P6-STUDIO-12 | Partial | `LiveStudioRepository` conforms (submit/status/retry/delete, `hasUserConsent` guard) but has **no polling loop or backoff** — single-shot only — against an undeployed endpoint. |
+| P6-STUDIO-02 | Partial | Reference capture + terms-versioned consent live on `StudioGenerationView` (Wave E). Onboarding reference can be reused. Gallery/preset mall not built. |
+| P6-STUDIO-03 | Partial | `supabase/functions/_shared/providers/imageGeneration.ts`; default remains mock. |
+| P6-STUDIO-04 | Done | `supabase/functions/studio/` generate + status; consent `terms_version` = `2026-08-17`. |
+| P6-STUDIO-05 | Partial | `supabase/functions/studio/promptBuilder.ts` assembles the prompt; iOS does not expose the 8-preset mall. |
+| P6-STUDIO-06 | Done | `GET /studio/status/:id`; client `StudioGenerationViewModel` polls queued → generating → complete. |
+| P6-STUDIO-07 | Partial | Cost/retention still docs; generate does not run without consent. |
+| P6-STUDIO-08 | Partial | Visualize / Home "See this on you" is the door. Studio tab stays off chrome (ADR 0015 amendment). |
+| P6-STUDIO-09 | Partial | Data model complete. Zero preset UI on purpose (Wave E kill: preset mall). |
+| P6-STUDIO-10 | Partial | Queued/generating/complete/failed UI on `StudioGenerationView`. |
+| P6-STUDIO-11 | Not started | No gallery / save-to-lookbook UI. |
+| P6-STUDIO-12 | Partial | Client polling loop exists against mock or live status. Live integration still `.disabled` in `PendingIntegrationRequirementsTests`. |
 | P6-SHOP-01 | Done | `20260728100600_commerce.sql` creates `product_candidates`/`user_product_evaluations`; RLS proves shared-read/service-write and per-user isolation. |
-| P6-SHOP-02 | Not started | No `ProductExtractionProvider` protocol. |
-| P6-SHOP-03 | Not started | No `supabase/functions/products/`; client `extractProduct(from:)` targets nothing. |
-| P6-SHOP-04 | Not started | No evaluate endpoint. `ProductEvaluation` matches the migration schema but nothing computes it. |
-| P6-SHOP-05 | Not started | No decision-page UI. |
-| P6-SHOP-06 | Not started | No "Shop the look" UI. |
-| P6-SHOP-07 | Not started | No `SFSafariViewController` anywhere. `LiveShoppingRepository`'s four wishlist methods used to query a `wishlist_items` table that no migration creates; they now throw `AstraError.unimplemented`. The migration was deliberately not written ahead of the Phase 6 UI that has to live with the schema — see the file header for the reasoning. |
-| P6-SHOP-08 | Partial | RLS proves `product_candidates` writes are service-role-only (2nd criterion, tested). No ingestion script or seed path demonstrates the 1st. |
-| P6-SHOP-09 | Not started | No `sponsored` field in the models or the migration. |
-| P6-SHOP-10 | Partial | `extractProduct`, `evaluateProduct` and `fetchCuratedProducts` are implemented for real. The four wishlist methods are now honestly `AstraError.unimplemented` rather than Postgrest calls against a nonexistent `wishlist_items` table; evaluations are still explicitly not cached. |
-| P6-CORE-01 | Not started | `Features/Discover/` holds only `README.md`; no editorial-content table in any migration. |
-| P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` is a deliberate placeholder, `.disabled()` with the reason stated. |
-| P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` is a deliberate placeholder, `.disabled()` with the reason stated. |
+| P6-SHOP-02 | Done | `ProductExtractionProvider` + html/mock adapters. Default provider is mock. |
+| P6-SHOP-03 | Done | `POST /products/extract`; Home paste sheet calls `extractProduct`. |
+| P6-SHOP-04 | Done | `POST /products/evaluate`; `ProductDecisionViewModel` calls it. Sponsorship cannot reach `evaluateProductCandidate`. |
+| P6-SHOP-05 | Done | Product decision page: verdict, unlocks, reasoning, compatibility, redundancy. No alternatives grid. |
+| P6-SHOP-06 | Not started | No "Shop the look" UI. Wave D kill list. |
+| P6-SHOP-07 | Partial | `SFSafariViewController` reopens *the URL he pasted* after buy/consider only. Wishlist methods still `AstraError.unimplemented`. |
+| P6-SHOP-08 | Partial | RLS proves `product_candidates` writes are service-role-only. No curated catalog ingestion. |
+| P6-SHOP-09 | Done | Server: `sponsored` is a label after scoring, never an `EvaluationInputs` field. iOS decision page has no sponsored sort. |
+| P6-SHOP-10 | Partial | extract/evaluate/fetch candidate are real. Wishlist remains unimplemented. Evaluations are not cached. |
+| P6-CORE-01 | Partial | Discover lists **his** saved outfits as lookbooks (`DiscoverViewModel`). No editorial CMS table — that mall is the trap. Empty: "Wear This or save a look first." |
+| P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` still `.disabled` (live provider). Client polling is unit-tested against the mock. |
+| P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` still `.disabled` (live Edge). Client extract→evaluate is unit-tested against the mock. |
 
 ---
 

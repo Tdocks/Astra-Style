@@ -18,7 +18,7 @@ already includes Phase 3 exit + this handoff (`git log -5 --oneline`).
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `2` after ADR 0015) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `3`) |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `HANDOFF.md` §12.0 (same content, longer context) |
 

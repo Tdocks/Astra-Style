@@ -98,7 +98,7 @@ public struct OutfitDetailView: View {
                 onSchedule: { router.presentModal(.addOccasion) },
                 onEdit: { router.presentModal(.outfitBuilder(.builder(startingOutfitID: detail.outfit.id))) },
                 onVisualize: { router.presentModal(.studioGeneration(outfitID: detail.outfit.id)) },
-                showsStudioActions: AstraFeatureFlags.showsUnfinishedChrome,
+                showsStudioActions: true,
                 onCompleteLook: { candidateID in
                     router.push(HomeRoute.productDecision(candidateID: candidateID))
                 }
@@ -148,8 +148,8 @@ private struct OutfitDetailContent: View {
     let onSchedule: () -> Void
     let onEdit: () -> Void
     let onVisualize: () -> Void
-    /// Style Studio is specified but unfinished. Showing Visualize here is
-    /// the same "Not built yet" chrome ADR 0015 took off the tab bar.
+    /// Wave E: Visualize is the generate door. Studio stays off the tab bar
+    /// (ADR 0015); hiding this control too would leave no way to see the look.
     let showsStudioActions: Bool
     let onCompleteLook: (UUID) -> Void
 

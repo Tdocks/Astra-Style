@@ -15,9 +15,12 @@ import SwiftUI
 public struct HomeView: View {
     @State private var viewModel: HomeViewModel
     @Environment(AppRouter.self) private var router
+    private let shoppingRepository: ShoppingRepository
+    @State private var isPastingLink = false
 
-    public init(viewModel: HomeViewModel) {
+    public init(viewModel: HomeViewModel, shoppingRepository: ShoppingRepository) {
         _viewModel = State(wrappedValue: viewModel)
+        self.shoppingRepository = shoppingRepository
     }
 
     public var body: some View {
@@ -57,6 +60,11 @@ public struct HomeView: View {
             Button(dismissTitle) { viewModel.clearActionError() }
         } message: { error in
             Text(error.message)
+        }
+        .sheet(isPresented: $isPastingLink) {
+            ProductLinkPasteSheet(shoppingRepository: shoppingRepository) { candidateID in
+                router.push(HomeRoute.productDecision(candidateID: candidateID))
+            }
         }
     }
 
@@ -105,6 +113,9 @@ public struct HomeView: View {
                     router.startScan()
                 }
             }
+
+            pasteLinkButton
+                .padding(.horizontal, AstraSpacing.pagePadding)
         }
     }
 
@@ -253,7 +264,32 @@ public struct HomeView: View {
                 comment: "VoiceOver hint for the Home alternatives action"
             )))
             .accessibilityIdentifier("home.somethingElse")
+
+            pasteLinkButton
+
+            if case .loaded(let data) = viewModel.state, data.primaryOutfit != nil {
+                Button {
+                    router.presentModal(.studioGeneration(outfitID: data.primaryOutfit?.id))
+                } label: {
+                    Text(String(localized: "See this on you", comment: "Home door into Studio for today's look"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("home.seeOnYou")
+            }
         }
+    }
+
+    /// He brought the URL. This is not a shop suggestion.
+    private var pasteLinkButton: some View {
+        Button {
+            isPastingLink = true
+        } label: {
+            Text(String(localized: "Paste a link", comment: "Home paste-a-link don't-buy door"))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.astraSecondary)
+        .accessibilityIdentifier("home.pasteLink")
     }
 
     /// Haptics live here, not in the view model — same rule as
@@ -297,7 +333,10 @@ public struct HomeView: View {
 
 #Preview("Loaded") {
     NavigationStack {
-        HomeView(viewModel: HomeViewModel(provider: PreviewHomeBriefProvider()))
+        HomeView(
+            viewModel: HomeViewModel(provider: PreviewHomeBriefProvider()),
+            shoppingRepository: MockShoppingRepository()
+        )
     }
     .environment(AppRouter())
     .preferredColorScheme(.dark)
@@ -305,7 +344,10 @@ public struct HomeView: View {
 
 #Preview("Empty") {
     NavigationStack {
-        HomeView(viewModel: HomeViewModel(provider: PreviewHomeBriefProvider(mode: .empty)))
+        HomeView(
+            viewModel: HomeViewModel(provider: PreviewHomeBriefProvider(mode: .empty)),
+            shoppingRepository: MockShoppingRepository()
+        )
     }
     .environment(AppRouter())
     .preferredColorScheme(.dark)
@@ -313,7 +355,10 @@ public struct HomeView: View {
 
 #Preview("Error") {
     NavigationStack {
-        HomeView(viewModel: HomeViewModel(provider: PreviewHomeBriefProvider(mode: .error)))
+        HomeView(
+            viewModel: HomeViewModel(provider: PreviewHomeBriefProvider(mode: .error)),
+            shoppingRepository: MockShoppingRepository()
+        )
     }
     .environment(AppRouter())
     .preferredColorScheme(.dark)

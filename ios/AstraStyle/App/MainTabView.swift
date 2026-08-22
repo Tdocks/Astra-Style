@@ -3,9 +3,8 @@
 //  AstraStyle
 //
 //  The five-tab shell (spec §4): Home, Closet, Studio, Discover, Profile.
-//  Dogfood chrome is Home, Closet, Profile (ADR 0015) until Studio and
-//  Discover serve the Wardrobe Graph. `AppTab.chromeTabs` is the bar;
-//  unfinished cases remain routable for QA behind a Debug flag.
+//  Dogfood chrome is Home, Closet, Discover, Profile. Studio stays off
+//  the bar; Visualize / See this on you is the generate door (Wave E).
 //  Each tab owns an independent `NavigationStack` bound to its own path in
 //  `AppRouter`, so tab state survives switching tabs. SF Symbols per tab are
 //  defined on `AppTab` in AppRouter.swift; gold indicates the active tab per
@@ -89,7 +88,8 @@ struct MainTabView: View {
                         imageURLResolver: container.closetImageURLResolver
                     ),
                     analyticsClient: container.analyticsClient
-                )
+                ),
+                shoppingRepository: container.shoppingRepository
             )
             .navigationDestination(for: HomeRoute.self) { route in
                 HomeDestinationView(route: route, container: container)
@@ -166,17 +166,11 @@ struct MainTabView: View {
         // project bindings at all.
         @Bindable var router = router
         NavigationStack(path: $router.discoverPath) {
-            FeaturePlaceholderView(
-                title: String(localized: "Discover"),
-                message: String(localized: "Lookbooks, fit guides, and the reasoning behind them."),
-                systemImage: "safari"
+            DiscoverView(
+                viewModel: DiscoverViewModel(outfitRepository: container.outfitRepository)
             )
-            .navigationDestination(for: DiscoverRoute.self) { _ in
-                FeaturePlaceholderView(
-                    title: String(localized: "Discover"),
-                    message: String(localized: "This screen arrives with Discover itself."),
-                    systemImage: "safari"
-                )
+            .navigationDestination(for: DiscoverRoute.self) { route in
+                DiscoverDestinationView(route: route, container: container)
             }
         }
     }
@@ -216,11 +210,14 @@ struct MainTabView: View {
             )
         case .outfitBuilder(let route):
             OutfitBuilderDestinationView(route: route, container: container)
-        case .studioGeneration:
-            FeaturePlaceholderView(
-                title: String(localized: "Style Studio"),
-                message: String(localized: "Kyra is putting this look together on you."),
-                systemImage: "person.crop.rectangle"
+        case .studioGeneration(let outfitID):
+            StudioGenerationView(
+                viewModel: StudioGenerationViewModel(
+                    outfitID: outfitID,
+                    studioRepository: container.studioRepository,
+                    profileRepository: container.profileRepository,
+                    imageURLResolver: container.closetImageURLResolver
+                )
             )
         case .askKyra(let route):
             KyraDestinationView(route: route, container: container)

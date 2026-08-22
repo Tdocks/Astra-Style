@@ -45,6 +45,14 @@ in week 1 is deferred, not deleted.
    dogfood can tell binaries apart. It does not grow a stats dashboard
    (`P7-HOME-05`).
 
+## Amendment (2026-08-22, Waves E–F)
+
+Discover now lists his saved outfits as lookbooks, so it **joins** the
+dogfood bar: Home, Closet, Discover, Profile. Studio stays **off** the bar.
+The generate door is Visualize / See this on you, after terms-versioned
+consent — not a Studio tab, not a preset mall. Women remains out of chrome
+entirely; see [0016](0016-women-is-a-second-graph.md).
+
 ## Consequences
 
 - `OnboardingStep.next` / `.previous` / progress follow `activeSequence`, not

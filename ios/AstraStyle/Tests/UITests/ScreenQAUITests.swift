@@ -153,7 +153,7 @@ final class ScreenQAUITests: XCTestCase {
 
     // MARK: - Main shell
 
-    /// Lands in the dogfood tab shell (Home, Closet, Profile — ADR 0015).
+    /// Lands in the dogfood tab shell (Home, Closet, Discover, Profile).
     ///
     /// Deliberately does NOT walk §6.3–§6.10. It used to, back when onboarding
     /// was a single placeholder screen with one "Skip for now" button, and that
@@ -185,8 +185,8 @@ final class ScreenQAUITests: XCTestCase {
     func testEveryTab() {
         enterMainShell()
 
-        // Ordered as they appear in the dogfood tab bar (ADR 0015).
-        let tabs = ["Home", "Closet", "Profile"]
+        // Ordered as they appear in the dogfood tab bar (ADR 0015, Wave F).
+        let tabs = ["Home", "Closet", "Discover", "Profile"]
         for (index, tab) in tabs.enumerated() {
             let button = app.tabBars.buttons[tab]
             awaitElement(button, "Tab bar item: \(tab)")
@@ -196,11 +196,11 @@ final class ScreenQAUITests: XCTestCase {
         }
         XCTAssertFalse(
             app.tabBars.buttons["Studio"].exists,
-            "Studio is unfinished and must not sit in the tab bar"
+            "Studio stays off the tab bar; Visualize is the generate door"
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             app.tabBars.buttons["Discover"].exists,
-            "Discover is unfinished and must not sit in the tab bar"
+            "Discover lists his lookbooks and belongs on the bar"
         )
     }
 

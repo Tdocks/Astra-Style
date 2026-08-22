@@ -19,6 +19,10 @@ public protocol ShoppingRepository: Sendable {
     /// Product Decision Page (spec §6.19, §14 `products/evaluate`).
     func evaluateProduct(candidateID: UUID) async throws -> ProductEvaluation
 
+    /// The candidate row itself — name, the URL he pasted, retailer.
+    /// Needed so buy/consider can reopen *that* page, not a catalog.
+    func fetchProductCandidate(id: UUID) async throws -> ProductCandidate
+
     func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate]
 
     func fetchWishlist() async throws -> [ProductCandidate]
