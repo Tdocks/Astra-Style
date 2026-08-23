@@ -186,7 +186,8 @@ struct EndpointDeploymentMappingTests {
             "daily-brief",
             "products",
             "studio",
-            "subscriptions"
+            "subscriptions",
+            "packing"
         ]
         for slug in requiredNow {
             #expect(

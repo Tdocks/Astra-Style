@@ -93,6 +93,12 @@ public protocol OutfitRepository: Sendable {
     /// Calls `POST /packing/generate` (spec §6.24, §14).
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan
 
+    /// Briefs in `[from, to]` inclusive, local calendar days.
+    func fetchDailyBriefs(from: Date, to: Date) async throws -> [DailyBrief]
+
+    func fetchOccasions(from: Date, to: Date) async throws -> [Occasion]
+    func saveOccasion(_ occasion: Occasion) async throws -> Occasion
+
     /// Other men's public worn looks for Discover. Home must never call this.
     func fetchPublicWornLooks() async throws -> [Outfit]
 
@@ -122,4 +128,12 @@ public extension OutfitRepository {
     func fetchPublicWornLooks() async throws -> [Outfit] { [] }
 
     func reportLookbook(outfitID: UUID) async throws {}
+
+    func fetchDailyBriefs(from: Date, to: Date) async throws -> [DailyBrief] { [] }
+
+    func fetchOccasions(from: Date, to: Date) async throws -> [Occasion] { [] }
+
+    func saveOccasion(_ occasion: Occasion) async throws -> Occasion {
+        throw AstraError.unimplemented("Occasions aren't available here.")
+    }
 }

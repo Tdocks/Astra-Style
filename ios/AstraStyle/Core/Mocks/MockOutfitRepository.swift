@@ -13,6 +13,8 @@ public actor MockOutfitRepository: OutfitRepository {
     private var outfitItemsByOutfit: [UUID: [OutfitItem]]
     private var wears: [OutfitWear] = []
     private var briefsByDay: [String: DailyBrief] = [:]
+    private var occasions: [Occasion] = []
+    private(set) var packingGenerateCount = 0
     /// Every `style_feedback` row recorded, in insertion order. Exposed
     /// via `recordedFeedback` for tests/previews that want to assert on it.
     /// Named distinctly from `recordWear`'s `feedback: String?` parameter
@@ -148,14 +150,48 @@ public actor MockOutfitRepository: OutfitRepository {
     }
 
     public func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
-        PackingPlan(
+        packingGenerateCount += 1
+        var cursor = request.startDate
+        let calendar = Calendar.current
+        var days: [PackingDayPlan] = []
+        while cursor <= request.endDate {
+            var brief = SampleData.dailyBrief(for: cursor)
+            brief.primaryOutfitID = SampleData.heroOutfit.id
+            briefsByDay[DateFormatter.astraDay.string(from: cursor)] = brief
+            days.append(PackingDayPlan(date: cursor, outfitID: SampleData.heroOutfit.id, isRewear: days.isEmpty == false))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+            if days.count >= 14 { break }
+        }
+        return PackingPlan(
             packingListItemIDs: SampleData.closetItems.prefix(6).map(\.id),
-            dailyOutfitPlan: [
-                PackingDayPlan(date: request.startDate, outfitID: SampleData.heroOutfit.id, isRewear: false)
-            ],
-            missingEssentials: ["Travel-size garment steamer"],
-            weatherContingencyNote: "Pack a packable rain shell in case the forecast shifts."
+            dailyOutfitPlan: days,
+            missingEssentials: [],
+            weatherContingencyNote: request.destination.isEmpty
+                ? nil
+                : "Pack a packable rain shell in case the forecast shifts."
         )
+    }
+
+    public func fetchDailyBriefs(from: Date, to: Date) async throws -> [DailyBrief] {
+        let start = DateFormatter.astraDay.string(from: from)
+        let end = DateFormatter.astraDay.string(from: to)
+        return briefsByDay.values
+            .filter { DateFormatter.astraDay.string(from: $0.briefDate) >= start
+                && DateFormatter.astraDay.string(from: $0.briefDate) <= end }
+            .sorted { $0.briefDate < $1.briefDate }
+    }
+
+    public func fetchOccasions(from: Date, to: Date) async throws -> [Occasion] {
+        occasions
+            .filter { $0.startsAt >= from && $0.startsAt < to }
+            .sorted { $0.startsAt < $1.startsAt }
+    }
+
+    public func saveOccasion(_ occasion: Occasion) async throws -> Occasion {
+        occasions.removeAll { $0.id == occasion.id }
+        occasions.append(occasion)
+        return occasion
     }
 
     public func fetchPublicWornLooks() async throws -> [Outfit] { [] }

@@ -43,6 +43,7 @@ public struct PackingRequest: Sendable {
     public var dressCodes: [DressCode]
     public var luggageConstraint: LuggageConstraint
     public var hasLaundryAccess: Bool
+    public var regenerate: Bool
 
     public init(
         destination: String,
@@ -51,7 +52,8 @@ public struct PackingRequest: Sendable {
         activities: [String] = [],
         dressCodes: [DressCode] = [],
         luggageConstraint: LuggageConstraint = .checkedBag,
-        hasLaundryAccess: Bool = false
+        hasLaundryAccess: Bool = false,
+        regenerate: Bool = false
     ) {
         self.destination = destination
         self.startDate = startDate
@@ -60,6 +62,7 @@ public struct PackingRequest: Sendable {
         self.dressCodes = dressCodes
         self.luggageConstraint = luggageConstraint
         self.hasLaundryAccess = hasLaundryAccess
+        self.regenerate = regenerate
     }
 }
 
@@ -108,5 +111,36 @@ public struct PackingDayPlan: Codable, Hashable, Sendable {
         self.date = date
         self.outfitID = outfitID
         self.isRewear = isRewear
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case outfitID = "outfit_id"
+        case isRewear = "is_rewear"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let raw = try container.decode(String.self, forKey: .date)
+        if let day = DateFormatter.astraDay.date(from: raw) {
+            date = day
+        } else if let instant = ISO8601DateFormatter().date(from: raw) {
+            date = instant
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .date,
+                in: container,
+                debugDescription: "packing day must be YYYY-MM-DD; got \(raw)"
+            )
+        }
+        outfitID = try container.decode(UUID.self, forKey: .outfitID)
+        isRewear = try container.decode(Bool.self, forKey: .isRewear)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(DateFormatter.astraDay.string(from: date), forKey: .date)
+        try container.encode(outfitID, forKey: .outfitID)
+        try container.encode(isRewear, forKey: .isRewear)
     }
 }

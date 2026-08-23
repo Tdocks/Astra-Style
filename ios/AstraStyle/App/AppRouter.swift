@@ -192,6 +192,7 @@ public enum AppModalRoute: Identifiable, Sendable {
     case studioGeneration(outfitID: UUID?)
     case askKyra(KyraRoute)
     case addOccasion
+    case packingTrip
 
     public var id: String {
         switch self {
@@ -201,6 +202,7 @@ public enum AppModalRoute: Identifiable, Sendable {
         case .studioGeneration: "studioGeneration"
         case .askKyra: "askKyra"
         case .addOccasion: "addOccasion"
+        case .packingTrip: "packingTrip"
         }
     }
 }

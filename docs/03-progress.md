@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-22 (leftover growth: share moments, one-guy referral, Kyra/Studio paywalls, Discover public worn looks + Unlocks; Wear This ungated); 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
+**Last audited:** 2026-08-22 (GO: week-strip + packing from calendar; Wear This ungated); 2026-08-22 (leftover growth: share moments, one-guy referral, Kyra/Studio paywalls, Discover public worn looks + Unlocks; Wear This ungated); 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -42,11 +42,11 @@ lands data layers, protocols, and models long before the screens that use them.
 | 1 — Foundation | 25 | 11 | 12 | 0 |
 | 2 — Identity | 18 | 13 | 5 | 0 |
 | 3 — Closet | 27 | 15 | 9 | 3 |
-| 4 — Outfit intelligence | 26 | 15 | 8 | 3 |
+| 4 — Outfit intelligence | 26 | 16 | 7 | 3 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 9 | 12 | 4 |
-| 7 — Monetization and hardening | 36 | 0 | 13 | 23 |
-| **Total** | **179** | **64** | **62** | **51** |
+| 7 — Monetization and hardening | 36 | 0 | 14 | 22 |
+| **Total** | **179** | **65** | **62** | **50** |
 
 Read that table carefully before drawing a conclusion from it. 57 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -251,7 +251,7 @@ pgvector ordering test.
 
 # PHASE 4 — OUTFIT INTELLIGENCE
 
-**15 Done · 8 Partial · 3 Not started.** No longer the most misread phase — M1 built it out. The Home tab is a near-complete
+**16 Done · 7 Partial · 3 Not started.** No longer the most misread phase — M1 built it out. The Home tab is a near-complete
 Phase 4 vertical build (19 files) sitting in `Features/Home/`, and the deployed outfit generator is
 deliberately a placeholder scorer, not the real one.
 
@@ -277,7 +277,7 @@ deliberately a placeholder scorer, not the real one.
 | P4-HOME-03 | Done | Built in M1 by parallel agents in isolated git worktrees; integrated, corrected and verified by the orchestrator. The hero card shows the primary outfit's real `compatibility_score` and all four actions are wired — Wear This to the mark-worn flow, Alternatives to the shared carousel, Edit to the builder, Visualize to the Studio hook. |
 | P4-HOME-04 | Partial | Built in M1 by parallel agents in isolated git worktrees; integrated, corrected and verified by the orchestrator. **Partial on purpose, and the reasoning is the point.** The agent was asked to make the Wardrobe Score and purchase-opportunity modules show real values. It found both scorers exist and are tested, then found no route exposes either — no wardrobe-score path on `closet`, no `products/` function at all — and left both modules rendering nothing, documented why at each site, corrected a stale comment that had blamed the missing scorer, and added regression tests pinning the absence. A plausible number there would have been the failure the governing rule exists to prevent. |
 | P4-HOME-05 | Partial | Built in M1 by parallel agents in isolated git worktrees; integrated, corrected and verified by the orchestrator. `WeatherService.currentSnapshot()` finally has production call sites. Permission is requested only on first use of §6.11 — never during onboarding, per the criterion amended when it moved off `P2-ONBOARD-06` — and denying it never blocks Home. **A real bug was found here by the build rather than by the agent**: the client's own reading was overlaid onto a cached brief but not a generated one, so the header read a value it already held via a network round trip and went blank whenever the server did not echo it back. Now uniform. **Partial because the criterion says real current-location weather**, and that is `WeatherKit` on a device — the simulator cannot settle it, and scoring still receives no `WeatherContext`, so the season subscore takes its prior and says so. |
-| P4-HOME-06 | Partial | `occasions` migration + RLS done, and `CalendarService.fetchUpcomingEvents` feeds the brief. No manual add-occasion UI or repository method exists. |
+| P4-HOME-06 | Done | `occasions` migration + RLS in `supabase/tests/20_rls_isolation_tests.sql`. Manual Add to the week: `Features/Home/Views/AddOccasionView.swift` writes via `LiveOutfitRepository+Brief.swift` then `POST /packing/generate` with `regenerate: true`. `daily-brief` and `packing` both read `occasions` for the day's look. `HomeWeekStripTests.swift` covers save + week generate. |
 | P4-CORE-01 | Partial | `LiveWeatherService` is a complete WeatherKit + CoreLocation adapter requesting permission in context. No fallback to last-known forecast on failure, and per P4-HOME-05 it is never called. |
 | P4-TEST-01 | Partial | `CompatibilityScoringTests` fully covers the weighted aggregate. Per-sub-scorer pass/fail cases cannot exist — 7 of 8 sub-scorers don't. |
 | P4-TEST-02 | Not started | No test for Wardrobe Score or unlock count; neither algorithm exists. |
@@ -355,7 +355,7 @@ design, not evidence of build.
 
 # PHASE 7 — MONETIZATION AND HARDENING
 
-**0 Done · 13 Partial · 23 Not started.** Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. App Store Server Notifications and published legal links are still out.
+**0 Done · 14 Partial · 22 Not started.** Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. App Store Server Notifications and published legal links are still out.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -380,9 +380,9 @@ design, not evidence of build.
 | P7-HOME-01 | Not started | No `UNUserNotificationCenter` or scheduling code. |
 | P7-HOME-02 | Not started | No permission-timing audit; depends on P7-HOME-01 / P5-KYRA-16. |
 | P7-HOME-03 | Not started | Only the Home teaser stub exists, documented as pointing at a Phase 7 review that isn't built. |
-| P7-HOME-04 | Not started | No packing assistant. |
+| P7-HOME-04 | Partial | `supabase/functions/packing/` (same `CompatibilityOutfitScorer` as daily-brief, max 14 days, laundry-aware, occasion titles the look) plus `Features/Home/Views/PackingTripView.swift` and Home's week strip. **Deployed** 2026-08-22 to `anutsdzbxycaavmmkewo` with `verify_jwt: true`. Kyra's `create_packing_list` tool remains the Phase 5 `NOT_BUILT` stub. |
 | P7-HOME-05 | Not started | `Features/Profile/` has only the guest stub — no real profile or stats screen. |
-| P7-INFRA-01 | Partial | `_shared/rateLimit.ts` is reusable and applied to `outfits` (20/min) and `subscriptions` (20/min), surfaced as `AstraError.rateLimited`. Kyra/Studio/products have their own limiters; `app-store` is not built. |
+| P7-INFRA-01 | Partial | `_shared/rateLimit.ts` is reusable and applied to `outfits` (20/min), `subscriptions` (20/min), and `packing` (10/min), surfaced as `AstraError.rateLimited`. Kyra/Studio/products have their own limiters; `app-store` is not built. |
 | P7-INFRA-02 | Not started | No performance measurements against §20 targets. |
 | P7-INFRA-03 | Not started | No thumbnail, downsample, or prefetch code. |
 | P7-INFRA-04 | Partial | CI enforces zero-warnings-in-own-code via a scoped build-log grep. No per-dependency purpose/licence documentation (there is one dependency, `supabase-swift`). |

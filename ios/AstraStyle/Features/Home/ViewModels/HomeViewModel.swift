@@ -78,6 +78,7 @@ public final class HomeViewModel {
 
     /// After Wear This, offer opt-in public on Discover. Never auto-publish.
     public private(set) var canOfferPublicLook = false
+    public private(set) var weekSlots: [WeekDaySlot] = []
 
     /// Wear This failed. Stays off the brief itself — same rule as
     /// `OutfitDetailViewModel.actionError` — so a dropped write does not
@@ -253,6 +254,9 @@ public final class HomeViewModel {
                 state = data.needsMoreClosetItems ? .empty(data) : .loaded(data)
                 if data.brief.id != previousBriefID {
                     hasMarkedWorn = false
+                }
+                if case .loaded = state {
+                    weekSlots = await provider.loadWeekStrip()
                 }
             }
         } catch let error as AstraError {

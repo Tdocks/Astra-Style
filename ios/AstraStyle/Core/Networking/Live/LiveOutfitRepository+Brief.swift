@@ -56,12 +56,13 @@ public extension LiveOutfitRepository {
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
         struct Body: Encodable, Sendable {
             let destination: String
-            let startDate: Date
-            let endDate: Date
+            let startDate: String
+            let endDate: String
             let activities: [String]
             let dressCodes: [DressCode]
             let luggageConstraint: LuggageConstraint
             let hasLaundryAccess: Bool
+            let regenerate: Bool
             enum CodingKeys: String, CodingKey {
                 case destination
                 case startDate = "start_date"
@@ -70,21 +71,64 @@ public extension LiveOutfitRepository {
                 case dressCodes = "dress_codes"
                 case luggageConstraint = "luggage_constraint"
                 case hasLaundryAccess = "has_laundry_access"
+                case regenerate
             }
         }
         return try await apiClient.send(
             .generatePacking,
             body: Body(
                 destination: request.destination,
-                startDate: request.startDate,
-                endDate: request.endDate,
+                startDate: DateFormatter.astraDay.string(from: request.startDate),
+                endDate: DateFormatter.astraDay.string(from: request.endDate),
                 activities: request.activities,
                 dressCodes: request.dressCodes,
                 luggageConstraint: request.luggageConstraint,
-                hasLaundryAccess: request.hasLaundryAccess
+                hasLaundryAccess: request.hasLaundryAccess,
+                regenerate: request.regenerate
             ),
             as: PackingPlan.self
         )
+    }
+
+    func fetchDailyBriefs(from: Date, to: Date) async throws -> [DailyBrief] {
+        do {
+            return try await supabase.from("daily_briefs")
+                .select()
+                .gte("brief_date", value: DateFormatter.astraDay.string(from: from))
+                .lte("brief_date", value: DateFormatter.astraDay.string(from: to))
+                .order("brief_date", ascending: true)
+                .execute()
+                .value
+        } catch {
+            throw AstraError.network("Couldn't load this week's looks.")
+        }
+    }
+
+    func fetchOccasions(from: Date, to: Date) async throws -> [Occasion] {
+        do {
+            return try await supabase.from("occasions")
+                .select()
+                .gte("starts_at", value: from)
+                .lt("starts_at", value: to)
+                .order("starts_at", ascending: true)
+                .execute()
+                .value
+        } catch {
+            throw AstraError.network("Couldn't load what's coming up.")
+        }
+    }
+
+    func saveOccasion(_ occasion: Occasion) async throws -> Occasion {
+        do {
+            return try await supabase.from("occasions")
+                .insert(occasion)
+                .select()
+                .single()
+                .execute()
+                .value
+        } catch {
+            throw AstraError.network("Couldn't save that occasion.")
+        }
     }
 }
 

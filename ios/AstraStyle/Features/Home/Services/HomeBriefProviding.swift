@@ -41,6 +41,12 @@ public protocol HomeBriefProviding: Sendable {
     /// this after `WeatherOptInCardView` has already explained why.
     /// Returns whether permission is now granted.
     func requestWeatherPermission() async -> Bool
+    /// Next seven local days. Empty on failure so today still renders.
+    func loadWeekStrip() async -> [WeekDaySlot]
+}
+
+public extension HomeBriefProviding {
+    func loadWeekStrip() async -> [WeekDaySlot] { [] }
 }
 
 public final class DefaultHomeBriefProvider: HomeBriefProviding {
@@ -280,5 +286,43 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private func currentWeatherSnapshotIfAuthorized() async -> WeatherSnapshot? {
         guard weatherService.currentAuthorization() == .authorized else { return nil }
         return try? await weatherService.currentSnapshot()
+    }
+}
+
+extension DefaultHomeBriefProvider {
+    public func loadWeekStrip() async -> [WeekDaySlot] {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: .now)
+        guard let end = calendar.date(byAdding: .day, value: 6, to: start) else { return [] }
+        var briefs = (try? await outfitRepository.fetchDailyBriefs(from: start, to: end)) ?? []
+        let days = (0...6).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        let have = Set(briefs.map { DateFormatter.astraDay.string(from: $0.briefDate) })
+        let missing = days.contains { !have.contains(DateFormatter.astraDay.string(from: $0)) }
+        if missing {
+            _ = try? await outfitRepository.generatePackingPlan(
+                PackingRequest(
+                    destination: "",
+                    startDate: start,
+                    endDate: end,
+                    luggageConstraint: .noConstraint,
+                    hasLaundryAccess: true
+                )
+            )
+            briefs = (try? await outfitRepository.fetchDailyBriefs(from: start, to: end)) ?? []
+        }
+        let outfitIDs = Array(Set(briefs.compactMap(\.primaryOutfitID)))
+        let outfits = (try? await outfitRepository.fetchOutfits(ids: outfitIDs)) ?? []
+        let outfitByID = Dictionary(uniqueKeysWithValues: outfits.map { ($0.id, $0) })
+        let briefByDay = Dictionary(
+            uniqueKeysWithValues: briefs.map { (DateFormatter.astraDay.string(from: $0.briefDate), $0) }
+        )
+        return days.map { date in
+            let brief = briefByDay[DateFormatter.astraDay.string(from: date)]
+            return WeekDaySlot(
+                date: date,
+                outfit: brief?.primaryOutfitID.flatMap { outfitByID[$0] },
+                occasionHeadline: brief?.scheduleSnapshot?.headline
+            )
+        }
     }
 }

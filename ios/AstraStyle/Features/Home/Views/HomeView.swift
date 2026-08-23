@@ -173,6 +173,20 @@ public struct HomeView: View {
 
             actions
                 .padding(.horizontal, AstraSpacing.pagePadding)
+
+            if !viewModel.weekSlots.isEmpty {
+                HomeWeekStripView(
+                    slots: viewModel.weekSlots,
+                    onSelect: { slot in
+                        guard let id = slot.outfit?.id else { return }
+                        guard !Calendar.current.isDateInToday(slot.date) else { return }
+                        router.push(HomeRoute.outfitDetail(outfitID: id))
+                    },
+                    onAddOccasion: { router.presentModal(.addOccasion) },
+                    onPackTrip: { router.presentModal(.packingTrip) }
+                )
+                .padding(.horizontal, AstraSpacing.pagePadding)
+            }
         }
     }
 

@@ -39,5 +39,7 @@ then make a look public,” not a barren feed.
   `visibility = public` AND worn AND not archived is additive; default
   private rows stay isolated.
 - Marketing still must not screenshot Open Closet tourism as Home.
-- Packing / week-strip / calendar knockout and paid image gen stay out
-  until a later GO.
+- **Amendment (2026-08-22):** week-strip and packing are GO’d. Home stays
+  one look; the seven-day strip sits under Wear This. Packing is
+  `POST /packing/generate` over the same scorer, not a second engine.
+  Paid image gen, a Shop tab, streaks, guest, and women’s chrome stay out.

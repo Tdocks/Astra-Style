@@ -228,10 +228,15 @@ struct MainTabView: View {
         case .askKyra(let route):
             KyraDestinationView(route: route, container: container)
         case .addOccasion:
-            FeaturePlaceholderView(
-                title: String(localized: "Add an Occasion"),
-                message: String(localized: "Tell Kyra what's coming up and she'll dress you for it."),
-                systemImage: "calendar.badge.plus"
+            AddOccasionView(
+                viewModel: AddOccasionViewModel(
+                    outfitRepository: container.outfitRepository,
+                    currentUserID: { await container.sessionStore.currentUserID() }
+                )
+            )
+        case .packingTrip:
+            PackingTripView(
+                viewModel: PackingTripViewModel(outfitRepository: container.outfitRepository)
             )
         }
     }
