@@ -24,6 +24,7 @@ import SwiftUI
 
 public struct ProfileView: View {
     @Environment(AppRouter.self) private var router
+    @Environment(AppContainer.self) private var container
 
     public init() {}
 
@@ -33,6 +34,9 @@ public struct ProfileView: View {
                 title
                 aboutCard
                 whatsLiveCard
+                ProfileReferralCard(viewModel: ProfileReferralViewModel(
+                    profileRepository: container.profileRepository
+                ))
                 privacyAndDataRow
                 Spacer(minLength: 0)
             }
@@ -86,7 +90,7 @@ public struct ProfileView: View {
             AstraCard {
                 VStack(alignment: .leading, spacing: AstraSpacing.sm) {
                     Text(String(
-                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you), Closet, Scan One Piece, Discover (your lookbooks), Ask Kyra.",
+                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you), Closet, Scan One Piece, Discover (your lookbooks and worn looks), Ask Kyra.",
                         comment: "Profile what's live"
                     ))
                     .astraText(.callout)
@@ -139,10 +143,74 @@ public struct ProfileView: View {
     }
 }
 
+private struct ProfileReferralCard: View {
+    @State private var viewModel: ProfileReferralViewModel
+
+    init(viewModel: ProfileReferralViewModel) {
+        _viewModel = State(wrappedValue: viewModel)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+            Text(String(localized: "Send this to a guy who hates shopping", comment: "Profile referral prompt"))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+            AstraCard {
+                VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                    if let code = viewModel.code {
+                        Text(code)
+                            .astraText(.headline)
+                            .foregroundStyle(AstraColor.textPrimary)
+                            .monospaced()
+                            .accessibilityIdentifier("profile.referral.code")
+                    }
+                    ShareLink(item: viewModel.shareText) {
+                        Label(
+                            String(localized: "Share your code", comment: "Shares the referral code"),
+                            systemImage: "square.and.arrow.up"
+                        )
+                        .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("profile.referral.share")
+
+                    if !viewModel.referredAlready {
+                        TextField(
+                            String(localized: "Have a code?", comment: "Apply someone else's referral"),
+                            text: $viewModel.incomingCode
+                        )
+                        .textInputAutocapitalization(.characters)
+                        .autocorrectionDisabled()
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textPrimary)
+                        .accessibilityIdentifier("profile.referral.incoming")
+                        Button {
+                            Task { await viewModel.applyIncomingCode() }
+                        } label: {
+                            Text(String(localized: "Apply code", comment: "Applies a referral code"))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.astraSecondary)
+                        .disabled(viewModel.isApplying)
+                    }
+                    if let note = viewModel.note {
+                        Text(note)
+                            .astraText(.caption)
+                            .foregroundStyle(AstraColor.textSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .task { await viewModel.onAppear() }
+    }
+}
+
 #Preview {
     NavigationStack {
         ProfileView()
     }
     .environment(AppRouter())
+    .environment(AppContainer.preview())
     .preferredColorScheme(.dark)
 }

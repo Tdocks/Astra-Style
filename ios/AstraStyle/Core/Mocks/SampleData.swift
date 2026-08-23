@@ -23,7 +23,8 @@ public enum SampleData {
         units: .imperial,
         theme: .dark,
         onboardingCompletedAt: Calendar.current.date(byAdding: .day, value: -74, to: .now),
-        subscriptionTier: .premium
+        subscriptionTier: .premium,
+        referralCode: "ASTRA001"
     )
 
     public static let styleProfile = StyleProfile(

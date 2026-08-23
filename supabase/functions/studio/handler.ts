@@ -23,12 +23,10 @@
 // outgrows that, the `docs/10` §2.3 worker is the upgrade path and this
 // handler's advance function is exactly the code it would run.
 //
-// QUOTA IS NOT DEBITED HERE — ANYWHERE. Spec §21: a provider-side failure
-// must not consume a credit. The tier quota/token-bucket accounting is
-// P6-STUDIO-07 (not this ticket), and the invariant that makes it safe to
-// add later is already true: no code path below records a consumption, so
-// "debited on complete, never on submission" (docs/10 §8.1) can be bolted
-// onto the complete branch without unwinding anything.
+// QUOTA: one free generate for non-premium, then 429 with upgrade copy.
+// Retry of an existing failed row does not consume another trial. Wear This
+// is not gated here. Spec §21 still holds: a provider-side failure does not
+// debit a paid credit — there is no paid debit; this is a trial count.
 //
 // Spec §14's six per-endpoint requirements (JWT, rate limit, schema,
 // ownership, request-id logging, no private image/prompt logging) are all
@@ -119,6 +117,8 @@ export interface StudioJobStore {
   /** Returns null for missing AND for unowned (RLS) — same 404 either way. */
   get(userId: string, id: string): Promise<StudioGenerationRow | null>;
   update(userId: string, id: string, patch: StudioJobPatch): Promise<StudioGenerationRow>;
+  /** Own rows only — used to enforce the one free Visualize trial. */
+  countForUser(userId: string): Promise<number>;
 }
 
 /**
@@ -142,6 +142,9 @@ export interface StudioHandlerDeps {
   generateRateLimiter: RateLimiter;
   statusRateLimiter: RateLimiter;
   now: () => Date;
+  hasActivePremiumSubscription: (nowIso: string) => Promise<boolean>;
+  /** Free Visualize trials before the paywall. Spec is 1. */
+  freeStudioTrialGenerations: number;
 }
 
 async function readJsonBody(req: Request): Promise<unknown> {
@@ -471,6 +474,29 @@ export async function handleGenerate(
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
     const body = parseGenerateBody(envelope.body);
+
+    if (body.kind !== "retry") {
+      const premium = await deps.hasActivePremiumSubscription(deps.now().toISOString());
+      if (!premium) {
+        const used = await deps.jobStore.countForUser(userId);
+        if (used >= deps.freeStudioTrialGenerations) {
+          logger.warn("studio_generate.rate_limited", {
+            user_id: userId,
+            kind: "studio_trial_quota",
+            limit: deps.freeStudioTrialGenerations,
+          });
+          return errorResponse(
+            new AppError(
+              "rate_limited",
+              429,
+              "You've used your free visual estimate. Upgrade to Astra Style Premium for more. Wear This stays free.",
+            ),
+            requestId,
+            CORS_HEADERS,
+          );
+        }
+      }
+    }
 
     const row = body.kind === "retry"
       ? await enqueueRetry(body.retryOf, userId, deps)

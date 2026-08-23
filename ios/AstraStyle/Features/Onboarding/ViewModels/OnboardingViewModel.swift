@@ -322,6 +322,10 @@ public final class OnboardingViewModel {
             _ = try await profileRepository.completeOnboarding(
                 draft.completionPayload(userID: userID, quizCatalog: quizEngine.catalog)
             )
+            let referral = draft.referralCode?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !referral.isEmpty {
+                try? await profileRepository.applyReferralCode(referral)
+            }
             // Only clear the draft AFTER the server has accepted it. Clearing
             // optimistically would lose every answer if the request failed on a
             // flaky connection, which is exactly when it is most likely to.

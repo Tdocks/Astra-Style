@@ -267,6 +267,8 @@ public struct HomeView: View {
 
             pasteLinkButton
 
+            todayShareLink
+
             if case .loaded(let data) = viewModel.state, data.primaryOutfit != nil {
                 Button {
                     router.presentModal(.studioGeneration(outfitID: data.primaryOutfit?.id))
@@ -277,6 +279,40 @@ public struct HomeView: View {
                 .buttonStyle(.astraSecondary)
                 .accessibilityIdentifier("home.seeOnYou")
             }
+
+            makePublicOffer
+        }
+    }
+
+    /// System share of today's look name + why. Not a feed.
+    @ViewBuilder
+    private var todayShareLink: some View {
+        if case .loaded(let data) = viewModel.state, let outfit = data.primaryOutfit {
+            let why = data.brief.kyraMessage ?? outfit.description
+            ShareLink(item: HomeShareCopy.shareText(name: outfit.name, why: why)) {
+                Label(
+                    String(localized: "Share this look", comment: "Home share of today's look"),
+                    systemImage: "square.and.arrow.up"
+                )
+                .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("home.shareLook")
+        }
+    }
+
+    /// Opt-in after Wear This. Never auto-publishes the closet.
+    @ViewBuilder
+    private var makePublicOffer: some View {
+        if viewModel.canOfferPublicLook {
+            Button {
+                Task { await viewModel.makeWornLookPublic() }
+            } label: {
+                Text(String(localized: "Show this look to other men", comment: "Home post-wear public opt-in"))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("home.makeLookPublic")
         }
     }
 

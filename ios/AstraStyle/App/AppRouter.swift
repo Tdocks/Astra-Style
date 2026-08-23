@@ -132,6 +132,7 @@ public enum StudioRoute: Hashable, Sendable {
 /// Destinations pushed on the Discover tab's `NavigationStack`.
 public enum DiscoverRoute: Hashable, Sendable {
     case lookbook(id: UUID)
+    case productDecision(candidateID: UUID)
     case styleGuide(slug: String)
     case brandSpotlight(brand: String)
     case fitGuide(slug: String)

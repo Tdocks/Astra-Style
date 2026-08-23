@@ -217,6 +217,17 @@ function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
       }
       return mapStoredRow(data as Record<string, unknown>);
     },
+    async countForUser(userId) {
+      void userId;
+      const { count, error } = await supabase
+        .from("studio_generations")
+        .select("id", { count: "exact", head: true })
+        .is("deleted_at", null);
+      if (error) {
+        throw serverError("Couldn't check your visual estimate allowance.");
+      }
+      return count ?? 0;
+    },
   };
 }
 
@@ -301,7 +312,28 @@ function depsFor(req: Request) {
     generateRateLimiter,
     statusRateLimiter,
     now: () => new Date(),
+    hasActivePremiumSubscription: (nowIso: string) => hasActivePremiumSubscription(supabase, nowIso),
+    freeStudioTrialGenerations: 1,
   };
+}
+
+const PREMIUM_STATUSES = new Set(["trialing", "active", "in_grace_period", "in_billing_retry"]);
+
+async function hasActivePremiumSubscription(
+  supabase: SupabaseClient,
+  nowIso: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("status, expires_at");
+  if (error) {
+    return false;
+  }
+  const rows = (data ?? []) as Array<{ status: string; expires_at: string | null }>;
+  return rows.some((row) =>
+    PREMIUM_STATUSES.has(row.status) &&
+    (row.expires_at === null || row.expires_at > nowIso)
+  );
 }
 
 Deno.serve(createRouter("studio", [

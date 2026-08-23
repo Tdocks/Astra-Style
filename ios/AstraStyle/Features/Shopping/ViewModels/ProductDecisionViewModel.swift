@@ -61,6 +61,15 @@ public final class ProductDecisionViewModel {
         return loaded.candidate?.canonicalURL
     }
 
+    /// Skip/wait may share the refusal. Buy/consider must not share a CTA.
+    public var shareText: String? {
+        guard case .loaded(let loaded) = state else { return nil }
+        return ProductDecisionCopy.shareText(
+            verdict: loaded.evaluation.verdict,
+            garmentName: loaded.candidate?.name
+        )
+    }
+
     private func load() async {
         do {
             let evaluation = try await shoppingRepository.evaluateProduct(candidateID: candidateID)

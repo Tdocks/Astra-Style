@@ -22,6 +22,10 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
     public var generatedPreviewURL: URL?
     public var isFavorite: Bool
 
+    /// Private until he opts in after Wear This. Discover may list public
+    /// worn looks; Home never does.
+    public var visibility: OutfitVisibility
+
     /// Soft-delete timestamp. `nil` means active.
     ///
     /// `ClosetItem` has had `archivedAt` plus an `isArchived` convenience since
@@ -49,6 +53,7 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         heroImageURL: URL? = nil,
         generatedPreviewURL: URL? = nil,
         isFavorite: Bool = false,
+        visibility: OutfitVisibility = .personal,
         archivedAt: Date? = nil,
         embedding: [Float]? = nil,
         createdAt: Date = .now,
@@ -67,6 +72,7 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         self.heroImageURL = heroImageURL
         self.generatedPreviewURL = generatedPreviewURL
         self.isFavorite = isFavorite
+        self.visibility = visibility
         self.archivedAt = archivedAt
         self.embedding = embedding
         self.createdAt = createdAt
@@ -87,6 +93,7 @@ public struct Outfit: Identifiable, Codable, Hashable, Sendable {
         case heroImageURL = "hero_image_url"
         case generatedPreviewURL = "generated_preview_url"
         case isFavorite = "is_favorite"
+        case visibility
         case archivedAt = "archived_at"
         case embedding
         case createdAt = "created_at"

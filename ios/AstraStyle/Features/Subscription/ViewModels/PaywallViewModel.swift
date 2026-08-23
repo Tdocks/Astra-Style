@@ -88,9 +88,22 @@ public final class PaywallViewModel {
     }
 
     public var subhead: String {
-        String(
-            localized: "Keep adding to the closet. Wear This stays free.",
-            comment: "Paywall promise — the morning loop is not the charge"
-        )
+        switch context {
+        case .kyraDailyLimit:
+            String(
+                localized: "Three conversations a day on us. Wear This stays free.",
+                comment: "Paywall when Kyra's daily new-thread cap is hit"
+            )
+        case .studioQuota:
+            String(
+                localized: "One visual estimate on us. Wear This stays free.",
+                comment: "Paywall when Studio's free trial is used"
+            )
+        case .closetLimit, .onboarding, .outfitGenerationLimit, .settingsUpgrade:
+            String(
+                localized: "Keep adding to the closet. Wear This stays free.",
+                comment: "Paywall promise — the morning loop is not the charge"
+            )
+        }
     }
 }

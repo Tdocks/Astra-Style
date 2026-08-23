@@ -11,8 +11,11 @@ import Foundation
 
 public actor MockStudioRepository: StudioRepository {
     private var generations: [UUID: StudioGeneration] = [:]
+    private let quotaExhausted: Bool
 
-    public init() {}
+    public init(quotaExhausted: Bool = false) {
+        self.quotaExhausted = quotaExhausted
+    }
 
     public func fetchGenerations() async throws -> [StudioGeneration] {
         Array(generations.values).sorted { $0.createdAt > $1.createdAt }
@@ -29,6 +32,9 @@ public actor MockStudioRepository: StudioRepository {
         }
         guard request.consentTermsVersion == StudioConsentTerms.currentVersion else {
             throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
+        }
+        if quotaExhausted {
+            throw AstraError.rateLimited("You've used your free visual estimate. Upgrade to Astra Style Premium for more. Wear This stays free.")
         }
         let generation = StudioGeneration(
             id: UUID(),

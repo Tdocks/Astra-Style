@@ -96,10 +96,32 @@ public struct OnboardingFlowView: View {
         case .goals:
             OnboardingGoalsView(selected: $model.draft.goals)
         case .identity:
-            OnboardingIdentityView(
-                selected: $model.draft.selectedIdentities,
-                primary: $model.draft.primaryIdentity
-            )
+            VStack(alignment: .leading, spacing: AstraSpacing.lg) {
+                OnboardingIdentityView(
+                    selected: $model.draft.selectedIdentities,
+                    primary: $model.draft.primaryIdentity
+                )
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    Text(String(
+                        localized: "Have a code from a guy who hates shopping? Optional.",
+                        comment: "Onboarding optional referral"
+                    ))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    TextField(
+                        String(localized: "Referral code", comment: "Onboarding referral placeholder"),
+                        text: Binding(
+                            get: { model.draft.referralCode ?? "" },
+                            set: { model.draft.referralCode = $0.isEmpty ? nil : $0 }
+                        )
+                    )
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .astraText(.body)
+                    .foregroundStyle(AstraColor.textPrimary)
+                    .accessibilityIdentifier("onboarding.referralCode")
+                }
+            }
         case .measurements:
             OnboardingMeasurementsView(draft: $model.draft)
         case .appearance:

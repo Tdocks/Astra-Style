@@ -267,6 +267,48 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
         }
     }
 
+    public func fetchPublicWornLooks() async throws -> [Outfit] {
+        do {
+            var query = supabase.from("outfits")
+                .select()
+                .eq("visibility", value: OutfitVisibility.shared.rawValue)
+                .is("archived_at", value: nil)
+            if let userID = await currentUserID() {
+                query = query.neq("user_id", value: userID)
+            }
+            return try await query
+                .order("updated_at", ascending: false)
+                .limit(40)
+                .execute()
+                .value
+        } catch {
+            throw AstraError.network("Couldn't load looks other men have worn.")
+        }
+    }
+
+    public func reportLookbook(outfitID: UUID) async throws {
+        do {
+            guard let reporterID = await currentUserID() else {
+                throw AstraError.auth("Sign in to report a look.")
+            }
+            struct Row: Encodable, Sendable {
+                let reporterID: UUID
+                let outfitID: UUID
+                enum CodingKeys: String, CodingKey {
+                    case reporterID = "reporter_id"
+                    case outfitID = "outfit_id"
+                }
+            }
+            try await supabase.from("lookbook_reports")
+                .upsert(Row(reporterID: reporterID, outfitID: outfitID), onConflict: "reporter_id,outfit_id")
+                .execute()
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.server("Couldn't send that report.")
+        }
+    }
+
     @discardableResult
     public func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         do {

@@ -76,6 +76,9 @@ public final class HomeViewModel {
     /// today" so the man can see the tap landed.
     public private(set) var hasMarkedWorn = false
 
+    /// After Wear This, offer opt-in public on Discover. Never auto-publish.
+    public private(set) var canOfferPublicLook = false
+
     /// Wear This failed. Stays off the brief itself — same rule as
     /// `OutfitDetailViewModel.actionError` — so a dropped write does not
     /// replace Today's Outfit with an error screen.
@@ -92,15 +95,18 @@ public final class HomeViewModel {
     private let provider: HomeBriefProviding
     private let analyticsClient: AnalyticsClient
     private let networkMonitor: NetworkReachabilityMonitoring
+    private let outfitRepository: OutfitRepository?
 
     public init(
         provider: HomeBriefProviding,
         analyticsClient: AnalyticsClient = NoOpAnalyticsClient(),
-        networkMonitor: NetworkReachabilityMonitoring = SystemNetworkReachabilityMonitor()
+        networkMonitor: NetworkReachabilityMonitoring = SystemNetworkReachabilityMonitor(),
+        outfitRepository: OutfitRepository? = nil
     ) {
         self.provider = provider
         self.analyticsClient = analyticsClient
         self.networkMonitor = networkMonitor
+        self.outfitRepository = outfitRepository
     }
 
     public func onAppear() async {
@@ -195,6 +201,7 @@ public final class HomeViewModel {
         do {
             try await provider.markPrimaryOutfitWorn(data)
             hasMarkedWorn = true
+            canOfferPublicLook = data.primaryOutfit?.visibility != .shared
             analyticsClient.log(.outfitMarkedWorn(outfitID: outfitID))
         } catch let error as AstraError {
             actionError = error
@@ -202,6 +209,24 @@ public final class HomeViewModel {
         } catch {
             actionError = AstraError(category: .unknown, message: error.localizedDescription)
             isOffline = await networkMonitor.isOffline()
+        }
+    }
+
+    public func makeWornLookPublic() async {
+        guard canOfferPublicLook,
+              case .loaded(let data) = state,
+              var outfit = data.primaryOutfit,
+              let outfitRepository
+        else { return }
+        actionError = nil
+        do {
+            outfit.visibility = .shared
+            _ = try await outfitRepository.updateOutfit(outfit)
+            canOfferPublicLook = false
+        } catch let error as AstraError {
+            actionError = error
+        } catch {
+            actionError = AstraError(category: .unknown, message: error.localizedDescription)
         }
     }
 

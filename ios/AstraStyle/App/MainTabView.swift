@@ -87,7 +87,8 @@ struct MainTabView: View {
                         weatherService: container.weatherService,
                         imageURLResolver: container.closetImageURLResolver
                     ),
-                    analyticsClient: container.analyticsClient
+                    analyticsClient: container.analyticsClient,
+                    outfitRepository: container.outfitRepository
                 ),
                 shoppingRepository: container.shoppingRepository
             )
@@ -167,7 +168,10 @@ struct MainTabView: View {
         @Bindable var router = router
         NavigationStack(path: $router.discoverPath) {
             DiscoverView(
-                viewModel: DiscoverViewModel(outfitRepository: container.outfitRepository)
+                viewModel: DiscoverViewModel(
+                    outfitRepository: container.outfitRepository,
+                    shoppingRepository: container.shoppingRepository
+                )
             )
             .navigationDestination(for: DiscoverRoute.self) { route in
                 DiscoverDestinationView(route: route, container: container)

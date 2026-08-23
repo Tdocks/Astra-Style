@@ -14,6 +14,8 @@ struct StudioGenerationView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var pickedItem: PhotosPickerItem?
     @State private var isShowingCamera = false
+    @Environment(AppContainer.self) private var container
+    @State private var showsPaywall = false
 
     init(viewModel: StudioGenerationViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -42,6 +44,22 @@ struct StudioGenerationView: View {
                 }
             }
             .task { await viewModel.onAppear() }
+            .onChange(of: viewModel.pendingPaywall) { _, context in
+                showsPaywall = context != nil
+            }
+            .sheet(
+                isPresented: $showsPaywall,
+                onDismiss: { viewModel.clearPendingPaywall() },
+                content: {
+                    PaywallView(
+                        viewModel: PaywallViewModel(
+                            context: .studioQuota,
+                            purchasing: LiveStoreKitPurchasing(),
+                            subscriptionRepository: container.subscriptionRepository
+                        )
+                    )
+                }
+            )
             .onChange(of: pickedItem) { _, item in
                 guard let item else { return }
                 Task {

@@ -76,6 +76,10 @@ public final class KyraConversationViewModel {
     /// a tap that silently does nothing is §22's dead button.
     public private(set) var actionNote: String?
 
+    /// Nested paywall when Edge returns 429 on a new thread. Ask Kyra is
+    /// already a modal; AppRouter has one slot.
+    public private(set) var pendingPaywall: PaywallContext?
+
     /// What the closet-item and outfit attachment pickers can offer. Kept
     /// as a tri-state rather than `(try? fetch) ?? []` because an empty
     /// closet and a failed fetch are different truths — showing "nothing
@@ -323,6 +327,13 @@ public final class KyraConversationViewModel {
     private func markSendFailed(entryID: UUID, error: AstraError) {
         guard let index = entries.firstIndex(where: { $0.id == entryID }) else { return }
         entries[index].sendFailure = error
+        if error.category == .rateLimited {
+            pendingPaywall = .kyraDailyLimit
+        }
+    }
+
+    public func clearPendingPaywall() {
+        pendingPaywall = nil
     }
 
     private func asAstraError(_ error: Error) -> AstraError {

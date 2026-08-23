@@ -96,6 +96,7 @@ EXTRA_SWIFT_FILES = [
 ]
 EXTRA_SQL_FILES = [
     REPO_ROOT / "supabase/migrations/20260729120000_frame_profile.sql",
+    REPO_ROOT / "supabase/migrations/20260822210000_referral_and_public_lookbooks.sql",
 ]
 
 # ============================================================================
@@ -120,6 +121,7 @@ ENUM_MAPPING: dict[str, str] = {
     "FrameScale": "frame_scale",
     "ClosetImageType": "image_type",
     "OutfitSource": "outfit_source",
+    "OutfitVisibility": "outfit_visibility",
     "StyleFeedbackTargetType": "feedback_target_type",
     "StyleFeedbackSignal": "feedback_signal",
     "OccasionSource": "occasion_source",

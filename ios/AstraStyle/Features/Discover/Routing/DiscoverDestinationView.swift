@@ -25,6 +25,13 @@ struct DiscoverDestinationView: View {
                     analyticsClient: container.analyticsClient
                 )
             )
+        case .productDecision(let candidateID):
+            ProductDecisionView(
+                viewModel: ProductDecisionViewModel(
+                    candidateID: candidateID,
+                    shoppingRepository: container.shoppingRepository
+                )
+            )
         case .styleGuide, .brandSpotlight, .fitGuide:
             FeaturePlaceholderView(
                 title: String(localized: "Not a lookbook", comment: "Discover editorial placeholder title"),

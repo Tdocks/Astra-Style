@@ -28,6 +28,8 @@ public struct KyraConversationView: View {
     @State private var viewModel: KyraConversationViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(AppContainer.self) private var container
+    @State private var showsPaywall = false
 
     public init(viewModel: KyraConversationViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -50,6 +52,22 @@ public struct KyraConversationView: View {
         }
         .task { await viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
+        .onChange(of: viewModel.pendingPaywall) { _, context in
+            showsPaywall = context != nil
+        }
+        .sheet(
+            isPresented: $showsPaywall,
+            onDismiss: { viewModel.clearPendingPaywall() },
+            content: {
+                PaywallView(
+                    viewModel: PaywallViewModel(
+                        context: .kyraDailyLimit,
+                        purchasing: LiveStoreKitPurchasing(),
+                        subscriptionRepository: container.subscriptionRepository
+                    )
+                )
+            }
+        )
         .accessibilityIdentifier("kyra.conversation")
     }
 

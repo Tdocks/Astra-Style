@@ -111,6 +111,7 @@ struct HomeViewModelReliabilityTests {
 
         #expect(provider.markCallCount == 1)
         #expect(viewModel.hasMarkedWorn)
+        #expect(viewModel.canOfferPublicLook)
         #expect(viewModel.actionError == nil)
         guard case .loaded = viewModel.state else {
             Issue.record("Wear This must not replace the look, got \(viewModel.state)")

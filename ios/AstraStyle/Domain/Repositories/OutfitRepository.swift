@@ -92,6 +92,12 @@ public protocol OutfitRepository: Sendable {
 
     /// Calls `POST /packing/generate` (spec §6.24, §14).
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan
+
+    /// Other men's public worn looks for Discover. Home must never call this.
+    func fetchPublicWornLooks() async throws -> [Outfit]
+
+    /// Stub report of a public lookbook. Idempotent per reporter.
+    func reportLookbook(outfitID: UUID) async throws
 }
 
 public extension OutfitRepository {
@@ -112,4 +118,8 @@ public extension OutfitRepository {
     func recordFeedback(targetType: StyleFeedbackTargetType, targetID: UUID, signal: StyleFeedbackSignal) async throws -> StyleFeedback {
         try await recordFeedback(targetType: targetType, targetID: targetID, signal: signal, reasonTags: [], freeText: nil)
     }
+
+    func fetchPublicWornLooks() async throws -> [Outfit] { [] }
+
+    func reportLookbook(outfitID: UUID) async throws {}
 }

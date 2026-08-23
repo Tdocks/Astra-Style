@@ -56,4 +56,22 @@ struct PaywallViewModelTests {
         #expect(AstraLegal.isPublished == false)
         #expect(model.showsLegalLinks == false)
     }
+
+    @Test("Kyra and Studio copy names the cap; Wear This stays out of the charge")
+    func contextCopy() {
+        let kyra = PaywallViewModel(
+            context: .kyraDailyLimit,
+            purchasing: MockStoreKitPurchasing(),
+            subscriptionRepository: MockSubscriptionRepository(status: .expired)
+        )
+        #expect(kyra.subhead.contains("Three conversations"))
+        #expect(kyra.subhead.contains("Wear This stays free"))
+        let studio = PaywallViewModel(
+            context: .studioQuota,
+            purchasing: MockStoreKitPurchasing(),
+            subscriptionRepository: MockSubscriptionRepository(status: .expired)
+        )
+        #expect(studio.subhead.contains("visual estimate"))
+        #expect(studio.subhead.contains("Wear This stays free"))
+    }
 }

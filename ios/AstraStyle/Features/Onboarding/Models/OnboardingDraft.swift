@@ -145,6 +145,10 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
     // §6.9 — Preference quiz.
     public var quizAnswers: [StylePreferenceQuizAnswer] = []
 
+    /// Optional one-guy referral. Skippable. Applied after complete-onboarding.
+    /// Optional so old persisted drafts still decode.
+    public var referralCode: String?
+
     // §5.1 step 11 — optional reference photo.
     //
     // THREE FIELDS RATHER THAN ONE, AND NONE OF THEM IS THE IMAGE.

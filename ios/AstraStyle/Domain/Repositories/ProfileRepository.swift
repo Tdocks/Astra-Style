@@ -65,6 +65,13 @@ public protocol ProfileRepository: Sendable {
 
     /// Exports all personal data (spec §29 "Export personal data").
     func exportPersonalData() async throws -> URL
+
+    /// Sets `referred_by` once from another man's code. Account required.
+    func applyReferralCode(_ code: String) async throws
+}
+
+public extension ProfileRepository {
+    func applyReferralCode(_ code: String) async throws {}
 }
 
 /// Everything collected across the onboarding flow (spec §6.4-§6.9),

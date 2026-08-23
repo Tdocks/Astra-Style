@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
+**Last audited:** 2026-08-22 (leftover growth: share moments, one-guy referral, Kyra/Studio paywalls, Discover public worn looks + Unlocks; Wear This ungated); 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -321,7 +321,7 @@ design, not evidence of build.
 
 # PHASE 6 — STUDIO AND COMMERCE
 
-**9 Done · 12 Partial · 4 Not started.** Wave D wired paste → extract → evaluate → decision page. Wave E is Visualize / See this on you after terms-versioned consent (Studio tab still off). Wave F lists his outfits as Discover lookbooks. Wave G is not a ticket here — see `docs/adr/0016-women-is-a-second-graph.md`. The image vendor remains **OpenAI, called directly with our own key, and nothing else**, and the default Studio provider stays mock until that spend is explicit (`docs/15` §5, `docs/16` §4).
+**9 Done · 12 Partial · 4 Not started.** Wave D wired paste → extract → evaluate → decision page. Wave E is Visualize / See this on you after terms-versioned consent (Studio tab still off). Wave F lists his outfits as Discover lookbooks; ADR 0017 adds other men's worn public looks and an Unlocks rail. Wave G is not a ticket here — see `docs/adr/0016-women-is-a-second-graph.md`. The image vendor remains **OpenAI, called directly with our own key, and nothing else**, and the default Studio provider stays mock until that spend is explicit (`docs/15` §5, `docs/16` §4).
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -331,7 +331,7 @@ design, not evidence of build.
 | P6-STUDIO-04 | Done | `supabase/functions/studio/` generate + status; consent `terms_version` = `2026-08-17`. |
 | P6-STUDIO-05 | Partial | `supabase/functions/studio/promptBuilder.ts` assembles the prompt; iOS does not expose the 8-preset mall. |
 | P6-STUDIO-06 | Done | `GET /studio/status/:id`; client `StudioGenerationViewModel` polls queued → generating → complete. |
-| P6-STUDIO-07 | Partial | Cost/retention still docs; generate does not run without consent. |
+| P6-STUDIO-07 | Partial | One free Visualize then 429 → `.studioQuota` paywall. Cost/retention docs remain; live image spend stays mock. |
 | P6-STUDIO-08 | Partial | Visualize / Home "See this on you" is the door. Studio tab stays off chrome (ADR 0015 amendment). |
 | P6-STUDIO-09 | Partial | Data model complete. Zero preset UI on purpose (Wave E kill: preset mall). |
 | P6-STUDIO-10 | Partial | Queued/generating/complete/failed UI on `StudioGenerationView`. |
@@ -347,7 +347,7 @@ design, not evidence of build.
 | P6-SHOP-08 | Partial | RLS proves `product_candidates` writes are service-role-only. No curated catalog ingestion. |
 | P6-SHOP-09 | Done | Server: `sponsored` is a label after scoring, never an `EvaluationInputs` field. iOS decision page has no sponsored sort. |
 | P6-SHOP-10 | Partial | extract/evaluate/fetch candidate are real. Wishlist remains unimplemented. Evaluations are not cached. |
-| P6-CORE-01 | Partial | Discover lists **his** saved outfits as lookbooks (`DiscoverViewModel`). No editorial CMS table — that mall is the trap. Empty: "Wear This or save a look first." |
+| P6-CORE-01 | Partial | Discover lists **his** lookbooks plus **Worn by other men** (public + worn, ADR 0017) and an Unlocks rail (`product_candidates`, no sponsored sort, no Shop tab). Empty: "Wear This, then make a look public." Home stays private. |
 | P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` still `.disabled` (live provider). Client polling is unit-tested against the mock. |
 | P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` still `.disabled` (live Edge). Client extract→evaluate is unit-tested against the mock. |
 
@@ -362,8 +362,8 @@ design, not evidence of build.
 | P7-SUB-01 | Partial | Migration + RLS done; `AstraProductID` defines both product IDs client-side. App Store Connect configuration is not demonstrable in-repo — that component is Unverifiable. |
 | P7-SUB-02 | Partial | `LiveStoreKitPurchasing` (`Features/Subscription/StoreKitPurchasing.swift`) purchases via StoreKit 2 and rejects unverified transactions. Sandbox purchase on a device is Unverifiable here. |
 | P7-SUB-03 | Partial | `supabase/functions/subscriptions/` `POST /sync` upserts by user_id. **Deployed** 2026-08-22 to `anutsdzbxycaavmmkewo`. Trusts the locally-verified client payload. `app-store/webhook` is not built. |
-| P7-SUB-04 | Partial | Closet 30-item cap is `FreeTierCappedClosetRepository`. Kyra daily and Studio quota still ungated. Home / Wear This / paste-evaluate are intentionally not gated. |
-| P7-SUB-05 | Partial | `PaywallView` from `PaywallContext.closetLimit` (closet form modal; nested sheet on scanner save/batch so the scan is not replaced). Localized StoreKit prices when offerings load. Legal links omitted while `AstraLegal.isPublished` is false. |
+| P7-SUB-04 | Partial | Closet 30-item cap is `FreeTierCappedClosetRepository`. Kyra 3/day new threads and Studio's one Visualize trial present `PaywallView`. Home / Wear This / paste-evaluate are intentionally not gated. |
+| P7-SUB-05 | Partial | `PaywallView` from `PaywallContext` (closet cap; nested sheet on scanner, Kyra 429, Studio trial). Localized StoreKit prices when offerings load. Legal links omitted while `AstraLegal.isPublished` is false. |
 | P7-SUB-06 | Partial | `ios/Config/AstraStyle.storekit` checked in and wired on the AstraStyle scheme. Restore calls `AppStore.sync` then `syncTransaction`. |
 | P7-SUB-07 | Partial | Purchase and restore call `LiveSubscriptionRepository.syncTransaction`. Entitlement is the server row, not local StoreKit. |
 | P7-PRIVACY-01 | Partial | **The most misleadingly advanced ticket in the repo.** `account_deletions`, `request_account_deletion()`, `finalize_account_deletion()`, the cascade chain and RLS are production-grade and were hardened today — but **no `DELETE /account` Edge Function exists**, so no deletion can actually happen. |

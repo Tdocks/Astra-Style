@@ -107,6 +107,13 @@ function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGeneration
       rows.set(id, row);
       return Promise.resolve(structuredClone(row));
     },
+    countForUser(userId) {
+      let n = 0;
+      for (const row of rows.values()) {
+        if (row.userId === userId && row.deletedAt === null) n += 1;
+      }
+      return Promise.resolve(n);
+    },
   };
 }
 
@@ -160,6 +167,8 @@ function buildDeps(): StudioHandlerDeps & {
     generateRateLimiter: createRateLimiter({ limit: 1000, windowMs: 60_000 }),
     statusRateLimiter: createRateLimiter({ limit: 1000, windowMs: 60_000 }),
     now: () => new Date("2026-08-17T09:00:00Z"),
+    hasActivePremiumSubscription: () => Promise.resolve(false),
+    freeStudioTrialGenerations: 1,
     storage,
   };
 }
@@ -490,4 +499,55 @@ Deno.test("advanceGeneration is a no-op on terminal rows", async () => {
   };
   const advanced = await advanceGeneration(row, deps, "req-1", logger);
   assertEquals(advanced, row);
+});
+
+Deno.test("a second generate without premium is 429 with upgrade copy", async () => {
+  const deps = buildDeps();
+  const first = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, generateBody()),
+    deps,
+  );
+  assertEquals(first.status, 202);
+  await first.body?.cancel();
+  const second = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, generateBody()),
+    deps,
+  );
+  assertEquals(second.status, 429);
+  const { error } = await envelopeOf(second);
+  assertEquals(error?.category, "rate_limited");
+  assertStringIncludes(error?.message ?? "", "free visual estimate");
+  assertEquals(deps.jobStore.rows.size, 1);
+});
+
+Deno.test("premium skips the studio trial quota", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  const first = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, generateBody()),
+    deps,
+  );
+  assertEquals(first.status, 202);
+  await first.body?.cancel();
+  const second = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, generateBody()),
+    deps,
+  );
+  assertEquals(second.status, 202);
+  await second.body?.cancel();
+  assertEquals(deps.jobStore.rows.size, 2);
+});
+
+Deno.test("retry of a failed trial job is not a second trial", async () => {
+  const deps = buildDeps();
+  const id = await enqueueOne(deps);
+  const failed = deps.jobStore.rows.get(id)!;
+  failed.status = "failed";
+  deps.jobStore.rows.set(id, failed);
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { retry_of: id }),
+    deps,
+  );
+  assertEquals(response.status, 202);
+  await response.body?.cancel();
 });

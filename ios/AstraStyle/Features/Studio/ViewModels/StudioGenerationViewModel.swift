@@ -26,6 +26,9 @@ public final class StudioGenerationViewModel {
     public private(set) var pendingImageData: Data?
     public private(set) var generation: StudioGeneration?
     public private(set) var resultImageURL: URL?
+
+    /// Nested paywall after the free Visualize trial. First open stays ungated.
+    public private(set) var pendingPaywall: PaywallContext?
     public var pollInterval: Duration = .milliseconds(400)
 
     private let outfitID: UUID?
@@ -105,9 +108,16 @@ public final class StudioGenerationViewModel {
             }
         } catch let error as AstraError {
             phase = .failed(error)
+            if error.category == .rateLimited {
+                pendingPaywall = .studioQuota
+            }
         } catch {
             phase = .failed(AstraError(category: .unknown, message: error.localizedDescription))
         }
+    }
+
+    public func clearPendingPaywall() {
+        pendingPaywall = nil
     }
 
     public func retry() async {

@@ -157,4 +157,8 @@ public actor MockOutfitRepository: OutfitRepository {
             weatherContingencyNote: "Pack a packable rain shell in case the forecast shifts."
         )
     }
+
+    public func fetchPublicWornLooks() async throws -> [Outfit] { [] }
+
+    public func reportLookbook(outfitID: UUID) async throws {}
 }

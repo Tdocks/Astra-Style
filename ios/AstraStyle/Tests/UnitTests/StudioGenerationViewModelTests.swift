@@ -83,6 +83,26 @@ struct StudioConsentWireTests {
     }
 }
 
+@Suite("Studio trial paywall")
+@MainActor
+struct StudioQuotaViewModelTests {
+    @Test("A 429 on generate sets pendingPaywall to studioQuota")
+    func rateLimitPresentsPaywall() async {
+        let studio = MockStudioRepository(quotaExhausted: true)
+        let model = makeModel(studio: studio)
+        model.pollInterval = .zero
+        await model.onAppear()
+        model.grantConsent()
+        await model.generate()
+        #expect(model.pendingPaywall == .studioQuota)
+        guard case .failed(let error) = model.phase else {
+            Issue.record("expected .failed, got \(model.phase)")
+            return
+        }
+        #expect(error.category == .rateLimited)
+    }
+}
+
 @MainActor
 private func makeModel(
     studio: MockStudioRepository,

@@ -54,6 +54,17 @@ struct ProductDecisionView: View {
                     }
                     .accessibilityIdentifier("productDecision.openSource")
                 }
+                if let shareText = viewModel.shareText {
+                    ShareLink(item: shareText) {
+                        Label(
+                            String(localized: "Share this verdict", comment: "Share skip/wait, never a buy CTA"),
+                            systemImage: "square.and.arrow.up"
+                        )
+                        .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("productDecision.share")
+                }
             }
             .padding(AstraSpacing.pagePadding)
         }

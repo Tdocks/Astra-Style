@@ -94,11 +94,21 @@ public struct OutfitDetailView: View {
             OutfitDetailContent(
                 detail: detail,
                 isMarkingWorn: viewModel.isMarkingWorn,
+                isUpdatingVisibility: viewModel.isUpdatingVisibility,
+                isOwned: viewModel.isOwnedByCurrentUser,
+                hasReported: viewModel.hasReportedLookbook,
                 onMarkWorn: markWorn,
                 onSchedule: { router.presentModal(.addOccasion) },
                 onEdit: { router.presentModal(.outfitBuilder(.builder(startingOutfitID: detail.outfit.id))) },
                 onVisualize: { router.presentModal(.studioGeneration(outfitID: detail.outfit.id)) },
-                showsStudioActions: true,
+                onTogglePublic: {
+                    Task {
+                        let next: OutfitVisibility = detail.outfit.visibility == .shared ? .personal : .shared
+                        await viewModel.setVisibility(next)
+                    }
+                },
+                onReport: { Task { await viewModel.reportLookbook() } },
+                showsStudioActions: viewModel.isOwnedByCurrentUser,
                 onCompleteLook: { candidateID in
                     router.push(HomeRoute.productDecision(candidateID: candidateID))
                 }
@@ -144,10 +154,15 @@ private struct OutfitDetailContent: View {
 
     let detail: OutfitDetailViewModel.OutfitDetail
     let isMarkingWorn: Bool
+    let isUpdatingVisibility: Bool
+    let isOwned: Bool
+    let hasReported: Bool
     let onMarkWorn: () -> Void
     let onSchedule: () -> Void
     let onEdit: () -> Void
     let onVisualize: () -> Void
+    let onTogglePublic: () -> Void
+    let onReport: () -> Void
     /// Wave E: Visualize is the generate door. Studio stays off the tab bar
     /// (ADR 0015); hiding this control too would leave no way to see the look.
     let showsStudioActions: Bool
@@ -270,6 +285,16 @@ private struct OutfitDetailContent: View {
     /// leaves too little width for either label to read.
     private var actionRow: some View {
         VStack(spacing: AstraSpacing.sm) {
+            if isOwned {
+                ownedActions
+            } else {
+                foreignActions
+            }
+        }
+    }
+
+    private var ownedActions: some View {
+        VStack(spacing: AstraSpacing.sm) {
             AstraButton(title: markWornTitle, isLoading: isMarkingWorn, action: onMarkWorn)
                 .accessibilityIdentifier("outfitDetail.action.markWorn")
 
@@ -284,6 +309,14 @@ private struct OutfitDetailContent: View {
                 )
             }
 
+            Button(action: onTogglePublic) {
+                Text(publicToggleTitle)
+                    .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraSecondary)
+            .disabled(isUpdatingVisibility)
+            .accessibilityIdentifier("outfitDetail.action.visibility")
+
             ShareLink(item: OutfitDetailCopy.shareText(for: outfit)) {
                 Label(shareTitle, systemImage: "square.and.arrow.up")
                     .astraText(.headline)
@@ -291,6 +324,26 @@ private struct OutfitDetailContent: View {
                     .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
             }
             .accessibilityIdentifier("outfitDetail.action.share")
+        }
+    }
+
+    private var foreignActions: some View {
+        VStack(spacing: AstraSpacing.sm) {
+            ShareLink(item: OutfitDetailCopy.shareText(for: outfit)) {
+                Label(shareTitle, systemImage: "square.and.arrow.up")
+                    .astraText(.headline)
+                    .foregroundStyle(AstraColor.accentChampagneAccessible)
+                    .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .accessibilityIdentifier("outfitDetail.action.share")
+
+            Button(action: onReport) {
+                Text(hasReported ? reportedTitle : reportTitle)
+                    .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraSecondary)
+            .disabled(hasReported)
+            .accessibilityIdentifier("outfitDetail.action.report")
         }
     }
 
@@ -369,6 +422,20 @@ private struct OutfitDetailContent: View {
 
     private var shareTitle: String {
         String(localized: "Share", comment: "Opens the system share sheet for this outfit")
+    }
+
+    private var publicToggleTitle: String {
+        outfit.visibility == .shared
+            ? String(localized: "Make this look private", comment: "Removes a look from Discover")
+            : String(localized: "Show this look to other men", comment: "Opts a worn look into Discover")
+    }
+
+    private var reportTitle: String {
+        String(localized: "Report this look", comment: "Stub report of a public lookbook")
+    }
+
+    private var reportedTitle: String {
+        String(localized: "Reported", comment: "Lookbook report already sent")
     }
 }
 

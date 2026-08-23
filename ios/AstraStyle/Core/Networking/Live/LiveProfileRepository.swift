@@ -150,6 +150,22 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
         }
     }
 
+    public func applyReferralCode(_ code: String) async throws {
+        struct Params: Encodable, Sendable {
+            let code: String
+            enum CodingKeys: String, CodingKey {
+                case code = "p_code"
+            }
+        }
+        do {
+            try await supabase
+                .rpc("apply_referral_code", params: Params(code: code))
+                .execute()
+        } catch {
+            throw AstraError.validation(error.localizedDescription)
+        }
+    }
+
     private func fetchOptionalSingle<T: Decodable & Sendable>(table: String) async throws -> T? {
         do {
             return try await supabase.from(table).select().single().execute().value

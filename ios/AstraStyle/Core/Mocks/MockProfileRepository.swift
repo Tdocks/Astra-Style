@@ -116,4 +116,12 @@ public actor MockProfileRepository: ProfileRepository {
     public func exportPersonalData() async throws -> URL {
         URL(string: "https://example.com/preview-export.json") ?? URL(fileURLWithPath: "/preview-export.json")
     }
+
+    public func applyReferralCode(_ code: String) async throws {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw AstraError.validation("Enter a code.")
+        }
+        profile.referredBy = profile.referredBy ?? UUID()
+    }
 }

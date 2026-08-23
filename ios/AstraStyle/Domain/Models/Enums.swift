@@ -190,6 +190,14 @@ public enum OutfitSource: String, Codable, CaseIterable, Sendable {
     case studioDerived = "studio_derived"
 }
 
+/// `outfits.visibility` — personal until he opts in after a worn look.
+/// Case names avoid Swift's `private`/`public` keywords so schema-drift
+/// parsing stays a simple identifier (raw values still match Postgres).
+public enum OutfitVisibility: String, Codable, CaseIterable, Sendable {
+    case personal = "private"
+    case shared = "public"
+}
+
 // MARK: - `style_feedback`
 
 /// `style_feedback.target_type` — what a feedback row is about.

@@ -97,6 +97,7 @@ struct ProductDecisionViewModelTests {
 
         #expect(!model.canOpenSourceURL)
         #expect(model.sourceURL == nil)
+        #expect(model.shareText == "Astra said skip: \(candidate.name)")
     }
 
     @Test("The loaded page carries candidate and evaluation only — no sponsored alternatives to sort")

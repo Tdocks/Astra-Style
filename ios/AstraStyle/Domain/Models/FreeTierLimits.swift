@@ -21,6 +21,9 @@ import Foundation
 public enum FreeTierLimits {
     /// Spec §16 free-tier closet item cap.
     public static let maxClosetItems = 30
+
+    /// Spec: one Visualize trial, then paywall. Wear This stays free.
+    public static let studioTrialGenerations = 1
 }
 
 /// Typed failure for free-tier closet writes that would exceed

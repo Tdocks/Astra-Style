@@ -107,6 +107,9 @@ public final class OutfitDetailViewModel {
     public private(set) var isOffline = false
 
     public private(set) var isMarkingWorn = false
+    public private(set) var isUpdatingVisibility = false
+    public private(set) var isOwnedByCurrentUser = true
+    public private(set) var hasReportedLookbook = false
 
     /// The last action failure, held separately from `state` — a failed
     /// mark-worn does not invalidate an outfit that loaded correctly.
@@ -164,6 +167,8 @@ public final class OutfitDetailViewModel {
             let closetItemIDs = Set(items.compactMap(\.closetItemID))
             let closetItemsByID = await resolveClosetItems(ids: closetItemIDs)
             let imageURLs = await resolveImageURLs(for: Array(closetItemsByID.values))
+            let currentID = try? await profileRepository.fetchCurrentProfile().id
+            isOwnedByCurrentUser = currentID.map { $0 == outfit.userID } ?? (true)
 
             state = .loaded(OutfitDetail(
                 outfit: outfit,
@@ -251,6 +256,36 @@ public final class OutfitDetailViewModel {
         } catch {
             actionError = AstraError(category: .unknown, message: error.localizedDescription)
             isOffline = await networkMonitor.isOffline()
+        }
+    }
+
+    public func setVisibility(_ visibility: OutfitVisibility) async {
+        guard isOwnedByCurrentUser, !isUpdatingVisibility, var detail = state.detail else { return }
+        isUpdatingVisibility = true
+        actionError = nil
+        defer { isUpdatingVisibility = false }
+        do {
+            detail.outfit.visibility = visibility
+            let updated = try await outfitRepository.updateOutfit(detail.outfit)
+            detail.outfit = updated
+            state = .loaded(detail)
+        } catch let error as AstraError {
+            actionError = error
+        } catch {
+            actionError = AstraError(category: .unknown, message: error.localizedDescription)
+        }
+    }
+
+    public func reportLookbook() async {
+        guard !isOwnedByCurrentUser, !hasReportedLookbook else { return }
+        actionError = nil
+        do {
+            try await outfitRepository.reportLookbook(outfitID: outfitID)
+            hasReportedLookbook = true
+        } catch let error as AstraError {
+            actionError = error
+        } catch {
+            actionError = AstraError(category: .unknown, message: error.localizedDescription)
         }
     }
 

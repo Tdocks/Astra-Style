@@ -2,9 +2,9 @@
 //  DiscoverViewModel.swift
 //  AstraStyle
 //
-//  Wave F: lookbooks from HIS closet — saved outfits, not a CMS grid and
-//  not a retailer feed. Unlock number lives on the paste-a-link door (D);
-//  this page only shows looks he already has.
+//  ADR 0017: his lookbooks, other men's worn public looks, and an Unlocks
+//  rail from product_candidates that fill HIS gaps. Home stays private.
+//  Ranking is last_checked_at — never sponsored sort (P6-SHOP-09).
 //
 
 import Foundation
@@ -13,9 +13,19 @@ import Observation
 @MainActor
 @Observable
 public final class DiscoverViewModel {
+    public struct Catalog: Sendable {
+        public var mine: [Outfit]
+        public var wornByOthers: [Outfit]
+        public var unlocks: [ProductCandidate]
+
+        public var isEmpty: Bool {
+            mine.isEmpty && wornByOthers.isEmpty && unlocks.isEmpty
+        }
+    }
+
     public enum ViewState: Sendable {
         case loading
-        case loaded([Outfit])
+        case loaded(Catalog)
         case empty
         case failed(AstraError)
     }
@@ -23,9 +33,14 @@ public final class DiscoverViewModel {
     public private(set) var state: ViewState = .loading
 
     private let outfitRepository: OutfitRepository
+    private let shoppingRepository: ShoppingRepository
 
-    public init(outfitRepository: OutfitRepository) {
+    public init(
+        outfitRepository: OutfitRepository,
+        shoppingRepository: ShoppingRepository
+    ) {
         self.outfitRepository = outfitRepository
+        self.shoppingRepository = shoppingRepository
     }
 
     public func onAppear() async {
@@ -39,8 +54,15 @@ public final class DiscoverViewModel {
 
     private func load() async {
         do {
-            let looks = try await outfitRepository.fetchOutfits().filter { !$0.isArchived }
-            state = looks.isEmpty ? .empty : .loaded(looks)
+            async let mineTask = outfitRepository.fetchOutfits()
+            async let publicTask = outfitRepository.fetchPublicWornLooks()
+            async let unlocksTask = shoppingRepository.fetchCuratedProducts(category: nil)
+
+            let mine = try await mineTask.filter { !$0.isArchived }
+            let wornByOthers = (try? await publicTask) ?? []
+            let unlocks = (try? await unlocksTask) ?? []
+            let catalog = Catalog(mine: mine, wornByOthers: wornByOthers, unlocks: unlocks)
+            state = catalog.isEmpty ? .empty : .loaded(catalog)
         } catch let error as AstraError {
             state = .failed(error)
         } catch {

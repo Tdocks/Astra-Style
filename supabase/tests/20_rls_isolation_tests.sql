@@ -830,6 +830,61 @@ end
 $$;
 
 -- ============================================================================
+-- SECTION 8b — public worn lookbooks (ADR 0017)
+-- ============================================================================
+do $$
+declare
+  v_can_see boolean;
+  v_blocked boolean;
+  v_detail text;
+begin
+  raise notice '--- public worn lookbooks ---';
+
+  -- Superuser: B opts in after a wear (fixture already has outfit_wears.b).
+  update outfits
+  set visibility = 'public'
+  where id = pg_temp.fx('outfits.b');
+
+  execute 'set role authenticated';
+  perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_a(), 'role', 'authenticated')::text, false);
+
+  select exists(select 1 from outfits where id = pg_temp.fx('outfits.b')) into v_can_see;
+  perform pg_temp.record_result('outfits_public', 'A can SELECT B''s public worn look', v_can_see, null);
+
+  select exists(select 1 from outfits where id = pg_temp.fx('outfits.a') and visibility = 'private') into v_can_see;
+  perform pg_temp.record_result('outfits_public', 'A can still SELECT own private look', v_can_see, null);
+
+  begin
+    update outfits set visibility = 'private' where id = pg_temp.fx('outfits.b');
+    v_blocked := not found;
+    v_detail := null;
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('outfits_public', 'A cannot UPDATE B''s public look', v_blocked, v_detail);
+
+  begin
+    insert into lookbook_reports (reporter_id, outfit_id)
+    values (pg_temp.user_a(), pg_temp.fx('outfits.b'));
+    v_blocked := false;
+    v_detail := null;
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('lookbook_reports', 'A can report B''s public look', not v_blocked, v_detail);
+
+  execute 'reset role';
+  perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_b(), 'role', 'authenticated')::text, false);
+  execute 'set role authenticated';
+  select exists(select 1 from outfits where id = pg_temp.fx('outfits.a')) into v_can_see;
+  perform pg_temp.record_result('outfits_public', 'B cannot SELECT A''s still-private look', not v_can_see, null);
+  execute 'reset role';
+end
+$$;
+
+-- ============================================================================
 -- SECTION 9 — Summary. Non-zero exit (via RAISE EXCEPTION) if anything failed.
 -- ============================================================================
 

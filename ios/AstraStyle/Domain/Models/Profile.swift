@@ -17,6 +17,8 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
     public var theme: ThemePreference
     public var onboardingCompletedAt: Date?
     public var subscriptionTier: SubscriptionTier
+    public var referralCode: String?
+    public var referredBy: UUID?
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -30,6 +32,8 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         theme: ThemePreference = .dark,
         onboardingCompletedAt: Date? = nil,
         subscriptionTier: SubscriptionTier = .free,
+        referralCode: String? = nil,
+        referredBy: UUID? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -42,6 +46,8 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         self.theme = theme
         self.onboardingCompletedAt = onboardingCompletedAt
         self.subscriptionTier = subscriptionTier
+        self.referralCode = referralCode
+        self.referredBy = referredBy
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -56,6 +62,8 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         case theme
         case onboardingCompletedAt = "onboarding_completed_at"
         case subscriptionTier = "subscription_tier"
+        case referralCode = "referral_code"
+        case referredBy = "referred_by"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
