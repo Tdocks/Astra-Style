@@ -40,6 +40,13 @@ struct PackingTripView: View {
                     )
                     .tint(AstraColor.accentChampagne)
 
+                    AstraTextField(
+                        String(localized: "What's the trip for", comment: "Optional packing activities"),
+                        text: $viewModel.tripFor,
+                        placeholder: String(localized: "Dinner, board meeting…", comment: "Packing trip purpose placeholder")
+                    )
+                    .accessibilityIdentifier("packing.tripFor")
+
                     Toggle(
                         String(localized: "Laundry where you're going", comment: "Packing laundry access"),
                         isOn: $viewModel.hasLaundryAccess
@@ -91,7 +98,7 @@ struct PackingTripView: View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             Text(String(localized: "Daily looks", comment: "Packing plan days"))
                 .astraText(.headline)
-            ForEach(plan.dailyOutfitPlan, id: \.outfitID) { day in
+            ForEach(plan.dailyOutfitPlan, id: \.dayKey) { day in
                 HStack {
                     Text(day.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                         .astraText(.callout)
@@ -104,9 +111,21 @@ struct PackingTripView: View {
                     }
                 }
             }
-            Text(String(localized: "\(plan.packingListItemIDs.count) pieces in the bag", comment: "Packing list count"))
-                .astraText(.callout)
-                .foregroundStyle(AstraColor.textSecondary)
+
+            Text(String(localized: "In the bag", comment: "Named packing list"))
+                .astraText(.headline)
+            if viewModel.bagGarmentNames.isEmpty {
+                Text(String(localized: "\(plan.packingListItemIDs.count) pieces in the bag", comment: "Packing list count fallback"))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+            } else {
+                ForEach(Array(viewModel.bagGarmentNames.enumerated()), id: \.offset) { _, name in
+                    Text(name)
+                        .astraText(.callout)
+                        .foregroundStyle(AstraColor.textPrimary)
+                }
+            }
+
             ForEach(plan.missingEssentials, id: \.self) { line in
                 Text(line)
                     .astraText(.callout)
@@ -128,37 +147,59 @@ final class PackingTripViewModel {
     var destination = ""
     var startDate = Date.now
     var endDate = Calendar.current.date(byAdding: .day, value: 3, to: Date.now) ?? Date.now
+    var tripFor = ""
     var hasLaundryAccess = false
     var luggage: LuggageConstraint = .carryOnOnly
     private(set) var isGenerating = false
     private(set) var plan: PackingPlan?
+    private(set) var bagGarmentNames: [String] = []
     private(set) var error: AstraError?
 
     private let outfitRepository: OutfitRepository
+    private let closetRepository: ClosetRepository
 
-    init(outfitRepository: OutfitRepository) {
+    init(outfitRepository: OutfitRepository, closetRepository: ClosetRepository) {
         self.outfitRepository = outfitRepository
+        self.closetRepository = closetRepository
     }
 
     func generate() async {
         isGenerating = true
         error = nil
         defer { isGenerating = false }
+        let purpose = tripFor.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            plan = try await outfitRepository.generatePackingPlan(
+            let generated = try await outfitRepository.generatePackingPlan(
                 PackingRequest(
                     destination: destination.trimmingCharacters(in: .whitespacesAndNewlines),
                     startDate: startDate,
                     endDate: max(startDate, endDate),
+                    activities: purpose.isEmpty ? [] : [purpose],
                     luggageConstraint: luggage,
                     hasLaundryAccess: hasLaundryAccess,
                     regenerate: true
                 )
             )
+            plan = generated
+            bagGarmentNames = await resolveGarmentNames(generated.packingListItemIDs)
         } catch let err as AstraError {
             error = err
         } catch {
             self.error = AstraError(category: .unknown, message: error.localizedDescription)
+        }
+    }
+
+    private func resolveGarmentNames(_ ids: [UUID]) async -> [String] {
+        guard !ids.isEmpty else { return [] }
+        do {
+            let items = try await closetRepository.fetchItems()
+            let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+            return ids.compactMap { id in
+                let name = byID[id]?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return name.isEmpty ? nil : name
+            }
+        } catch {
+            return []
         }
     }
 }

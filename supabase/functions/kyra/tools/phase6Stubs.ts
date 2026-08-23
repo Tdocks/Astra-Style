@@ -1,22 +1,23 @@
 // ============================================================================
 // kyra/tools/phase6Stubs.ts
 // ============================================================================
-// Stub interfaces for the four Phase-6+ tools (P5-KYRA-11): analyze_product,
-// search_products, generate_studio_preview, create_packing_list. They exist
-// so the tool-calling surface is complete NOW — the model can be told about
-// all eleven tools and gracefully decline the four it cannot yet deliver —
+// Stub interfaces for the remaining Phase-6+ tools (P5-KYRA-11):
+// analyze_product, search_products, generate_studio_preview. They exist so
+// the tool-calling surface is complete NOW — the model can be told about
+// all eleven tools and gracefully decline the three it cannot yet deliver —
 // and so the parameter schemas the real implementations will use are pinned
 // today (P5-KYRA-11's second acceptance criterion: no breaking change when
 // Waves 5-6 replace the executors).
 //
+// `create_packing_list` is no longer a stub: see createPackingList.ts.
+//
 // A STUB MUST ANNOUNCE ITSELF IN ITS RETURN VALUE, not just in a comment.
 // Every executor below returns `available: false` + `error: "NOT_BUILT"` +
 // a plain-language `detail` the model can relay in Kyra's voice. None of
-// them returns a fabricated verdict, product list, generation id, or packing
-// list — a made-up "skip" verdict from a stub would be indistinguishable
-// from a real one downstream, which is exactly the failure this codebase
-// refuses. The parameter schemas are copied verbatim from docs/06 §3.4,
-// §3.5, §3.8 and §3.11.
+// them returns a fabricated verdict, product list, or generation id — a
+// made-up "skip" verdict from a stub would be indistinguishable from a
+// real one downstream, which is exactly the failure this codebase refuses.
+// The parameter schemas are copied verbatim from docs/06 §3.4, §3.5, §3.8.
 // ============================================================================
 
 import type { StylistToolDefinition } from "../../_shared/providers/stylistReasoning.ts";
@@ -92,30 +93,7 @@ export const generateStudioPreviewDefinition: StylistToolDefinition = {
   },
 };
 
-export const createPackingListDefinition: StylistToolDefinition = {
-  name: "create_packing_list",
-  description: "Generate and persist a packing list and daily outfit plan for a trip. NOT YET " +
-    "AVAILABLE — returns a not-built result; do not improvise a persisted packing list.",
-  parametersSchema: {
-    type: "object",
-    properties: {
-      destination: { type: "string" },
-      start_date: { type: "string", format: "date" },
-      end_date: { type: "string", format: "date" },
-      activities: { type: "array", items: { type: "string" } },
-      dress_codes: { type: "array", items: { type: "string" } },
-      laundry_access: { type: "boolean", default: false },
-      luggage_constraint: {
-        type: "string",
-        enum: ["carry_on", "checked", "none"],
-        default: "none",
-      },
-    },
-    required: ["destination", "start_date", "end_date"],
-  },
-};
-
-/** Executor for all four stubs; dispatched by tool name from the registry. */
+/** Executor for the remaining stubs; dispatched by tool name from the registry. */
 export function executePhase6Stub(toolName: string): Record<string, unknown> {
   switch (toolName) {
     case "analyze_product":
@@ -137,15 +115,8 @@ export function executePhase6Stub(toolName: string): Record<string, unknown> {
         "Style Studio previews aren't available yet. Say so plainly; never imply an image " +
           "is being generated.",
       );
-    case "create_packing_list":
-      return stubResult(
-        toolName,
-        "The packing assistant isn't built yet. You may still reason about what to pack " +
-          "conversationally from the closet you can see — but no persisted packing list " +
-          "exists, so do not claim one was created.",
-      );
     default:
-      // A registry bug, not a model error: only the four names above route here.
+      // A registry bug, not a model error: only the three names above route here.
       return stubResult(toolName, "Unknown stubbed tool.");
   }
 }
@@ -154,5 +125,4 @@ export const PHASE6_STUB_DEFINITIONS: readonly StylistToolDefinition[] = [
   analyzeProductDefinition,
   searchProductsDefinition,
   generateStudioPreviewDefinition,
-  createPackingListDefinition,
 ];

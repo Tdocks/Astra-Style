@@ -95,6 +95,8 @@ import {
   parseKyraRespondBody,
   parseKyraStructuredResponse,
 } from "./schema.ts";
+import { CompatibilityOutfitScorer } from "../_shared/scoring/compatibilityScorer.ts";
+import type { PackingRepository } from "../packing/plan.ts";
 import { applyGuardrails } from "./guardrails.ts";
 import { buildToolRegistry, type ToolExecution, type ToolRegistry } from "./tools/registry.ts";
 import type { SearchClosetRow } from "./tools/searchCloset.ts";
@@ -171,6 +173,7 @@ export interface KyraStore {
   ): Promise<string>;
   updateMemoryConfidence(memoryId: string, confidence: number): Promise<void>;
   deleteMemory(memoryId: string): Promise<void>;
+  packing: PackingRepository;
 }
 
 export interface KyraConfig {
@@ -949,6 +952,11 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         findWearOnDate: (outfitId, date) => deps.store.findWearOnDate(outfitId, date),
         insertWear: (record) => deps.store.insertWear(userId, record),
         readWearCounts: (ids) => deps.store.readWearCounts(ids),
+      },
+      createPackingList: {
+        userId,
+        repository: deps.store.packing,
+        scorerForDay: (targetOccasion) => new CompatibilityOutfitScorer({ targetOccasion }),
       },
     });
 

@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-22 (GO: week-strip + packing from calendar; Wear This ungated); 2026-08-22 (leftover growth: share moments, one-guy referral, Kyra/Studio paywalls, Discover public worn looks + Unlocks; Wear This ungated); 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
+**Last audited:** 2026-08-22 (P7-HOME-04 closed: Kyra `create_packing_list` + named packing list; Wear This ungated); 2026-08-22 (GO: week-strip + packing from calendar; Wear This ungated); 2026-08-22 (leftover growth: share moments, one-guy referral, Kyra/Studio paywalls, Discover public worn looks + Unlocks; Wear This ungated); 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -45,8 +45,8 @@ lands data layers, protocols, and models long before the screens that use them.
 | 4 — Outfit intelligence | 26 | 16 | 7 | 3 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 9 | 12 | 4 |
-| 7 — Monetization and hardening | 36 | 0 | 14 | 22 |
-| **Total** | **179** | **65** | **62** | **50** |
+| 7 — Monetization and hardening | 36 | 1 | 13 | 22 |
+| **Total** | **179** | **66** | **61** | **50** |
 
 Read that table carefully before drawing a conclusion from it. 57 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -355,7 +355,7 @@ design, not evidence of build.
 
 # PHASE 7 — MONETIZATION AND HARDENING
 
-**0 Done · 14 Partial · 22 Not started.** Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. App Store Server Notifications and published legal links are still out.
+**1 Done · 13 Partial · 22 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. App Store Server Notifications and published legal links are still out.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -380,7 +380,7 @@ design, not evidence of build.
 | P7-HOME-01 | Not started | No `UNUserNotificationCenter` or scheduling code. |
 | P7-HOME-02 | Not started | No permission-timing audit; depends on P7-HOME-01 / P5-KYRA-16. |
 | P7-HOME-03 | Not started | Only the Home teaser stub exists, documented as pointing at a Phase 7 review that isn't built. |
-| P7-HOME-04 | Partial | `supabase/functions/packing/` (same `CompatibilityOutfitScorer` as daily-brief, max 14 days, laundry-aware, occasion titles the look) plus `Features/Home/Views/PackingTripView.swift` and Home's week strip. **Deployed** 2026-08-22 to `anutsdzbxycaavmmkewo` with `verify_jwt: true`. Kyra's `create_packing_list` tool remains the Phase 5 `NOT_BUILT` stub. |
+| P7-HOME-04 | Done | Same `buildPlan` in `supabase/functions/packing/plan.ts` serves `POST /packing/generate` and Kyra `create_packing_list` (`kyra/tools/createPackingList.ts`). Pinned luggage enum `carry_on`/`checked`/`none` maps to packing's internal names; the stub is gone from `phase6Stubs.ts`. Packing UI lists garment names via `ClosetRepository.fetchItems` and keys days by date (`PackingDayPlan.dayKey`) so rewear cannot crash `ForEach`. Home week strip draws `occasionHeadline` under the look name. Tests: `packing/handler_test.ts`, `kyra/tools/createPackingList_test.ts`, `HomeWeekStripTests.swift`. **Deployed** packing + kyra to `anutsdzbxycaavmmkewo`. Wear This stays ungated. |
 | P7-HOME-05 | Not started | `Features/Profile/` has only the guest stub — no real profile or stats screen. |
 | P7-INFRA-01 | Partial | `_shared/rateLimit.ts` is reusable and applied to `outfits` (20/min), `subscriptions` (20/min), and `packing` (10/min), surfaced as `AstraError.rateLimited`. Kyra/Studio/products have their own limiters; `app-store` is not built. |
 | P7-INFRA-02 | Not started | No performance measurements against §20 targets. |

@@ -5,6 +5,7 @@ import type {
 } from "../_shared/providers/stylistReasoning.ts";
 import { ProviderError } from "../_shared/providers/types.ts";
 import { handleKyraRespond, type HandlerDeps, type KyraStore } from "./handler.ts";
+import type { PackingRepository } from "../packing/plan.ts";
 
 const USER = "aaaaaaaa-0000-4000-8000-000000000001";
 const THREAD = "bbbbbbbb-0000-4000-8000-000000000001";
@@ -106,7 +107,27 @@ function fakeStore(
     },
     updateMemoryConfidence: () => Promise.resolve(),
     deleteMemory: () => Promise.resolve(),
+    packing: emptyPackingRepository(),
     ...overrides,
+  };
+}
+
+function emptyPackingRepository(): PackingRepository {
+  return {
+    listCandidateItems: () => Promise.resolve([]),
+    listOccasions: () => Promise.resolve([]),
+    findBriefs: () => Promise.resolve([]),
+    createOutfits: () => Promise.resolve([]),
+    upsertBrief: (input) =>
+      Promise.resolve({
+        id: `brief-${input.briefDate}`,
+        user_id: input.userId,
+        brief_date: input.briefDate,
+        primary_outfit_id: input.primaryOutfitId,
+        alternative_outfit_ids: [...input.alternativeOutfitIds],
+        schedule_snapshot: input.scheduleSnapshot,
+      }),
+    listOutfitItemIds: () => Promise.resolve([]),
   };
 }
 

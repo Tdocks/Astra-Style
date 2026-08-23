@@ -236,7 +236,10 @@ struct MainTabView: View {
             )
         case .packingTrip:
             PackingTripView(
-                viewModel: PackingTripViewModel(outfitRepository: container.outfitRepository)
+                viewModel: PackingTripViewModel(
+                    outfitRepository: container.outfitRepository,
+                    closetRepository: container.closetRepository
+                )
             )
         }
     }

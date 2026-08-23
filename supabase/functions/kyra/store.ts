@@ -39,6 +39,7 @@ import type { KyraStructuredResponse, MemoryType } from "./schema.ts";
 import type { SearchClosetRow } from "./tools/searchCloset.ts";
 import type { NewOutfitRecord } from "./tools/createOutfit.ts";
 import type { ExistingMemoryRow } from "./tools/savePreference.ts";
+import { createPackingRepository } from "../packing/repository.ts";
 
 /** Every column `mapClosetItemRowToScorableItem` reads, plus `id` — kept in
  * lockstep with `outfits/index.ts`'s identical list. */
@@ -568,5 +569,7 @@ export function buildKyraStore(supabase: SupabaseClient): KyraStore {
         throw serverError("Couldn't replace that preference.");
       }
     },
+
+    packing: createPackingRepository(supabase),
   };
 }

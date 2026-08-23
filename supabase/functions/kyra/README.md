@@ -107,8 +107,9 @@ information the Swift shape lacks, it rides along as additive keys Codable ignor
   drop-in upgrade.
 - **docs/09 §2.4–§2.6 routing triggers and the Sol tier.** §2.4 needs analytics events the server
   does not receive; §2.6 gates a Phase-6 tool. The ladder is Luna → Terra, one hop.
-- **Phase-6 tools** (`analyze_product`, `search_products`, `generate_studio_preview`,
-  `create_packing_list`): real input schemas, honest `NOT_BUILT` results (P5-KYRA-11).
+- **Phase-6 tools** (`analyze_product`, `search_products`, `generate_studio_preview`):
+  real input schemas, honest `NOT_BUILT` results (P5-KYRA-11). `create_packing_list` is
+  live and calls the same `buildPlan` as `POST /packing/generate`.
 - **Admin prompt-versions table (§28).** The §2 prompt is hardcoded with a version constant, same
   precedent as `style-dna`.
 

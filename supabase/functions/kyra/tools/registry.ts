@@ -49,6 +49,12 @@ import {
   markItemWornDefinition,
   type MarkItemWornDeps,
 } from "./markItemWorn.ts";
+import {
+  createPackingListDefinition,
+  type CreatePackingListDeps,
+  executeCreatePackingList,
+  parseCreatePackingListArgs,
+} from "./createPackingList.ts";
 import { executePhase6Stub, PHASE6_STUB_DEFINITIONS } from "./phase6Stubs.ts";
 
 export interface ToolRegistryDeps {
@@ -59,6 +65,7 @@ export interface ToolRegistryDeps {
   readonly getSchedule: GetScheduleDeps;
   readonly savePreference: SavePreferenceDeps;
   readonly markItemWorn: MarkItemWornDeps;
+  readonly createPackingList: CreatePackingListDeps;
 }
 
 export interface ToolExecution {
@@ -81,6 +88,7 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
     getScheduleDefinition,
     savePreferenceDefinition,
     markItemWornDefinition,
+    createPackingListDefinition,
     ...PHASE6_STUB_DEFINITIONS,
   ];
 
@@ -104,6 +112,11 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
           return await executeSavePreference(args, deps.savePreference);
         case "mark_item_worn":
           return await executeMarkItemWorn(args, deps.markItemWorn);
+        case "create_packing_list":
+          return await executeCreatePackingList(
+            parseCreatePackingListArgs(args),
+            deps.createPackingList,
+          );
         default:
           if (stubNames.has(name)) {
             return executePhase6Stub(name);

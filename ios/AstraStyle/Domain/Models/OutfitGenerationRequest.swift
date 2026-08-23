@@ -107,6 +107,10 @@ public struct PackingDayPlan: Codable, Hashable, Sendable {
     /// the trip (spec §6.24 "Rewear map").
     public var isRewear: Bool
 
+    /// Calendar day identity for list rows. Two days may rewear the same
+    /// look; `outfitID` is not unique across the plan.
+    public var dayKey: String { DateFormatter.astraDay.string(from: date) }
+
     public init(date: Date, outfitID: UUID, isRewear: Bool) {
         self.date = date
         self.outfitID = outfitID

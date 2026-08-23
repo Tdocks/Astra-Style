@@ -117,7 +117,10 @@ struct HomeWeekStripTests {
     @Test("Pack a trip stores the daily plan from the same generate path")
     @MainActor
     func packingTripGeneratesAPlan() async {
-        let viewModel = PackingTripViewModel(outfitRepository: MockOutfitRepository())
+        let viewModel = PackingTripViewModel(
+            outfitRepository: MockOutfitRepository(),
+            closetRepository: MockClosetRepository()
+        )
         viewModel.destination = "Lisbon"
         viewModel.hasLaundryAccess = true
         await viewModel.generate()
@@ -125,6 +128,25 @@ struct HomeWeekStripTests {
         #expect(viewModel.plan != nil)
         #expect((viewModel.plan?.dailyOutfitPlan.count ?? 0) >= 1)
         #expect(viewModel.error == nil)
+        #expect(!viewModel.bagGarmentNames.isEmpty)
+        let namesAreNotUUIDs = viewModel.bagGarmentNames.allSatisfy { name in
+            UUID(uuidString: name) == nil
+        }
+        #expect(namesAreNotUUIDs)
+    }
+
+    @Test("Daily packing rows are identified by date so rewear does not collide")
+    func packingDaysIdentifyByDateNotOutfit() throws {
+        let outfitID = try #require(UUID(uuidString: "22222222-2222-4222-8222-222222222222"))
+        let day1 = try #require(DateFormatter.astraDay.date(from: "2026-08-24"))
+        let day2 = try #require(DateFormatter.astraDay.date(from: "2026-08-25"))
+        let days = [
+            PackingDayPlan(date: day1, outfitID: outfitID, isRewear: false),
+            PackingDayPlan(date: day2, outfitID: outfitID, isRewear: true),
+        ]
+        let keys = days.map(\.dayKey)
+        #expect(Set(keys).count == keys.count)
+        #expect(Set(days.map(\.outfitID)).count == 1)
     }
 
     @Test("Packing trip modal has a stable identity")

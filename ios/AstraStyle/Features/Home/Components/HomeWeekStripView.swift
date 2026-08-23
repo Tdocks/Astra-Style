@@ -62,6 +62,13 @@ struct HomeWeekStripView: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .top)
+            if let headline = slot.occasionHeadline, !headline.isEmpty {
+                Text(headline)
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+            }
         }
         .padding(.vertical, AstraSpacing.xs)
         .frame(maxWidth: .infinity)
