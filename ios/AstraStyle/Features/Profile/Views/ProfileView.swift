@@ -92,9 +92,7 @@ public struct ProfileView: View {
         .accessibilityLabel(Text("Astra Style \(AstraAppVersion.current.displayLabel)"))
     }
 
-    /// Honest inventory of this binary. Studio and Discover are specified
-    /// and unfinished; naming them here as next — not as tabs — is the
-    /// §22 version of that fact (ADR 0015).
+    /// Honest inventory of this binary (ADR 0015).
     private var whatsLiveCard: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xs) {
             Text(String(localized: "This build", comment: "Profile what's-live section title"))
@@ -103,14 +101,14 @@ public struct ProfileView: View {
             AstraCard {
                 VStack(alignment: .leading, spacing: AstraSpacing.sm) {
                     Text(String(
-                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you, streak), Closet, Scan One Piece, Discover (your lookbooks and worn looks), Shop (curated catalog), Ask Kyra.",
+                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you, streak), Closet, Scan One Piece, Style Studio, Discover (your lookbooks, worn looks, Unlocks), Shop, Ask Kyra.",
                         comment: "Profile what's live"
                     ))
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     Text(String(
-                        localized: "Not live: Style Studio as a tab (Visualize is the door).",
+                        localized: "Not live: Shop the look, Style DNA editor, Wardrobe Score.",
                         comment: "Profile what's next"
                     ))
                     .astraText(.callout)

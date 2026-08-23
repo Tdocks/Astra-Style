@@ -2,8 +2,16 @@
 
 ## Status
 
-Accepted (2026-08-23). **Amends [0014](0014-account-required-no-guest-mode.md)**
-for later waves. Does **not** restore guest code in this change.
+Accepted (2026-08-23). **Amends [0014](0014-account-required-no-guest-mode.md).**
+**Amended again (2026-08-23, Wave 5):** guest trial code is in the tree.
+Welcome `welcome.tryWithoutAccount` calls `signInAnonymously()`. Guest photos
+stay in `GuestLocalImageStore` until Apple/email link, then
+`migrateGuestLocalImages` uploads them. Closet cap is 10 (`GuestLimits`).
+Hosted GoTrue Anonymous is on for `anutsdzbxycaavmmkewo` (empty-body
+`/auth/v1/signup` returns `is_anonymous: true`). Manual identity linking
+(`security_manual_linking_enabled`) is on so Apple/email link can keep the
+same `user_id`. If signup ever returns `anonymous_provider_disabled` again,
+Welcome maps it to an honest sentence instead of a generic retry.
 
 ## Context
 
@@ -20,19 +28,17 @@ profile tables.
 
 ## Decision
 
-1. **0014 stays in force until a later wave lands guest code.** Authentication
-   is still required on Welcome. `P1-AUTH-04` / `P1-AUTH-05` stay
-   **Withdrawn** under 0014 until that wave ships.
-2. **When guest is rebuilt**, it is a new trial path, not a revert of
-   `GuestClosetRepository`. Guest photo bytes still must not reach
-   `user-content` (0011’s Storage rule). Migration must include onboarding
-   profile rows, not only closet items.
-3. **A feature flag over dead guest branches is still forbidden.** Restore
-   is a dedicated wave with tests, not uncommented wrappers.
+1. **Wave 5 restored a trial path.** Welcome offers Apple, email, and
+   “Try without an account.” `P1-AUTH-04` / `P1-AUTH-05` are **Done**.
+2. **This is a new trial path, not a revert of `GuestClosetRepository`.**
+   Guest photo bytes still must not reach `user-content` (0011’s Storage
+   rule) until Apple/email link. Migration includes closet rows (and the
+   same `user_id` for onboarding profile).
+3. **A feature flag over dead guest branches is still forbidden.**
 
 ## Consequences
 
-- Wave 5 of the still-out program is the implementation slice.
-- App Store 5.1.1(v) remains the review question if guest never returns;
-  if it does, the trial path is the answer.
-- Sign in with Apple first on Welcome is unchanged until Wave 5.
+- Wave 5 of the still-out program landed the implementation slice.
+- App Store 5.1.1(v) is answered by the trial path once hosted Anonymous
+  is on; until then, Apple/email remain the working doors.
+- Sign in with Apple stays first on Welcome; guest is the third CTA.

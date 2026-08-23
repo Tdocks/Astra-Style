@@ -360,8 +360,8 @@ design, not evidence of build.
 | P7-SUB-05 | Partial | `PaywallView` from `PaywallContext`. Localized StoreKit prices when offerings load. Legal links shown; `AstraLegal.isPublished` is true. |
 | P7-SUB-06 | Partial | `ios/Config/AstraStyle.storekit` checked in and wired on the AstraStyle scheme. Restore calls `AppStore.sync` then `syncTransaction`. |
 | P7-SUB-07 | Partial | Purchase and restore call `LiveSubscriptionRepository.syncTransaction`. Entitlement is the server row, not local StoreKit. |
-| P7-PRIVACY-01 | Partial | **The most misleadingly advanced ticket in the repo.** `account_deletions`, `request_account_deletion()`, `finalize_account_deletion()`, the cascade chain and RLS are production-grade and were hardened today — but **no `DELETE /account` Edge Function exists**, so no deletion can actually happen. |
-| P7-PRIVACY-02 | Not started | No deletion UI. |
+| P7-PRIVACY-01 | Done | `DELETE /account` is `supabase/functions/account/` (`handleDeleteAccount` → `request_account_deletion` → Storage sweep → `finalize_account_deletion` → `auth.admin.deleteUser`). iOS `LiveAuthRepository.deleteAccount` hits `AstraEndpoint.deleteAccount` (slug `account`). Hosted slug `account` is ACTIVE on `anutsdzbxycaavmmkewo`. |
+| P7-PRIVACY-02 | Done | `PrivacyAndDataView` + `AccountDeletionView` / `AccountDeletionViewModel`. Row `privacyAndData.deleteAccountRow` is not a single-tap chevron. Tests: `AccountDeletionViewModelTests`. |
 | P7-PRIVACY-03 | Not started | No export feature. |
 | P7-PRIVACY-04 | Not started | No per-image deletion UI (depends on unbuilt P6-STUDIO-11). |
 | P7-PRIVACY-05 | Partial | Four documents live on astra-style.com; `AstraLegal.isPublished` is true; in-app URLs match. Counsel `[[NEEDS INPUT]]` placeholders remain — do not invent entity names. |

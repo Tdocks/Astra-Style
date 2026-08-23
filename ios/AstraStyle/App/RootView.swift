@@ -351,6 +351,8 @@ private struct SignedOutGateView: View {
         do {
             _ = try await container.authRepository.signInAnonymously()
             router.routeState = AppRouter.postAuthenticationRoute
+        } catch let error as AstraError {
+            authError = error.message
         } catch {
             authError = error.localizedDescription
         }

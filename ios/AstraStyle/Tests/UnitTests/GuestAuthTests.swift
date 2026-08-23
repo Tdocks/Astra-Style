@@ -19,6 +19,28 @@ struct GuestAuthTests {
         #expect(FreeTierLimits.maxClosetItems == 30)
     }
 
+    @Test("Disabled anonymous provider maps to an honest Welcome sentence")
+    func mapsAnonymousProviderDisabled() {
+        let err = NSError(
+            domain: "auth",
+            code: 422,
+            userInfo: [NSLocalizedDescriptionKey: "Anonymous sign-ins are disabled (anonymous_provider_disabled)"]
+        )
+        let mapped = LiveAuthRepository.anonymousSignInError(from: err)
+        #expect(mapped.message.contains("Guest trial isn't turned on"))
+    }
+
+    @Test("Other anonymous failures stay generic")
+    func mapsGenericAnonymousFailure() {
+        let err = NSError(
+            domain: "auth",
+            code: 500,
+            userInfo: [NSLocalizedDescriptionKey: "network down"]
+        )
+        let mapped = LiveAuthRepository.anonymousSignInError(from: err)
+        #expect(mapped.message.contains("Couldn't start a trial"))
+    }
+
     @Test("Linking Apple keeps the anonymous user id")
     func linkKeepsUserID() async throws {
         let auth = MockAuthRepository(startSignedIn: false)

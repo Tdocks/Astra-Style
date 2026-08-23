@@ -96,8 +96,21 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
             try await sessionStore.adopt(session)
             return session
         } catch {
-            throw AstraError.auth("Couldn't start a trial without an account. Please try again.")
+            throw Self.anonymousSignInError(from: error)
         }
+    }
+
+    /// Hosted GoTrue returns `anonymous_provider_disabled` until Auth →
+    /// Providers → Anonymous is on. Map that to a sentence Apple/email can
+    /// still act on, not a generic retry.
+    static func anonymousSignInError(from error: Error) -> AstraError {
+        let blob = "\(error) \(error.localizedDescription)".lowercased()
+        if blob.contains("anonymous_provider_disabled") || blob.contains("anonymous sign-ins are disabled") {
+            return AstraError.auth(
+                "Guest trial isn't turned on for this server yet. Continue with Apple or email."
+            )
+        }
+        return AstraError.auth("Couldn't start a trial without an account. Please try again.")
     }
 
     public func linkAppleIdentity(identityToken: String, nonce: String) async throws -> AuthSession {
