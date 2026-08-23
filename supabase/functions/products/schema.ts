@@ -4,6 +4,7 @@
 // Request/response schemas for the `products` Edge Function:
 //   POST /products/extract   (P6-SHOP-03)
 //   POST /products/evaluate  (P6-SHOP-04)
+//   POST /products/unlocks   (Discover Unlocks: HIS gap, not a catalog dump)
 //
 // Wire shapes mirror `ios/AstraStyle/Domain/Models/ProductCandidate.swift`
 // and `ProductEvaluation.swift` EXACTLY on every field those two structs
@@ -165,4 +166,19 @@ export interface ProductEvaluationDTO {
   readonly sponsored: boolean;
   readonly unmeasured: readonly string[];
   readonly alternatives: readonly AlternativeProductDTO[];
+}
+
+// ============================================================================
+// POST /products/unlocks
+// ============================================================================
+// Discover's Unlocks rail: products THIS user already evaluated, re-scored
+// against THIS closet. Not the shared catalog ordered by last_checked_at.
+
+export interface ProductUnlockItemDTO {
+  readonly candidate: ProductCandidateDTO;
+  readonly outfits_unlocked: number;
+}
+
+export interface ProductUnlockListDTO {
+  readonly items: readonly ProductUnlockItemDTO[];
 }

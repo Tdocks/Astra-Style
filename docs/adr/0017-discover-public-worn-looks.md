@@ -22,9 +22,11 @@ then make a look public,” not a barren feed.
 
 1. **Home stays private.** No row of strangers on Today’s Outfit.
 2. **Discover may list** (a) his lookbooks, (b) other men’s public worn
-   looks, (c) Unlocks — organic ranking (`last_checked_at`), never
-   sponsored sort (P6-SHOP-09). Chrome stays Home / Closet / Discover /
-   Profile. Studio stays off the bar.
+   looks, (c) Unlocks — products **he already evaluated**, re-scored
+   against **his** closet, ranked by `computeUnlockCount` (gap > 0).
+   Never a `last_checked_at` catalog dump, never sponsored sort
+   (P6-SHOP-09). Chrome stays Home / Closet / Discover / Profile. Studio
+   stays off the bar.
 3. **`outfits.visibility`** defaults to `private`. Public requires a
    wear and an explicit opt-in (outfit detail or post–Wear This on Home).
 4. **Report stub** (`lookbook_reports`) so public looks are not an
@@ -43,3 +45,7 @@ then make a look public,” not a barren feed.
   one look; the seven-day strip sits under Wear This. Packing is
   `POST /packing/generate` over the same scorer, not a second engine.
   Paid image gen, a Shop tab, streaks, guest, and women’s chrome stay out.
+- **Amendment (2026-08-22, Unlocks):** Discover Unlocks is
+  `POST /products/unlocks` — HIS evaluated gaps via `computeUnlockCount`,
+  not `product_candidates` ordered by `last_checked_at`. Zero-unlock rows
+  never appear. Sponsored is a label only.

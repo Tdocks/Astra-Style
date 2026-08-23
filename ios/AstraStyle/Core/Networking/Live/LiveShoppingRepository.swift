@@ -3,10 +3,11 @@
 //  AstraStyle
 //
 //  `product_candidates` reads (curated catalog) go through Postgrest; link
-//  extraction and evaluation are orchestration calls (spec §14
-//  `products/extract`, `products/evaluate`) since they invoke
-//  `ProductExtractionProvider` and the Wardrobe Graph compatibility scorer
-//  server-side (spec §8, §10).
+//  extraction, evaluation, and Discover Unlocks are orchestration calls
+//  (spec §14 `products/extract`, `products/evaluate`, `products/unlocks`)
+//  since they invoke `ProductExtractionProvider` and the Wardrobe Graph
+//  scorer server-side (spec §8, §10). Discover must not call
+//  `fetchCuratedProducts`.
 //
 //  THE FOUR WISHLIST METHODS ARE NOT IMPLEMENTED. They previously issued
 //  Postgrest calls against a `wishlist_items` table that no migration in
@@ -74,6 +75,17 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
             return try await query.order("last_checked_at", ascending: false).execute().value
         } catch {
             throw AstraError.network("Couldn't load recommendations right now.")
+        }
+    }
+
+    public func fetchUnlocks() async throws -> [ProductUnlock] {
+        do {
+            let list = try await apiClient.send(.listProductUnlocks, as: ProductUnlockList.self)
+            return list.items
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.network("Couldn't load what you've already asked about.")
         }
     }
 

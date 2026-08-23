@@ -135,7 +135,7 @@ struct DiscoverView: View {
         }
     }
 
-    private func unlocksRail(_ products: [ProductCandidate]) -> some View {
+    private func unlocksRail(_ products: [ProductUnlock]) -> some View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             Text(String(localized: "Unlocks", comment: "Discover gap-fill product rail"))
                 .astraText(.headline)
@@ -150,27 +150,38 @@ struct DiscoverView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("discover.unlocks.empty")
             } else {
-                ForEach(products) { product in
+                ForEach(products) { item in
                     Button {
-                        router.push(DiscoverRoute.productDecision(candidateID: product.id))
+                        router.push(DiscoverRoute.productDecision(candidateID: item.candidate.id))
                     } label: {
                         AstraCard {
                             VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                                Text(product.name)
+                                Text(item.candidate.name)
                                     .astraText(.headline)
                                     .foregroundStyle(AstraColor.textPrimary)
-                                Text(product.retailer)
+                                Text(item.candidate.retailer)
                                     .astraText(.caption)
                                     .foregroundStyle(AstraColor.textMuted)
+                                Text(unlockLine(item.outfitsUnlocked))
+                                    .astraText(.callout)
+                                    .foregroundStyle(AstraColor.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("discover.unlocks.\(product.id.uuidString)")
+                    .accessibilityIdentifier("discover.unlocks.\(item.candidate.id.uuidString)")
                 }
             }
         }
+    }
+
+    private func unlockLine(_ count: Int) -> String {
+        String(
+            localized: "Unlocks \(count) new outfits with what you own.",
+            comment: "Discover Unlocks outfits-unlocked line"
+        )
     }
 
     private func failed(_ error: AstraError) -> some View {

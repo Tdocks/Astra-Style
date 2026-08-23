@@ -10,6 +10,7 @@ import Foundation
 
 public actor MockShoppingRepository: ShoppingRepository {
     private var catalog: [ProductCandidate]
+    private var unlocks: [ProductUnlock]
     private var wishlist: Set<UUID> = []
     private var purchased: Set<UUID> = []
     private var evaluationOverride: ProductEvaluation?
@@ -53,6 +54,13 @@ public actor MockShoppingRepository: ShoppingRepository {
                 lastCheckedAt: .now
             )
         ]
+        unlocks = zip(catalog, [9, 4, 1]).map { candidate, count in
+            ProductUnlock(candidate: candidate, outfitsUnlocked: count)
+        }
+    }
+
+    public func seedUnlocks(_ items: [ProductUnlock]) {
+        unlocks = items
     }
 
     public func setEvaluationOverride(_ evaluation: ProductEvaluation?) {
@@ -114,6 +122,10 @@ public actor MockShoppingRepository: ShoppingRepository {
     public func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] {
         guard let category else { return catalog }
         return catalog.filter { $0.category == category }
+    }
+
+    public func fetchUnlocks() async throws -> [ProductUnlock] {
+        unlocks
     }
 
     public func fetchWishlist() async throws -> [ProductCandidate] {

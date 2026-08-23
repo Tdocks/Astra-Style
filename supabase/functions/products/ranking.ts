@@ -23,10 +23,8 @@
 // higher-scoring organic one.
 //
 // WHERE THIS IS CALLED FROM. `products/handler.ts`'s evaluate flow uses
-// this to rank the small set of same-category alternatives it surfaces
-// alongside the primary verdict (spec §5.5 step 3's "alternatives") — see
-// that file for the real, load-bearing caller. This is not a
-// speculative utility awaiting a future endpoint.
+// `rankProductCandidates` for same-category alternatives (spec §5.5 step 3).
+// Discover Unlocks uses `rankByUnlockCount` — HIS gap, never a catalog dump.
 // ============================================================================
 
 export interface RankableCandidate {
@@ -58,4 +56,23 @@ export function rankProductCandidates(
   return [...candidates]
     .sort((a, b) => b.organicScore - a.organicScore)
     .map((candidate, index) => ({ ...candidate, rank: index + 1 }));
+}
+
+/**
+ * Discover Unlocks: sort by HIS gap (unlock count), never by `sponsored`.
+ * Zeros are not a gap — they do not belong on the rail. Ties keep input
+ * order (stable sort), same sponsored-is-not-a-tiebreaker rule as above.
+ */
+export interface UnlockRankable {
+  readonly id: string;
+  readonly unlockCount: number;
+  readonly sponsored: boolean;
+}
+
+export function rankByUnlockCount(
+  items: readonly UnlockRankable[],
+): readonly UnlockRankable[] {
+  return items
+    .filter((item) => item.unlockCount > 0)
+    .sort((a, b) => b.unlockCount - a.unlockCount);
 }

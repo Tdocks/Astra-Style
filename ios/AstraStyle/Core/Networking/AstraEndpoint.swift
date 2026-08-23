@@ -24,6 +24,8 @@ public enum AstraEndpoint: Sendable, Equatable {
     case kyraRespond
     case extractProduct
     case evaluateProduct
+    /// Discover Unlocks: HIS evaluated gaps, not a catalog dump.
+    case listProductUnlocks
     case generateStudio
     case studioStatus(id: UUID)
     case generatePacking
@@ -58,6 +60,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .kyraRespond: "kyra/respond"
         case .extractProduct: "products/extract"
         case .evaluateProduct: "products/evaluate"
+        case .listProductUnlocks: "products/unlocks"
         case .generateStudio: "studio/generate"
         case .studioStatus(let id): "studio/status/\(id.uuidString)"
         case .generatePacking: "packing/generate"

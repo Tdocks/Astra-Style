@@ -2,9 +2,9 @@
 //  DiscoverViewModel.swift
 //  AstraStyle
 //
-//  ADR 0017: his lookbooks, other men's worn public looks, and an Unlocks
-//  rail from product_candidates that fill HIS gaps. Home stays private.
-//  Ranking is last_checked_at — never sponsored sort (P6-SHOP-09).
+//  ADR 0017: his lookbooks, other men's worn public looks, and Unlocks
+//  ranked by HIS computeUnlockCount — never last_checked_at, never
+//  sponsored sort (P6-SHOP-09). Home stays private.
 //
 
 import Foundation
@@ -16,7 +16,7 @@ public final class DiscoverViewModel {
     public struct Catalog: Sendable {
         public var mine: [Outfit]
         public var wornByOthers: [Outfit]
-        public var unlocks: [ProductCandidate]
+        public var unlocks: [ProductUnlock]
 
         public var isEmpty: Bool {
             mine.isEmpty && wornByOthers.isEmpty && unlocks.isEmpty
@@ -56,11 +56,11 @@ public final class DiscoverViewModel {
         do {
             async let mineTask = outfitRepository.fetchOutfits()
             async let publicTask = outfitRepository.fetchPublicWornLooks()
-            async let unlocksTask = shoppingRepository.fetchCuratedProducts(category: nil)
+            async let unlocksTask = shoppingRepository.fetchUnlocks()
 
             let mine = try await mineTask.filter { !$0.isArchived }
             let wornByOthers = (try? await publicTask) ?? []
-            let unlocks = (try? await unlocksTask) ?? []
+            let unlocks = rankedGapUnlocks((try? await unlocksTask) ?? [])
             let catalog = Catalog(mine: mine, wornByOthers: wornByOthers, unlocks: unlocks)
             state = catalog.isEmpty ? .empty : .loaded(catalog)
         } catch let error as AstraError {
@@ -68,5 +68,20 @@ public final class DiscoverViewModel {
         } catch {
             state = .failed(AstraError(category: .unknown, message: error.localizedDescription))
         }
+    }
+
+    /// Gap > 0 only. Sort by unlock count descending. Ties keep input order.
+    /// `sponsored` / affiliate is never a sort key (P6-SHOP-09).
+    private func rankedGapUnlocks(_ items: [ProductUnlock]) -> [ProductUnlock] {
+        items
+            .enumerated()
+            .filter { $0.element.outfitsUnlocked > 0 }
+            .sorted { lhs, rhs in
+                if lhs.element.outfitsUnlocked != rhs.element.outfitsUnlocked {
+                    return lhs.element.outfitsUnlocked > rhs.element.outfitsUnlocked
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 }

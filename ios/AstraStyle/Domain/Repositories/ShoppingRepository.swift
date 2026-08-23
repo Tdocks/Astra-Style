@@ -4,8 +4,9 @@
 //
 //  Owns `product_candidates` / `user_product_evaluations` (spec §9) and the
 //  shopping-decision flow (spec §5.5, §6.18, §6.19, §14 `products/extract`
-//  + `products/evaluate`). Also serves the curated catalog for Discover's
-//  "Shop the look" surfaces (spec §17 "Product ingestion").
+//  + `products/evaluate` + `products/unlocks`). `fetchUnlocks` is Discover's
+//  gap rail. `fetchCuratedProducts` remains a raw catalog read for anything
+//  that still needs one — Discover must not use it.
 //
 
 import Foundation
@@ -24,6 +25,10 @@ public protocol ShoppingRepository: Sendable {
     func fetchProductCandidate(id: UUID) async throws -> ProductCandidate
 
     func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate]
+
+    /// Products this user already evaluated, re-scored against this closet,
+    /// with `outfitsUnlocked > 0`, ranked by that count. Discover Unlocks.
+    func fetchUnlocks() async throws -> [ProductUnlock]
 
     func fetchWishlist() async throws -> [ProductCandidate]
     func addToWishlist(candidateID: UUID) async throws

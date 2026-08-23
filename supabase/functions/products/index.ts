@@ -1,9 +1,10 @@
 // ============================================================================
 // products/index.ts
 // ============================================================================
-// Composition root for `POST /products/extract` (P6-SHOP-03) and
-// `POST /products/evaluate` (P6-SHOP-04), routed by first-path-segment per
-// ADR 0013 exactly as every other deployed function is.
+// Composition root for `POST /products/extract` (P6-SHOP-03),
+// `POST /products/evaluate` (P6-SHOP-04), and `POST /products/unlocks`
+// (Discover Unlocks: HIS evaluated gaps, not a catalog dump), routed by
+// first-path-segment per ADR 0013 exactly as every other deployed function is.
 //
 // WHY THE HTTP EDGE LIVES HERE RATHER THAN IN `handler.ts`.
 // `outfits/handler.ts` takes a `Request` and returns a `Response`; this
@@ -42,8 +43,10 @@ import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts
 import {
   handleEvaluateProduct,
   handleExtractProduct,
+  handleListUnlocks,
   type OwnedGarment,
   type ProductsDependencies,
+  UNLOCKS_CANDIDATE_CAP,
 } from "./handler.ts";
 import type { ProductCandidateRow } from "./candidateMapper.ts";
 import type { LifestyleInputs } from "./evaluation.ts";
@@ -200,6 +203,42 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
       if (error || !data) throw serverError("Couldn't save that verdict.");
       return data as { created_at: string };
     },
+
+    async fetchLatestEvaluatedCandidates(userID, limit) {
+      void userID;
+      const { data, error } = await supabase
+        .from("user_product_evaluations")
+        .select("product_candidate_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(Math.max(limit, UNLOCKS_CANDIDATE_CAP) * 4);
+      if (error) {
+        throw serverError("Couldn't load products you've already asked about.");
+      }
+      const seen = new Set<string>();
+      const ids: string[] = [];
+      for (const row of data ?? []) {
+        const id = (row as { product_candidate_id: string }).product_candidate_id;
+        if (typeof id !== "string" || seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+        if (ids.length >= limit) break;
+      }
+      if (ids.length === 0) return [];
+      const { data: candidates, error: candidatesError } = await supabase
+        .from("product_candidates")
+        .select(CANDIDATE_COLUMNS)
+        .in("id", ids);
+      if (candidatesError) {
+        throw serverError("Couldn't load those products.");
+      }
+      const byId = new Map(
+        ((candidates ?? []) as ProductCandidateRow[]).map((row) => [row.id, row]),
+      );
+      return ids.flatMap((id) => {
+        const row = byId.get(id);
+        return row ? [row] : [];
+      });
+    },
   };
 }
 
@@ -262,7 +301,16 @@ function evaluateRoute(req: Request): Promise<Response> {
   });
 }
 
+function unlocksRoute(req: Request): Promise<Response> {
+  return respond(req, (_body, userID, requestID) => {
+    const authorizationHeader = req.headers.get("Authorization") ??
+      req.headers.get("authorization") ?? "";
+    return handleListUnlocks(userID, buildDependencies(authorizationHeader, requestID));
+  });
+}
+
 Deno.serve(createRouter("products", [
   { method: "POST", pattern: "/extract", handler: extractRoute },
   { method: "POST", pattern: "/evaluate", handler: evaluateRoute },
+  { method: "POST", pattern: "/unlocks", handler: unlocksRoute },
 ]));

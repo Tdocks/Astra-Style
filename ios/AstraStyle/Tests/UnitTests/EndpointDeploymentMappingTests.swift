@@ -68,6 +68,7 @@ struct EndpointDeploymentMappingTests {
         .kyraRespond,
         .extractProduct,
         .evaluateProduct,
+        .listProductUnlocks,
         .generateStudio,
         .studioStatus(id: UUID()),
         .generatePacking,
@@ -84,7 +85,7 @@ struct EndpointDeploymentMappingTests {
         case .completeOnboarding, .generateStyleDNA, .analyzeClosetItem,
              .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
-             .evaluateProduct, .generateStudio, .studioStatus,
+             .evaluateProduct, .listProductUnlocks, .generateStudio, .studioStatus,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,
              .deleteAccount:
             break

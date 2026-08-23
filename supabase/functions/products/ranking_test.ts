@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { rankProductCandidates } from "./ranking.ts";
+import { rankByUnlockCount, rankProductCandidates } from "./ranking.ts";
 
 // ─── The P6-SHOP-09 guardrail test ───────────────────────────────────────
 // "A non-affiliate identical/higher-scoring alternative is still surfaced
@@ -64,4 +64,22 @@ Deno.test("rankProductCandidates: every entry carries its sponsored label throug
 
 Deno.test("rankProductCandidates: empty input returns empty output", () => {
   assertEquals(rankProductCandidates([]), []);
+});
+
+Deno.test("rankByUnlockCount: higher unlock count ranks first; zeros are omitted", () => {
+  const ranked = rankByUnlockCount([
+    { id: "zero", unlockCount: 0, sponsored: false },
+    { id: "few", unlockCount: 2, sponsored: false },
+    { id: "many", unlockCount: 8, sponsored: true },
+  ]);
+  assertEquals(ranked.map((item) => item.id), ["many", "few"]);
+});
+
+Deno.test("rankByUnlockCount: sponsored cannot jump a tie or a lower count", () => {
+  const ranked = rankByUnlockCount([
+    { id: "organic-8", unlockCount: 8, sponsored: false },
+    { id: "sponsored-8", unlockCount: 8, sponsored: true },
+    { id: "sponsored-3", unlockCount: 3, sponsored: true },
+  ]);
+  assertEquals(ranked.map((item) => item.id), ["organic-8", "sponsored-8", "sponsored-3"]);
 });

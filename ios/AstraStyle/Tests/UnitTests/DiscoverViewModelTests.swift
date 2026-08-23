@@ -2,8 +2,8 @@
 //  DiscoverViewModelTests.swift
 //  AstraStyleTests
 //
-//  ADR 0017: own lookbooks, public worn looks, Unlocks. Archived stay out.
-//  Empty copy points at Wear This, not a storefront.
+//  ADR 0017: own lookbooks, public worn looks, Unlocks ranked by HIS gap.
+//  Empty copy points at Wear This / paste-a-link, not a storefront.
 //
 
 import Foundation
@@ -73,23 +73,99 @@ struct DiscoverViewModelTests {
         #expect(catalog.wornByOthers.map(\.id) == [other.id])
     }
 
-    @Test("Unlocks come from curated candidates, not a shop tab")
-    func unlocksRailFromCandidates() async throws {
-        let shopping = MockShoppingRepository()
-        let catalog = try await shopping.fetchCuratedProducts(category: nil)
+    @Test("A candidate with more unlocks ranks above one with fewer")
+    func higherGapRanksFirst() async throws {
+        let few = unlock(name: "Few looks", outfitsUnlocked: 2)
+        let many = unlock(name: "Many looks", outfitsUnlocked: 8)
         let model = DiscoverViewModel(
             outfitRepository: DiscoverOutfitStub(outfits: [
                 Outfit(id: UUID(), userID: SampleData.userID, name: "Keep loaded")
             ]),
-            shoppingRepository: shopping
+            shoppingRepository: UnlocksShoppingStub([few, many])
         )
         await model.onAppear()
-        guard case .loaded(let loaded) = model.state else {
+        guard case .loaded(let catalog) = model.state else {
             Issue.record("expected .loaded, got \(model.state)")
             return
         }
-        #expect(loaded.unlocks.map(\.id) == catalog.map(\.id))
+        #expect(catalog.unlocks.map(\.id) == [many.id, few.id])
+        #expect(catalog.unlocks.map(\.outfitsUnlocked) == [8, 2])
     }
+
+    @Test("Sponsored cannot outrank a higher unlock count")
+    func sponsoredCannotOutrankGap() async throws {
+        let sponsoredFew = unlock(
+            name: "Sponsored loafer",
+            outfitsUnlocked: 3,
+            affiliate: true
+        )
+        let organicMany = unlock(name: "Organic boot", outfitsUnlocked: 9)
+        let model = DiscoverViewModel(
+            outfitRepository: DiscoverOutfitStub(outfits: [
+                Outfit(id: UUID(), userID: SampleData.userID, name: "Keep loaded")
+            ]),
+            shoppingRepository: UnlocksShoppingStub([sponsoredFew, organicMany])
+        )
+        await model.onAppear()
+        guard case .loaded(let catalog) = model.state else {
+            Issue.record("expected .loaded, got \(model.state)")
+            return
+        }
+        #expect(catalog.unlocks.map(\.id) == [organicMany.id, sponsoredFew.id])
+        #expect(catalog.unlocks[0].candidate.isAffiliateLink == false)
+        #expect(catalog.unlocks[1].candidate.isAffiliateLink == true)
+    }
+
+    @Test("Unlock count 0 is omitted from the rail")
+    func zeroUnlockOmitted() async throws {
+        let zero = unlock(name: "Already covered", outfitsUnlocked: 0)
+        let gap = unlock(name: "New looks", outfitsUnlocked: 4)
+        let model = DiscoverViewModel(
+            outfitRepository: DiscoverOutfitStub(outfits: [
+                Outfit(id: UUID(), userID: SampleData.userID, name: "Keep loaded")
+            ]),
+            shoppingRepository: UnlocksShoppingStub([zero, gap])
+        )
+        await model.onAppear()
+        guard case .loaded(let catalog) = model.state else {
+            Issue.record("expected .loaded, got \(model.state)")
+            return
+        }
+        #expect(catalog.unlocks.map(\.id) == [gap.id])
+        #expect(catalog.unlocks.allSatisfy { $0.outfitsUnlocked > 0 })
+    }
+
+    @Test("An unlocks-only empty catalog stays empty, not a mall dump")
+    func emptyUnlocksStayEmpty() async {
+        let model = DiscoverViewModel(
+            outfitRepository: DiscoverOutfitStub(outfits: []),
+            shoppingRepository: UnlocksShoppingStub([
+                unlock(name: "No gap", outfitsUnlocked: 0)
+            ])
+        )
+        await model.onAppear()
+        guard case .empty = model.state else {
+            Issue.record("expected .empty, got \(model.state)")
+            return
+        }
+    }
+}
+
+private func unlock(name: String, outfitsUnlocked: Int, affiliate: Bool = false) -> ProductUnlock {
+    let id = UUID()
+    let url = URL(string: "https://example.com/products/\(id.uuidString)") ?? URL(fileURLWithPath: "/")
+    return ProductUnlock(
+        candidate: ProductCandidate(
+            id: id,
+            canonicalURL: url,
+            retailer: "Example",
+            name: name,
+            category: .shoes,
+            affiliateURL: affiliate ? url : nil,
+            lastCheckedAt: .now
+        ),
+        outfitsUnlocked: outfitsUnlocked
+    )
 }
 
 /// Only `fetchOutfits` / public looks are in scope for Discover's list.
@@ -147,6 +223,31 @@ private actor EmptyShoppingStub: ShoppingRepository {
         throw AstraError.unimplemented("unused")
     }
     func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] { [] }
+    func fetchUnlocks() async throws -> [ProductUnlock] { [] }
+    func fetchWishlist() async throws -> [ProductCandidate] { [] }
+    func addToWishlist(candidateID: UUID) async throws {}
+    func removeFromWishlist(candidateID: UUID) async throws {}
+    func markPurchased(candidateID: UUID) async throws {}
+}
+
+private actor UnlocksShoppingStub: ShoppingRepository {
+    private let unlocks: [ProductUnlock]
+
+    init(_ unlocks: [ProductUnlock]) {
+        self.unlocks = unlocks
+    }
+
+    func extractProduct(from url: URL) async throws -> ProductCandidate {
+        throw AstraError.unimplemented("unused")
+    }
+    func evaluateProduct(candidateID: UUID) async throws -> ProductEvaluation {
+        throw AstraError.unimplemented("unused")
+    }
+    func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {
+        throw AstraError.unimplemented("unused")
+    }
+    func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] { [] }
+    func fetchUnlocks() async throws -> [ProductUnlock] { unlocks }
     func fetchWishlist() async throws -> [ProductCandidate] { [] }
     func addToWishlist(candidateID: UUID) async throws {}
     func removeFromWishlist(candidateID: UUID) async throws {}

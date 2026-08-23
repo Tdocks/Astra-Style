@@ -1,11 +1,12 @@
-# `products` — P6-SHOP-03 / P6-SHOP-04
+# `products` — P6-SHOP-03 / P6-SHOP-04 / Discover Unlocks
 
-Two routes, one deployed function (ADR 0013 grouped-slug routing):
+Three routes, one deployed function (ADR 0013 grouped-slug routing):
 
 | Route | Ticket | What it does |
 |---|---|---|
 | `POST /products/extract` | P6-SHOP-03 | A pasted retailer URL becomes a `product_candidates` row. |
 | `POST /products/evaluate` | P6-SHOP-04 | That row becomes a Kyra verdict against the caller's closet. |
+| `POST /products/unlocks` | P6-CORE-01 | Products **this user already evaluated**, re-scored against **this closet**, `outfits_unlocked > 0`, ranked by that count. Not a `last_checked_at` catalog dump. |
 
 ## The P6-SHOP-09 guarantee, and where it actually lives
 
@@ -20,10 +21,11 @@ file for "sponsor" and there is nothing to find.
 `handler.ts` **can** see `sponsored`, because the response has to carry the
 label. The rule there is positional: it is read only after
 `evaluateProductCandidate` has returned, and only to attach `sponsored:` to
-the DTO. `ranking.ts` sorts alternatives on `organicScore` alone, and breaks
-ties by input order — deliberately not toward sponsored items (the failure
-§11 names) and deliberately not away from them either (its mirror image, a
-penalty for being sponsored, which is not what "separate" means).
+the DTO. `ranking.ts` sorts alternatives on `organicScore` alone, and Unlocks on
+`unlockCount` alone. Both break ties by input order — deliberately not
+toward sponsored items (the failure §11 names) and deliberately not away
+from them either (its mirror image, a penalty for being sponsored, which
+is not what "separate" means).
 
 ## Env
 

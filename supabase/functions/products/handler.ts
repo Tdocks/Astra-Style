@@ -39,12 +39,18 @@ import {
   type ProductCandidateRow,
 } from "./candidateMapper.ts";
 import { evaluateProductCandidate, type LifestyleInputs } from "./evaluation.ts";
-import { rankProductCandidates } from "./ranking.ts";
-import type { AlternativeProductDTO, ProductCandidateDTO, ProductEvaluationDTO } from "./schema.ts";
+import { rankByUnlockCount, rankProductCandidates } from "./ranking.ts";
+import type {
+  AlternativeProductDTO,
+  ProductCandidateDTO,
+  ProductEvaluationDTO,
+  ProductUnlockListDTO,
+} from "./schema.ts";
 import { parseEvaluateProductBody, parseExtractProductBody } from "./schema.ts";
 import { assertSafeExternalUrl } from "./urlValidation.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
 import type { RedundancyItem } from "../_shared/scoring/redundancy.ts";
+import { computeUnlockCount } from "../_shared/scoring/unlockCount.ts";
 
 /**
  * How long a retailer page gets before extraction gives up.
@@ -85,8 +91,20 @@ export interface ProductsDependencies {
     readonly verdict: string;
     readonly reasoning: string;
   }) => Promise<{ readonly created_at: string }>;
+  /**
+   * Latest evaluated `product_candidates` for this caller, recency order,
+   * already unique and capped. Shared catalog rows he never asked about
+   * do not belong here.
+   */
+  readonly fetchLatestEvaluatedCandidates: (
+    userID: string,
+    limit: number,
+  ) => Promise<readonly ProductCandidateRow[]>;
   readonly requestID: string;
 }
+
+/** Same budget as the evaluate alternatives pool — not a mall scan. */
+export const UNLOCKS_CANDIDATE_CAP = 12;
 
 export async function handleExtractProduct(
   rawBody: unknown,
@@ -248,6 +266,63 @@ async function buildAlternatives(
       sponsored: source.sponsored,
     }];
   });
+}
+
+/**
+ * Discover Unlocks. Re-scores products this user already evaluated against
+ * the closet he has today. A row that cannot be scored is dropped — never
+ * a fabricated unlock count. `sponsored` is a label on the candidate DTO
+ * only; ranking is `rankByUnlockCount`.
+ */
+export async function handleListUnlocks(
+  userID: string,
+  deps: ProductsDependencies,
+): Promise<ProductUnlockListDTO> {
+  const rows = (await deps.fetchLatestEvaluatedCandidates(userID, UNLOCKS_CANDIDATE_CAP))
+    .slice(0, UNLOCKS_CANDIDATE_CAP);
+  const closet = await deps.fetchCloset(userID);
+  const scorableCloset = closet.map((garment) => garment.scorable);
+
+  const scored: Array<{
+    readonly row: ProductCandidateRow;
+    readonly unlockCount: number;
+    readonly sponsored: boolean;
+  }> = [];
+
+  for (const row of rows) {
+    try {
+      const mapped = mapProductCandidateRowToEvaluationInput(row);
+      if (mapped.item === null) continue;
+      const unlock = computeUnlockCount(mapped.item, scorableCloset);
+      if (unlock.unlockCount <= 0) continue;
+      scored.push({
+        row,
+        unlockCount: unlock.unlockCount,
+        sponsored: row.sponsored,
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  const ranked = rankByUnlockCount(
+    scored.map((item) => ({
+      id: item.row.id,
+      unlockCount: item.unlockCount,
+      sponsored: item.sponsored,
+    })),
+  );
+
+  return {
+    items: ranked.flatMap((entry) => {
+      const source = scored.find((item) => item.row.id === entry.id);
+      if (source === undefined) return [];
+      return [{
+        candidate: mapProductCandidateRowToDTO(source.row),
+        outfits_unlocked: source.unlockCount,
+      }];
+    }),
+  };
 }
 
 /** Re-exported so `index.ts` reports a consistent envelope for both routes. */
