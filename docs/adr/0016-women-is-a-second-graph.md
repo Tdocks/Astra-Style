@@ -3,8 +3,10 @@
 ## Status
 
 Accepted (2026-08-22). Defers women's taxonomy, quiz catalog, and silhouette
-until Wear This is a habit on a real phone. Does **not** amend [0014](0014-account-required-no-guest-mode.md)
+until a dedicated second graph exists. Does **not** amend [0014](0014-account-required-no-guest-mode.md)
 or the men's 3-role outfit unit.
+**Amended by [0019](0019-wave-g-may-start.md) (2026-08-23):** Wave G may
+start as its own wave. A gender toggle remains a defect.
 
 ## Context
 

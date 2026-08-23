@@ -3,6 +3,9 @@
 ## Status
 
 Accepted (2026-08-06). **Supersedes [0011](0011-guest-mode-and-account-migration.md).**
+**Amended by [0018](0018-guest-trial-path-returns.md) (2026-08-23):** a later
+wave may restore a trial path; guest code is not in the tree until that
+wave. 0014’s deletion and Storage rule remain in force until then.
 
 Amends spec §6.2 (the "Explore demo" action and the guest-mode restrictions
 block) and §7 ("Guest migration to account"). The spec is the source of
