@@ -47,6 +47,7 @@ public struct ClosetItemFormView: View {
 
     @State private var viewModel: ClosetItemFormViewModel
     @FocusState private var focused: Field?
+    @Environment(AppRouter.self) private var router
 
     /// Transient input buffers for the two "add one to the list" fields.
     /// View state rather than draft state on purpose: a half-typed
@@ -109,6 +110,13 @@ public struct ClosetItemFormView: View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             if let failure = viewModel.failure {
                 ClosetFormNotice(failure: failure)
+                if case .freeTierCapReached = failure {
+                    Button(String(localized: "See Premium", comment: "Opens paywall from closet cap")) {
+                        router.presentModal(.paywall(context: .closetLimit))
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("closet.form.seePremium")
+                }
             }
             // Shown alongside a recoverable failure, but not alongside the
             // free-tier cap — `blockingReason` IS the cap's message there, and
@@ -686,6 +694,7 @@ private struct ClosetFormNotice: View {
 
 #Preview("Add") {
     ClosetItemFormView(viewModel: .adding(closetRepository: MockClosetRepository(items: []), currentUserID: { UUID() }))
+        .environment(AppRouter())
 }
 
 #Preview("Edit") {
@@ -698,4 +707,5 @@ private struct ClosetFormNotice: View {
         ),
         closetRepository: MockClosetRepository(items: [])
     ))
+    .environment(AppRouter())
 }

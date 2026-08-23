@@ -413,6 +413,7 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     var lastImages: [ClosetItemImage]?
     var lastAnalyzeStoragePath: String?
     var seedItems: [ClosetItem] = []
+    var createError: Error?
     private var uploadedPath: String?
     /// Paths handed out and not yet deleted — the stand-in for objects
     /// still sitting in `user-content`. Asserting `liveStoragePaths` is
@@ -474,6 +475,7 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     var normalizeCreated: (@Sendable (ClosetItem) -> ClosetItem)?
 
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
+        if let createError { throw createError }
         lastCreated = item
         lastImages = images
         return normalizeCreated?(item) ?? item
@@ -568,5 +570,37 @@ private struct ReviewMockURLResolver: ClosetImageURLResolving {
             map[path] = try await resolve(storagePath: path)
         }
         return map
+    }
+}
+
+@Suite("ScannerReviewViewModel closet cap")
+@MainActor
+struct ScannerReviewViewModelCapTests {
+    @Test("A free-tier cap on save is its own phase, not a generic server error")
+    func capReachedIsTyped() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let prepared = try CapturePreparation.prepareForUpload(jpeg)
+        let draft = CaptureDraft(prepared: prepared)
+        let store = CaptureDraftStore()
+        store.put(draft)
+
+        let repository = ReviewMockClosetRepository()
+        repository.createError = FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)
+        let model = ScannerReviewViewModel(
+            draftID: draft.id,
+            dependencies: .init(
+                draftStore: store,
+                closetRepository: repository,
+                imageURLResolver: ReviewMockURLResolver(),
+                pendingScanQueue: InMemoryPendingScanQueue(),
+                currentUserID: { UUID() }
+            )
+        )
+
+        await model.start()
+        #expect(model.phase == .ready)
+        await model.save()
+        #expect(model.phase == .capReached(limit: FreeTierLimits.maxClosetItems))
+        #expect(repository.lastCreated == nil)
     }
 }

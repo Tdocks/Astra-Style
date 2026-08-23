@@ -22,7 +22,9 @@ struct ScannerBatchCaptureView: View {
     /// Called with the drafts to walk through review, in submission order.
     var onReady: ([UUID]) -> Void
 
+    @Environment(AppContainer.self) private var container
     @State private var pickedItems: [PhotosPickerItem] = []
+    @State private var showsPaywall = false
 
     var body: some View {
         ScrollView {
@@ -55,10 +57,7 @@ struct ScannerBatchCaptureView: View {
                         body: error.message
                     )
                 case .capReached(let limit):
-                    message(
-                        title: String(localized: "Closet is full", comment: "Batch scan cap title"),
-                        body: FreeTierClosetError.capReached(limit: limit).errorDescription ?? ""
-                    )
+                    capReached(limit: limit)
                 }
             }
             .padding(.horizontal, AstraSpacing.pagePadding)
@@ -68,6 +67,15 @@ struct ScannerBatchCaptureView: View {
         .background(AstraColor.backgroundPrimary)
         .navigationTitle(Text("Add several", comment: "Batch scan screen title"))
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showsPaywall) {
+            PaywallView(
+                viewModel: PaywallViewModel(
+                    context: .closetLimit,
+                    purchasing: LiveStoreKitPurchasing(),
+                    subscriptionRepository: container.subscriptionRepository
+                )
+            )
+        }
         .onChange(of: pickedItems) { _, items in
             guard !items.isEmpty else { return }
             Task {
@@ -182,6 +190,26 @@ struct ScannerBatchCaptureView: View {
                    ? String(localized: "Choose different photos", comment: "Batch scan re-pick")
                    : String(localized: "Try other photos", comment: "Batch scan retry pick"))
                 .accessibilityIdentifier("scanner.batch.repick")
+        }
+    }
+
+    private func capReached(limit: Int) -> some View {
+        VStack(spacing: AstraSpacing.md) {
+            Text(String(localized: "Closet is full", comment: "Batch scan cap title"))
+                .astraText(.headline)
+                .foregroundStyle(AstraColor.textPrimary)
+                .multilineTextAlignment(.center)
+            Text(FreeTierClosetError.capReached(limit: limit).errorDescription ?? "")
+                .astraText(.body)
+                .foregroundStyle(AstraColor.textSecondary)
+                .multilineTextAlignment(.center)
+            Button(String(localized: "See Premium", comment: "Opens paywall from batch cap")) {
+                showsPaywall = true
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("scanner.batch.seePremium")
+            picker(label: String(localized: "Try again", comment: "Batch scan retry"))
+                .accessibilityIdentifier("scanner.batch.retry")
         }
     }
 

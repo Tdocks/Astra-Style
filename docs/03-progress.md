@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
+**Last audited:** 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -45,8 +45,8 @@ lands data layers, protocols, and models long before the screens that use them.
 | 4 — Outfit intelligence | 26 | 15 | 8 | 3 |
 | 5 — Kyra | 22 | 1 | 3 | 18 |
 | 6 — Studio and commerce | 25 | 9 | 12 | 4 |
-| 7 — Monetization and hardening | 36 | 0 | 8 | 28 |
-| **Total** | **179** | **64** | **57** | **56** |
+| 7 — Monetization and hardening | 36 | 0 | 13 | 23 |
+| **Total** | **179** | **64** | **62** | **51** |
 
 Read that table carefully before drawing a conclusion from it. 57 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -355,19 +355,17 @@ design, not evidence of build.
 
 # PHASE 7 — MONETIZATION AND HARDENING
 
-**0 Done · 8 Partial · 28 Not started.** Expected — this phase hardens features that mostly do not
-exist yet. Several tickets here will be **Unverifiable** rather than Done even once built, because
-they need a StoreKit sandbox, a physical device, or App Store review.
+**0 Done · 13 Partial · 23 Not started.** Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. App Store Server Notifications and published legal links are still out.
 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P7-SUB-01 | Partial | Migration + RLS done; `AstraProductID` defines both product IDs client-side. App Store Connect configuration is not demonstrable in-repo — that component is Unverifiable. |
-| P7-SUB-02 | Not started | No `import StoreKit` purchase code anywhere; only doc comments. |
-| P7-SUB-03 | Not started | No `subscriptions/sync` or `app-store/webhook` functions. |
-| P7-SUB-04 | Not started | Only `Subscription.isEntitledToPremium` (a status boolean). No closet-cap, Kyra-limit, or Studio-quota gating. |
-| P7-SUB-05 | Not started | No paywall UI; `Features/Subscription/` empty. |
-| P7-SUB-06 | Not started | No `.storekit` file checked in; `ios/README.md` §6 tells the developer to create one by hand. |
-| P7-SUB-07 | Partial | `LiveSubscriptionRepository` conforms to the protocol but calls undeployed endpoints and has no purchase flow to trigger it. |
+| P7-SUB-02 | Partial | `LiveStoreKitPurchasing` (`Features/Subscription/StoreKitPurchasing.swift`) purchases via StoreKit 2 and rejects unverified transactions. Sandbox purchase on a device is Unverifiable here. |
+| P7-SUB-03 | Partial | `supabase/functions/subscriptions/` `POST /sync` upserts by user_id. **Deployed** 2026-08-22 to `anutsdzbxycaavmmkewo`. Trusts the locally-verified client payload. `app-store/webhook` is not built. |
+| P7-SUB-04 | Partial | Closet 30-item cap is `FreeTierCappedClosetRepository`. Kyra daily and Studio quota still ungated. Home / Wear This / paste-evaluate are intentionally not gated. |
+| P7-SUB-05 | Partial | `PaywallView` from `PaywallContext.closetLimit` (closet form modal; nested sheet on scanner save/batch so the scan is not replaced). Localized StoreKit prices when offerings load. Legal links omitted while `AstraLegal.isPublished` is false. |
+| P7-SUB-06 | Partial | `ios/Config/AstraStyle.storekit` checked in and wired on the AstraStyle scheme. Restore calls `AppStore.sync` then `syncTransaction`. |
+| P7-SUB-07 | Partial | Purchase and restore call `LiveSubscriptionRepository.syncTransaction`. Entitlement is the server row, not local StoreKit. |
 | P7-PRIVACY-01 | Partial | **The most misleadingly advanced ticket in the repo.** `account_deletions`, `request_account_deletion()`, `finalize_account_deletion()`, the cascade chain and RLS are production-grade and were hardened today — but **no `DELETE /account` Edge Function exists**, so no deletion can actually happen. |
 | P7-PRIVACY-02 | Not started | No deletion UI. |
 | P7-PRIVACY-03 | Not started | No export feature. |
@@ -375,7 +373,7 @@ they need a StoreKit sandbox, a physical device, or App Store review.
 | P7-PRIVACY-05 | Not started | No Privacy Policy or ToS content anywhere in the repo, and none should be invented here — this needs a human and probably a lawyer. `Core/Utilities/AstraLegal.swift` is now the single documented point of change: register the domain, publish the four documents, flip `isPublished`, update `LegalDocumentAvailabilityTests`. Until then every legal URL is `nil` and callers must handle it. See also P1-AUTH-06. |
 | P7-PRIVACY-06 | Not started | No training-opt-out column; no ATT code. |
 | P7-PRIVACY-07 | Not started | No `analytics_events` table in any migration; `LiveAnalyticsClient.log()` is a no-op stub. `AnalyticsEvent` is designed to exclude PII by construction. |
-| P7-DS-01 | Not started | No audit artifact; 2 of the 5 required screens (Kyra conversation, paywall) don't exist to audit. |
+| P7-DS-01 | Not started | No audit artifact. Paywall exists (`PaywallView`); Kyra conversation is the remaining missing screen of the five. |
 | P7-DS-02 | Not started | No Phase 7 VoiceOver pass; scattered `accessibilityLabel` usage exists from earlier phases. |
 | P7-DS-03 | Partial | `accentChampagneAccessible` ships as the **default**, unconditionally, rather than behind a toggle — criterion amended 2026-07-30 to match, since applying it unconditionally is strictly better than gating it behind a setting a user has to find. `AstraScoreMeter` already pairs colour with numeral and text for confidence/score, but verdict and laundry-state UI don't exist yet to audit — that half of the ticket stays open. |
 | P7-DS-04 | Not started | `AstraMotion.aware(_:reduceMotion:)` exists, but the Kyra orb and Studio alt-text UI it would audit do not. |
@@ -384,7 +382,7 @@ they need a StoreKit sandbox, a physical device, or App Store review.
 | P7-HOME-03 | Not started | Only the Home teaser stub exists, documented as pointing at a Phase 7 review that isn't built. |
 | P7-HOME-04 | Not started | No packing assistant. |
 | P7-HOME-05 | Not started | `Features/Profile/` has only the guest stub — no real profile or stats screen. |
-| P7-INFRA-01 | Partial | `_shared/rateLimit.ts` is reusable and applied to `outfits` (20/min), surfaced as `AstraError.rateLimited`. Not applied to any Phase 5/6/7 endpoint — none are deployed. |
+| P7-INFRA-01 | Partial | `_shared/rateLimit.ts` is reusable and applied to `outfits` (20/min) and `subscriptions` (20/min), surfaced as `AstraError.rateLimited`. Kyra/Studio/products have their own limiters; `app-store` is not built. |
 | P7-INFRA-02 | Not started | No performance measurements against §20 targets. |
 | P7-INFRA-03 | Not started | No thumbnail, downsample, or prefetch code. |
 | P7-INFRA-04 | Partial | CI enforces zero-warnings-in-own-code via a scoped build-log grep. No per-dependency purpose/licence documentation (there is one dependency, `supabase-swift`). |

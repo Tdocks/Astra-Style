@@ -13,6 +13,8 @@ struct ScannerReviewView: View {
     @Bindable var viewModel: ScannerReviewViewModel
     var onFinished: () -> Void
     var onRetake: () -> Void
+    @Environment(AppContainer.self) private var container
+    @State private var showsPaywall = false
 
     var body: some View {
         ZStack {
@@ -24,8 +26,19 @@ struct ScannerReviewView: View {
         .task {
             await viewModel.start()
         }
+        .sheet(isPresented: $showsPaywall) {
+            PaywallView(
+                viewModel: PaywallViewModel(
+                    context: .closetLimit,
+                    purchasing: LiveStoreKitPurchasing(),
+                    subscriptionRepository: container.subscriptionRepository
+                )
+            )
+        }
         // Dismiss is owned by the post-save unlock report's Continue
         // control (P3-SCAN-11) — auto-closing here would skip the count.
+        // Paywall is a nested sheet: AppRouter has one modal, and this
+        // screen is already inside it.
     }
 
     @ViewBuilder
@@ -78,14 +91,10 @@ struct ScannerReviewView: View {
             )
 
         case .saveFailed(let error):
-            ScrollView {
-                VStack(spacing: AstraSpacing.xl) {
-                    failureBanner(error.errorDescription ?? String(localized: "Couldn't save.", comment: "Save failed fallback"))
-                    ScannerReviewFormView(viewModel: viewModel)
-                    saveControls
-                }
-                .padding(.vertical, AstraSpacing.lg)
-            }
+            saveFailedContent(error)
+
+        case .capReached(let limit):
+            capReachedContent(limit)
 
         case .ready:
             ScrollView {
@@ -199,6 +208,36 @@ struct ScannerReviewView: View {
     }
 
     // MARK: - Actions
+
+    private func saveFailedContent(_ error: AstraError) -> some View {
+        ScrollView {
+            VStack(spacing: AstraSpacing.xl) {
+                failureBanner(error.errorDescription ?? String(localized: "Couldn't save.", comment: "Save failed fallback"))
+                ScannerReviewFormView(viewModel: viewModel)
+                saveControls
+            }
+            .padding(.vertical, AstraSpacing.lg)
+        }
+    }
+
+    private func capReachedContent(_ limit: Int) -> some View {
+        ScrollView {
+            VStack(spacing: AstraSpacing.xl) {
+                failureBanner(
+                    FreeTierClosetError.capReached(limit: limit).errorDescription
+                        ?? String(localized: "Closet is full.", comment: "Scanner cap fallback")
+                )
+                Button(String(localized: "See Premium", comment: "Opens paywall from scanner cap")) {
+                    showsPaywall = true
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("scanner.review.seePremium")
+                ScannerReviewFormView(viewModel: viewModel)
+                saveControls
+            }
+            .padding(.vertical, AstraSpacing.lg)
+        }
+    }
 
     private var saveControls: some View {
         VStack(spacing: AstraSpacing.md) {

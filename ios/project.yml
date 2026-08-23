@@ -291,8 +291,10 @@ schemes:
         AstraStyle: all
     run:
       config: Debug
+      storeKitConfiguration: Config/AstraStyle.storekit
     test:
       config: Debug
+      storeKitConfiguration: Config/AstraStyle.storekit
       targets:
         - AstraStyleTests
         - AstraStyleUITests

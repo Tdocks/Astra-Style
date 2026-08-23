@@ -202,11 +202,13 @@ struct MainTabView: View {
         switch modal {
         case .scanner(let mode):
             ScannerDestinationView(route: mode, container: container)
-        case .paywall:
-            FeaturePlaceholderView(
-                title: String(localized: "Astra Style Premium"),
-                message: String(localized: "An unlimited closet, the full Daily Brief, and a verdict before you buy."),
-                systemImage: "checkmark.seal"
+        case .paywall(let context):
+            PaywallView(
+                viewModel: PaywallViewModel(
+                    context: context,
+                    purchasing: LiveStoreKitPurchasing(),
+                    subscriptionRepository: container.subscriptionRepository
+                )
             )
         case .outfitBuilder(let route):
             OutfitBuilderDestinationView(route: route, container: container)

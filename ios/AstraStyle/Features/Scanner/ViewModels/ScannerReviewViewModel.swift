@@ -27,6 +27,7 @@ public final class ScannerReviewViewModel {
         case uploadFailed(AstraError)
         case analyzeFailed(AstraError)
         case saveFailed(AstraError)
+        case capReached(limit: Int)
         case missingDraft
 
         public static func == (lhs: Phase, rhs: Phase) -> Bool {
@@ -38,6 +39,8 @@ public final class ScannerReviewViewModel {
             case (.uploadFailed(let left), .uploadFailed(let right)),
                  (.analyzeFailed(let left), .analyzeFailed(let right)),
                  (.saveFailed(let left), .saveFailed(let right)):
+                left == right
+            case (.capReached(let left), .capReached(let right)):
                 left == right
             default:
                 false
@@ -244,23 +247,12 @@ public final class ScannerReviewViewModel {
         )
 
         do {
-            savedItem = try await closetRepository.createItem(item, images: [image])
-            let corrected = fieldsCorrectedCount()
-            analyticsClient.log(.closetItemAdded(category: item.category, source: .scan))
-            if corrected > 0 {
-                analyticsClient.log(.scanCorrected(fieldsCorrectedCount: corrected))
+            try await persistSavedItem(item, images: [image])
+        } catch let error as FreeTierClosetError {
+            switch error {
+            case .capReached(let limit):
+                phase = .capReached(limit: limit)
             }
-            // P3-SCAN-11: complementary partners already owned, not the
-            // Phase-4 purchase-unlock algorithm. Fail closed to 0 if the
-            // closet cannot be read — never invent a marketing number.
-            let closet = (try? await closetRepository.fetchItems()) ?? []
-            outfitsUnlockedCount = ScanOutfitUnlockEstimator.newlyUnlockedCount(
-                adding: item,
-                to: closet
-            )
-            draftStore.remove(id: draftID)
-            AstraHaptics.success()
-            phase = .saved
         } catch {
             let astra = (error as? AstraError) ?? AstraError.server(
                 String(localized: "Couldn't save that piece. Try again.",
@@ -268,6 +260,26 @@ public final class ScannerReviewViewModel {
             )
             phase = .saveFailed(astra)
         }
+    }
+
+    private func persistSavedItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws {
+        savedItem = try await closetRepository.createItem(item, images: images)
+        let corrected = fieldsCorrectedCount()
+        analyticsClient.log(.closetItemAdded(category: item.category, source: .scan))
+        if corrected > 0 {
+            analyticsClient.log(.scanCorrected(fieldsCorrectedCount: corrected))
+        }
+        // P3-SCAN-11: complementary partners already owned, not the
+        // Phase-4 purchase-unlock algorithm. Fail closed to 0 if the
+        // closet cannot be read — never invent a marketing number.
+        let closet = (try? await closetRepository.fetchItems()) ?? []
+        outfitsUnlockedCount = ScanOutfitUnlockEstimator.newlyUnlockedCount(
+            adding: item,
+            to: closet
+        )
+        draftStore.remove(id: draftID)
+        AstraHaptics.success()
+        phase = .saved
     }
 
     /// Cuts the garment out of its background and uploads the result, or

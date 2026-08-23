@@ -2,6 +2,12 @@
 
 Owns StoreKit 2 integration and the paywall (spec §16).
 
+## Status
+
+**Paywall at the 30-item cap.** Purchase and restore sync `original_transaction_id` to
+`POST /subscriptions/sync`. Wear This and paste-evaluate are not behind this door.
+Legal URLs stay omitted while unpublished.
+
 ## What this module owns
 
 - The paywall: marble hero, benefit list, monthly ($12.99) and annual ($79.99) plans, restore purchases, manage subscription, legal links.

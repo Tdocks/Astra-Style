@@ -319,6 +319,7 @@ supabase secrets set STYLIST_PROVIDER_API_KEY=... # only when a function needs i
 
 supabase functions deploy outfits
 supabase functions deploy closet
+supabase functions deploy subscriptions --import-map supabase/functions/deno.json
 ```
 
 After deploying, repeat the `curl` invocation above against

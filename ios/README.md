@@ -87,12 +87,11 @@ Internal device builds: see **`docs/12-testflight-cut.md`**. Short version — g
 
 ## 7. StoreKit configuration
 
-For local sandbox testing without hitting App Store Connect:
-
-1. In Xcode, File > New > File > StoreKit Configuration File.
-2. Add two auto-renewable subscription products matching `Domain/Models/Subscription.swift`'s `AstraProductID`: `com.astrastyle.app.premium.monthly` ($12.99) and `com.astrastyle.app.premium.annual` ($79.99), per spec §16.
-3. Edit the scheme's Run action > Options > StoreKit Configuration to select the file.
-4. `SubscriptionRepository.syncTransaction(_:)` forwards verified transactions to `POST /subscriptions/sync`; the real product catalog and pricing are still owned by App Store Connect for TestFlight/production builds.
+`Config/AstraStyle.storekit` is checked in and selected on the AstraStyle scheme
+(`project.yml` `storeKitConfiguration`). It defines the two auto-renewable
+products in `AstraProductID`. App Store Connect still owns the catalog for
+TestFlight/production; if those product IDs are missing on the app record, stop
+rather than inventing ASC state.
 
 ## Project layout
 

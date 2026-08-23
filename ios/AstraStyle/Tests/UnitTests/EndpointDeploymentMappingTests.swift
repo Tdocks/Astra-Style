@@ -178,7 +178,16 @@ struct EndpointDeploymentMappingTests {
         // was: Home's 404 was invisible to CI. **A slug belongs here the
         // moment a production call path builds a URL for it**, not once
         // someone remembers.
-        let requiredNow: Set<String> = ["outfits", "profile", "style-dna", "closet", "daily-brief"]
+        let requiredNow: Set<String> = [
+            "outfits",
+            "profile",
+            "style-dna",
+            "closet",
+            "daily-brief",
+            "products",
+            "studio",
+            "subscriptions"
+        ]
         for slug in requiredNow {
             #expect(
                 functionDirectories.contains(slug),
