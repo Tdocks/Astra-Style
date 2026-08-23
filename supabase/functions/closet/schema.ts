@@ -30,6 +30,8 @@ const CLOTHING_CATEGORIES = new Set([
   "accessory",
   "watch",
   "fragrance",
+  "dress",
+  "skirt",
 ]);
 
 const IMAGE_TYPES = new Set([

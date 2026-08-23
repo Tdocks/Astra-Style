@@ -16,6 +16,7 @@ import Foundation
 
 public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiable, Comparable {
     case intro          // §6.3 Kyra introduction
+    case wardrobeGraph  // ADR 0019 product picker — not a gender toggle
     case goals          // §6.4 Style goals
     case identity       // §6.5 Style identity
     case measurements   // §6.6 Measurements and fit
@@ -40,10 +41,11 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
     /// `activeSequence`.
     var declarationIndex: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 
-    /// Intro → identity → quiz → first items → result. The dogfood front door
-    /// (ADR 0015). Everything else in `allCases` is deferred, not deleted.
+    /// Intro → wardrobe graph → identity → quiz → first items → result.
+    /// The dogfood front door (ADR 0015 + ADR 0019). Everything else in
+    /// `allCases` is deferred, not deleted.
     public static let firstRunSequence: [OnboardingStep] = [
-        .intro, .identity, .quiz, .firstItems, .result
+        .intro, .wardrobeGraph, .identity, .quiz, .firstItems, .result
     ]
 
     /// First-run unless Debug launched with `-astra-full-onboarding`, which
@@ -80,6 +82,7 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
     public var title: String {
         switch self {
         case .intro: String(localized: "Meet Kyra", comment: "Onboarding step title")
+        case .wardrobeGraph: String(localized: "Which closet is this for?", comment: "Onboarding step title")
         case .goals: String(localized: "What are you after?", comment: "Onboarding step title")
         case .identity: String(localized: "How do you want to look?", comment: "Onboarding step title")
         case .measurements: String(localized: "Sizes and fit", comment: "Onboarding step title")
@@ -101,6 +104,9 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
         switch self {
         case .intro:
             String(localized: "A short introduction before the questions start.",
+                   comment: "Onboarding step rationale")
+        case .wardrobeGraph:
+            String(localized: "This chooses the outfit graph — men's three-role looks, or dresses and separates. It is not a setting you flip later.",
                    comment: "Onboarding step rationale")
         case .goals:
             String(localized: "This decides what Kyra leads with — everyday outfits, filling gaps, or smarter buying.",
@@ -150,7 +156,7 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
     /// tolerates being skipped entirely: `FrameProfile` is built to degrade
     /// (docs/14 §2) and Style DNA is built to work from less.
     public var isSkippable: Bool {
-        self != .identity
+        self != .identity && self != .wardrobeGraph
     }
 
     public var next: OnboardingStep? {

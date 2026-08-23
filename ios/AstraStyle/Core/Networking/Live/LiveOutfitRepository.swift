@@ -311,20 +311,36 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
 
     @discardableResult
     public func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
+        struct Body: Encodable, Sendable {
+            let outfitID: UUID
+            let wornAt: Date
+            let occasion: String?
+            let rating: Int?
+            let feedback: String?
+            enum CodingKeys: String, CodingKey {
+                case outfitID = "outfit_id"
+                case wornAt = "worn_at"
+                case occasion
+                case rating
+                case feedback
+            }
+        }
         do {
-            let session = try await supabase.auth.session
-            let wear = OutfitWear(
-                id: UUID(),
-                outfitID: outfitID,
-                userID: session.user.id,
-                wornAt: wornAt,
-                occasion: occasion,
-                rating: rating,
-                feedback: feedback
+            let recorded = try await apiClient.send(
+                .recordWear,
+                body: Body(
+                    outfitID: outfitID,
+                    wornAt: wornAt,
+                    occasion: occasion,
+                    rating: rating,
+                    feedback: feedback
+                ),
+                as: OutfitWear.self
             )
-            let recorded = try await writer.createWear(wear)
             await drainPendingMutations()
             return recorded
+        } catch let error as AstraError where error.category == .rateLimited {
+            throw error
         } catch {
             let session = try? await supabase.auth.session
             let wear = OutfitWear(

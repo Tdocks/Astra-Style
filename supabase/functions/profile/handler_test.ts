@@ -66,6 +66,7 @@ function profileFor(userId: string): ProfileDTO {
     theme: "system",
     onboarding_completed_at: "2026-07-30T12:00:00Z",
     subscription_tier: "free",
+    wardrobe_graph: "menswear_3_role",
     created_at: "2026-07-01T09:00:00Z",
     updated_at: "2026-07-30T12:00:00Z",
   };

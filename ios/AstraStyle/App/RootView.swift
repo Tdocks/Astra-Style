@@ -169,13 +169,15 @@ private struct SignedOutGateView: View {
                             }
                             .disabled(isAuthenticating)
 
-                            // There is deliberately no third action here.
-                            // "Explore in guest mode" used to sit below these
-                            // two; ADR 0014 removed it, because an account is
-                            // required before onboarding and the trial it
-                            // offered was never reachable — a guest could not
-                            // scan, could not be given a Style DNA, and could
-                            // not be handed an outfit.
+                            Button {
+                                Task { await startAnonymousTrial() }
+                            } label: {
+                                Text(String(localized: "Try without an account", comment: "Welcome anonymous trial"))
+                                    .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                            }
+                            .buttonStyle(.astraSecondary)
+                            .disabled(isAuthenticating)
+                            .accessibilityIdentifier("welcome.tryWithoutAccount")
 
                             if let authError {
                                 Text(authError)
@@ -340,6 +342,17 @@ private struct SignedOutGateView: View {
                 authError = error.localizedDescription
             }
             currentNonce = nil
+        }
+    }
+
+    private func startAnonymousTrial() async {
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+        do {
+            _ = try await container.authRepository.signInAnonymously()
+            router.routeState = AppRouter.postAuthenticationRoute
+        } catch {
+            authError = error.localizedDescription
         }
     }
 

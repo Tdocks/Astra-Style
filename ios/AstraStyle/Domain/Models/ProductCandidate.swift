@@ -29,6 +29,12 @@ public struct ProductCandidate: Identifiable, Codable, Hashable, Sendable {
 
     public var lastCheckedAt: Date?
 
+    /// Paid/affiliate catalog flag. Label only (P6-SHOP-09). Missing on
+    /// older payloads decodes as nil → not sponsored.
+    public var sponsored: Bool?
+
+    public var isSponsored: Bool { sponsored == true }
+
     public init(
         id: UUID,
         canonicalURL: URL,
@@ -42,7 +48,8 @@ public struct ProductCandidate: Identifiable, Codable, Hashable, Sendable {
         affiliateURL: URL? = nil,
         availability: AstraJSONValue? = nil,
         attributes: AstraJSONValue? = nil,
-        lastCheckedAt: Date? = nil
+        lastCheckedAt: Date? = nil,
+        sponsored: Bool? = nil
     ) {
         self.id = id
         self.canonicalURL = canonicalURL
@@ -57,6 +64,7 @@ public struct ProductCandidate: Identifiable, Codable, Hashable, Sendable {
         self.availability = availability
         self.attributes = attributes
         self.lastCheckedAt = lastCheckedAt
+        self.sponsored = sponsored
     }
 
     enum CodingKeys: String, CodingKey {
@@ -73,6 +81,7 @@ public struct ProductCandidate: Identifiable, Codable, Hashable, Sendable {
         case availability
         case attributes
         case lastCheckedAt = "last_checked_at"
+        case sponsored
     }
 
     /// `true` when an affiliate relationship exists and must be disclosed

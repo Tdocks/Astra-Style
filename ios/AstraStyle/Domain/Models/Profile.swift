@@ -17,6 +17,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
     public var theme: ThemePreference
     public var onboardingCompletedAt: Date?
     public var subscriptionTier: SubscriptionTier
+    public var wardrobeGraph: WardrobeGraph
     public var referralCode: String?
     public var referredBy: UUID?
     public var createdAt: Date
@@ -32,6 +33,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         theme: ThemePreference = .dark,
         onboardingCompletedAt: Date? = nil,
         subscriptionTier: SubscriptionTier = .free,
+        wardrobeGraph: WardrobeGraph = .menswear3Role,
         referralCode: String? = nil,
         referredBy: UUID? = nil,
         createdAt: Date = .now,
@@ -46,6 +48,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         self.theme = theme
         self.onboardingCompletedAt = onboardingCompletedAt
         self.subscriptionTier = subscriptionTier
+        self.wardrobeGraph = wardrobeGraph
         self.referralCode = referralCode
         self.referredBy = referredBy
         self.createdAt = createdAt
@@ -62,10 +65,47 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         case theme
         case onboardingCompletedAt = "onboarding_completed_at"
         case subscriptionTier = "subscription_tier"
+        case wardrobeGraph = "wardrobe_graph"
         case referralCode = "referral_code"
         case referredBy = "referred_by"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        avatarURL = try container.decodeIfPresent(URL.self, forKey: .avatarURL)
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+        timezone = try container.decodeIfPresent(String.self, forKey: .timezone)
+        units = try container.decodeIfPresent(UnitsPreference.self, forKey: .units) ?? .imperial
+        theme = try container.decodeIfPresent(ThemePreference.self, forKey: .theme) ?? .dark
+        onboardingCompletedAt = try container.decodeIfPresent(Date.self, forKey: .onboardingCompletedAt)
+        subscriptionTier = try container.decodeIfPresent(SubscriptionTier.self, forKey: .subscriptionTier) ?? .free
+        wardrobeGraph = try container.decodeIfPresent(WardrobeGraph.self, forKey: .wardrobeGraph) ?? .menswear3Role
+        referralCode = try container.decodeIfPresent(String.self, forKey: .referralCode)
+        referredBy = try container.decodeIfPresent(UUID.self, forKey: .referredBy)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .now
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encodeIfPresent(avatarURL, forKey: .avatarURL)
+        try container.encodeIfPresent(locationName, forKey: .locationName)
+        try container.encodeIfPresent(timezone, forKey: .timezone)
+        try container.encode(units, forKey: .units)
+        try container.encode(theme, forKey: .theme)
+        try container.encodeIfPresent(onboardingCompletedAt, forKey: .onboardingCompletedAt)
+        try container.encode(subscriptionTier, forKey: .subscriptionTier)
+        try container.encode(wardrobeGraph, forKey: .wardrobeGraph)
+        try container.encodeIfPresent(referralCode, forKey: .referralCode)
+        try container.encodeIfPresent(referredBy, forKey: .referredBy)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
     }
 
     /// The first-name-only greeting used by Kyra's Daily Brief header

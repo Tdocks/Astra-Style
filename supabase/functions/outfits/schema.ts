@@ -24,13 +24,7 @@
 // ============================================================================
 
 import { badRequest } from "../_shared/errors.ts";
-import {
-  isRecord,
-  optionalIntInRange,
-  optionalString,
-  optionalUUID,
-  optionalUUIDArray,
-} from "../_shared/validation.ts";
+import { isRecord, isUUID, optionalString, optionalUUID, optionalUUIDArray, optionalIntInRange } from "../_shared/validation.ts";
 
 export interface GenerateOutfitsRequestBody {
   occasionId?: string;
@@ -153,4 +147,39 @@ export function parseRankOutfitsBody(rawBody: unknown): RankOutfitsRequestBody {
   );
 
   return { candidates, lockedClosetItemIds };
+}
+
+export interface RecordWearRequestBody {
+  readonly outfitId: string;
+  readonly wornAt: string;
+  readonly occasion?: string;
+  readonly rating?: number;
+  readonly feedback?: string;
+}
+
+export function parseRecordWearBody(rawBody: unknown): RecordWearRequestBody {
+  if (!isRecord(rawBody)) {
+    throw badRequest('Request envelope must contain a JSON object at "body".');
+  }
+  const outfitId = rawBody["outfit_id"];
+  if (!isUUID(outfitId)) {
+    throw badRequest("body.outfit_id must be a UUID string.");
+  }
+  const wornAt = rawBody["worn_at"];
+  if (typeof wornAt !== "string" || wornAt.length < 10) {
+    throw badRequest("body.worn_at must be an ISO-8601 timestamp.");
+  }
+  const rating = rawBody["rating"];
+  if (rating !== undefined && rating !== null) {
+    if (typeof rating !== "number" || rating < 1 || rating > 5) {
+      throw badRequest("body.rating must be an integer from 1 to 5.");
+    }
+  }
+  return {
+    outfitId,
+    wornAt,
+    occasion: optionalString(rawBody["occasion"], "body.occasion", 200),
+    rating: typeof rating === "number" ? rating : undefined,
+    feedback: optionalString(rawBody["feedback"], "body.feedback", 2000),
+  };
 }

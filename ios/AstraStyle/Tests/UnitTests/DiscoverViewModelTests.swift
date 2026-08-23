@@ -92,6 +92,17 @@ struct DiscoverViewModelTests {
         #expect(catalog.unlocks.map(\.outfitsUnlocked) == [8, 2])
     }
 
+    @Test("Discover Unlocks does not read the curated catalog")
+    func unlocksDoesNotCallCuratedCatalog() async {
+        let shopping = UnlocksShoppingStub([])
+        let model = DiscoverViewModel(
+            outfitRepository: DiscoverOutfitStub(outfits: []),
+            shoppingRepository: shopping
+        )
+        await model.onAppear()
+        #expect(await shopping.curatedCalls == 0)
+    }
+
     @Test("Sponsored cannot outrank a higher unlock count")
     func sponsoredCannotOutrankGap() async throws {
         let sponsoredFew = unlock(
@@ -222,7 +233,11 @@ private actor EmptyShoppingStub: ShoppingRepository {
     func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {
         throw AstraError.unimplemented("unused")
     }
-    func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] { [] }
+    private(set) var curatedCalls = 0
+    func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] {
+        curatedCalls += 1
+        return []
+    }
     func fetchUnlocks() async throws -> [ProductUnlock] { [] }
     func fetchWishlist() async throws -> [ProductCandidate] { [] }
     func addToWishlist(candidateID: UUID) async throws {}
@@ -246,7 +261,11 @@ private actor UnlocksShoppingStub: ShoppingRepository {
     func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {
         throw AstraError.unimplemented("unused")
     }
-    func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] { [] }
+    private(set) var curatedCalls = 0
+    func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate] {
+        curatedCalls += 1
+        return []
+    }
     func fetchUnlocks() async throws -> [ProductUnlock] { unlocks }
     func fetchWishlist() async throws -> [ProductCandidate] { [] }
     func addToWishlist(candidateID: UUID) async throws {}

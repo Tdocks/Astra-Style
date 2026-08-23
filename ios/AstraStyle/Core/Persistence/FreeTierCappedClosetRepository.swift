@@ -21,13 +21,20 @@ import Foundation
 public struct FreeTierCappedClosetRepository: ClosetRepository {
     private let base: ClosetRepository
     private let isEntitledToPremium: @Sendable () async -> Bool
+    private let isAnonymous: @Sendable () async -> Bool
 
     public init(
         base: ClosetRepository,
-        isEntitledToPremium: @escaping @Sendable () async -> Bool
+        isEntitledToPremium: @escaping @Sendable () async -> Bool,
+        isAnonymous: @escaping @Sendable () async -> Bool = { false }
     ) {
         self.base = base
         self.isEntitledToPremium = isEntitledToPremium
+        self.isAnonymous = isAnonymous
+    }
+
+    private func capLimit() async -> Int {
+        await isAnonymous() ? GuestLimits.maxClosetItems : FreeTierLimits.maxClosetItems
     }
 
     public func fetchItems() async throws -> [ClosetItem] {
@@ -71,9 +78,9 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
     public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
         if await isEntitledToPremium() == false {
             let activeCount = try await base.fetchItems().count
-            let headroom = FreeTierLimits.maxClosetItems - activeCount
+            let headroom = await capLimit() - activeCount
             guard headroom >= requests.count else {
-                throw FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)
+                throw FreeTierClosetError.capReached(limit: await capLimit())
             }
         }
         return try await base.batchAnalyzeItems(requests)
@@ -82,8 +89,9 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         if await isEntitledToPremium() == false {
             let activeCount = try await base.fetchItems().count
-            guard activeCount < FreeTierLimits.maxClosetItems else {
-                throw FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)
+            let limit = await capLimit()
+            guard activeCount < limit else {
+                throw FreeTierClosetError.capReached(limit: limit)
             }
         }
         return try await base.createItem(item, images: images)

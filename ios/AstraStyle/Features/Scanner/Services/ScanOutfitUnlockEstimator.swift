@@ -39,6 +39,10 @@ public enum ScanOutfitUnlockEstimator: Sendable {
             [.top, .bottom, .outerwear]
         case .accessory, .watch, .fragrance:
             [.top, .outerwear, .bottom]
+        case .dress:
+            [.shoes, .outerwear]
+        case .skirt:
+            [.top, .shoes, .outerwear]
         }
     }
 }

@@ -18,6 +18,7 @@ import SwiftUI
 
 struct HomeEmptyStateView: View {
     let reason: HomeBriefData.EmptyReason
+    var wardrobeGraph: WardrobeGraph = .menswear3Role
     let onScanItem: () -> Void
 
     var body: some View {
@@ -72,11 +73,9 @@ struct HomeEmptyStateView: View {
         switch reason {
         case .tooFewItems(let have, let need):
             if have == 0 {
-                String(localized: "Photograph a piece you own. Wear This needs a top, bottom, and shoes — start with one.",
-                       comment: "Home empty state, closet empty")
+                wardrobeGraph.emptyClosetAdvice
             } else {
-                String(localized: "\(have) of \(need) pieces in. Keep going — Wear This also needs a top, bottom, and shoes.",
-                       comment: "Home empty state, closet growing toward the minimum")
+                wardrobeGraph.growingClosetAdvice(have, need)
             }
         case .missingRoles(let roles):
             String(

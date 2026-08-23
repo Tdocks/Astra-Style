@@ -13,6 +13,7 @@ struct ProductLinkPasteSheet: View {
     var onExtracted: (UUID) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppRouter.self) private var router
     @State private var linkText = ""
 
     init(shoppingRepository: ShoppingRepository, onExtracted: @escaping (UUID) -> Void) {
@@ -73,5 +74,11 @@ struct ProductLinkPasteSheet: View {
         }
         .presentationBackground(AstraColor.backgroundPrimary)
         .presentationDetents([.medium])
+        .onChange(of: viewModel.pendingPaywall) { _, context in
+            if let context {
+                router.presentModal(.paywall(context: context))
+                viewModel.clearPendingPaywall()
+            }
+        }
     }
 }

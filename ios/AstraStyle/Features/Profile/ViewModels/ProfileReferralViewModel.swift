@@ -3,7 +3,7 @@
 //  AstraStyle
 //
 //  One-guy referral. Share the code; optionally apply someone else's.
-//  Account required. No streaks, no dashboard.
+//  Account required. Referral is not the wear-day streak.
 //
 
 import Foundation

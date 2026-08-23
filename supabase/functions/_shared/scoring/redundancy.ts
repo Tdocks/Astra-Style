@@ -75,6 +75,7 @@ const CATEGORY_DEFAULT_FORMALITY: Record<GarmentRole, number> = {
   outerwear: 50,
   shoes: 45,
   accessory: 45,
+  dress: 50,
 };
 
 function formalityOf(item: RedundancyItem): number {

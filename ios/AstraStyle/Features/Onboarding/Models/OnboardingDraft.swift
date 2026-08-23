@@ -145,6 +145,9 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
     // §6.9 — Preference quiz.
     public var quizAnswers: [StylePreferenceQuizAnswer] = []
 
+    /// Product picker (ADR 0019). Required on first-run. Decode-if-absent for old drafts.
+    public var wardrobeGraph: WardrobeGraph?
+
     /// Optional one-guy referral. Skippable. Applied after complete-onboarding.
     /// Optional so old persisted drafts still decode.
     public var referralCode: String?
@@ -186,6 +189,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         case laundryCadence, travelFrequency, religiousServiceAttireNeeds
         case sustainabilityPreference, preferredBrands, avoidedBrands
         case monthlyBudget, currency, quizAnswers, furthestStepReached
+        case wardrobeGraph
         case referenceConsentGrantedAt, referenceImageFilename, referenceStoragePaths
     }
 
@@ -229,6 +233,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         currency = try container.decodeIfPresent(String.self, forKey: .currency)
             ?? Locale.current.currency?.identifier ?? "USD"
         quizAnswers = try container.decodeIfPresent([StylePreferenceQuizAnswer].self, forKey: .quizAnswers) ?? []
+        wardrobeGraph = try container.decodeIfPresent(WardrobeGraph.self, forKey: .wardrobeGraph)
         furthestStepReached = try container.decodeIfPresent(
             OnboardingStep.self, forKey: .furthestStepReached
         ) ?? .intro
@@ -274,6 +279,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         try container.encodeIfPresent(monthlyBudget, forKey: .monthlyBudget)
         try container.encode(currency, forKey: .currency)
         try container.encode(quizAnswers, forKey: .quizAnswers)
+        try container.encodeIfPresent(wardrobeGraph, forKey: .wardrobeGraph)
         try container.encode(furthestStepReached, forKey: .furthestStepReached)
         try container.encodeIfPresent(referenceConsentGrantedAt, forKey: .referenceConsentGrantedAt)
         try container.encodeIfPresent(referenceImageFilename, forKey: .referenceImageFilename)
@@ -392,7 +398,8 @@ public extension OnboardingDraft {
             // owns Style DNA generation (§6.10) and may weigh the raw choices
             // differently, or re-infer them entirely when the comparison set
             // grows — which it cannot do from a vector alone.
-            quizAnswers: quizAnswers
+            quizAnswers: quizAnswers,
+            wardrobeGraph: wardrobeGraph ?? .menswear3Role
         )
     }
 }

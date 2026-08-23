@@ -26,13 +26,9 @@
 // the `SECURITY INVOKER` rationale in
 // supabase/migrations/20260730190000_complete_onboarding_rpc.sql.
 //
-// NOTE ON GUESTS (ADR 0011): a guest has no `auth.users` row, no profile,
-// and no JWT, so this endpoint is unreachable for one — `authenticateRequest`
-// rejects the request before any write is attempted. The client never even
-// tries: `OnboardingViewModel.submit()` branches on `sessionStore
-// .currentIsGuest()` and saves the draft locally instead. That is two
-// independent guarantees, which is the right number for a rule that has
-// already caused three bugs.
+// NOTE ON GUESTS (ADR 0018): anonymous JWTs are `authenticated`, so this
+// endpoint is reachable. Photos still must not hit `user-content` until
+// Apple/email link. The old ADR 0011 guest-with-no-JWT path is gone.
 // ============================================================================
 
 import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
@@ -89,6 +85,7 @@ function toProfileDTO(row: Record<string, unknown>, now: Date): ProfileDTO {
     theme: asString("theme") ?? "system",
     onboarding_completed_at: toIso8601Seconds(row["onboarding_completed_at"]),
     subscription_tier: asString("subscription_tier") ?? "free",
+    wardrobe_graph: asString("wardrobe_graph") ?? "menswear_3_role",
     created_at: requireIso8601Seconds(row["created_at"], now),
     updated_at: requireIso8601Seconds(row["updated_at"], now),
   };
@@ -116,6 +113,7 @@ function completeOnboardingRoute(req: Request): Promise<Response> {
         p_style_profile: write.styleProfile,
         p_body_profile: write.bodyProfile,
         p_lifestyle_profile: write.lifestyleProfile,
+        p_wardrobe_graph: write.wardrobeGraph,
       });
 
       if (error) {

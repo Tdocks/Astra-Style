@@ -414,3 +414,30 @@ Deno.test("a locked recently-worn item is not rotated out", () => {
     assert(outfit.items.some((i) => i.id === "top-1"));
   }
 });
+
+Deno.test("women's graph: dress + shoes is a complete outfit", () => {
+  const closet = [
+    garment("dress-1", "dress", { colorHex: "1F2A44", formalityScore: 50, fit: "regular" }),
+    garment("shoes-1", "shoes", { colorHex: "3B2A20", formalityScore: 50, fit: "regular" }),
+  ];
+  const emptyMenswear = generateCandidateOutfits(closet, {
+    desiredCount: 3,
+    lockedItemIds: NO_LOCKS,
+    excludedItemIds: NO_EXCLUSIONS,
+    context: { wardrobeGraph: "menswear_3_role" },
+  });
+  assertEquals(emptyMenswear.length, 0);
+
+  const outfits = generateCandidateOutfits(closet, {
+    desiredCount: 3,
+    lockedItemIds: NO_LOCKS,
+    excludedItemIds: NO_EXCLUSIONS,
+    context: { wardrobeGraph: "womenswear" },
+  });
+  assert(outfits.length > 0);
+  for (const outfit of outfits) {
+    const roles = outfit.items.map((i) => i.role);
+    assert(roles.includes("dress"));
+    assert(roles.includes("shoes"));
+  }
+});

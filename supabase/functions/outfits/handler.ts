@@ -63,7 +63,7 @@ import { createLogger, type RequestLogger } from "../_shared/logger.ts";
 import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
-import { parseEnvelope, parseGenerateOutfitsBody, parseRankOutfitsBody } from "./schema.ts";
+import { parseEnvelope, parseGenerateOutfitsBody, parseRankOutfitsBody, parseRecordWearBody } from "./schema.ts";
 import {
   type ClosetItemMapperRow,
   mapClosetItemRowToScorableItem,
@@ -72,6 +72,7 @@ import { generateCandidateOutfits } from "./candidateGeneration.ts";
 import { buildReason } from "./reason.ts";
 import { scoreOutfit } from "../_shared/scoring/compatibility.ts";
 import { toScoredOutfit } from "../_shared/scoring/wire.ts";
+import { FREE_WEAR_THIS_COUNT, morningLoopQuotaError } from "../_shared/premium.ts";
 import type { ScoredOutfitEnvelope } from "../_shared/scoring/wire.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
 
@@ -97,6 +98,7 @@ export interface ClosetRepository {
    * score rather than scoring a different one.
    */
   listItemsByIds(userId: string, ids: readonly string[]): Promise<ClosetItemMapperRow[]>;
+  readWardrobeGraph(userId: string): Promise<"menswear_3_role" | "womenswear">;
 }
 
 export interface HandlerDeps {
@@ -105,6 +107,16 @@ export interface HandlerDeps {
   rateLimiter: RateLimiter;
   /** Injected clock so latency logging is deterministic in tests. */
   now: () => Date;
+  hasActivePremiumSubscription?: (nowIso: string) => Promise<boolean>;
+  countWearEvents?: (userId: string) => Promise<number>;
+  insertWear?: (row: {
+    user_id: string;
+    outfit_id: string;
+    worn_at: string;
+    occasion: string | null;
+    rating: number | null;
+    feedback: string | null;
+  }) => Promise<Record<string, unknown>>;
 }
 
 async function readJsonBody(req: Request): Promise<unknown> {
@@ -174,11 +186,13 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     // nothing here to "trust" or "not trust" from the client.
     const rows = await deps.closetRepository.listCandidateItems(userId);
     const items = mapRows(rows);
+    const wardrobeGraph = await deps.closetRepository.readWardrobeGraph(userId);
 
     const generated = generateCandidateOutfits(items, {
       desiredCount: body.desiredCount,
       lockedItemIds: new Set(body.lockedClosetItemIds),
       excludedItemIds: new Set(body.excludedClosetItemIds),
+      context: { wardrobeGraph },
     });
 
     const payload: ScoredOutfitEnvelope[] = generated.map((outfit) =>
@@ -273,6 +287,7 @@ export async function handleRankOutfits(req: Request, deps: HandlerDeps): Promis
 
     const allItemIds = [...new Set(body.candidates.flatMap((c) => c.itemIds))];
     const rows = await deps.closetRepository.listItemsByIds(userId, allItemIds);
+    const wardrobeGraph = await deps.closetRepository.readWardrobeGraph(userId);
     const itemsById = new Map<string, ScorableItem>();
     for (const item of mapRows(rows)) {
       itemsById.set(item.id, item);
@@ -307,7 +322,7 @@ export async function handleRankOutfits(req: Request, deps: HandlerDeps): Promis
 
     const results = scored
       .map(({ input, items }) => {
-        const score = scoreOutfit(items);
+        const score = scoreOutfit(items, { wardrobeGraph });
         return { input, items, score };
       })
       .sort((a, b) => b.score.score - a.score.score);
@@ -336,6 +351,68 @@ export async function handleRankOutfits(req: Request, deps: HandlerDeps): Promis
     return jsonResponse(payload, { status: 200, requestId, extraHeaders: CORS_HEADERS });
   } catch (err) {
     return handleOutfitsError(err, "outfits_rank", logger, requestId, startedAtMs, deps);
+  }
+}
+
+export async function handleRecordWear(req: Request, deps: HandlerDeps): Promise<Response> {
+  const startedAtMs = deps.now().getTime();
+  const preflight = handleCorsPreflight(req);
+  if (preflight) return preflight;
+
+  let requestId = resolveRequestId(req);
+  const logger = createLogger(requestId);
+
+  try {
+    if (req.method !== "POST") {
+      throw methodNotAllowed("POST /outfits/record-wear only accepts POST.");
+    }
+    const userId = await authenticateRequest(req, deps.authClient);
+    const rateLimitResult = deps.rateLimiter.check(userId, deps.now().getTime());
+    if (!rateLimitResult.allowed) {
+      return errorResponse(
+        new AppError("rate_limited", 429, "Too many requests. Please try again shortly."),
+        requestId,
+        { ...CORS_HEADERS, "Retry-After": String(rateLimitResult.retryAfterSeconds) },
+      );
+    }
+
+    const rawJson = await readJsonBody(req);
+    const envelope = parseEnvelope(rawJson);
+    requestId = resolveRequestId(req, envelope.requestId);
+    logger.adoptRequestId(requestId);
+    const body = parseRecordWearBody(envelope.body);
+
+    const premium = deps.hasActivePremiumSubscription
+      ? await deps.hasActivePremiumSubscription(deps.now().toISOString())
+      : true;
+    if (!premium) {
+      const used = deps.countWearEvents ? await deps.countWearEvents(userId) : 0;
+      if (used >= FREE_WEAR_THIS_COUNT) {
+        throw morningLoopQuotaError(
+          "You've used your free Wear This days. Upgrade to Astra Style Premium to keep logging looks.",
+        );
+      }
+    }
+
+    if (!deps.insertWear) {
+      throw serverError("Couldn't record that wear.");
+    }
+    const row = await deps.insertWear({
+      user_id: userId,
+      outfit_id: body.outfitId,
+      worn_at: body.wornAt,
+      occasion: body.occasion ?? null,
+      rating: body.rating ?? null,
+      feedback: body.feedback ?? null,
+    });
+
+    logger.info("outfits_record_wear.success", {
+      user_id: userId,
+      latency_ms: deps.now().getTime() - startedAtMs,
+    });
+    return jsonResponse(row, { status: 200, requestId, extraHeaders: CORS_HEADERS });
+  } catch (err) {
+    return handleOutfitsError(err, "outfits_record_wear", logger, requestId, startedAtMs, deps);
   }
 }
 

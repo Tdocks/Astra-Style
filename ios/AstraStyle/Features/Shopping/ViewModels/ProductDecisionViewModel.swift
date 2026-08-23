@@ -25,6 +25,7 @@ public final class ProductDecisionViewModel {
     }
 
     public private(set) var state: ViewState = .loading
+    public private(set) var pendingPaywall: PaywallContext?
 
     private let candidateID: UUID
     private let shoppingRepository: ShoppingRepository
@@ -75,10 +76,17 @@ public final class ProductDecisionViewModel {
             let evaluation = try await shoppingRepository.evaluateProduct(candidateID: candidateID)
             let candidate = try? await shoppingRepository.fetchProductCandidate(id: candidateID)
             state = .loaded(Loaded(candidate: candidate, evaluation: evaluation))
+        } catch let error as AstraError where error.category == .rateLimited {
+            pendingPaywall = .pasteEvaluate
+            state = .failed(error)
         } catch let error as AstraError {
             state = .failed(error)
         } catch {
             state = .failed(AstraError(category: .unknown, message: error.localizedDescription))
         }
+    }
+
+    public func clearPendingPaywall() {
+        pendingPaywall = nil
     }
 }

@@ -22,8 +22,10 @@ import { scoreOutfit } from "./compatibility.ts";
 import type { ComponentWeights, ScoreOptions } from "./compatibility.ts";
 import { canonicalSignature } from "./equivalence.ts";
 import type { GarmentRole, ScorableItem, ScoringContext } from "./types.ts";
-
-const REQUIRED_ROLES: readonly GarmentRole[] = ["top", "bottom", "shoes"];
+import {
+  parseWardrobeGraph,
+  requiredRoleSetsForAnchor,
+} from "./wardrobeGraph.ts";
 
 export interface PrunedGenerationOptions {
   /** §6.4's quality gate, on the same [0,1] scale as every other subscore. */
@@ -137,8 +139,33 @@ export function generateAnchoredOutfits(
 ): GenerationResult {
   const opts: PrunedGenerationOptions = { ...DEFAULT_GENERATION_OPTIONS, ...options };
   const context = opts.context ?? {};
+  const sets = requiredRoleSetsForAnchor(
+    anchor.role,
+    parseWardrobeGraph(context.wardrobeGraph),
+  );
 
-  const requiredRolesToFill = REQUIRED_ROLES.filter((r) => r !== anchor.role);
+  const bySignature = new Map<string, GeneratedOutfit>();
+  let combinationsScored = 0;
+  for (const rolesToFill of sets) {
+    const result = generateAnchoredForRoles(anchor, pool, opts, rolesToFill);
+    combinationsScored += result.combinationsScored;
+    for (const outfit of result.qualifying) {
+      const existing = bySignature.get(outfit.signature);
+      if (!existing || outfit.compatibilityScore > existing.compatibilityScore) {
+        bySignature.set(outfit.signature, outfit);
+      }
+    }
+  }
+  return { qualifying: [...bySignature.values()], combinationsScored };
+}
+
+function generateAnchoredForRoles(
+  anchor: ScorableItem,
+  pool: readonly ScorableItem[],
+  opts: PrunedGenerationOptions,
+  requiredRolesToFill: readonly GarmentRole[],
+): GenerationResult {
+  const context = opts.context ?? {};
   const fillOuterwear = anchor.role !== "outerwear";
   const fillAccessory = anchor.role !== "accessory";
 
@@ -146,9 +173,6 @@ export function generateAnchoredOutfits(
   for (const role of requiredRolesToFill) {
     const candidates = topKForRole(anchor, pool, role, opts.slotK, opts.weights, context);
     if (candidates.length === 0) {
-      // A required role with zero eligible items means no outfit can be
-      // built at all, regardless of what else the wardrobe holds — e.g. a
-      // top being scored for versatility in a closet with no shoes.
       return { qualifying: [], combinationsScored: 0 };
     }
     requiredCandidateLists.push(candidates);

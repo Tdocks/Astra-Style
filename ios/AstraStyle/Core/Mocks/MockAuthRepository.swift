@@ -42,6 +42,37 @@ public actor MockAuthRepository: AuthRepository {
         return newSession
     }
 
+    public func signInAnonymously() async throws -> AuthSession {
+        let newSession = AuthSession(
+            userID: SampleData.userID,
+            accessToken: "preview-token",
+            refreshToken: "preview-refresh",
+            expiresAt: .distantFuture,
+            isAnonymous: true
+        )
+        session = newSession
+        try? await sessionStore?.adopt(newSession)
+        return newSession
+    }
+
+    public func linkAppleIdentity(identityToken: String, nonce: String) async throws -> AuthSession {
+        let uid = session?.userID ?? SampleData.userID
+        let newSession = AuthSession(
+            userID: uid,
+            accessToken: "preview-token",
+            refreshToken: "preview-refresh",
+            expiresAt: .distantFuture,
+            isAnonymous: false
+        )
+        session = newSession
+        try? await sessionStore?.adopt(newSession)
+        return newSession
+    }
+
+    public func linkEmailIdentity(email: String, code: String) async throws -> AuthSession {
+        try await linkAppleIdentity(identityToken: email, nonce: code)
+    }
+
     public func restoreSession() async throws -> AuthSession? {
         session
     }

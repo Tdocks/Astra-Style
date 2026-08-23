@@ -27,6 +27,7 @@ import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.t
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { serverError } from "../_shared/errors.ts";
+import { hasActivePremiumSubscription } from "../_shared/premium.ts";
 import {
   type BriefRepository,
   handleGenerateDailyBrief,
@@ -203,6 +204,15 @@ function generateRoute(req: Request): Promise<Response> {
     scorer,
     rateLimiter,
     now: () => new Date(),
+    hasActivePremiumSubscription: (nowIso) => hasActivePremiumSubscription(supabase, nowIso),
+    async countBriefs(userId) {
+      void userId;
+      const { count, error } = await supabase
+        .from("daily_briefs")
+        .select("*", { count: "exact", head: true });
+      if (error) return Number.MAX_SAFE_INTEGER;
+      return count ?? 0;
+    },
   });
 }
 

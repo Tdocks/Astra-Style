@@ -31,6 +31,9 @@ struct EmailAuthSheet: View {
 
     /// Called with the established session so the caller can route onward.
     let onAuthenticated: (AuthSession) -> Void
+    /// When true, verifying the code links the current anonymous user
+    /// instead of minting a second account.
+    var linksAnonymousAccount = false
 
     @State private var step: Step = .enterEmail
     @State private var email = ""
@@ -182,10 +185,18 @@ struct EmailAuthSheet: View {
                 step = .enterCode(email: address)
                 code = ""
             case .enterCode(let sentTo):
-                let session = try await container.authRepository.verifyEmailOTP(
-                    email: sentTo,
-                    code: code.trimmingCharacters(in: .whitespaces)
-                )
+                let session: AuthSession
+                if linksAnonymousAccount {
+                    session = try await container.authRepository.linkEmailIdentity(
+                        email: sentTo,
+                        code: code.trimmingCharacters(in: .whitespaces)
+                    )
+                } else {
+                    session = try await container.authRepository.verifyEmailOTP(
+                        email: sentTo,
+                        code: code.trimmingCharacters(in: .whitespaces)
+                    )
+                }
                 onAuthenticated(session)
                 dismiss()
             }

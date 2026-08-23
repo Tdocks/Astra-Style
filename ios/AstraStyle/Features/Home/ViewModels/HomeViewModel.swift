@@ -85,6 +85,9 @@ public final class HomeViewModel {
     /// replace Today's Outfit with an error screen.
     public private(set) var actionError: AstraError?
 
+    /// Server 429 on Wear This or Daily Brief generate.
+    public private(set) var pendingPaywall: PaywallContext?
+
     /// Drives `WeatherOptInCardView`/the denied-state notice (P4-HOME-05).
     /// Starts `.notDetermined` — the same value a brand-new install's
     /// `CLLocationManager` reports — so a view rendered before `onAppear()`
@@ -204,6 +207,8 @@ public final class HomeViewModel {
             hasMarkedWorn = true
             canOfferPublicLook = data.primaryOutfit?.visibility != .shared
             analyticsClient.log(.outfitMarkedWorn(outfitID: outfitID))
+        } catch let error as AstraError where error.category == .rateLimited {
+            pendingPaywall = .wearThis
         } catch let error as AstraError {
             actionError = error
             isOffline = await networkMonitor.isOffline()
@@ -235,6 +240,10 @@ public final class HomeViewModel {
         actionError = nil
     }
 
+    public func clearPendingPaywall() {
+        pendingPaywall = nil
+    }
+
     private func load(regenerate: Bool, showingSkeleton: Bool) async {
         isOffline = await networkMonitor.isOffline()
         if showingSkeleton {
@@ -259,6 +268,8 @@ public final class HomeViewModel {
                     weekSlots = await provider.loadWeekStrip()
                 }
             }
+        } catch let error as AstraError where error.category == .rateLimited && regenerate {
+            pendingPaywall = .dailyBrief
         } catch let error as AstraError {
             state = .failed(error)
         } catch {

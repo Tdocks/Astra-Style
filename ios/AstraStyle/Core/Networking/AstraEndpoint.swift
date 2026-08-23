@@ -32,6 +32,8 @@ public enum AstraEndpoint: Sendable, Equatable {
     case syncSubscriptions
     case appStoreWebhook
     case deleteAccount
+    /// Wear This — entitlement lives on the server (ADR 0020).
+    case recordWear
 
     /// HTTP method for the endpoint.
     public var method: HTTPMethod {
@@ -67,6 +69,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .syncSubscriptions: "subscriptions/sync"
         case .appStoreWebhook: "app-store/webhook"
         case .deleteAccount: "account"
+        case .recordWear: "outfits/record-wear"
         }
     }
 

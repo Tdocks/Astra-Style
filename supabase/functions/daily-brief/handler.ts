@@ -50,6 +50,7 @@ import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
 import type { OutfitScorer, OutfitScorerRow } from "../_shared/scoring/outfitScorer.ts";
+import { FREE_DAILY_BRIEF_COUNT, morningLoopQuotaError } from "../_shared/premium.ts";
 import {
   type DailyBriefRow,
   mapBriefRowToWire,
@@ -112,6 +113,8 @@ export interface HandlerDeps {
   scorer: OutfitScorer;
   rateLimiter: RateLimiter;
   now: () => Date;
+  hasActivePremiumSubscription?: (nowIso: string) => Promise<boolean>;
+  countBriefs?: (userId: string) => Promise<number>;
 }
 
 /**
@@ -191,6 +194,18 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
           requestId,
           extraHeaders: CORS_HEADERS,
         });
+      }
+    }
+
+    const premium = deps.hasActivePremiumSubscription
+      ? await deps.hasActivePremiumSubscription(deps.now().toISOString())
+      : true;
+    if (!premium) {
+      const used = deps.countBriefs ? await deps.countBriefs(userId) : 0;
+      if (used >= FREE_DAILY_BRIEF_COUNT) {
+        throw morningLoopQuotaError(
+          "You've used your free Daily Briefs. Upgrade to Astra Style Premium for a full brief every morning.",
+        );
       }
     }
 

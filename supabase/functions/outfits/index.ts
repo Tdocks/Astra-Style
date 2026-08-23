@@ -35,9 +35,15 @@
 import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
-import { type ClosetRepository, handleGenerateOutfits, handleRankOutfits } from "./handler.ts";
+import {
+  type ClosetRepository,
+  handleGenerateOutfits,
+  handleRankOutfits,
+  handleRecordWear,
+} from "./handler.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
 import { serverError } from "../_shared/errors.ts";
+import { hasActivePremiumSubscription } from "../_shared/premium.ts";
 
 // Read once at cold start (per isolate), not per request: a misconfigured
 // deploy should fail immediately and visibly rather than on the first
@@ -64,6 +70,8 @@ const SCORABLE_CATEGORIES = [
   "shoes",
   "accessory",
   "watch",
+  "dress",
+  "skirt",
 ] as const;
 const WEARABLE_LAUNDRY_STATES = ["clean", "worn_once"] as const;
 
@@ -142,6 +150,19 @@ function buildClosetRepository(authorizationHeader: string): ClosetRepository {
       }
       return (data ?? []) as unknown as ClosetItemMapperRow[];
     },
+
+    async readWardrobeGraph(userId: string): Promise<"menswear_3_role" | "womenswear"> {
+      void userId;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("wardrobe_graph")
+        .maybeSingle();
+      if (error) return "menswear_3_role";
+      const value = data && typeof data === "object"
+        ? (data as { wardrobe_graph?: unknown }).wardrobe_graph
+        : undefined;
+      return value === "womenswear" ? "womenswear" : "menswear_3_role";
+    },
   };
 }
 
@@ -174,7 +195,42 @@ function rankOutfitsRoute(req: Request): Promise<Response> {
   });
 }
 
+function recordWearRoute(req: Request): Promise<Response> {
+  const authorizationHeader = req.headers.get("Authorization") ??
+    req.headers.get("authorization") ?? "";
+  const supabase = createUserScopedClient(env, authorizationHeader);
+
+  return handleRecordWear(req, {
+    authClient: supabase,
+    closetRepository: buildClosetRepository(authorizationHeader),
+    rateLimiter,
+    now: () => new Date(),
+    hasActivePremiumSubscription: (nowIso) => hasActivePremiumSubscription(supabase, nowIso),
+    async countWearEvents(userId) {
+      void userId;
+      const { count, error } = await supabase
+        .from("outfit_wears")
+        .select("*", { count: "exact", head: true });
+      if (error) return Number.MAX_SAFE_INTEGER;
+      return count ?? 0;
+    },
+    async insertWear(row) {
+      const { data, error } = await supabase
+        .from("outfit_wears")
+        .insert({
+          ...row,
+          weather_snapshot: {},
+        })
+        .select()
+        .single();
+      if (error || !data) throw serverError("Couldn't record that wear.");
+      return data as Record<string, unknown>;
+    },
+  });
+}
+
 Deno.serve(createRouter("outfits", [
   { method: "POST", pattern: "/generate", handler: generateOutfitsRoute },
   { method: "POST", pattern: "/rank", handler: rankOutfitsRoute },
+  { method: "POST", pattern: "/record-wear", handler: recordWearRoute },
 ]));

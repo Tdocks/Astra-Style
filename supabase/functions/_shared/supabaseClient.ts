@@ -65,3 +65,23 @@ export function createUserScopedClient(env: EdgeEnv, authorizationHeader: string
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+/**
+ * Service-role client for the two documented exceptions RLS cannot express:
+ * Auth Admin (`account`) and writes to `product_candidates` (no authenticated
+ * insert/update policy — P6-SHOP-03 extract + P6-SHOP-08 ingest).
+ *
+ * `SUPABASE_SERVICE_ROLE_KEY` is injected for deployed functions; never ship
+ * it in the iOS target.
+ */
+export function createServiceRoleClient(env: EdgeEnv): SupabaseClient {
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!key) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY must be set. Supabase provides it automatically for deployed Edge Functions.",
+    );
+  }
+  return createClient(env.supabaseUrl, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}

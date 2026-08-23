@@ -38,6 +38,7 @@ public struct HomeBriefData: Sendable {
     /// Empty when there is no outfit, which is the same condition as
     /// `primaryOutfit == nil` and is what `emptyReason` already reads.
     public var lookGarments: [LookGarment]
+    public var wardrobeGraph: WardrobeGraph
 
     public init(
         greetingName: String,
@@ -48,7 +49,8 @@ public struct HomeBriefData: Sendable {
         primaryOutfitItems: [OutfitItem],
         closetRoleCounts: [ClothingCategory: Int]? = [:],
         wearableRoleCounts: [ClothingCategory: Int]? = nil,
-        lookGarments: [LookGarment] = []
+        lookGarments: [LookGarment] = [],
+        wardrobeGraph: WardrobeGraph = .menswear3Role
     ) {
         self.greetingName = greetingName
         self.weather = weather
@@ -59,6 +61,7 @@ public struct HomeBriefData: Sendable {
         self.closetRoleCounts = closetRoleCounts
         self.wearableRoleCounts = wearableRoleCounts
         self.lookGarments = lookGarments
+        self.wardrobeGraph = wardrobeGraph
     }
 
     /// The three roles an outfit needs before one can exist at all.
@@ -70,8 +73,7 @@ public struct HomeBriefData: Sendable {
     public static let requiredRoles: [ClothingCategory] = [.top, .bottom, .shoes]
 
     public var missingRoles: [ClothingCategory] {
-        let counts = closetRoleCounts ?? [:]
-        return Self.requiredRoles.filter { (counts[$0] ?? 0) == 0 }
+        wardrobeGraph.missingRoles(in: closetRoleCounts ?? [:])
     }
 
     /// Roles he owns, but cannot put on today.
@@ -81,7 +83,8 @@ public struct HomeBriefData: Sendable {
     /// whose closet was simply unreachable.
     public var rolesInTheWash: [ClothingCategory] {
         guard let owned = closetRoleCounts, let wearable = wearableRoleCounts else { return [] }
-        return Self.requiredRoles.filter { (owned[$0] ?? 0) > 0 && (wearable[$0] ?? 0) == 0 }
+        if !wardrobeGraph.missingRoles(in: owned).isEmpty { return [] }
+        return wardrobeGraph.missingRoles(in: wearable)
     }
 
     public var closetItemCount: Int {

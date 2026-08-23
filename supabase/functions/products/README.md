@@ -62,7 +62,10 @@ has for "we are guessing at this".
 - **Wishlist / purchased actions** (P6-SHOP-07) and the `wishlist_items`
   migration behind them. Deferred on purpose until the UI that has to live
   with the schema exists.
-- **Curated catalog ingestion** (P6-SHOP-08).
+- **Curated catalog ingestion** (P6-SHOP-08) is `scripts/ingest_product_candidates.py`
+  against `supabase/seed/product_candidates.json` (service role). Extract also
+  upserts with service role after JWT auth; the payload never includes
+  `sponsored`. Unlocks still ignores unevaluated catalog rows.
 - **Fragrance.** It has no wardrobe-graph role, so there is no pairing
   question to answer; `/evaluate` returns a 400 saying so rather than
   inventing a verdict.

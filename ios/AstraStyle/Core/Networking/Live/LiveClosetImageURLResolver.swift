@@ -84,6 +84,10 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
     }
 
     public func resolve(storagePath: String) async throws -> URL {
+        if let local = GuestLocalImageStore.fileURL(for: storagePath),
+           FileManager.default.fileExists(atPath: local.path) {
+            return local
+        }
         if let cached = usableCachedURL(for: storagePath) {
             return cached
         }
@@ -103,7 +107,10 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
         var needsSigning: [String] = []
 
         for path in storagePaths {
-            if let cached = usableCachedURL(for: path) {
+            if let local = GuestLocalImageStore.fileURL(for: path),
+               FileManager.default.fileExists(atPath: local.path) {
+                resolved[path] = local
+            } else if let cached = usableCachedURL(for: path) {
                 resolved[path] = cached
             } else {
                 needsSigning.append(path)

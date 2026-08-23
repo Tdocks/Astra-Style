@@ -53,6 +53,7 @@ export interface OnboardingWrite {
   styleProfile: StyleProfileInput;
   bodyProfile: BodyProfileInput;
   lifestyleProfile: LifestyleProfileInput;
+  wardrobeGraph: "menswear_3_role" | "womenswear";
 }
 
 export interface OnboardingRepository {
@@ -160,6 +161,7 @@ export async function handleCompleteOnboarding(
       styleProfile: body.styleProfile,
       bodyProfile: body.bodyProfile,
       lifestyleProfile: body.lifestyleProfile,
+      wardrobeGraph: body.wardrobeGraph,
     });
 
     const shape = vectorShape(body);

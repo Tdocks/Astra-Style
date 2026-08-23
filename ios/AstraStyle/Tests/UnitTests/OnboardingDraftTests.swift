@@ -286,7 +286,8 @@ struct OnboardingStepTests {
         #expect(OnboardingStep.answerableSteps.count == OnboardingStep.firstRunSequence.count - 2)
         #expect(OnboardingStep.intro.answerablePosition == nil)
         #expect(OnboardingStep.result.answerablePosition == nil)
-        #expect(OnboardingStep.identity.answerablePosition == 1)
+        #expect(OnboardingStep.wardrobeGraph.answerablePosition == 1)
+        #expect(OnboardingStep.identity.answerablePosition == 2)
         #expect(OnboardingStep.goals.answerablePosition == nil)
         // The last answerable step must report the final position, or the
         // progress bar never fills and the flow feels unfinished at the end.
@@ -294,7 +295,7 @@ struct OnboardingStepTests {
             OnboardingStep.answerableSteps.last?.answerablePosition
                 == OnboardingStep.answerableSteps.count
         )
-        #expect(OnboardingStep.answerableSteps == [.identity, .quiz, .firstItems])
+        #expect(OnboardingStep.answerableSteps == [.wardrobeGraph, .identity, .quiz, .firstItems])
     }
 
     /// ADR 0015: first-run skips the reference selfie. The cases stay on
@@ -304,8 +305,9 @@ struct OnboardingStepTests {
         #expect(OnboardingStep.quiz.next == .firstItems)
         #expect(OnboardingStep.firstItems.next == .result)
         #expect(OnboardingStep.firstItems.previous == .quiz)
-        #expect(OnboardingStep.identity.previous == .intro)
-        #expect(OnboardingStep.intro.next == .identity)
+        #expect(OnboardingStep.identity.previous == .wardrobeGraph)
+        #expect(OnboardingStep.intro.next == .wardrobeGraph)
+        #expect(OnboardingStep.wardrobeGraph.next == .identity)
         #expect(!OnboardingStep.answerableSteps.contains(.reference))
         #expect(OnboardingStep.answerableSteps.contains(.firstItems))
         #expect(OnboardingStep.allCases.contains(.reference))
@@ -320,10 +322,10 @@ struct OnboardingStepTests {
         #expect(OnboardingStep.identity.clampedToActiveSequence() == .identity)
     }
 
-    @Test("Only the identity step is required")
+    @Test("Only the identity and wardrobe-graph steps are required")
     func onlyIdentityIsRequired() {
         for step in OnboardingStep.allCases {
-            #expect(step.isSkippable == (step != .identity), "\(step) skippability")
+            #expect(step.isSkippable == (step != .identity && step != .wardrobeGraph), "\(step) skippability")
         }
     }
 

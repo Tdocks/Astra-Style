@@ -32,6 +32,7 @@ import {
 import { colorSubscore } from "./subscores/color.ts";
 import { formalitySubscore, outfitFormality } from "./subscores/formality.ts";
 import { type FitNote, silhouetteSubscore } from "./subscores/silhouette.ts";
+import { silhouetteSubscoreWomenswear } from "./subscores/silhouette_womenswear.ts";
 import {
   availabilitySubscore,
   coWearSubscore,
@@ -129,7 +130,9 @@ export function scoreOutfit(
   const components: Record<ComponentName, Subscore> = {
     color: colorSubscore(items),
     formality: formalitySubscore(items),
-    silhouette: silhouetteSubscore(items, options.fitNotes ?? []),
+    silhouette: (context.wardrobeGraph === "womenswear"
+      ? silhouetteSubscoreWomenswear
+      : silhouetteSubscore)(items, options.fitNotes ?? []),
     seasonWeather: seasonWeatherSubscore(items, context),
     userPreference: userPreferenceSubscore(items, context, options.colorNameOf),
     coWear: coWearSubscore(items, context),

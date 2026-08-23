@@ -53,6 +53,8 @@ const KNOWN_CATEGORIES: ReadonlySet<string> = new Set<ClothingCategory>([
   "accessory",
   "watch",
   "fragrance",
+  "dress",
+  "skirt",
 ]);
 
 /** Same reasoning as `mockVisionAnalysis.ts`'s `resolveCategory` — see this file's header. */
@@ -179,9 +181,9 @@ function asRecord(value: unknown): Record<string, unknown> {
 /**
  * Reads a `product_candidates` row back onto the wire, applying the same
  * category/retailer default policy `mapExtractionToUpsertRow` applies at
- * write time — a row inserted by a future curated-catalog path
- * (P6-SHOP-08, not built here) is not guaranteed to have populated either
- * column, and the Swift `ProductCandidate` decode requires both present.
+ * write time — a row inserted by curated ingest (P6-SHOP-08) is not
+ * guaranteed to have populated either column, and the Swift `ProductCandidate`
+ * decode requires both present.
  */
 export function mapProductCandidateRowToDTO(row: ProductCandidateRow): ProductCandidateDTO {
   const flags: string[] = [];

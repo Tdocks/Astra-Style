@@ -290,6 +290,14 @@ public struct ClosetItemAnalysisResult: Codable, Hashable, Sendable {
         self.fieldsBelowConfidenceThreshold = fieldsBelowConfidenceThreshold
     }
 
+    /// Anonymous scan: bytes stayed on device, so vision never ran.
+    public static func guestLocalPlaceholder() -> ClosetItemAnalysisResult {
+        ClosetItemAnalysisResult(
+            category: FieldSuggestion(value: .top, confidence: 0.2),
+            fieldsBelowConfidenceThreshold: [.category]
+        )
+    }
+
     enum CodingKeys: String, CodingKey {
         case name
         case brand

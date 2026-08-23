@@ -56,6 +56,7 @@ struct MainTabView: View {
             case .closet: closetTab
             case .studio: studioTab
             case .discover: discoverTab
+            case .shop: shopTab
             case .profile: profileTab
             }
         }
@@ -176,6 +177,17 @@ struct MainTabView: View {
             .navigationDestination(for: DiscoverRoute.self) { route in
                 DiscoverDestinationView(route: route, container: container)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var shopTab: some View {
+        @Bindable var router = router
+        NavigationStack(path: $router.shopPath) {
+            ShopView(viewModel: ShopViewModel(shoppingRepository: container.shoppingRepository))
+                .navigationDestination(for: ShopRoute.self) { route in
+                    ShopDestinationView(route: route, container: container)
+                }
         }
     }
 

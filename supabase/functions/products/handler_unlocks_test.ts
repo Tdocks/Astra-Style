@@ -171,6 +171,23 @@ Deno.test("empty evaluations is an empty list, not a catalog dump", async () => 
   assertEquals(result.items, []);
 });
 
+Deno.test("a never-evaluated catalog row cannot reach Unlocks even if it would unlock outfits", async () => {
+  const mallShoe = candidateRow("mall-shoe", { color: "navy", fit: "slim" });
+  let fetchedEvaluated = false;
+  const limited: ProductsDependencies = {
+    ...deps([], [TOP, BOTTOM]),
+    fetchCandidate: (id) => Promise.resolve(id === mallShoe.id ? mallShoe : null),
+    fetchLatestEvaluatedCandidates: () => {
+      fetchedEvaluated = true;
+      return Promise.resolve([]);
+    },
+    fetchAlternatives: () => Promise.resolve([mallShoe]),
+  };
+  const result = await handleListUnlocks(USER, limited);
+  assertEquals(fetchedEvaluated, true);
+  assertEquals(result.items, []);
+});
+
 Deno.test("the rail is capped at the alternatives-pool budget", async () => {
   const many = Array.from(
     { length: UNLOCKS_CANDIDATE_CAP + 5 },

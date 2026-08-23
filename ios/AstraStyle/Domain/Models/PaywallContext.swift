@@ -18,4 +18,7 @@ public enum PaywallContext: String, Sendable {
     case kyraDailyLimit
     case studioQuota
     case settingsUpgrade
+    case wearThis
+    case dailyBrief
+    case pasteEvaluate
 }

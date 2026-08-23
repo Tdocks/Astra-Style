@@ -58,11 +58,15 @@ private actor StubAuthRepository: AuthRepository {
         try signInResult.get()
     }
 
-    func continueAsGuest() async throws -> AuthSession {
+    func signInAnonymously() async throws -> AuthSession {
         throw AstraError(category: .unknown, message: "not used by the slice")
     }
 
-    func migrateGuestToAccount(identityToken: String, nonce: String) async throws -> AuthSession {
+    func linkAppleIdentity(identityToken: String, nonce: String) async throws -> AuthSession {
+        try signInResult.get()
+    }
+
+    func linkEmailIdentity(email: String, code: String) async throws -> AuthSession {
         try signInResult.get()
     }
 

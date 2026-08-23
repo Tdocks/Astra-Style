@@ -114,6 +114,7 @@ public final class OutfitDetailViewModel {
     /// The last action failure, held separately from `state` — a failed
     /// mark-worn does not invalidate an outfit that loaded correctly.
     public private(set) var actionError: AstraError?
+    public private(set) var pendingPaywall: PaywallContext?
 
     private let outfitID: UUID
     private let outfitRepository: OutfitRepository
@@ -250,6 +251,8 @@ public final class OutfitDetailViewModel {
                 feedback: nil
             )
             analyticsClient.log(.outfitMarkedWorn(outfitID: outfit.id))
+        } catch let error as AstraError where error.category == .rateLimited {
+            pendingPaywall = .wearThis
         } catch let error as AstraError {
             actionError = error
             isOffline = await networkMonitor.isOffline()
@@ -291,6 +294,10 @@ public final class OutfitDetailViewModel {
 
     public func clearActionError() {
         actionError = nil
+    }
+
+    public func clearPendingPaywall() {
+        pendingPaywall = nil
     }
 }
 

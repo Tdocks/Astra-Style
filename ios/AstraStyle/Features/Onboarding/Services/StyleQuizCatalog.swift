@@ -502,20 +502,22 @@ public extension StyleQuizCatalog {
     /// Everything that went wrong is logged, and everything that was dropped is
     /// on `excluded`, so the silence is only towards the user.
     static func bundled(
+        for graph: WardrobeGraph = .menswear3Role,
         bundle: Bundle = .main,
         locator: (any StyleQuizImageLocating)? = nil
     ) -> StyleQuizCatalog {
         let logger = Logger(subsystem: "com.astrastyle.app", category: "onboarding")
         let resolver = locator ?? BundleStyleQuizImageLocator(bundle: bundle)
+        let name = graph == .womenswear ? "womenswear-quiz-pairs" : manifestFileName
 
         let url = bundle.url(
-            forResource: manifestFileName,
+            forResource: name,
             withExtension: "json",
             subdirectory: BundleStyleQuizImageLocator.directoryName
-        ) ?? bundle.url(forResource: manifestFileName, withExtension: "json")
+        ) ?? bundle.url(forResource: name, withExtension: "json")
 
         guard let url else {
-            logger.error("Quiz manifest \(manifestFileName).json is not in the bundle; the quiz has no comparisons.")
+            logger.error("Quiz manifest \(name).json is not in the bundle; the quiz has no comparisons.")
             return .empty
         }
 

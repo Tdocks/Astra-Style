@@ -42,6 +42,7 @@ export const CATEGORY_DEFAULT_FORMALITY: Record<GarmentRole, number> = {
   outerwear: 50,
   shoes: 45,
   accessory: 45,
+  dress: 50,
 };
 
 /** §3.1's aggregation weights. Accessories barely move the register. */
@@ -51,6 +52,7 @@ const REGISTER_WEIGHT: Record<GarmentRole, number> = {
   shoes: 1.0,
   outerwear: 0.9,
   accessory: 0.4,
+  dress: 1.0,
 };
 
 /** §2.3: the gap at which two garments stop reading as one outfit. */

@@ -128,3 +128,20 @@ Deno.test("combinationsScored counts every combination actually evaluated, indep
     "combinations should still have been scored and rejected, not skipped",
   );
 });
+
+Deno.test("women's graph: a dress anchor qualifies with shoes only", () => {
+  const dress = garment("dress-1", "dress", { colorHex: "6E6E3C", formalityScore: 40 });
+  const shoesOnly = [garment("shoe", "shoes", { colorHex: "F5F3EE", formalityScore: 22 })];
+  const menswear = generateAnchoredOutfits(dress, shoesOnly, {
+    qualityThreshold: 0,
+    context: { wardrobeGraph: "menswear_3_role" },
+  });
+  assertEquals(menswear.qualifying.length, 0);
+
+  const womenswear = generateAnchoredOutfits(dress, shoesOnly, {
+    qualityThreshold: 0,
+    context: { wardrobeGraph: "womenswear" },
+  });
+  assert(womenswear.qualifying.length > 0);
+  assert(womenswear.qualifying[0]!.items.some((i) => i.role === "shoes"));
+});

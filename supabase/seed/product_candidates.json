@@ -1,0 +1,144 @@
+{
+  "products": [
+    {
+      "canonical_url": "https://www.toddsnyder.com/products/italian-shearling-jacket",
+      "retailer": "Todd Snyder",
+      "brand": "Todd Snyder",
+      "name": "Italian Shearling Jacket",
+      "category": "outerwear",
+      "price": 998,
+      "currency": "USD",
+      "affiliate_url": "https://www.toddsnyder.com/products/italian-shearling-jacket?ref=astra",
+      "sponsored": false,
+      "attributes": {
+        "color": "brown",
+        "materials": ["shearling", "leather"],
+        "fit": "regular",
+        "formality_score": 55,
+        "seasonality": ["fall", "winter"],
+        "warmth_score": 85
+      }
+    },
+    {
+      "canonical_url": "https://www.drakes.com/products/handrolled-silk-tie",
+      "retailer": "Drake's",
+      "brand": "Drake's",
+      "name": "Handrolled Silk Grenadine Tie",
+      "category": "accessory",
+      "price": 195,
+      "currency": "USD",
+      "sponsored": false,
+      "attributes": {
+        "color": "navy",
+        "materials": ["silk"],
+        "fit": "regular",
+        "formality_score": 80,
+        "seasonality": ["spring", "fall", "winter"]
+      }
+    },
+    {
+      "canonical_url": "https://www.alden-madison.com/products/indy-boot",
+      "retailer": "Alden",
+      "brand": "Alden",
+      "name": "Indy Boot, Brown Chromexcel",
+      "category": "shoes",
+      "price": 668,
+      "currency": "USD",
+      "sponsored": false,
+      "attributes": {
+        "color": "brown",
+        "materials": ["leather"],
+        "fit": "regular",
+        "formality_score": 50,
+        "seasonality": ["fall", "winter", "spring"],
+        "warmth_score": 40
+      }
+    },
+    {
+      "canonical_url": "https://www.toddsnyder.com/products/japanese-oxford-shirt-navy",
+      "retailer": "Todd Snyder",
+      "brand": "Todd Snyder",
+      "name": "Japanese Oxford Shirt, Navy",
+      "category": "top",
+      "price": 168,
+      "currency": "USD",
+      "sponsored": false,
+      "attributes": {
+        "color": "navy",
+        "materials": ["cotton"],
+        "fit": "tailored",
+        "formality_score": 45,
+        "pattern": "solid",
+        "seasonality": ["spring", "summer", "fall"]
+      }
+    },
+    {
+      "canonical_url": "https://www.toddsnyder.com/products/selvedge-jean-dark-wash",
+      "retailer": "Todd Snyder",
+      "brand": "Todd Snyder",
+      "name": "Selvedge Jean, Dark Wash",
+      "category": "bottom",
+      "price": 228,
+      "currency": "USD",
+      "sponsored": false,
+      "attributes": {
+        "color": "navy",
+        "materials": ["denim", "cotton"],
+        "fit": "slim",
+        "formality_score": 30,
+        "seasonality": ["spring", "fall", "winter"]
+      }
+    },
+    {
+      "canonical_url": "https://www.toddsnyder.com/products/merino-crewneck-charcoal",
+      "retailer": "Todd Snyder",
+      "brand": "Todd Snyder",
+      "name": "Merino Crewneck, Charcoal",
+      "category": "top",
+      "price": 198,
+      "currency": "USD",
+      "sponsored": false,
+      "attributes": {
+        "color": "charcoal",
+        "materials": ["wool", "merino"],
+        "fit": "regular",
+        "formality_score": 40,
+        "seasonality": ["fall", "winter"],
+        "warmth_score": 60
+      }
+    },
+    {
+      "canonical_url": "https://www.hodinkee.com/products/hamilton-khaki-field-auto",
+      "retailer": "Hodinkee",
+      "brand": "Hamilton",
+      "name": "Khaki Field Auto, 38mm",
+      "category": "watch",
+      "price": 745,
+      "currency": "USD",
+      "sponsored": true,
+      "attributes": {
+        "color": "black",
+        "materials": ["steel"],
+        "fit": "regular",
+        "formality_score": 45
+      }
+    },
+    {
+      "canonical_url": "https://www.alden-madison.com/products/leisure-handsewn",
+      "retailer": "Alden",
+      "brand": "Alden",
+      "name": "Leisure Handsewn, Dark Brown",
+      "category": "shoes",
+      "price": 598,
+      "currency": "USD",
+      "sponsored": false,
+      "attributes": {
+        "color": "brown",
+        "materials": ["leather"],
+        "fit": "regular",
+        "formality_score": 35,
+        "seasonality": ["spring", "summer", "fall"]
+      }
+    }
+  ]
+}

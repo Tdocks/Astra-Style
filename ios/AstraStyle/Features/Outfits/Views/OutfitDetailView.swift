@@ -77,6 +77,12 @@ public struct OutfitDetailView: View {
         } message: { error in
             Text(error.message)
         }
+        .onChange(of: viewModel.pendingPaywall) { _, context in
+            if let context {
+                router.presentModal(.paywall(context: context))
+                viewModel.clearPendingPaywall()
+            }
+        }
     }
 
     @ViewBuilder

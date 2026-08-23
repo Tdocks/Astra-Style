@@ -34,6 +34,8 @@ public enum ClothingCategory: String, Codable, CaseIterable, Sendable {
     case accessory
     case watch
     case fragrance
+    case dress
+    case skirt
 
     public var displayName: String {
         switch self {
@@ -44,6 +46,8 @@ public enum ClothingCategory: String, Codable, CaseIterable, Sendable {
         case .accessory: String(localized: "Accessories", comment: "Closet category")
         case .watch: String(localized: "Watches", comment: "Closet category")
         case .fragrance: String(localized: "Fragrance", comment: "Closet category")
+        case .dress: String(localized: "Dresses", comment: "Closet category")
+        case .skirt: String(localized: "Skirts", comment: "Closet category")
         }
     }
 }
@@ -172,6 +176,8 @@ public enum OutfitItemRole: String, Codable, CaseIterable, Sendable {
     case accessory
     case watch
     case fragrance
+    case dress
+    case skirt
 }
 
 /// `outfits.source` — how the outfit came to exist.

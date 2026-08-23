@@ -89,7 +89,8 @@ public final class OnboardingViewModel {
     /// button's label has to distinguish "skip the whole thing" from "skip the
     /// three you have left", and it cannot do that without knowing how many
     /// comparisons exist.
-    public let quizEngine: StyleQuizEngine
+    public private(set) var quizEngine: StyleQuizEngine
+    private let locksQuizCatalog: Bool
 
     // Internal rather than private: the two step-specific halves of this
     // type live in `OnboardingViewModel+Reference.swift` and
@@ -118,7 +119,7 @@ public final class OnboardingViewModel {
         sessionStore: SessionStore,
         draft: OnboardingDraft = OnboardingDraft(),
         step: OnboardingStep = .intro,
-        quizCatalog: StyleQuizCatalog = .bundled()
+        quizCatalog: StyleQuizCatalog? = nil
     ) {
         self.store = store
         self.profileRepository = profileRepository
@@ -127,7 +128,10 @@ public final class OnboardingViewModel {
         self.sessionStore = sessionStore
         self.draft = draft
         self.step = step
-        self.quizEngine = StyleQuizEngine(catalog: quizCatalog)
+        self.locksQuizCatalog = quizCatalog != nil
+        self.quizEngine = StyleQuizEngine(
+            catalog: quizCatalog ?? .bundled(for: draft.wardrobeGraph ?? .menswear3Role)
+        )
     }
 
     // MARK: - Lifecycle
@@ -142,6 +146,7 @@ public final class OnboardingViewModel {
         guard let saved = await store.load() else { return }
         draft = saved
         step = saved.furthestStepReached.clampedToActiveSequence()
+        reloadQuizCatalogIfNeeded()
         await restoreReferenceImage()
     }
 
@@ -168,6 +173,7 @@ public final class OnboardingViewModel {
     public var canAdvance: Bool {
         switch step {
         case .identity: draft.hasCompleteIdentitySelection
+        case .wardrobeGraph: draft.wardrobeGraph != nil
         default: true
         }
     }
@@ -227,6 +233,7 @@ public final class OnboardingViewModel {
     var stepHasAnyAnswer: Bool {
         switch step {
         case .intro, .result: true
+        case .wardrobeGraph: draft.wardrobeGraph != nil
         case .goals: !draft.goals.isEmpty
         case .identity: !draft.selectedIdentities.isEmpty
         case .measurements:
@@ -267,6 +274,19 @@ public final class OnboardingViewModel {
             draft.furthestStepReached = next
         }
         await persist()
+    }
+
+    public func selectWardrobeGraph(_ graph: WardrobeGraph) {
+        if draft.wardrobeGraph != graph {
+            draft.quizAnswers = []
+        }
+        draft.wardrobeGraph = graph
+        reloadQuizCatalogIfNeeded()
+    }
+
+    private func reloadQuizCatalogIfNeeded() {
+        guard !locksQuizCatalog else { return }
+        quizEngine = StyleQuizEngine(catalog: .bundled(for: draft.wardrobeGraph ?? .menswear3Role))
     }
 
     public func goBack() async {

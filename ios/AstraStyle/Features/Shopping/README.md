@@ -4,9 +4,9 @@ Owns the shopping-decision flow: product link analysis, "Shop the look", and the
 
 ## Status
 
-**Wave D is the door, not the store.** Home paste → extract → evaluate → this
-module's decision page. Wishlist, Shop the look, and curated catalog browsing
-are still out.
+**Shop is the catalog.** The Shop tab lists curated `product_candidates`
+(`fetchCuratedProducts`). Discover Unlocks stays `fetchUnlocks` — HIS gap,
+not this list. Wishlist and Shop the look are still out.
 
 ## What this module owns
 

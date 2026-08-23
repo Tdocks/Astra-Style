@@ -27,6 +27,8 @@ const CATEGORIES = new Set([
   "accessory",
   "watch",
   "fragrance",
+  "dress",
+  "skirt",
 ]);
 
 /**
@@ -154,6 +156,8 @@ export class MockVisionAnalysisProvider implements VisionAnalysisProvider {
       accessory: "Belt",
       watch: "Dress watch",
       fragrance: "Eau de parfum",
+      dress: "Day dress",
+      skirt: "Midi skirt",
     };
     const subcategory = subcategoryByCategory[category] ?? "Garment";
     const title = brandGuess

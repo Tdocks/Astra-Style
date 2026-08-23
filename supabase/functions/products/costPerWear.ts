@@ -51,6 +51,8 @@ const CATEGORY_BASE_RATE: Partial<Record<ClothingCategory, number>> = {
   shoes: 35,
   accessory: 20,
   watch: 30,
+  dress: 22,
+  skirt: 26,
 };
 
 const HORIZON_YEARS = 1;

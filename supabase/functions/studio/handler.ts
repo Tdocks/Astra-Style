@@ -489,7 +489,7 @@ export async function handleGenerate(
             new AppError(
               "rate_limited",
               429,
-              "You've used your free visual estimate. Upgrade to Astra Style Premium for more. Wear This stays free.",
+              "You've used your free visual estimate. Upgrade to Astra Style Premium for more.",
             ),
             requestId,
             CORS_HEADERS,

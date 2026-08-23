@@ -77,6 +77,7 @@ public final class AppContainer {
     public let kyraRepository: KyraRepository
     public let studioRepository: StudioRepository
     public let shoppingRepository: ShoppingRepository
+    public let streakRepository: StreakRepository
     public let subscriptionRepository: SubscriptionRepository
 
     // MARK: - Platform services
@@ -113,6 +114,7 @@ public final class AppContainer {
         kyraRepository: KyraRepository,
         studioRepository: StudioRepository,
         shoppingRepository: ShoppingRepository,
+        streakRepository: StreakRepository,
         subscriptionRepository: SubscriptionRepository,
         weatherService: WeatherService,
         calendarService: CalendarService,
@@ -134,6 +136,7 @@ public final class AppContainer {
         self.kyraRepository = kyraRepository
         self.studioRepository = studioRepository
         self.shoppingRepository = shoppingRepository
+        self.streakRepository = streakRepository
         self.subscriptionRepository = subscriptionRepository
         self.weatherService = weatherService
         self.calendarService = calendarService
@@ -173,7 +176,8 @@ extension AppContainer {
             apiClient: apiClient,
             offlineMutationQueue: offlineMutationQueue,
             modelContainer: modelContainer,
-            subscriptionRepository: subscriptionRepository
+            subscriptionRepository: subscriptionRepository,
+            sessionStore: sessionStore
         )
 
         return AppContainer(
@@ -190,6 +194,7 @@ extension AppContainer {
             kyraRepository: LiveKyraRepository(apiClient: apiClient),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
             shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
+            streakRepository: LiveStreakRepository(),
             subscriptionRepository: subscriptionRepository,
             weatherService: LiveWeatherService(),
             calendarService: LiveCalendarService(),
@@ -214,7 +219,8 @@ extension AppContainer {
         apiClient: AstraAPIClient,
         offlineMutationQueue: OfflineMutationQueue,
         modelContainer: ModelContainer,
-        subscriptionRepository: SubscriptionRepository
+        subscriptionRepository: SubscriptionRepository,
+        sessionStore: SessionStore
     ) -> ClosetRepository {
         let liveClosetRepository = LiveClosetRepository(
             apiClient: apiClient,
@@ -224,14 +230,14 @@ extension AppContainer {
         let freeTierCappedClosetRepository = FreeTierCappedClosetRepository(
             base: liveClosetRepository,
             isEntitledToPremium: {
-                // Fail closed to free-tier limits when subscription lookup
-                // errors — uncapping on a network blip would let a free
-                // account past 30 until the next launch.
                 do {
                     return try await subscriptionRepository.fetchCurrentSubscription().isEntitledToPremium
                 } catch {
                     return false
                 }
+            },
+            isAnonymous: {
+                await sessionStore.currentIsAnonymous()
             }
         )
         return freeTierCappedClosetRepository
@@ -270,6 +276,7 @@ extension AppContainer {
             kyraRepository: MockKyraRepository(),
             studioRepository: MockStudioRepository(),
             shoppingRepository: MockShoppingRepository(),
+            streakRepository: MockStreakRepository(),
             subscriptionRepository: subscriptionRepository,
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),

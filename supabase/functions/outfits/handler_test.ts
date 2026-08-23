@@ -27,6 +27,7 @@ import {
   type ClosetRepository,
   handleGenerateOutfits,
   handleRankOutfits,
+  handleRecordWear,
   type HandlerDeps,
 } from "./handler.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
@@ -132,6 +133,9 @@ function recordingClosetRepository(): ClosetRepository & {
       byIdsCalls.push({ userId, ids: [...ids] });
       const own = closets[userId] ?? [];
       return Promise.resolve(own.filter((r) => ids.includes(r.id)));
+    },
+    readWardrobeGraph() {
+      return Promise.resolve("menswear_3_role" as const);
     },
   };
 }
@@ -470,4 +474,42 @@ Deno.test("rank: enforces the rate limiter", async () => {
     deps,
   );
   assertEquals(second.status, 429);
+});
+
+const WEAR_ENVELOPE = {
+  request_id: "wear-request",
+  client_version: "ios/1.0.0",
+  body: {
+    outfit_id: TOP_A,
+    worn_at: "2026-08-23T12:00:00Z",
+  },
+};
+
+Deno.test("record-wear: free users are 429 after seven wears", async () => {
+  const inserts: unknown[] = [];
+  const response = await handleRecordWear(
+    requestFor("record-wear", WEAR_ENVELOPE, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps({
+      hasActivePremiumSubscription: () => Promise.resolve(false),
+      countWearEvents: () => Promise.resolve(7),
+      insertWear: (row) => {
+        inserts.push(row);
+        return Promise.resolve({ id: "wear-1", ...row });
+      },
+    }),
+  );
+  assertEquals(response.status, 429);
+  assertEquals(inserts.length, 0);
+});
+
+Deno.test("record-wear: premium skips the wear quota", async () => {
+  const response = await handleRecordWear(
+    requestFor("record-wear", WEAR_ENVELOPE, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps({
+      hasActivePremiumSubscription: () => Promise.resolve(true),
+      countWearEvents: () => Promise.resolve(99),
+      insertWear: (row) => Promise.resolve({ id: "wear-1", ...row }),
+    }),
+  );
+  assertEquals(response.status, 200);
 });

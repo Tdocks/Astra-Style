@@ -15,6 +15,7 @@ import SwiftUI
 public struct HomeView: View {
     @State private var viewModel: HomeViewModel
     @Environment(AppRouter.self) private var router
+    @Environment(AppContainer.self) private var container
     private let shoppingRepository: ShoppingRepository
     @State private var isPastingLink = false
 
@@ -66,6 +67,12 @@ public struct HomeView: View {
                 router.push(HomeRoute.productDecision(candidateID: candidateID))
             }
         }
+        .onChange(of: viewModel.pendingPaywall) { _, context in
+            if let context {
+                router.presentModal(.paywall(context: context))
+                viewModel.clearPendingPaywall()
+            }
+        }
     }
 
     @ViewBuilder
@@ -101,9 +108,15 @@ public struct HomeView: View {
             dayLine
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
+            WearStreakBanner(viewModel: WearStreakViewModel(streakRepository: container.streakRepository))
+                .padding(.horizontal, AstraSpacing.pagePadding)
+
             weatherAffordance(for: data)
 
-            HomeEmptyStateView(reason: data.emptyReason ?? .noOutfitYet) {
+            HomeEmptyStateView(
+                reason: data.emptyReason ?? .noOutfitYet,
+                wardrobeGraph: data.wardrobeGraph
+            ) {
                 if case .inTheWash = data.emptyReason {
                     router.select(.closet)
                 } else {
@@ -158,6 +171,9 @@ public struct HomeView: View {
     private func loadedContent(_ data: HomeBriefData) -> some View {
         VStack(alignment: .leading, spacing: AstraSpacing.lg) {
             todayLine(data)
+                .padding(.horizontal, AstraSpacing.pagePadding)
+
+            WearStreakBanner(viewModel: WearStreakViewModel(streakRepository: container.streakRepository))
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
             weatherAffordance(for: data)

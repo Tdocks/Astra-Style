@@ -25,6 +25,7 @@ enum ProductLinkURL {
 public final class ProductLinkPasteViewModel {
     public private(set) var isSubmitting = false
     public private(set) var submitError: AstraError?
+    public private(set) var pendingPaywall: PaywallContext?
 
     private let shoppingRepository: ShoppingRepository
 
@@ -43,6 +44,9 @@ public final class ProductLinkPasteViewModel {
         do {
             let candidate = try await shoppingRepository.extractProduct(from: url)
             return candidate.id
+        } catch let error as AstraError where error.category == .rateLimited {
+            pendingPaywall = .pasteEvaluate
+            return nil
         } catch let error as AstraError {
             submitError = error
             return nil
@@ -54,5 +58,9 @@ public final class ProductLinkPasteViewModel {
 
     public func clearError() {
         submitError = nil
+    }
+
+    public func clearPendingPaywall() {
+        pendingPaywall = nil
     }
 }

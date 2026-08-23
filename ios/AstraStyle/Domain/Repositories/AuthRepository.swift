@@ -29,9 +29,14 @@ public protocol AuthRepository: Sendable {
     /// Verifies the code the user received by email.
     func verifyEmailOTP(email: String, code: String) async throws -> AuthSession
 
-    // There is no `continueAsGuest()` and no `migrateGuestToAccount(...)`.
-    // An account is required before onboarding (ADR 0014), so the only two
-    // ways into a session are the two above.
+    /// Supabase anonymous sign-in (ADR 0018). Real `user_id`; photos stay local.
+    func signInAnonymously() async throws -> AuthSession
+
+    /// Links Apple to the current anonymous user. Same `user_id` after success.
+    func linkAppleIdentity(identityToken: String, nonce: String) async throws -> AuthSession
+
+    /// Links email OTP to the current anonymous user. Same `user_id` after success.
+    func linkEmailIdentity(email: String, code: String) async throws -> AuthSession
 
     /// Restores a previously-persisted session from Keychain, refreshing
     /// the access token if it has expired. Returns `nil` if there is no

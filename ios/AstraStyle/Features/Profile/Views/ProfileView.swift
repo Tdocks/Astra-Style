@@ -21,6 +21,7 @@
 //
 
 import SwiftUI
+import AuthenticationServices
 
 public struct ProfileView: View {
     @Environment(AppRouter.self) private var router
@@ -32,11 +33,18 @@ public struct ProfileView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AstraSpacing.xl) {
                 title
+                WearStreakBanner(
+                    viewModel: WearStreakViewModel(streakRepository: container.streakRepository),
+                    showsBest: true
+                )
                 aboutCard
                 whatsLiveCard
                 ProfileReferralCard(viewModel: ProfileReferralViewModel(
                     profileRepository: container.profileRepository
                 ))
+                if container.sessionStore.currentSession?.isAnonymous == true {
+                    ProfileGuestAccountCard()
+                }
                 privacyAndDataRow
                 Spacer(minLength: 0)
             }
@@ -90,14 +98,14 @@ public struct ProfileView: View {
             AstraCard {
                 VStack(alignment: .leading, spacing: AstraSpacing.sm) {
                     Text(String(
-                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you), Closet, Scan One Piece, Discover (your lookbooks and worn looks), Ask Kyra.",
+                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you, streak), Closet, Scan One Piece, Discover (your lookbooks and worn looks), Shop (curated catalog), Ask Kyra.",
                         comment: "Profile what's live"
                     ))
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     Text(String(
-                        localized: "Not live: Style Studio as a tab (Visualize is the door), shopping feeds, or a women's catalog. Women is a second graph, not a switch.",
+                        localized: "Not live: Style Studio as a tab (Visualize is the door).",
                         comment: "Profile what's next"
                     ))
                     .astraText(.callout)
@@ -203,6 +211,97 @@ private struct ProfileReferralCard: View {
             }
         }
         .task { await viewModel.onAppear() }
+    }
+}
+
+struct ProfileGuestAccountCard: View {
+    @Environment(AppContainer.self) private var container
+    @State private var currentNonce: String?
+    @State private var isShowingEmailSheet = false
+    @State private var errorMessage: String?
+    @State private var isWorking = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+            Text(String(localized: "Keep this closet", comment: "Anonymous account link title"))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+            AstraCard {
+                VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                    Text(String(
+                        localized: "You're on a trial without an account. Link Apple or email to keep this closet and your answers — same user, no migration hop.",
+                        comment: "Anonymous account link explanation"
+                    ))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    SignInWithAppleButton(.continue) { request in
+                        request.requestedScopes = [.fullName, .email]
+                        do {
+                            let rawNonce = try AppleSignInNonce.random()
+                            currentNonce = rawNonce
+                            request.nonce = AppleSignInNonce.sha256(rawNonce)
+                        } catch {
+                            currentNonce = nil
+                            errorMessage = String(localized: "Couldn't start a secure sign-in. Please try again.")
+                        }
+                    } onCompletion: { result in
+                        handleApple(result)
+                    }
+                    .signInWithAppleButtonStyle(.white)
+                    .frame(height: 50)
+                    .clipShape(RoundedRectangle(cornerRadius: AstraSpacing.buttonRadius))
+                    .disabled(isWorking)
+                    AstraButton(title: String(localized: "Link email", comment: "Anonymous account email link")) {
+                        isShowingEmailSheet = true
+                    }
+                    .disabled(isWorking)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .astraText(.caption)
+                            .foregroundStyle(AstraColor.textSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .accessibilityIdentifier("profile.guestAccount")
+        .sheet(isPresented: $isShowingEmailSheet) {
+            EmailAuthSheet(onAuthenticated: { _ in }, linksAnonymousAccount: true)
+        }
+    }
+
+    private func handleApple(_ result: Result<ASAuthorization, Error>) {
+        switch result {
+        case .failure(let error):
+            if (error as NSError).code == ASAuthorizationError.canceled.rawValue { return }
+            errorMessage = String(localized: "Sign in with Apple didn't finish. Please try again.")
+        case .success(let authorization):
+            guard
+                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                let tokenData = credential.identityToken,
+                let identityToken = String(data: tokenData, encoding: .utf8),
+                let nonce = currentNonce
+            else {
+                errorMessage = String(localized: "Sign in with Apple didn't finish. Please try again.")
+                return
+            }
+            currentNonce = nil
+            isWorking = true
+            Task {
+                defer { isWorking = false }
+                do {
+                    _ = try await container.authRepository.linkAppleIdentity(
+                        identityToken: identityToken,
+                        nonce: nonce
+                    )
+                } catch let error as AstraError {
+                    errorMessage = error.message
+                } catch {
+                    errorMessage = String(localized: "Couldn't link Apple to this trial. Please try again.")
+                }
+            }
+        }
     }
 }
 

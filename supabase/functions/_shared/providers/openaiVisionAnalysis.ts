@@ -82,7 +82,7 @@ export const RESULT_SCHEMA = {
     // genuinely uncertain, not when two vocabularies disagree about wording.
     category: {
       type: "string",
-      enum: ["top", "bottom", "outerwear", "shoes", "accessory", "watch", "fragrance"],
+      enum: ["top", "bottom", "outerwear", "shoes", "accessory", "watch", "fragrance", "dress", "skirt"],
       description: "The garment's slot. Use the closest match; do not invent a finer term.",
     },
     // Free text on purpose — this is the one field where specificity is the

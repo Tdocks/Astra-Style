@@ -93,6 +93,8 @@ public struct OnboardingFlowView: View {
         switch model.step {
         case .intro:
             EmptyView()   // handled above, outside the scaffold
+        case .wardrobeGraph:
+            OnboardingWardrobeGraphView(model: model)
         case .goals:
             OnboardingGoalsView(selected: $model.draft.goals)
         case .identity:

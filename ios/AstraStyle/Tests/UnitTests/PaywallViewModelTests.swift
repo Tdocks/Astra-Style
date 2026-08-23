@@ -65,13 +65,31 @@ struct PaywallViewModelTests {
             subscriptionRepository: MockSubscriptionRepository(status: .expired)
         )
         #expect(kyra.subhead.contains("Three conversations"))
-        #expect(kyra.subhead.contains("Wear This stays free"))
+        #expect(!kyra.subhead.contains("Wear This stays free"))
         let studio = PaywallViewModel(
             context: .studioQuota,
             purchasing: MockStoreKitPurchasing(),
             subscriptionRepository: MockSubscriptionRepository(status: .expired)
         )
         #expect(studio.subhead.contains("visual estimate"))
-        #expect(studio.subhead.contains("Wear This stays free"))
+        #expect(!studio.subhead.contains("Wear This stays free"))
+        let wear = PaywallViewModel(
+            context: .wearThis,
+            purchasing: MockStoreKitPurchasing(),
+            subscriptionRepository: MockSubscriptionRepository(status: .expired)
+        )
+        #expect(wear.subhead.contains("Wear This"))
+        let brief = PaywallViewModel(
+            context: .dailyBrief,
+            purchasing: MockStoreKitPurchasing(),
+            subscriptionRepository: MockSubscriptionRepository(status: .expired)
+        )
+        #expect(brief.subhead.contains("Daily Brief"))
+        let paste = PaywallViewModel(
+            context: .pasteEvaluate,
+            purchasing: MockStoreKitPurchasing(),
+            subscriptionRepository: MockSubscriptionRepository(status: .expired)
+        )
+        #expect(paste.subhead.contains("product verdict"))
     }
 }

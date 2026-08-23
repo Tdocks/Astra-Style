@@ -46,7 +46,9 @@ export type ClothingCategory =
   | "shoes"
   | "accessory"
   | "watch"
-  | "fragrance";
+  | "fragrance"
+  | "dress"
+  | "skirt";
 
 /** The subset of `closet_items` columns (see supabase/migrations/20260728100300_closet.sql) this slice's scoring needs. */
 

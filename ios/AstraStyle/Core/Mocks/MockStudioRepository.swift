@@ -34,7 +34,7 @@ public actor MockStudioRepository: StudioRepository {
             throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
         }
         if quotaExhausted {
-            throw AstraError.rateLimited("You've used your free visual estimate. Upgrade to Astra Style Premium for more. Wear This stays free.")
+            throw AstraError.rateLimited("You've used your free visual estimate. Upgrade to Astra Style Premium for more.")
         }
         let generation = StudioGeneration(
             id: UUID(),

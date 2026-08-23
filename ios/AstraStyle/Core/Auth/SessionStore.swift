@@ -65,6 +65,10 @@ public final class SessionStore: AstraAuthTokenProviding {
         await MainActor.run { self.currentSession?.userID }
     }
 
+    public nonisolated func currentIsAnonymous() async -> Bool {
+        await MainActor.run { self.currentSession?.isAnonymous == true }
+    }
+
     // MARK: - Session lifecycle
 
     /// Restores a session from Keychain, refreshing it against Supabase if
@@ -115,7 +119,8 @@ public final class SessionStore: AstraAuthTokenProviding {
                 userID: refreshed.userID,
                 accessToken: refreshed.accessToken,
                 refreshToken: refreshed.refreshToken,
-                expiresAt: refreshed.expiresAt
+                expiresAt: refreshed.expiresAt,
+                isAnonymous: stored.isAnonymous
             )
             try persist(session)
             return session

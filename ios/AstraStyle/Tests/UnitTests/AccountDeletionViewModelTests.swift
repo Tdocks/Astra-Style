@@ -163,6 +163,18 @@ private actor StubAuthRepository: AuthRepository {
         throw AstraError(category: .unknown, message: "not used by this suite")
     }
 
+    func signInAnonymously() async throws -> AuthSession {
+        throw AstraError(category: .unknown, message: "not used by this suite")
+    }
+
+    func linkAppleIdentity(identityToken: String, nonce: String) async throws -> AuthSession {
+        throw AstraError(category: .unknown, message: "not used by this suite")
+    }
+
+    func linkEmailIdentity(email: String, code: String) async throws -> AuthSession {
+        throw AstraError(category: .unknown, message: "not used by this suite")
+    }
+
     func restoreSession() async throws -> AuthSession? { nil }
 
     func signOut() async throws {}

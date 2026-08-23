@@ -30,6 +30,7 @@
 // ============================================================================
 
 import { badRequest, notFound, serverError } from "../_shared/errors.ts";
+import { FREE_PASTE_EVALUATE_COUNT, morningLoopQuotaError } from "../_shared/premium.ts";
 import type { ProductExtractionProvider } from "../_shared/providers/productExtraction.ts";
 import type { ProductCandidateUpsertRow } from "./candidateMapper.ts";
 import {
@@ -76,6 +77,7 @@ export interface ProductsDependencies {
   /** The caller's wearable closet, already mapped. */
   readonly fetchCloset: (userID: string) => Promise<readonly OwnedGarment[]>;
   readonly fetchLifestyle: (userID: string) => Promise<LifestyleInputs>;
+  readonly fetchWardrobeGraph?: (userID: string) => Promise<"menswear_3_role" | "womenswear">;
   /** Other catalog rows in the same category, for §5.5's alternatives. */
   readonly fetchAlternatives: (
     category: string | null,
@@ -101,16 +103,31 @@ export interface ProductsDependencies {
     limit: number,
   ) => Promise<readonly ProductCandidateRow[]>;
   readonly requestID: string;
+  readonly hasActivePremiumSubscription?: (nowIso: string) => Promise<boolean>;
+  readonly countEvaluations?: (userID: string) => Promise<number>;
 }
 
 /** Same budget as the evaluate alternatives pool — not a mall scan. */
 export const UNLOCKS_CANDIDATE_CAP = 12;
+
+async function assertPasteQuota(userID: string, deps: ProductsDependencies): Promise<void> {
+  if (!deps.hasActivePremiumSubscription || !deps.countEvaluations) return;
+  const premium = await deps.hasActivePremiumSubscription(new Date().toISOString());
+  if (premium) return;
+  const used = await deps.countEvaluations(userID);
+  if (used >= FREE_PASTE_EVALUATE_COUNT) {
+    throw morningLoopQuotaError(
+      "You've used your free product verdict. Upgrade to Astra Style Premium to keep pasting links.",
+    );
+  }
+}
 
 export async function handleExtractProduct(
   rawBody: unknown,
   userID: string,
   deps: ProductsDependencies,
 ): Promise<ProductCandidateDTO> {
+  await assertPasteQuota(userID, deps);
   const body = parseExtractProductBody(rawBody);
   // SSRF guard before the fetch, not after: the URL arrives from a text field
   // and the provider is about to make a server-side request with it.
@@ -141,6 +158,7 @@ export async function handleEvaluateProduct(
   userID: string,
   deps: ProductsDependencies,
 ): Promise<ProductEvaluationDTO> {
+  await assertPasteQuota(userID, deps);
   const body = parseEvaluateProductBody(rawBody);
 
   const row = await deps.fetchCandidate(body.productCandidateId);
@@ -158,9 +176,10 @@ export async function handleEvaluateProduct(
     );
   }
 
-  const [closet, lifestyle] = await Promise.all([
+  const [closet, lifestyle, wardrobeGraph] = await Promise.all([
     deps.fetchCloset(userID),
     deps.fetchLifestyle(userID),
+    deps.fetchWardrobeGraph?.(userID) ?? Promise.resolve("menswear_3_role" as const),
   ]);
 
   const evaluation = evaluateProductCandidate({
@@ -170,6 +189,7 @@ export async function handleEvaluateProduct(
     redundancyCandidate: mapped.redundancyItem,
     redundancyCloset: closet.map((g) => g.redundancy),
     lifestyle,
+    scoringContext: { wardrobeGraph },
   });
 
   const persisted = await deps.persistEvaluation({
@@ -281,6 +301,7 @@ export async function handleListUnlocks(
   const rows = (await deps.fetchLatestEvaluatedCandidates(userID, UNLOCKS_CANDIDATE_CAP))
     .slice(0, UNLOCKS_CANDIDATE_CAP);
   const closet = await deps.fetchCloset(userID);
+  const wardrobeGraph = await deps.fetchWardrobeGraph?.(userID) ?? "menswear_3_role";
   const scorableCloset = closet.map((garment) => garment.scorable);
 
   const scored: Array<{
@@ -293,7 +314,9 @@ export async function handleListUnlocks(
     try {
       const mapped = mapProductCandidateRowToEvaluationInput(row);
       if (mapped.item === null) continue;
-      const unlock = computeUnlockCount(mapped.item, scorableCloset);
+      const unlock = computeUnlockCount(mapped.item, scorableCloset, {
+        scoringContext: { wardrobeGraph },
+      });
       if (unlock.unlockCount <= 0) continue;
       scored.push({
         row,

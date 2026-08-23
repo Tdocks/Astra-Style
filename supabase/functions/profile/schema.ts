@@ -352,6 +352,7 @@ export interface CompleteOnboardingBody {
   styleProfile: StyleProfileInput;
   bodyProfile: BodyProfileInput;
   lifestyleProfile: LifestyleProfileInput;
+  wardrobeGraph: "menswear_3_role" | "womenswear";
   /** Kept for logging counts only — see handler.ts. Never logged as content. */
   quizAnswerCount: number;
 }
@@ -600,10 +601,20 @@ export function parseCompleteOnboardingBody(rawBody: unknown): CompleteOnboardin
     quizAnswerCount = rawQuizAnswers.length;
   }
 
+  const rawGraph = rawBody["wardrobe_graph"];
+  let wardrobeGraph: "menswear_3_role" | "womenswear" = "menswear_3_role";
+  if (rawGraph !== undefined && rawGraph !== null) {
+    if (rawGraph !== "menswear_3_role" && rawGraph !== "womenswear") {
+      throw badRequest("body.wardrobe_graph must be menswear_3_role or womenswear.");
+    }
+    wardrobeGraph = rawGraph;
+  }
+
   return {
     styleProfile,
     bodyProfile: parseBodyProfile(rawBody["body_profile"]),
     lifestyleProfile: parseLifestyleProfile(rawBody["lifestyle_profile"]),
+    wardrobeGraph,
     quizAnswerCount,
   };
 }
@@ -641,6 +652,7 @@ export interface ProfileDTO {
   theme: string;
   onboarding_completed_at: string | null;
   subscription_tier: string;
+  wardrobe_graph: string;
   created_at: string;
   updated_at: string;
 }

@@ -21,14 +21,16 @@
 // outbound requests to retailers on a user's behalf. `docs/17`'s §11 note
 // applies — the live path is written and is not on by default.
 //
-// EVERY QUERY BELOW IS USER-SCOPED. There is no service-role client in this
-// file. `product_candidates` is shared-read by design
-// (`20260728100600_commerce.sql`) and `user_product_evaluations` is
-// per-user; both are enforced by RLS driven from the caller's own JWT, not
-// by a `where user_id = ...` this code could forget to write.
+// READS ARE USER-SCOPED. Evaluations and closet are RLS-bound to the JWT.
+// WRITES TO `product_candidates` USE SERVICE ROLE. That table has no
+// authenticated insert/update policy (`20260728100900_rls_policies.sql`);
+// paste-extract and P6-SHOP-08 ingest are the two writers. Auth stays JWT.
+// The upsert payload never includes `sponsored`, so a paste cannot set or
+// clear an admin flag (P6-SHOP-09 / `20260817120000_product_sponsored.sql`).
 // ============================================================================
 
-import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import { createServiceRoleClient, createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import { hasActivePremiumSubscription } from "../_shared/premium.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { authenticateRequest } from "../_shared/jwt.ts";
@@ -107,15 +109,21 @@ const ALTERNATIVE_POOL_LIMIT = 12;
 
 function buildDependencies(authorizationHeader: string, requestID: string): ProductsDependencies {
   const supabase = createUserScopedClient(env, authorizationHeader);
+  const catalogWriter = createServiceRoleClient(env);
 
   return {
     extractionProvider: extractionProvider(),
     requestID,
 
     async upsertCandidate(row) {
-      const { data, error } = await supabase
+      // Service role: authenticated cannot write this table. Omit `sponsored`
+      // so a paste cannot set or clear an admin/affiliate flag.
+      const { data, error } = await catalogWriter
         .from("product_candidates")
-        .upsert(row, { onConflict: "canonical_url" })
+        .upsert(
+          { ...row, last_checked_at: new Date().toISOString() },
+          { onConflict: "canonical_url" },
+        )
         .select(CANDIDATE_COLUMNS)
         .single();
       if (error || !data) throw serverError("Couldn't save that product.");
@@ -182,6 +190,17 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
       } satisfies LifestyleInputs;
     },
 
+    async fetchWardrobeGraph(userID) {
+      void userID;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("wardrobe_graph")
+        .maybeSingle();
+      if (error || !data) return "menswear_3_role";
+      const value = (data as { wardrobe_graph?: unknown }).wardrobe_graph;
+      return value === "womenswear" ? "womenswear" : "menswear_3_role";
+    },
+
     async fetchAlternatives(category, excludingID) {
       if (category === null) return [];
       const { data, error } = await supabase
@@ -202,6 +221,17 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
         .single();
       if (error || !data) throw serverError("Couldn't save that verdict.");
       return data as { created_at: string };
+    },
+
+    hasActivePremiumSubscription: (nowIso) => hasActivePremiumSubscription(supabase, nowIso),
+
+    async countEvaluations(userID) {
+      void userID;
+      const { count, error } = await supabase
+        .from("user_product_evaluations")
+        .select("*", { count: "exact", head: true });
+      if (error) return Number.MAX_SAFE_INTEGER;
+      return count ?? 0;
     },
 
     async fetchLatestEvaluatedCandidates(userID, limit) {

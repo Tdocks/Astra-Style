@@ -60,6 +60,10 @@ extension LiveClosetRepository {
     }
 
     public func deleteCapturedImage(atPath storagePath: String) async throws {
+        if GuestLocalImageStore.isLocal(storagePath) {
+            try GuestLocalImageStore.delete(storagePath)
+            return
+        }
         do {
             _ = try await supabase.storage.from("user-content").remove(paths: [storagePath])
         } catch {
@@ -79,6 +83,9 @@ extension LiveClosetRepository {
         // object out from under the retry that is about to use it.
         let uploadedHere = request.storagePath?.isEmpty != false
         let element = try await uploadedElement(for: request)
+        if GuestLocalImageStore.isLocal(element.storagePath) {
+            return ClosetItemAnalysisResult.guestLocalPlaceholder()
+        }
         do {
             return try await apiClient.send(
                 .analyzeClosetItem,
@@ -119,6 +126,14 @@ extension LiveClosetRepository {
                     uploadedHere.append(element.storagePath)
                 }
                 elements.append(element)
+            }
+            if elements.allSatisfy({ GuestLocalImageStore.isLocal($0.storagePath) }) {
+                return ClosetItemAnalysisBatch(results: requests.map { request in
+                    ClosetItemAnalysisBatchItem(
+                        id: request.id,
+                        outcome: .analyzed(ClosetItemAnalysisResult.guestLocalPlaceholder())
+                    )
+                })
             }
             job = try await apiClient.send(
                 .batchAnalyzeCloset,
@@ -198,12 +213,17 @@ extension LiveClosetRepository {
     func uploadCaptured(imageData: Data) async throws -> String {
         do {
             let session = try await supabase.auth.session
+            if session.user.isAnonymous {
+                return try GuestLocalImageStore.save(imageData, userID: session.user.id)
+            }
             let userID = session.user.id.uuidString.lowercased()
             let path = "users/\(userID)/closet/\(UUID().uuidString.lowercased()).jpg"
             _ = try await supabase.storage
                 .from("user-content")
                 .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
             return path
+        } catch let error as AstraError {
+            throw error
         } catch {
             throw AstraError.network("Couldn't upload that photo. Check your connection and try again.")
         }

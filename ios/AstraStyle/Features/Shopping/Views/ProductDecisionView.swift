@@ -12,6 +12,7 @@ import SwiftUI
 struct ProductDecisionView: View {
     @State private var viewModel: ProductDecisionViewModel
     @State private var isShowingSource = false
+    @Environment(AppRouter.self) private var router
 
     init(viewModel: ProductDecisionViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -34,6 +35,12 @@ struct ProductDecisionView: View {
         .navigationTitle(String(localized: "Should you buy this?", comment: "Product decision page title"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.onAppear() }
+        .onChange(of: viewModel.pendingPaywall) { _, context in
+            if let context {
+                router.presentModal(.paywall(context: context))
+                viewModel.clearPendingPaywall()
+            }
+        }
         .sheet(isPresented: $isShowingSource) {
             if let url = viewModel.sourceURL {
                 ProductSourceSafariView(url: url)

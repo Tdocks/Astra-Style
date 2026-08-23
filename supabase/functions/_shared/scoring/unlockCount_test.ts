@@ -250,3 +250,22 @@ Deno.test("Two colour-variant SKUs with identical normalized attributes share a 
   });
   assertEquals(keyA, keyB);
 });
+
+Deno.test("women's graph: a dress candidate unlocks against shoes without a top", () => {
+  const dress = garment("candidate-dress", "dress", { colorHex: "2244AA", fit: "regular" });
+  const shoes = garment("owned-shoes", "shoes", { colorHex: "202020", fit: "regular" });
+  const menswear = computeUnlockCount(dress, [shoes], {
+    scoringContext: { wardrobeGraph: "menswear_3_role" },
+    generationOptions: { qualityThreshold: 0 },
+  });
+  assertEquals(menswear.unlockCount, 0);
+
+  const womenswear = computeUnlockCount(dress, [shoes], {
+    scoringContext: { wardrobeGraph: "womenswear" },
+    generationOptions: { qualityThreshold: 0 },
+  });
+  assert(
+    womenswear.unlockCount > 0,
+    "dress + shoes must form an outfit on the women's graph",
+  );
+});

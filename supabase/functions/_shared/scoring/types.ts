@@ -52,7 +52,9 @@ export type ClothingCategory =
   | "shoes"
   | "accessory"
   | "watch"
-  | "fragrance";
+  | "fragrance"
+  | "dress"
+  | "skirt";
 
 /**
  * The five roles §2.1's pair-weight table actually knows about.
@@ -63,7 +65,7 @@ export type ClothingCategory =
  * and a scent cannot clash with a pair of trousers. §2.1 does not mention it
  * because the table predates the category existing.
  */
-export type GarmentRole = "top" | "bottom" | "outerwear" | "shoes" | "accessory";
+export type GarmentRole = "top" | "bottom" | "outerwear" | "shoes" | "accessory" | "dress";
 
 /** `fit_preference` in the same migration. Matches §4.1's five ranks exactly. */
 export type Fit = "slim" | "tailored" | "regular" | "relaxed" | "oversized";
@@ -192,7 +194,10 @@ export function roleFor(category: ClothingCategory): GarmentRole | null {
     case "bottom":
     case "outerwear":
     case "shoes":
+    case "dress":
       return category;
+    case "skirt":
+      return "bottom";
     case "accessory":
     case "watch":
       return "accessory";
@@ -241,6 +246,12 @@ export interface ScoringContext {
   readonly coWearByRole?: ReadonlyMap<string, CoWearStat>;
   /** The occasion the user asked about, if any. §2.8. */
   readonly targetOccasion?: string;
+  /**
+   * Product graph chosen at onboarding. Absent means menswear — the
+   * scorer that already shipped. Women's silhouette + role sets branch
+   * on `"womenswear"` only.
+   */
+  readonly wardrobeGraph?: "menswear_3_role" | "womenswear";
 }
 
 /**

@@ -74,7 +74,8 @@ struct EndpointDeploymentMappingTests {
         .generatePacking,
         .syncSubscriptions,
         .appStoreWebhook,
-        .deleteAccount
+        .deleteAccount,
+        .recordWear
     ]
 
     /// Never called at runtime; exists purely so the compiler enforces that
@@ -87,7 +88,7 @@ struct EndpointDeploymentMappingTests {
              .generateDailyBrief, .kyraRespond, .extractProduct,
              .evaluateProduct, .listProductUnlocks, .generateStudio, .studioStatus,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,
-             .deleteAccount:
+             .deleteAccount, .recordWear:
             break
         }
     }

@@ -40,6 +40,11 @@ import {
 } from "../_shared/scoring/compatibility.ts";
 import type { GarmentRole, ScorableItem, ScoringContext } from "../_shared/scoring/types.ts";
 import { canonicalSignature } from "../_shared/scoring/equivalence.ts";
+import {
+  parseWardrobeGraph,
+  requiredRoleSetsForGeneration,
+  roleSetAcceptsLocks,
+} from "../_shared/scoring/wardrobeGraph.ts";
 import { buildReason } from "./reason.ts";
 
 export interface GenerateCandidateOutfitsOptions {
@@ -61,8 +66,8 @@ export interface GeneratedOutfit {
   readonly reason: string;
 }
 
-const REQUIRED_ROLES: readonly GarmentRole[] = ["top", "bottom", "shoes"];
 const ROLE_DISPLAY_ORDER: readonly GarmentRole[] = [
+  "dress",
   "top",
   "bottom",
   "shoes",
@@ -281,14 +286,34 @@ export function generateCandidateOutfits(
 
   let beam: PartialCombo[] = [{ items: [], score: scoreOutfit([], context, scoreOptions) }];
 
-  for (const role of REQUIRED_ROLES) {
-    const locked = lockedByRole.get(role);
-    const candidates = locked ? [locked] : (byRole.get(role) ?? []);
-    if (candidates.length === 0) {
-      return []; // no outfit can be formed without this required role
-    }
-    beam = extendRequired(beam, candidates, context, scoreOptions);
+  const graph = parseWardrobeGraph(context.wardrobeGraph);
+  const lockedRequiredRoles = [...lockedByRole.keys()];
+  const roleSets = requiredRoleSetsForGeneration(graph).filter((set) =>
+    roleSetAcceptsLocks(set, lockedRequiredRoles)
+  );
+  if (roleSets.length === 0) {
+    return [];
   }
+
+  const finished: PartialCombo[] = [];
+  for (const requiredRoles of roleSets) {
+    let setBeam = beam;
+    let unsatisfiable = false;
+    for (const role of requiredRoles) {
+      const locked = lockedByRole.get(role);
+      const candidates = locked ? [locked] : (byRole.get(role) ?? []);
+      if (candidates.length === 0) {
+        unsatisfiable = true;
+        break;
+      }
+      setBeam = extendRequired(setBeam, candidates, context, scoreOptions);
+    }
+    if (!unsatisfiable) finished.push(...setBeam);
+  }
+  if (finished.length === 0) {
+    return [];
+  }
+  beam = prune(finished, BEAM_WIDTH);
 
   const outerwearLocked = lockedByRole.get("outerwear");
   if (outerwearLocked) {

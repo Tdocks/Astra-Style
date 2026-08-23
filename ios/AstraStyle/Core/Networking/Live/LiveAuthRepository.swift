@@ -34,7 +34,8 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
                 userID: response.user.id,
                 accessToken: response.accessToken,
                 refreshToken: response.refreshToken,
-                expiresAt: Date(timeIntervalSince1970: response.expiresAt)
+                expiresAt: Date(timeIntervalSince1970: response.expiresAt),
+                isAnonymous: response.user.isAnonymous
             )
             try await sessionStore.adopt(session)
             return session
@@ -75,8 +76,79 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
             userID: supabaseSession.user.id,
             accessToken: supabaseSession.accessToken,
             refreshToken: supabaseSession.refreshToken,
-            expiresAt: Date(timeIntervalSince1970: supabaseSession.expiresAt)
+            expiresAt: Date(timeIntervalSince1970: supabaseSession.expiresAt),
+            isAnonymous: supabaseSession.user.isAnonymous
         )
+        try await sessionStore.adopt(session)
+        return session
+    }
+
+    public func signInAnonymously() async throws -> AuthSession {
+        do {
+            let response = try await supabase.auth.signInAnonymously()
+            let session = AuthSession(
+                userID: response.user.id,
+                accessToken: response.accessToken,
+                refreshToken: response.refreshToken,
+                expiresAt: Date(timeIntervalSince1970: response.expiresAt),
+                isAnonymous: true
+            )
+            try await sessionStore.adopt(session)
+            return session
+        } catch {
+            throw AstraError.auth("Couldn't start a trial without an account. Please try again.")
+        }
+    }
+
+    public func linkAppleIdentity(identityToken: String, nonce: String) async throws -> AuthSession {
+        let before = await sessionStore.currentUserID()
+        do {
+            _ = try await supabase.auth.linkIdentityWithIdToken(
+                credentials: OpenIDConnectCredentials(provider: .apple, idToken: identityToken, nonce: nonce)
+            )
+            let response = try await supabase.auth.session
+            let session = AuthSession(
+                userID: response.user.id,
+                accessToken: response.accessToken,
+                refreshToken: response.refreshToken,
+                expiresAt: Date(timeIntervalSince1970: response.expiresAt),
+                isAnonymous: false
+            )
+            if let before, before != session.userID {
+                throw AstraError.auth("That Apple account belongs to a different user. Sign in with it instead.")
+            }
+            try await sessionStore.adopt(session)
+            return session
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.auth("Couldn't link Apple to this trial. Please try again.")
+        }
+    }
+
+    public func linkEmailIdentity(email: String, code: String) async throws -> AuthSession {
+        let before = await sessionStore.currentUserID()
+        let response: AuthResponse
+        do {
+            response = try await supabase.auth.verifyOTP(email: email, token: code, type: .email)
+        } catch {
+            throw AstraError.auth("That code didn't match. Please check and try again.")
+        }
+        guard case .session(let supabaseSession) = response else {
+            throw AstraError.auth(
+                "Your email address isn't confirmed yet. Check your inbox for the confirmation link, then try again."
+            )
+        }
+        let session = AuthSession(
+            userID: supabaseSession.user.id,
+            accessToken: supabaseSession.accessToken,
+            refreshToken: supabaseSession.refreshToken,
+            expiresAt: Date(timeIntervalSince1970: supabaseSession.expiresAt),
+            isAnonymous: false
+        )
+        if let before, before != session.userID {
+            throw AstraError.auth("That email belongs to a different user. Sign in with it instead.")
+        }
         try await sessionStore.adopt(session)
         return session
     }

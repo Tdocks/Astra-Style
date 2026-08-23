@@ -82,19 +82,22 @@ public struct OnboardingCompletionPayload: Encodable, Sendable {
     public var bodyProfile: BodyProfile
     public var lifestyleProfile: LifestyleProfile
     public var quizAnswers: [StylePreferenceQuizAnswer]
+    public var wardrobeGraph: WardrobeGraph
 
     public init(
         styleGoals: [String],
         styleProfile: StyleProfile,
         bodyProfile: BodyProfile,
         lifestyleProfile: LifestyleProfile,
-        quizAnswers: [StylePreferenceQuizAnswer]
+        quizAnswers: [StylePreferenceQuizAnswer],
+        wardrobeGraph: WardrobeGraph = .menswear3Role
     ) {
         self.styleGoals = styleGoals
         self.styleProfile = styleProfile
         self.bodyProfile = bodyProfile
         self.lifestyleProfile = lifestyleProfile
         self.quizAnswers = quizAnswers
+        self.wardrobeGraph = wardrobeGraph
     }
 
     enum CodingKeys: String, CodingKey {
@@ -103,6 +106,7 @@ public struct OnboardingCompletionPayload: Encodable, Sendable {
         case bodyProfile = "body_profile"
         case lifestyleProfile = "lifestyle_profile"
         case quizAnswers = "quiz_answers"
+        case wardrobeGraph = "wardrobe_graph"
     }
 }
 

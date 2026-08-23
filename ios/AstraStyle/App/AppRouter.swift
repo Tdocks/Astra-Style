@@ -31,18 +31,16 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     case closet
     case studio
     case discover
+    case shop
     case profile
 
-    /// Tabs drawn in the bar. Studio and Discover stay specified cases;
-    /// they are hidden until they serve the graph (ADR 0015).
+    /// Tabs drawn in the bar. Studio stays off unless unfinished chrome is on.
     public static var chromeTabs: [AppTab] {
         AstraFeatureFlags.showsUnfinishedChrome ? Array(allCases) : dogfoodTabs
     }
 
-    /// Home, Closet, Discover, Profile. Studio stays off the bar; Visualize
-    /// / See this on you is the generate door (Wave E). Discover lists his
-    /// outfits as lookbooks (Wave F), which is the graph, not a storefront.
-    public static let dogfoodTabs: [AppTab] = [.home, .closet, .discover, .profile]
+    /// Home, Closet, Discover, Shop, Profile. Studio stays off the bar.
+    public static let dogfoodTabs: [AppTab] = [.home, .closet, .discover, .shop, .profile]
 
     public var isShownInChrome: Bool {
         Self.chromeTabs.contains(self)
@@ -60,6 +58,7 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         case .closet: String(localized: "Closet", comment: "Tab bar item: wardrobe")
         case .studio: String(localized: "Studio", comment: "Tab bar item: Style Studio")
         case .discover: String(localized: "Discover", comment: "Tab bar item: editorial content")
+        case .shop: String(localized: "Shop", comment: "Tab bar item: curated catalog")
         case .profile: String(localized: "Profile", comment: "Tab bar item: profile and stats")
         }
     }
@@ -73,6 +72,7 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         case .closet: "square.grid.2x2"
         case .studio: "camera.viewfinder"
         case .discover: "safari"
+        case .shop: "bag"
         case .profile: "person.crop.circle"
         }
     }
@@ -83,6 +83,7 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         case .closet: String(localized: "Closet", comment: "VoiceOver label for the Closet tab")
         case .studio: String(localized: "Style Studio", comment: "VoiceOver label for the Studio tab")
         case .discover: String(localized: "Discover", comment: "VoiceOver label for the Discover tab")
+        case .shop: String(localized: "Shop, curated catalog", comment: "VoiceOver label for the Shop tab")
         case .profile: String(localized: "Profile", comment: "VoiceOver label for the Profile tab")
         }
     }
@@ -136,6 +137,11 @@ public enum DiscoverRoute: Hashable, Sendable {
     case styleGuide(slug: String)
     case brandSpotlight(brand: String)
     case fitGuide(slug: String)
+}
+
+/// Destinations pushed on the Shop tab's `NavigationStack`.
+public enum ShopRoute: Hashable, Sendable {
+    case productDecision(candidateID: UUID)
 }
 
 /// Destinations pushed on the Profile tab's `NavigationStack`.
@@ -245,6 +251,7 @@ public final class AppRouter {
     public var closetPath: [ClosetRoute] = []
     public var studioPath: [StudioRoute] = []
     public var discoverPath: [DiscoverRoute] = []
+    public var shopPath: [ShopRoute] = []
     public var profilePath: [ProfileRoute] = []
 
     /// Active modal presentation, if any. Only one modal flow is presented
@@ -273,6 +280,7 @@ public final class AppRouter {
     public func push(_ route: ClosetRoute) { closetPath.append(route) }
     public func push(_ route: StudioRoute) { studioPath.append(route) }
     public func push(_ route: DiscoverRoute) { discoverPath.append(route) }
+    public func push(_ route: ShopRoute) { shopPath.append(route) }
     public func push(_ route: ProfileRoute) { profilePath.append(route) }
 
     /// Pops the currently selected tab's stack to root.
@@ -282,6 +290,7 @@ public final class AppRouter {
         case .closet: closetPath.removeAll()
         case .studio: studioPath.removeAll()
         case .discover: discoverPath.removeAll()
+        case .shop: shopPath.removeAll()
         case .profile: profilePath.removeAll()
         }
     }
@@ -319,6 +328,7 @@ public final class AppRouter {
         closetPath.removeAll()
         studioPath.removeAll()
         discoverPath.removeAll()
+        shopPath.removeAll()
         profilePath.removeAll()
         presentedModal = nil
     }

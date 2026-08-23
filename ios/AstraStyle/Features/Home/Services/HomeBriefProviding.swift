@@ -193,7 +193,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             lookGarments: await LookHydrator(
                 closetRepository: closetRepository,
                 imageURLResolver: imageURLResolver
-            ).hydrate(items: primaryOutfitItems, closet: closetItems ?? [])
+            ).hydrate(items: primaryOutfitItems, closet: closetItems ?? []),
+            wardrobeGraph: profile.wardrobeGraph
         )
     }
 
@@ -248,7 +249,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             primaryOutfit: nil,
             primaryOutfitItems: [],
             closetRoleCounts: Self.roleCounts(of: closetItems),
-            wearableRoleCounts: Self.roleCounts(of: closetItems.filter(\.isWearableToday))
+            wearableRoleCounts: Self.roleCounts(of: closetItems.filter(\.isWearableToday)),
+            wardrobeGraph: profile.wardrobeGraph
         )
     }
 

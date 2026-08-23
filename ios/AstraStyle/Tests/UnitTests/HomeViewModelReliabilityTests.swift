@@ -140,6 +140,28 @@ struct HomeViewModelReliabilityTests {
         }
     }
 
+    @Test("A 429 on Wear This presents the wearThis paywall, not an error alert")
+    func wearThisQuotaPresentsPaywall() async {
+        let provider = RecordingHomeProvider(
+            data: loadedBrief(),
+            markError: AstraError.rateLimited("Upgrade to keep logging looks.")
+        )
+        let viewModel = HomeViewModel(
+            provider: provider,
+            networkMonitor: StaticNetworkReachabilityMonitor(offline: false)
+        )
+        await viewModel.onAppear()
+        await viewModel.markPrimaryOutfitWorn()
+
+        #expect(viewModel.pendingPaywall == .wearThis)
+        #expect(viewModel.actionError == nil)
+        #expect(!viewModel.hasMarkedWorn)
+        guard case .loaded = viewModel.state else {
+            Issue.record("expected .loaded after a Wear This paywall, got \(viewModel.state)")
+            return
+        }
+    }
+
     @Test("Wear This is inert on the empty state — there is no outfit to wear")
     func wearThisIsInertWhenEmpty() async {
         let provider = RecordingHomeProvider(data: emptyBrief(have: 0))

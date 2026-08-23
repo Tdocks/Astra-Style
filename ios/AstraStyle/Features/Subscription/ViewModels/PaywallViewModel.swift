@@ -91,18 +91,33 @@ public final class PaywallViewModel {
         switch context {
         case .kyraDailyLimit:
             String(
-                localized: "Three conversations a day on us. Wear This stays free.",
+                localized: "Three conversations a day on us. Upgrade for more.",
                 comment: "Paywall when Kyra's daily new-thread cap is hit"
             )
         case .studioQuota:
             String(
-                localized: "One visual estimate on us. Wear This stays free.",
+                localized: "One visual estimate on us. Upgrade for more.",
                 comment: "Paywall when Studio's free trial is used"
+            )
+        case .wearThis:
+            String(
+                localized: "Seven Wear This days on us. Upgrade to keep logging looks.",
+                comment: "Paywall when free Wear This quota is used"
+            )
+        case .dailyBrief:
+            String(
+                localized: "Three Daily Briefs on us. Upgrade for a full brief every morning.",
+                comment: "Paywall when free Daily Brief generates are used"
+            )
+        case .pasteEvaluate:
+            String(
+                localized: "One product verdict on us. Upgrade to keep pasting links.",
+                comment: "Paywall when free paste-evaluate pair is used"
             )
         case .closetLimit, .onboarding, .outfitGenerationLimit, .settingsUpgrade:
             String(
-                localized: "Keep adding to the closet. Wear This stays free.",
-                comment: "Paywall promise — the morning loop is not the charge"
+                localized: "Keep adding to the closet. Upgrade for unlimited items and the full morning loop.",
+                comment: "Paywall at the closet cap and settings upgrade"
             )
         }
     }

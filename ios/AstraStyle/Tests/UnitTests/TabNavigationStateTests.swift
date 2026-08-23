@@ -33,6 +33,7 @@ struct TabNavigationStateTests {
         #expect(router.closetPath.isEmpty)
         #expect(router.studioPath.isEmpty)
         #expect(router.discoverPath.isEmpty)
+        #expect(router.shopPath.isEmpty)
         #expect(router.profilePath.isEmpty)
     }
 
@@ -46,7 +47,7 @@ struct TabNavigationStateTests {
 
         // Visit every other tab, then come back — the realistic version of
         // "switching away", not a single hop.
-        for tab in [AppTab.closet, .studio, .discover, .profile, .home] {
+        for tab in [AppTab.closet, .studio, .discover, .shop, .profile, .home] {
             router.selectedTab = tab
         }
 
@@ -100,6 +101,7 @@ struct TabNavigationStateTests {
         #expect(router.closetPath.isEmpty)
         #expect(router.studioPath.isEmpty)
         #expect(router.discoverPath.isEmpty)
+        #expect(router.shopPath.isEmpty)
         #expect(router.profilePath.isEmpty)
         #expect(router.presentedModal == nil)
     }
@@ -133,11 +135,12 @@ struct TabNavigationStateTests {
         #expect(router.homePath.count == 1)
     }
 
-    @Test("Dogfood chrome is Home, Closet, Discover, Profile — Studio stays off the bar")
+    @Test("Dogfood chrome is Home, Closet, Discover, Shop, Profile — Studio stays off the bar")
     func dogfoodChromeHidesUnfinishedTabs() {
-        #expect(AppTab.chromeTabs == [.home, .closet, .discover, .profile])
+        #expect(AppTab.chromeTabs == [.home, .closet, .discover, .shop, .profile])
         #expect(!AppTab.studio.isShownInChrome)
         #expect(AppTab.discover.isShownInChrome)
+        #expect(AppTab.shop.isShownInChrome)
         let router = AppRouter()
         router.selectedTab = .studio
         #expect(router.selectedTab == .home)

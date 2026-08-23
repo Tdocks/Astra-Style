@@ -237,6 +237,7 @@ Deno.test("a complete payload parses into the three profile documents", () => {
   assertEquals(body.lifestyleProfile.typical_week, "Mostly in an office");
   assertEquals(body.lifestyleProfile.currency, "GBP");
   assertEquals(body.quizAnswerCount, 1);
+  assertEquals(body.wardrobeGraph, "menswear_3_role");
 });
 
 Deno.test("the four Style DNA summary fields are not read from the request at all", () => {

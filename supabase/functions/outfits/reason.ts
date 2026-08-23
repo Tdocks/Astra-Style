@@ -72,6 +72,7 @@ const ROLE_LABEL: Record<GarmentRole, string> = {
   outerwear: "outerwear",
   shoes: "shoes",
   accessory: "accessory",
+  dress: "dress",
 };
 
 /** Irregular/uncountable plurals `${role}s` would get wrong. */
@@ -81,6 +82,7 @@ const ROLE_LABEL_PLURAL: Record<GarmentRole, string> = {
   outerwear: "outerwear pieces",
   shoes: "shoes",
   accessory: "accessories",
+  dress: "dresses",
 };
 
 function capitalize(text: string): string {

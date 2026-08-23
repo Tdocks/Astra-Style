@@ -36,6 +36,9 @@ const PAIR_WEIGHTS: ReadonlyMap<RolePairKey, number> = new Map([
   [rolePairKey("bottom", "shoes"), 0.20],
   [rolePairKey("top", "outerwear"), 0.10],
   [rolePairKey("outerwear", "bottom"), 0.05],
+  // Dress mirrors top against shoes / outerwear; there is no dress|bottom pair.
+  [rolePairKey("dress", "shoes"), 0.40],
+  [rolePairKey("dress", "outerwear"), 0.10],
 ]);
 
 /** Per §2.1: 0.05 for each accessory pairing, and no more than 0.10 in total. */

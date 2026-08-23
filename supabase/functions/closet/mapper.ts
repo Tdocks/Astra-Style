@@ -24,6 +24,8 @@ export const CATEGORIES = new Set([
   "accessory",
   "watch",
   "fragrance",
+  "dress",
+  "skirt",
 ]);
 
 const PATTERNS: Record<string, string> = {

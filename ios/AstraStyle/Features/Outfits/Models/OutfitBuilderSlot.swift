@@ -43,6 +43,6 @@ public extension ClothingCategory {
     /// for the builder rail, which names Watches first. Two screens, two
     /// orders, both taken verbatim from the spec sections that define them.
     static let outfitBuilderRailOrder: [ClothingCategory] = [
-        .top, .bottom, .outerwear, .shoes, .watch, .accessory, .fragrance
+        .top, .bottom, .outerwear, .shoes, .dress, .skirt, .watch, .accessory, .fragrance
     ]
 }

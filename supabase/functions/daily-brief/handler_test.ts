@@ -346,3 +346,27 @@ Deno.test("a weather_snapshot with an unknown condition is rejected", async () =
   );
   assertEquals(response.status, 400);
 });
+
+Deno.test("a fourth free generate is 429; returning today's existing brief is not", async () => {
+  const gated = buildDeps({
+    hasActivePremiumSubscription: () => Promise.resolve(false),
+    countBriefs: () => Promise.resolve(3),
+  });
+  const blocked = await handleGenerateDailyBrief(requestFor(generateBody()), gated);
+  assertEquals(blocked.status, 429);
+
+  const existing = memoryRepository(POPULATED_CLOSET);
+  await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({ repository: existing }),
+  );
+  const again = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({
+      repository: existing,
+      hasActivePremiumSubscription: () => Promise.resolve(false),
+      countBriefs: () => Promise.resolve(3),
+    }),
+  );
+  assertEquals(again.status, 200);
+});
