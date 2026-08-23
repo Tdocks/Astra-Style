@@ -12,6 +12,18 @@ Do **not** treat commit `cc7923cf` ("Pre-build groundwork…") as new work — t
 an **older** ancestor on `main` (CI / truth docs). Current tip
 already includes Phase 3 exit + this handoff (`git log -5 --oneline`).
 
+### Owner decisions (2026-08-02) — stop waiting on these
+
+1. **Privacy / legal stay drafts.** Keep the live “Draft — not yet in force”
+   banner on https://astra-style.com/privacy/. Do **not** remove it. Do **not**
+   flip `AstraLegal.isPublished`. Do **not** fill `[[NEEDS INPUT]]` or chase
+   counsel for this cut. Publishing unreviewed policies is worse than none
+   (`legal/README.md`). Ticket remains `P7-PRIVACY-05` (end of project).
+2. **Priority = TestFlight only.** Finish Archive → ASC → internal group →
+   iPhone smoke. If ASC refuses an empty Privacy Policy URL on the app record,
+   paste `https://astra-style.com/privacy/` (Draft banner is intentional and
+   honest). That does **not** authorize flipping in-app legal links.
+
 | Fact | Value |
 |---|---|
 | Branch | `main` (pull latest) |
