@@ -9,21 +9,8 @@
 //  scorer server-side (spec §8, §10). Discover must not call
 //  `fetchCuratedProducts`.
 //
-//  THE FOUR WISHLIST METHODS ARE NOT IMPLEMENTED. They previously issued
-//  Postgrest calls against a `wishlist_items` table that no migration in
-//  supabase/migrations creates, so every one of them failed at runtime with a
-//  PGREST relation-does-not-exist error dressed up as "Couldn't load your
-//  wishlist." — a network-shaped message for a schema-shaped fact.
-//
-//  Why not just write the migration? Because the table is not the missing
-//  piece. Wishlist is Phase 6 (P6-SHOP-05/07/10); there is no wishlist UI, no
-//  decision page, and no `SFSafariViewController` anywhere, so a table added
-//  now would ship untested and unused, and would freeze a schema shape ahead
-//  of the feature that has to live with it — while the repository kept
-//  claiming, to any reader of the protocol, that wishlist already worked.
-//  Throwing `.unimplemented` is the smaller lie to unwind later: it costs one
-//  migration plus these four bodies when Phase 6 starts, and until then the
-//  code says exactly what is true.
+//  Wishlist / purchased live on `wishlist_items` (`purchased_at` null
+//  means saved). Discover still must not call `fetchCuratedProducts`.
 //
 
 import Foundation
@@ -89,33 +76,115 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
         }
     }
 
-    // MARK: - Wishlist (not implemented — see this file's header)
-
-    /// - Note: Requires a `wishlist_items` table. No migration creates one.
-    ///   Implement alongside P6-SHOP-05/07/10, not before.
     public func fetchWishlist() async throws -> [ProductCandidate] {
-        throw AstraError.unimplemented(Self.wishlistUnavailableMessage)
+        try await fetchWishlistRows(purchased: false)
     }
 
-    /// - Note: See `fetchWishlist()`.
+    public func fetchPurchased() async throws -> [ProductCandidate] {
+        try await fetchWishlistRows(purchased: true)
+    }
+
     public func addToWishlist(candidateID: UUID) async throws {
-        throw AstraError.unimplemented(Self.wishlistUnavailableMessage)
+        guard let userID = try? await supabase.auth.session.user.id else {
+            throw AstraError.auth("Sign in to save items.")
+        }
+        do {
+            try await supabase.from("wishlist_items")
+                .upsert(
+                    WishlistWrite(
+                        userID: userID,
+                        productCandidateID: candidateID,
+                        purchasedAt: nil
+                    ),
+                    onConflict: "user_id,product_candidate_id"
+                )
+                .execute()
+        } catch {
+            throw AstraError.server("Couldn't save that item.")
+        }
     }
 
-    /// - Note: See `fetchWishlist()`.
     public func removeFromWishlist(candidateID: UUID) async throws {
-        throw AstraError.unimplemented(Self.wishlistUnavailableMessage)
+        do {
+            try await supabase.from("wishlist_items")
+                .delete()
+                .eq("product_candidate_id", value: candidateID)
+                .is("purchased_at", value: nil)
+                .execute()
+        } catch {
+            throw AstraError.server("Couldn't remove that save.")
+        }
     }
 
-    /// - Note: See `fetchWishlist()`. Marking a purchase is part of the same
-    ///   unbuilt table, not a separate gap.
     public func markPurchased(candidateID: UUID) async throws {
-        throw AstraError.unimplemented(Self.wishlistUnavailableMessage)
+        guard let userID = try? await supabase.auth.session.user.id else {
+            throw AstraError.auth("Sign in to mark an item purchased.")
+        }
+        do {
+            try await supabase.from("wishlist_items")
+                .upsert(
+                    WishlistWrite(
+                        userID: userID,
+                        productCandidateID: candidateID,
+                        purchasedAt: Date()
+                    ),
+                    onConflict: "user_id,product_candidate_id"
+                )
+                .execute()
+        } catch {
+            throw AstraError.server("Couldn't mark that as purchased.")
+        }
     }
 
-    /// One message for all four, so the wishlist never explains itself two
-    /// different ways depending on which control the user touched.
-    private static let wishlistUnavailableMessage = String(
-        localized: "Saving items to a wishlist isn't available yet."
-    )
+    private func fetchWishlistRows(purchased: Bool) async throws -> [ProductCandidate] {
+        struct Row: Decodable, Sendable {
+            let productCandidateID: UUID
+            let purchasedAt: Date?
+            enum CodingKeys: String, CodingKey {
+                case productCandidateID = "product_candidate_id"
+                case purchasedAt = "purchased_at"
+            }
+        }
+        do {
+            let rows: [Row] = try await supabase.from("wishlist_items")
+                .select("product_candidate_id, purchased_at")
+                .execute()
+                .value
+            let ids = rows
+                .filter { purchased ? $0.purchasedAt != nil : $0.purchasedAt == nil }
+                .map(\.productCandidateID)
+            guard !ids.isEmpty else { return [] }
+            return try await supabase.from("product_candidates")
+                .select()
+                .in("id", values: ids)
+                .execute()
+                .value
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.network(
+                purchased
+                    ? "Couldn't load purchased items."
+                    : "Couldn't load your saved items."
+            )
+        }
+    }
+}
+
+private struct WishlistWrite: Encodable, Sendable {
+    let userID: UUID
+    let productCandidateID: UUID
+    let purchasedAt: Date?
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case productCandidateID = "product_candidate_id"
+        case purchasedAt = "purchased_at"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(userID, forKey: .userID)
+        try container.encode(productCandidateID, forKey: .productCandidateID)
+        try container.encode(purchasedAt, forKey: .purchasedAt)
+    }
 }

@@ -21,19 +21,19 @@ Unlocks.
 
 1. **Home stays private.** No Open Closet row on Today’s Outfit.
 2. **Discover Unlocks stays HIS `computeUnlockCount`.** Zero-unlock rows
-   stay off the rail. Sponsored is a label only (P6-SHOP-09). Scoring the
-   whole shared catalog onto Unlocks remains forbidden.
+   stay off the rail. Sponsored is a label only (P6-SHOP-09). The Shop
+   catalog may be **scored** onto that rail; it must not be listed by
+   `last_checked_at`.
 3. **A Shop tab is permitted as a later wave**, after P6-SHOP-08 ingest
-   exists. It is a new `AppTab`, not Studio on the bar, not Discover
-   restyled as a mall.
+   exists. It is a new `AppTab`, not Discover restyled as a mall.
 4. **Streaks are permitted as a later wave.** Wear count is not a streak.
    A streak is a new model and chrome, not a badge on `wear_count`.
 5. **Wear This / Daily Brief / paste-evaluate may be gated as a later
    wave**, with **server** 429s (same pattern as Kyra / Studio), not a
    client-only flag. Until that wave, they stay ungated and paywall copy
    still says Wear This is free.
-6. **Studio stays off the dogfood bar** (ADR 0015). Visualize remains the
-   Home / outfit-detail door.
+6. **Studio may sit on the dogfood bar** (amends ADR 0015). Visualize
+   remains the Home / outfit-detail / Studio-tab generate door.
 
 ## Consequences
 

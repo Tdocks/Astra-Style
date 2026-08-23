@@ -1,0 +1,69 @@
+# frozen_string_literal: true
+
+default_platform(:ios)
+
+ASC_KEY_ID = "AV4QQKM7Q5"
+ASC_ISSUER_ID = "ac46a433-b795-401f-8044-832650880809"
+ASC_KEY_PATH = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_#{ASC_KEY_ID}.p8")
+
+platform :ios do
+  desc "Unit tests on the booted simulator"
+  lane :tests do
+    run_tests(
+      project: "AstraStyle.xcodeproj",
+      scheme: "AstraStyle",
+      device: ENV["FASTLANE_DEVICE"] || "iPhone 17 Pro"
+    )
+  end
+
+  desc "Archive and upload to TestFlight using Automatic signing"
+  lane :beta do
+    ensure_bundle
+    api_key = connect_api_key
+    gym(
+      project: "AstraStyle.xcodeproj",
+      scheme: "AstraStyle",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: {
+        method: "app-store-connect",
+        signingStyle: "automatic",
+        teamID: "Q9ZH8AA9NY"
+      },
+      xcargs: "-allowProvisioningUpdates",
+      output_directory: "build/export",
+      clean: true
+    )
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Sync certs via Match when MATCH_GIT_URL is set"
+  lane :certs do
+    url = ENV["MATCH_GIT_URL"].to_s
+    UI.user_error!("Set MATCH_GIT_URL to a private certs repo first.") if url.empty?
+    match(
+      type: "appstore",
+      readonly: ENV["MATCH_READONLY"] != "false",
+      git_url: url,
+      api_key: connect_api_key
+    )
+  end
+
+  private_lane :connect_api_key do
+    UI.user_error!("Missing App Store Connect API key at #{ASC_KEY_PATH}") unless File.exist?(ASC_KEY_PATH)
+    app_store_connect_api_key(
+      key_id: ASC_KEY_ID,
+      issuer_id: ASC_ISSUER_ID,
+      key_filepath: ASC_KEY_PATH,
+      in_house: false
+    )
+  end
+
+  private_lane :ensure_bundle do
+    UI.user_error!("Copy Config/Secrets.example.xcconfig to Config/Secrets.xcconfig") unless File.exist?("Config/Secrets.xcconfig")
+    sh("xcodegen generate")
+  end
+end

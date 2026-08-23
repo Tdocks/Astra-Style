@@ -10,6 +10,7 @@ import {
   type OwnedGarment,
   type ProductsDependencies,
   UNLOCKS_CANDIDATE_CAP,
+  UNLOCKS_SCAN_CAP,
 } from "./handler.ts";
 
 const USER = "aaaaaaaa-0000-4000-8000-000000000001";
@@ -166,31 +167,35 @@ Deno.test("fragrance and scoring failures are dropped, never invented", async ()
   assertEquals(result.items, []);
 });
 
-Deno.test("empty evaluations is an empty list, not a catalog dump", async () => {
+Deno.test("empty evaluations and an empty catalog is an empty list, not a mall dump", async () => {
   const result = await handleListUnlocks(USER, deps([], [TOP, BOTTOM]));
   assertEquals(result.items, []);
 });
 
-Deno.test("a never-evaluated catalog row cannot reach Unlocks even if it would unlock outfits", async () => {
+Deno.test("a catalog shoe that unlocks looks lands on the rail without a prior evaluation", async () => {
   const mallShoe = candidateRow("mall-shoe", { color: "navy", fit: "slim" });
-  let fetchedEvaluated = false;
   const limited: ProductsDependencies = {
     ...deps([], [TOP, BOTTOM]),
-    fetchCandidate: (id) => Promise.resolve(id === mallShoe.id ? mallShoe : null),
-    fetchLatestEvaluatedCandidates: () => {
-      fetchedEvaluated = true;
-      return Promise.resolve([]);
-    },
-    fetchAlternatives: () => Promise.resolve([mallShoe]),
+    fetchCatalogCandidates: () => Promise.resolve([mallShoe]),
   };
   const result = await handleListUnlocks(USER, limited);
-  assertEquals(fetchedEvaluated, true);
+  assertEquals(result.items.map((item) => item.candidate.id), ["mall-shoe"]);
+  assert(result.items[0]!.outfits_unlocked > 0);
+});
+
+Deno.test("a catalog row that unlocks nothing still stays off the rail", async () => {
+  const duplicate = candidateRow("shoe-dup", { color: "black", fit: "regular" });
+  const limited: ProductsDependencies = {
+    ...deps([], [TOP, BOTTOM, OWNED_SHOE]),
+    fetchCatalogCandidates: () => Promise.resolve([duplicate]),
+  };
+  const result = await handleListUnlocks(USER, limited);
   assertEquals(result.items, []);
 });
 
 Deno.test("the rail is capped at the alternatives-pool budget", async () => {
   const many = Array.from(
-    { length: UNLOCKS_CANDIDATE_CAP + 5 },
+    { length: UNLOCKS_SCAN_CAP + 5 },
     (_, index) => candidateRow(`shoe-${index}`, { color: "navy", fit: "slim" }),
   );
   let requested = 0;
@@ -202,6 +207,6 @@ Deno.test("the rail is capped at the alternatives-pool budget", async () => {
     },
   };
   const result = await handleListUnlocks(USER, limited);
-  assertEquals(requested, UNLOCKS_CANDIDATE_CAP);
+  assertEquals(requested, UNLOCKS_SCAN_CAP);
   assertEquals(result.items.length <= UNLOCKS_CANDIDATE_CAP, true);
 });

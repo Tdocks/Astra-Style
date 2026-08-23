@@ -269,6 +269,17 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
         return row ? [row] : [];
       });
     },
+
+    async fetchCatalogCandidates(limit) {
+      const { data, error } = await supabase
+        .from("product_candidates")
+        .select(CANDIDATE_COLUMNS)
+        .limit(limit);
+      if (error) {
+        throw serverError("Couldn't load the catalog to score against your closet.");
+      }
+      return (data ?? []) as ProductCandidateRow[];
+    },
   };
 }
 

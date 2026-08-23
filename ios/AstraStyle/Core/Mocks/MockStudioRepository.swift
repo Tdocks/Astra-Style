@@ -17,6 +17,10 @@ public actor MockStudioRepository: StudioRepository {
         self.quotaExhausted = quotaExhausted
     }
 
+    public func seed(_ generation: StudioGeneration) {
+        generations[generation.id] = generation
+    }
+
     public func fetchGenerations() async throws -> [StudioGeneration] {
         Array(generations.values).sorted { $0.createdAt > $1.createdAt }
     }

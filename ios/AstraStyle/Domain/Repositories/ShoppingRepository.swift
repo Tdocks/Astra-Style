@@ -26,11 +26,13 @@ public protocol ShoppingRepository: Sendable {
 
     func fetchCuratedProducts(category: ClothingCategory?) async throws -> [ProductCandidate]
 
-    /// Products this user already evaluated, re-scored against this closet,
-    /// with `outfitsUnlocked > 0`, ranked by that count. Discover Unlocks.
+    /// Products scored against this closet with `outfitsUnlocked > 0`,
+    /// ranked by that count. Discover Unlocks. Includes Shop catalog rows
+    /// that fill a gap, not a `last_checked_at` dump.
     func fetchUnlocks() async throws -> [ProductUnlock]
 
     func fetchWishlist() async throws -> [ProductCandidate]
+    func fetchPurchased() async throws -> [ProductCandidate]
     func addToWishlist(candidateID: UUID) async throws
     func removeFromWishlist(candidateID: UUID) async throws
 

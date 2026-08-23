@@ -34,13 +34,16 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     case shop
     case profile
 
-    /// Tabs drawn in the bar. Studio stays off unless unfinished chrome is on.
+    /// Tabs drawn in the bar. Unfinished chrome adds nothing extra today —
+    /// Studio is on the dogfood bar.
     public static var chromeTabs: [AppTab] {
         AstraFeatureFlags.showsUnfinishedChrome ? Array(allCases) : dogfoodTabs
     }
 
-    /// Home, Closet, Discover, Shop, Profile. Studio stays off the bar.
-    public static let dogfoodTabs: [AppTab] = [.home, .closet, .discover, .shop, .profile]
+    /// Home, Closet, Studio, Discover, Shop, Profile.
+    public static let dogfoodTabs: [AppTab] = [
+        .home, .closet, .studio, .discover, .shop, .profile,
+    ]
 
     public var isShownInChrome: Bool {
         Self.chromeTabs.contains(self)
@@ -235,8 +238,7 @@ public final class AppRouter {
         }
     }
 
-    /// The currently selected tab. Hidden Studio/Discover selections
-    /// (an older build, or a deep link) fall back to Home (ADR 0015).
+    /// Hidden tabs (an older build, or a deep link) fall back to Home.
     public var selectedTab: AppTab = .home {
         didSet {
             if !selectedTab.isShownInChrome {

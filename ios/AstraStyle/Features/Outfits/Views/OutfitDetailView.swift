@@ -169,7 +169,7 @@ private struct OutfitDetailContent: View {
     let onVisualize: () -> Void
     let onTogglePublic: () -> Void
     let onReport: () -> Void
-    /// Wave E: Visualize is the generate door. Studio stays off the tab bar
+    /// Wave E: Visualize is still the generate door from this screen.
     /// (ADR 0015); hiding this control too would leave no way to see the look.
     let showsStudioActions: Bool
     let onCompleteLook: (UUID) -> Void

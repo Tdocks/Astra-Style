@@ -46,15 +46,15 @@ struct PaywallViewModelTests {
         #expect(model.subscription == nil)
     }
 
-    @Test("Legal links are omitted while documents are unpublished")
-    func omitsLegalWhileUnpublished() {
+    @Test("Legal links are shown once the documents are published")
+    func showsLegalWhenPublished() {
         let model = PaywallViewModel(
             context: .closetLimit,
             purchasing: MockStoreKitPurchasing(),
             subscriptionRepository: MockSubscriptionRepository(status: .expired)
         )
-        #expect(AstraLegal.isPublished == false)
-        #expect(model.showsLegalLinks == false)
+        #expect(AstraLegal.isPublished == true)
+        #expect(model.showsLegalLinks == true)
     }
 
     @Test("Kyra and Studio copy names the cap; Wear This stays out of the charge")

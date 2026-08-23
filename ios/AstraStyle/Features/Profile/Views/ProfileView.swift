@@ -37,6 +37,11 @@ public struct ProfileView: View {
                     viewModel: WearStreakViewModel(streakRepository: container.streakRepository),
                     showsBest: true
                 )
+                ProfileShoppingStatsCard(
+                    viewModel: ProfileShoppingStatsViewModel(
+                        shoppingRepository: container.shoppingRepository
+                    )
+                )
                 aboutCard
                 whatsLiveCard
                 ProfileReferralCard(viewModel: ProfileReferralViewModel(

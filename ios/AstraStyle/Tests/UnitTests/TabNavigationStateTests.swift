@@ -135,15 +135,15 @@ struct TabNavigationStateTests {
         #expect(router.homePath.count == 1)
     }
 
-    @Test("Dogfood chrome is Home, Closet, Discover, Shop, Profile — Studio stays off the bar")
+    @Test("Dogfood chrome is Home, Closet, Studio, Discover, Shop, Profile")
     func dogfoodChromeHidesUnfinishedTabs() {
-        #expect(AppTab.chromeTabs == [.home, .closet, .discover, .shop, .profile])
-        #expect(!AppTab.studio.isShownInChrome)
+        #expect(AppTab.chromeTabs == [.home, .closet, .studio, .discover, .shop, .profile])
+        #expect(AppTab.studio.isShownInChrome)
         #expect(AppTab.discover.isShownInChrome)
         #expect(AppTab.shop.isShownInChrome)
         let router = AppRouter()
         router.selectedTab = .studio
-        #expect(router.selectedTab == .home)
+        #expect(router.selectedTab == .studio)
     }
 
     @Test("startScan opens the scanner, carrying the requested mode")

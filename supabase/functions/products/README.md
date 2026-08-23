@@ -6,7 +6,7 @@ Three routes, one deployed function (ADR 0013 grouped-slug routing):
 |---|---|---|
 | `POST /products/extract` | P6-SHOP-03 | A pasted retailer URL becomes a `product_candidates` row. |
 | `POST /products/evaluate` | P6-SHOP-04 | That row becomes a Kyra verdict against the caller's closet. |
-| `POST /products/unlocks` | P6-CORE-01 | Products **this user already evaluated**, re-scored against **this closet**, `outfits_unlocked > 0`, ranked by that count. Not a `last_checked_at` catalog dump. |
+| `POST /products/unlocks` | P6-CORE-01 | Shared catalog + paste-evaluations, scored against **this closet** with `computeUnlockCount`. `outfits_unlocked > 0`, ranked by that count. Not a `last_checked_at` dump. |
 
 ## The P6-SHOP-09 guarantee, and where it actually lives
 

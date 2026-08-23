@@ -2,9 +2,8 @@
 //  ProductDecisionView.swift
 //  AstraStyle
 //
-//  Spec §6.19 as a door, not a store. Verdict, unlocks, reasoning, the
-//  scores evaluate already returns. No alternatives grid, no wishlist,
-//  no "Kyra says" frame on scorer copy.
+//  Spec §6.19 as a door, not a store. Verdict, unlocks, reasoning, save
+//  and purchased. No alternatives grid, no "Kyra says" frame on scorer copy.
 //
 
 import SwiftUI
@@ -61,6 +60,7 @@ struct ProductDecisionView: View {
                     }
                     .accessibilityIdentifier("productDecision.openSource")
                 }
+                saveActions
                 if let shareText = viewModel.shareText {
                     ShareLink(item: shareText) {
                         Label(
@@ -76,6 +76,42 @@ struct ProductDecisionView: View {
             .padding(AstraSpacing.pagePadding)
         }
         .scrollIndicators(.hidden)
+    }
+
+    @ViewBuilder
+    private var saveActions: some View {
+        if viewModel.isPurchased {
+            Text(String(localized: "Marked as purchased.", comment: "Product decision purchased state"))
+                .astraText(.callout)
+                .foregroundStyle(AstraColor.textSecondary)
+                .accessibilityIdentifier("productDecision.purchased")
+        } else {
+            Button {
+                Task { await viewModel.toggleWishlist() }
+            } label: {
+                Text(
+                    viewModel.isOnWishlist
+                        ? String(localized: "Saved", comment: "Remove from wishlist")
+                        : String(localized: "Save for later", comment: "Add to wishlist")
+                )
+                .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("productDecision.wishlist")
+            Button {
+                Task { await viewModel.markPurchased() }
+            } label: {
+                Text(String(localized: "I bought this", comment: "Mark product purchased"))
+                    .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("productDecision.markPurchased")
+        }
+        if let wishlistMessage = viewModel.wishlistMessage {
+            Text(wishlistMessage)
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+        }
     }
 
     @ViewBuilder

@@ -167,16 +167,13 @@ security find-identity -v -p codesigning   # confirms cert + private key are act
 
 ## Guardrails — do not do these while cutting a build
 
-- Do not flip `AstraLegal.isPublished` in the iOS app, or fill any
-  `[[NEEDS INPUT]]` legal placeholders. That's a separate, deliberately
-  deferred decision (`legal/README.md`, ticket `P7-PRIVACY-05`) — unrelated
-  to shipping a TestFlight build. If ASC asks for a Privacy Policy URL on
-  the app record, `https://astra-style.com/privacy/` is already set there;
-  pasting it is not the same as publishing in-app legal links.
+- Fastlane lives at `ios/fastlane/` (`bundle exec fastlane beta`). Match is
+  optional and needs `MATCH_GIT_URL`. Automatic signing remains the default.
+- `AstraLegal.isPublished` is true; in-app legal URLs are
+  `https://astra-style.com/privacy/` (and terms / delete / affiliate). Do not
+  fill `[[NEEDS INPUT]]` placeholders.
 - Do not commit `Config/Secrets.xcconfig`, `.p12` files, or provisioning
   profiles.
-- Do not reach for Fastlane, submit to public TestFlight, or touch
-  subscriptions — out of scope unless the owner explicitly asks.
 - Never call any Higgsfield tool/MCP, under any circumstance (standing rule
   for this account, unrelated to iOS builds but applies to any agent working
   in this repo).

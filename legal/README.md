@@ -11,12 +11,15 @@ Four self-contained HTML documents, plus this file.
 
 All four carry a visible **Last updated: 31 July 2026**.
 
-## Plan status: deferred to the end of the project
+## Plan status: published on astra-style.com, still a draft for counsel
 
-**Decided 2026-07-31.** These documents are drafted, committed, and then deliberately left alone
-until the end of the build. Nothing further happens before then: **no publishing, no domain
-registration, no filling of the `[[NEEDS INPUT]]` placeholders, no legal review, no flipping of
-`AstraLegal.isPublished`.**
+**Updated 2026-08-23.** The four documents are served at `https://astra-style.com`
+(`/privacy/`, `/terms/`, `/privacy/delete/`, `/affiliate-disclosure/`).
+`AstraLegal.isPublished` is **`true`** and in-app links match those URLs.
+
+**Every `[[NEEDS INPUT]]` below still stands.** Do not invent entity names,
+addresses, or governing law to clear them. Counsel review is still required
+before these drafts can be treated as in-force legal text.
 
 That is a choice about sequencing, not neglect, and it is worth stating plainly so nobody picks
 this up as unfinished business and starts chasing entity names and jurisdictions. The reasoning is

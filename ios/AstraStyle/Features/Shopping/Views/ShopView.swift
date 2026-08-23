@@ -47,8 +47,8 @@ struct ShopView: View {
             .foregroundStyle(AstraColor.textSecondary)
             .fixedSize(horizontal: false, vertical: true)
             Text(String(
-                localized: "Paste a link on Home when something tempts you. Discover Unlocks is still only what you've already asked about.",
-                comment: "Shop empty hint — Unlocks is not this tab"
+                localized: "Paste a link on Home when something tempts you. Discover Unlocks scores pieces that fill a gap in what you own.",
+                comment: "Shop empty hint"
             ))
             .astraText(.callout)
             .foregroundStyle(AstraColor.textMuted)

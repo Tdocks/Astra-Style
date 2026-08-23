@@ -49,7 +49,8 @@ then make a look public,” not a barren feed.
   `POST /products/unlocks` — HIS evaluated gaps via `computeUnlockCount`,
   not `product_candidates` ordered by `last_checked_at`. Zero-unlock rows
   never appear. Sponsored is a label only.
-- **Amendment (2026-08-23):** [0020](0020-shop-streaks-morning-paywall.md)
-  permits a Shop tab, streaks, and morning-loop paywalls as **later
-  waves**. Until those waves land, this ADR’s decisions 1–5 still describe
-  the binary: no Shop tab, Wear This free, Unlocks is HIS gap.
+- **Amendment (2026-08-23, catalog Unlocks):** Discover Unlocks may score
+  shared `product_candidates` (the Shop catalog) with `computeUnlockCount`
+  in addition to paste-evaluations. Zero-unlock rows still never appear.
+  Ranking is still gap, never `last_checked_at`. Studio may sit on the
+  dogfood bar; see [0015](0015-first-run-taste-snapshot.md).

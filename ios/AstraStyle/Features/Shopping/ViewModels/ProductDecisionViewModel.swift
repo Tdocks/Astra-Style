@@ -26,6 +26,9 @@ public final class ProductDecisionViewModel {
 
     public private(set) var state: ViewState = .loading
     public private(set) var pendingPaywall: PaywallContext?
+    public private(set) var isOnWishlist = false
+    public private(set) var isPurchased = false
+    public private(set) var wishlistMessage: String?
 
     private let candidateID: UUID
     private let shoppingRepository: ShoppingRepository
@@ -76,6 +79,7 @@ public final class ProductDecisionViewModel {
             let evaluation = try await shoppingRepository.evaluateProduct(candidateID: candidateID)
             let candidate = try? await shoppingRepository.fetchProductCandidate(id: candidateID)
             state = .loaded(Loaded(candidate: candidate, evaluation: evaluation))
+            await refreshSaveState()
         } catch let error as AstraError where error.category == .rateLimited {
             pendingPaywall = .pasteEvaluate
             state = .failed(error)
@@ -86,7 +90,42 @@ public final class ProductDecisionViewModel {
         }
     }
 
+    public func toggleWishlist() async {
+        wishlistMessage = nil
+        do {
+            if isOnWishlist {
+                try await shoppingRepository.removeFromWishlist(candidateID: candidateID)
+            } else {
+                try await shoppingRepository.addToWishlist(candidateID: candidateID)
+            }
+            await refreshSaveState()
+        } catch let error as AstraError {
+            wishlistMessage = error.message
+        } catch {
+            wishlistMessage = String(localized: "Couldn't update that save.")
+        }
+    }
+
+    public func markPurchased() async {
+        wishlistMessage = nil
+        do {
+            try await shoppingRepository.markPurchased(candidateID: candidateID)
+            await refreshSaveState()
+        } catch let error as AstraError {
+            wishlistMessage = error.message
+        } catch {
+            wishlistMessage = String(localized: "Couldn't mark that as purchased.")
+        }
+    }
+
     public func clearPendingPaywall() {
         pendingPaywall = nil
+    }
+
+    private func refreshSaveState() async {
+        let saved = (try? await shoppingRepository.fetchWishlist()) ?? []
+        let bought = (try? await shoppingRepository.fetchPurchased()) ?? []
+        isPurchased = bought.contains { $0.id == candidateID }
+        isOnWishlist = !isPurchased && saved.contains { $0.id == candidateID }
     }
 }

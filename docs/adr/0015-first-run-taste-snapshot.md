@@ -53,10 +53,11 @@ The generate door is Visualize / See this on you, after terms-versioned
 consent — not a Studio tab, not a preset mall. Women remains out of chrome
 entirely; see [0016](0016-women-is-a-second-graph.md).
 
-## Amendment (2026-08-22, ADR 0017)
+## Amendment (2026-08-23, Studio on chrome)
 
-Discover may also list other men’s **public worn** looks and an Unlocks
-rail. Home stays private. See [0017](0017-discover-public-worn-looks.md).
+Studio **joins** the dogfood bar: Home, Closet, Studio, Discover, Shop,
+Profile. Visualize remains the generate door. The tab is the gallery plus
+that same door — not a preset mall.
 
 ## Consequences
 

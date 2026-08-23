@@ -81,17 +81,11 @@ Ranked by what stops the next user-visible thing from working.
    not on an open question. `POST /style-dna/generate` handles a sparse vector correctly either
    way: an unasked axis contributes nothing and is named in the result's `open_questions`, and an
    axis asked-and-declined is not asked again.
-3. **Terms and Privacy are drafted, and publishing them is deliberately deferred to the end of
-   the project.** This is a plan decision, not a slip. The four documents exist and are committed
-   under `legal/`, the public `legal` storage bucket exists and is empty, and
-   `AstraLegal.isPublished` is `false`, so every legal URL in the app is `nil` and call sites must
-   handle it — `LegalDocumentAvailabilityTests` pins that invariant and the welcome screen shows
-   an honest one-line notice instead of opening Safari on a DNS error. **Nothing further happens
-   until the end of the build:** no publishing, no domain registration (`astrastyle.app` is still
-   NXDOMAIN, re-verified 2026-07-30), no filling of the `[[NEEDS INPUT]]` placeholders, no legal
-   review. Those placeholders still stand and are still enumerated in `legal/README.md`; they are
-   simply not being chased now. It remains an App Store review blocker whenever submission comes,
-   and it is a one-flag change once the documents are live. Ticket `P7-PRIVACY-05`.
+3. **Terms and Privacy are live on astra-style.com** (`/privacy/`, `/terms/`,
+   `/privacy/delete/`, `/affiliate-disclosure/`). `AstraLegal.isPublished` is
+   `true` and in-app links match those URLs. The HTML is still a draft with
+   `[[NEEDS INPUT]]` counsel placeholders — do not invent entity names to
+   clear them. Ticket `P7-PRIVACY-05`.
 
 ## Acceptance criteria that are wrong, rather than unmet
 
@@ -163,7 +157,7 @@ the dead offline queue) will cost real money later if they stay open.
 | P1-AUTH-03 | Done | `SessionStore.restoreSession()` + `SessionRefreshing`; `SessionRestoreTests` — 6 tests including transparent refresh, refresh rejection, corrupt Keychain item, and guest session surviving relaunch. |
 | P1-AUTH-04 | Done | Anonymous sign-in trial (ADR 0018). Welcome CTA `welcome.tryWithoutAccount`. Guest JWT is a real `user_id`. Closet cap 10 via `GuestLimits` / `FreeTierCappedClosetRepository.isAnonymous`. Photos stay in `GuestLocalImageStore` (`guest-local/…`) until Apple/email `linkIdentity`, then `migrateGuestLocalImages` uploads them to `user-content`. Tests: `GuestAuthTests`. Hosted GoTrue still returned `anonymous_provider_disabled` — Dashboard Auth → Providers for `anutsdzbxycaavmmkewo` (GitHub login required). |
 | P1-AUTH-05 | Done | Link Apple/email keeps the same `user_id` (`MockAuthRepository` / `LiveAuthRepository`). Closet + onboarding profile already live on that uid. After link, `LiveClosetRepository.migrateGuestLocalImages` rewrites `guest-local/` rows onto `user-content`. Profile card `profile.guestAccount` is the in-app link path. |
-| P1-AUTH-06 | Partial | `SignedOutGateView` wires all four actions. The criterion "Terms/Privacy open real documents, not a 404" is **still unmet — no policy text exists** and `astrastyle.app` is still NXDOMAIN (re-verified 2026-07-30 with `nslookup` and `curl`). What changed is the failure mode: `AstraLegal` now gates every URL behind `isPublished` (false) and vends `URL?`, so the dead link is a compile-time obligation rather than a runtime 404, and the welcome screen renders an honest "will be published before release" notice instead of opening Safari on a DNS error — the control still does something, so §22's "no dead buttons" holds. **Writing the documents and registering the domain are product/legal decisions, not code.** Flip `AstraLegal.isPublished` and update `Tests/UnitTests/LegalDocumentAvailabilityTests.swift` in the same change. |
+| P1-AUTH-06 | Done | Welcome Terms/Privacy are `Link`s to `https://astra-style.com/terms/` and `/privacy/`. `AstraLegal.isPublished` is true. Counsel placeholders remain on the pages. |
 
 ---
 
@@ -332,10 +326,10 @@ design, not evidence of build.
 | P6-STUDIO-05 | Partial | `supabase/functions/studio/promptBuilder.ts` assembles the prompt; iOS does not expose the 8-preset mall. |
 | P6-STUDIO-06 | Done | `GET /studio/status/:id`; client `StudioGenerationViewModel` polls queued → generating → complete. |
 | P6-STUDIO-07 | Partial | One free Visualize then 429 → `.studioQuota` paywall. Hosted studio spend is live (`IMAGE_GENERATION_PROVIDER=openai`). Cost/retention docs remain; `P6-TEST-01` still `.disabled`. Wear This stays ungated. |
-| P6-STUDIO-08 | Partial | Visualize / Home "See this on you" is the door. Studio tab stays off chrome (ADR 0015 amendment). |
+| P6-STUDIO-08 | Done | Studio tab is on dogfood chrome (`AppTab.dogfoodTabs`). Gallery is `StudioHomeView`; generate is the existing Visualize modal. |
 | P6-STUDIO-09 | Partial | Data model complete. Zero preset UI on purpose (Wave E kill: preset mall). |
 | P6-STUDIO-10 | Partial | Queued/generating/complete/failed UI on `StudioGenerationView`. |
-| P6-STUDIO-11 | Not started | No gallery / save-to-lookbook UI. |
+| P6-STUDIO-11 | Partial | Studio tab lists `studio_generations`. Save-to-lookbook / compare still placeholder routes. |
 | P6-STUDIO-12 | Partial | Client polling loop exists against mock or live status. Live integration still `.disabled` in `PendingIntegrationRequirementsTests`. |
 | P6-SHOP-01 | Done | `20260728100600_commerce.sql` creates `product_candidates`/`user_product_evaluations`; RLS proves shared-read/service-write and per-user isolation. |
 | P6-SHOP-02 | Done | `ProductExtractionProvider` + html/mock adapters. Default provider is mock. |
@@ -343,11 +337,11 @@ design, not evidence of build.
 | P6-SHOP-04 | Done | `POST /products/evaluate`; `ProductDecisionViewModel` calls it. Sponsorship cannot reach `evaluateProductCandidate`. |
 | P6-SHOP-05 | Done | Product decision page: verdict, unlocks, reasoning, compatibility, redundancy. No alternatives grid. |
 | P6-SHOP-06 | Not started | No "Shop the look" UI. Wave D kill list. |
-| P6-SHOP-07 | Partial | `SFSafariViewController` reopens *the URL he pasted* after buy/consider only. Wishlist methods still `AstraError.unimplemented`. |
-| P6-SHOP-08 | Done | `scripts/ingest_product_candidates.py` upserts `supabase/seed/product_candidates.json` with the service role. `POST /products/extract` upserts the same table via service role after JWT auth and omits `sponsored`. RLS still blocks client writes. Unlocks still reads evaluations only (`handler_unlocks_test.ts`). |
+| P6-SHOP-07 | Done | `SFSafariViewController` reopens the pasted URL after buy/consider. `wishlist_items` + save / mark purchased on the decision page; Profile shows counts. |
+| P6-SHOP-08 | Done | `scripts/ingest_product_candidates.py` upserts `supabase/seed/product_candidates.json` with the service role. `POST /products/extract` upserts the same table via service role after JWT auth and omits `sponsored`. RLS still blocks client writes. Unlocks scores catalog + evaluations via `computeUnlockCount` (`handler_unlocks_test.ts`). |
 | P6-SHOP-09 | Done | Server: `sponsored` is a label after scoring, never an `EvaluationInputs` field. iOS decision page has no sponsored sort. |
-| P6-SHOP-10 | Partial | extract/evaluate/fetch candidate are real. Wishlist remains unimplemented. Evaluations are not cached. |
-| P6-CORE-01 | Partial | Discover lists **his** lookbooks plus **Worn by other men** (public + worn, ADR 0017) and Unlocks from `POST /products/unlocks` (HIS evaluated gaps via `computeUnlockCount`, zeros dropped, no sponsored sort). Shop is a **separate** tab over curated `product_candidates`. Empty: "Wear This, then make a look public." / "Paste a link on Home when something tempts you." Home stays private. No editorial CMS table. |
+| P6-SHOP-10 | Partial | extract/evaluate/fetch candidate/wishlist/purchased are live. Evaluations are not cached. |
+| P6-CORE-01 | Partial | Discover lists **his** lookbooks plus **Worn by other men** (public + worn, ADR 0017) and Unlocks from `POST /products/unlocks` (HIS gap via `computeUnlockCount` over evaluations **and** the Shop catalog, zeros dropped, no sponsored sort). Shop is a **separate** tab over curated `product_candidates`. Home stays private. No editorial CMS table. |
 | P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` still `.disabled` (live provider). Client polling is unit-tested against the mock. |
 | P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` still `.disabled` (live Edge). Client extract→evaluate is unit-tested against the mock. |
 
@@ -363,14 +357,14 @@ design, not evidence of build.
 | P7-SUB-02 | Partial | `LiveStoreKitPurchasing` (`Features/Subscription/StoreKitPurchasing.swift`) purchases via StoreKit 2 and rejects unverified transactions. Sandbox purchase on a device is Unverifiable here. |
 | P7-SUB-03 | Partial | `supabase/functions/subscriptions/` `POST /sync` upserts by user_id. **Deployed** 2026-08-22 to `anutsdzbxycaavmmkewo`. Trusts the locally-verified client payload. `app-store/webhook` is not built. |
 | P7-SUB-04 | Partial | Closet 30-item cap is `FreeTierCappedClosetRepository` (guest 10). Kyra 3/day and Studio one Visualize trial present `PaywallView`. **Server 429s** on Wear This (7), Daily Brief generate (3), paste extract+evaluate (1) via `morningLoopQuotaError`; `PaywallContext.wearThis` / `.dailyBrief` / `.pasteEvaluate`. |
-| P7-SUB-05 | Partial | `PaywallView` from `PaywallContext` (closet cap; nested sheet on scanner, Kyra 429, Studio trial). Localized StoreKit prices when offerings load. Legal links omitted while `AstraLegal.isPublished` is false. |
+| P7-SUB-05 | Partial | `PaywallView` from `PaywallContext`. Localized StoreKit prices when offerings load. Legal links shown; `AstraLegal.isPublished` is true. |
 | P7-SUB-06 | Partial | `ios/Config/AstraStyle.storekit` checked in and wired on the AstraStyle scheme. Restore calls `AppStore.sync` then `syncTransaction`. |
 | P7-SUB-07 | Partial | Purchase and restore call `LiveSubscriptionRepository.syncTransaction`. Entitlement is the server row, not local StoreKit. |
 | P7-PRIVACY-01 | Partial | **The most misleadingly advanced ticket in the repo.** `account_deletions`, `request_account_deletion()`, `finalize_account_deletion()`, the cascade chain and RLS are production-grade and were hardened today — but **no `DELETE /account` Edge Function exists**, so no deletion can actually happen. |
 | P7-PRIVACY-02 | Not started | No deletion UI. |
 | P7-PRIVACY-03 | Not started | No export feature. |
 | P7-PRIVACY-04 | Not started | No per-image deletion UI (depends on unbuilt P6-STUDIO-11). |
-| P7-PRIVACY-05 | Not started | No Privacy Policy or ToS content anywhere in the repo, and none should be invented here — this needs a human and probably a lawyer. `Core/Utilities/AstraLegal.swift` is now the single documented point of change: register the domain, publish the four documents, flip `isPublished`, update `LegalDocumentAvailabilityTests`. Until then every legal URL is `nil` and callers must handle it. See also P1-AUTH-06. |
+| P7-PRIVACY-05 | Partial | Four documents live on astra-style.com; `AstraLegal.isPublished` is true; in-app URLs match. Counsel `[[NEEDS INPUT]]` placeholders remain — do not invent entity names. |
 | P7-PRIVACY-06 | Not started | No training-opt-out column; no ATT code. |
 | P7-PRIVACY-07 | Not started | No `analytics_events` table in any migration; `LiveAnalyticsClient.log()` is a no-op stub. `AnalyticsEvent` is designed to exclude PII by construction. |
 | P7-DS-01 | Not started | No audit artifact. Paywall exists (`PaywallView`); Kyra conversation is the remaining missing screen of the five. |
@@ -448,10 +442,7 @@ table?" is the question the next reader will ask.
    bucket fixed and the case not, the upload would still have been rejected by RLS while looking
    entirely correct. Both are fixed; see the method's doc comment. (P3-SCAN-05)
 2. ~~**`LiveShoppingRepository` queries a `wishlist_items` table that no migration creates.**~~
-   Resolved by making the four wishlist methods honestly `AstraError.unimplemented` rather than by
-   writing the migration. Wishlist is Phase 6 with no UI, no decision page and no browser
-   integration; a table added now would ship untested, unused, and would freeze a schema shape
-   ahead of the feature that has to live with it. Reasoning is in the file header. (P6-SHOP-07/10)
+   Resolved: `20260823180000_wishlist_items.sql` plus live save / purchased on the decision page.
 3. ~~**`fetchWardrobeScore()` queries a `wardrobe_scores` table that no migration creates.**~~ Same
    resolution, for a stronger reason: `WardrobeScoring` is a protocol plus the §10 weights with no
    conforming scorer, so nothing in this repo could populate such a table. The migration would buy

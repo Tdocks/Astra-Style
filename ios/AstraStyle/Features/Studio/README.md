@@ -4,9 +4,9 @@ Owns Style Studio: visual try-on / outfit visualization (spec §6.17, §13).
 
 ## Status
 
-**Wave E is live as Visualize / See this on you**, after terms-versioned
-consent (`StudioConsentTerms.currentVersion`). The Studio tab stays off the
-bar. Default image provider is mock.
+**Style Studio is on the tab bar.** Visualize / See this on you is still
+the generate door (Home, outfit detail, and the Studio tab CTA). Default
+image provider is mock unless the hosted secret is set.
 
 ## What this module owns
 

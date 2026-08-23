@@ -95,11 +95,17 @@ export interface ProductsDependencies {
   }) => Promise<{ readonly created_at: string }>;
   /**
    * Latest evaluated `product_candidates` for this caller, recency order,
-   * already unique and capped. Shared catalog rows he never asked about
-   * do not belong here.
+   * already unique and capped.
    */
   readonly fetchLatestEvaluatedCandidates: (
     userID: string,
+    limit: number,
+  ) => Promise<readonly ProductCandidateRow[]>;
+  /**
+   * Shared catalog rows to score onto Unlocks. Ranking is still
+   * `computeUnlockCount` after this fetch — never `last_checked_at`.
+   */
+  readonly fetchCatalogCandidates?: (
     limit: number,
   ) => Promise<readonly ProductCandidateRow[]>;
   readonly requestID: string;
@@ -109,6 +115,8 @@ export interface ProductsDependencies {
 
 /** Same budget as the evaluate alternatives pool — not a mall scan. */
 export const UNLOCKS_CANDIDATE_CAP = 12;
+/** How many catalog rows we score before cutting the rail to the cap. */
+export const UNLOCKS_SCAN_CAP = UNLOCKS_CANDIDATE_CAP * 4;
 
 async function assertPasteQuota(userID: string, deps: ProductsDependencies): Promise<void> {
   if (!deps.hasActivePremiumSubscription || !deps.countEvaluations) return;
@@ -289,17 +297,21 @@ async function buildAlternatives(
 }
 
 /**
- * Discover Unlocks. Re-scores products this user already evaluated against
- * the closet he has today. A row that cannot be scored is dropped — never
- * a fabricated unlock count. `sponsored` is a label on the candidate DTO
- * only; ranking is `rankByUnlockCount`.
+ * Discover Unlocks. Scores evaluated products plus the shared Shop catalog
+ * against the closet he has today. A row that cannot be scored, or that
+ * unlocks nothing, is dropped — never a fabricated unlock count and never
+ * a `last_checked_at` mall dump. `sponsored` is a label on the candidate
+ * DTO only; ranking is `rankByUnlockCount`.
  */
 export async function handleListUnlocks(
   userID: string,
   deps: ProductsDependencies,
 ): Promise<ProductUnlockListDTO> {
-  const rows = (await deps.fetchLatestEvaluatedCandidates(userID, UNLOCKS_CANDIDATE_CAP))
-    .slice(0, UNLOCKS_CANDIDATE_CAP);
+  const evaluated = await deps.fetchLatestEvaluatedCandidates(userID, UNLOCKS_SCAN_CAP);
+  const catalog = deps.fetchCatalogCandidates
+    ? await deps.fetchCatalogCandidates(UNLOCKS_SCAN_CAP)
+    : [];
+  const rows = mergeUnlockCandidates(evaluated, catalog).slice(0, UNLOCKS_SCAN_CAP);
   const closet = await deps.fetchCloset(userID);
   const wardrobeGraph = await deps.fetchWardrobeGraph?.(userID) ?? "menswear_3_role";
   const scorableCloset = closet.map((garment) => garment.scorable);
@@ -344,8 +356,22 @@ export async function handleListUnlocks(
         candidate: mapProductCandidateRowToDTO(source.row),
         outfits_unlocked: source.unlockCount,
       }];
-    }),
+    }).slice(0, UNLOCKS_CANDIDATE_CAP),
   };
+}
+
+function mergeUnlockCandidates(
+  evaluated: readonly ProductCandidateRow[],
+  catalog: readonly ProductCandidateRow[],
+): ProductCandidateRow[] {
+  const seen = new Set<string>();
+  const merged: ProductCandidateRow[] = [];
+  for (const row of [...evaluated, ...catalog]) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    merged.push(row);
+  }
+  return merged;
 }
 
 /** Re-exported so `index.ts` reports a consistent envelope for both routes. */

@@ -2,8 +2,8 @@
 //  PaywallView.swift
 //  AstraStyle
 //
-//  Marble hero, two StoreKit prices, restore. Legal URLs omitted while
-//  AstraLegal.isPublished is false — a 404 Terms link is review poison.
+//  Marble hero, two StoreKit prices, restore. Legal URLs follow
+//  AstraLegal.isPublished.
 //
 
 import SwiftUI

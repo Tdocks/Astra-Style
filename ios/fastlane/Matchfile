@@ -1,0 +1,10 @@
+# Match is optional. This project signs with Automatic + DEVELOPMENT_TEAM
+# in project.yml. Use Match only when MATCH_GIT_URL points at a private
+# certs repo and MATCH_PASSWORD is set. Do not commit those values.
+
+git_url(ENV.fetch("MATCH_GIT_URL", ""))
+storage_mode("git")
+type("appstore")
+app_identifier(["com.astrastyle.app"])
+username(ENV["FASTLANE_USER"] || "tdoxwell@icloud.com")
+team_id("Q9ZH8AA9NY")

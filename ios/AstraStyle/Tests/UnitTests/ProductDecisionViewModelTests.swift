@@ -119,6 +119,27 @@ struct ProductDecisionViewModelTests {
         #expect(!labels.contains("sponsored"))
         #expect(!labels.contains("alternatives"))
     }
+
+    @Test("Save for later then mark purchased updates state")
+    func wishlistThenPurchase() async throws {
+        let shopping = MockShoppingRepository()
+        let url = try #require(URL(string: "https://example.com/navy-knit"))
+        let candidate = try await shopping.extractProduct(from: url)
+        let model = ProductDecisionViewModel(candidateID: candidate.id, shoppingRepository: shopping)
+        await model.onAppear()
+        #expect(!model.isOnWishlist)
+        #expect(!model.isPurchased)
+
+        await model.toggleWishlist()
+        #expect(model.isOnWishlist)
+        #expect(!model.isPurchased)
+
+        await model.markPurchased()
+        #expect(!model.isOnWishlist)
+        #expect(model.isPurchased)
+        let bought = try await shopping.fetchPurchased()
+        #expect(bought.map(\.id) == [candidate.id])
+    }
 }
 
 @Suite("Product link paste")

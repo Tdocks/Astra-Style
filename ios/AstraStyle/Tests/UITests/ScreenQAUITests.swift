@@ -185,8 +185,8 @@ final class ScreenQAUITests: XCTestCase {
     func testEveryTab() {
         enterMainShell()
 
-        // Ordered as they appear in the dogfood tab bar (ADR 0015, Wave F).
-        let tabs = ["Home", "Closet", "Discover", "Profile"]
+        // Ordered as they appear in the dogfood tab bar.
+        let tabs = ["Home", "Closet", "Studio", "Discover", "Shop", "Profile"]
         for (index, tab) in tabs.enumerated() {
             let button = app.tabBars.buttons[tab]
             awaitElement(button, "Tab bar item: \(tab)")
@@ -194,13 +194,13 @@ final class ScreenQAUITests: XCTestCase {
             usleep(600_000)
             capture(String(format: "%02d-Tab-%@", 5 + index, tab))
         }
-        XCTAssertFalse(
+        XCTAssertTrue(
             app.tabBars.buttons["Studio"].exists,
-            "Studio stays off the tab bar; Visualize is the generate door"
+            "Studio belongs on the bar as the generation gallery"
         )
         XCTAssertTrue(
-            app.tabBars.buttons["Discover"].exists,
-            "Discover lists his lookbooks and belongs on the bar"
+            app.tabBars.buttons["Shop"].exists,
+            "Shop is the curated catalog tab"
         )
     }
 

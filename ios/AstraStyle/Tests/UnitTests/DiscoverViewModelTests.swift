@@ -240,6 +240,7 @@ private actor EmptyShoppingStub: ShoppingRepository {
     }
     func fetchUnlocks() async throws -> [ProductUnlock] { [] }
     func fetchWishlist() async throws -> [ProductCandidate] { [] }
+    func fetchPurchased() async throws -> [ProductCandidate] { [] }
     func addToWishlist(candidateID: UUID) async throws {}
     func removeFromWishlist(candidateID: UUID) async throws {}
     func markPurchased(candidateID: UUID) async throws {}
@@ -268,6 +269,7 @@ private actor UnlocksShoppingStub: ShoppingRepository {
     }
     func fetchUnlocks() async throws -> [ProductUnlock] { unlocks }
     func fetchWishlist() async throws -> [ProductCandidate] { [] }
+    func fetchPurchased() async throws -> [ProductCandidate] { [] }
     func addToWishlist(candidateID: UUID) async throws {}
     func removeFromWishlist(candidateID: UUID) async throws {}
     func markPurchased(candidateID: UUID) async throws {}

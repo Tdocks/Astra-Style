@@ -2,9 +2,9 @@
 //  MainTabView.swift
 //  AstraStyle
 //
-//  The five-tab shell (spec §4): Home, Closet, Studio, Discover, Profile.
-//  Dogfood chrome is Home, Closet, Discover, Profile. Studio stays off
-//  the bar; Visualize / See this on you is the generate door (Wave E).
+//  The tab shell (spec §4): Home, Closet, Studio, Discover, Shop, Profile.
+//  Visualize / See this on you remains the generate door from Home and
+//  outfit detail; the Studio tab is the gallery plus the same door.
 //  Each tab owns an independent `NavigationStack` bound to its own path in
 //  `AppRouter`, so tab state survives switching tabs. SF Symbols per tab are
 //  defined on `AppTab` in AppRouter.swift; gold indicates the active tab per
@@ -143,17 +143,13 @@ struct MainTabView: View {
         // project bindings at all.
         @Bindable var router = router
         NavigationStack(path: $router.studioPath) {
-            FeaturePlaceholderView(
-                title: String(localized: "Style Studio"),
-                message: String(localized: "See a look on yourself before you wear it — or before you buy it."),
-                systemImage: "camera.viewfinder"
-            )
-            .navigationDestination(for: StudioRoute.self) { _ in
-                FeaturePlaceholderView(
-                    title: String(localized: "Style Studio"),
-                    message: String(localized: "This screen arrives with Style Studio itself."),
-                    systemImage: "camera.viewfinder"
+            StudioHomeView(
+                viewModel: StudioHomeViewModel(
+                    studioRepository: container.studioRepository
                 )
+            )
+            .navigationDestination(for: StudioRoute.self) { route in
+                StudioDestinationView(route: route, container: container)
             }
         }
     }

@@ -50,15 +50,19 @@ struct LegalDocumentAvailabilityTests {
     /// prompt we want at that moment. Until then it is the one place in the
     /// test suite that records "the legal documents do not exist" as a
     /// checked fact rather than a comment.
-    @Test("The documents are still unpublished — update this test when they ship")
-    func documentsAreStillUnpublished() {
+    @Test("The documents are published at astra-style.com — keep URLs in sync with the site")
+    func documentsArePublishedOnTheMarketingSite() {
         #expect(
-            AstraLegal.isPublished == false,
+            AstraLegal.isPublished == true,
             """
-            AstraLegal.isPublished is true. If the domain is registered and Terms/Privacy \
-            are actually live, update this test and P1-AUTH-06 / P7-PRIVACY-05 in \
-            docs/03-progress.md.
+            AstraLegal.isPublished is false. The marketing site already serves \
+            /privacy /terms /privacy/delete /affiliate-disclosure. Flip the flag \
+            and keep LegalDocumentAvailabilityTests in the same change.
             """
         )
+        #expect(AstraLegal.privacyURL?.absoluteString == "https://astra-style.com/privacy/")
+        #expect(AstraLegal.termsURL?.absoluteString == "https://astra-style.com/terms/")
+        #expect(AstraLegal.dataDeletionURL?.absoluteString == "https://astra-style.com/privacy/delete/")
+        #expect(AstraLegal.affiliateDisclosureURL?.absoluteString == "https://astra-style.com/affiliate-disclosure/")
     }
 }

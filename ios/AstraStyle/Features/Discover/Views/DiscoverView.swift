@@ -142,7 +142,7 @@ struct DiscoverView: View {
                 .foregroundStyle(AstraColor.textPrimary)
             if products.isEmpty {
                 Text(String(
-                    localized: "Paste a link on Home when something tempts you.",
+                    localized: "Pieces that unlock looks with what you own show up here — from Shop and from links you paste.",
                     comment: "Discover Unlocks empty"
                 ))
                 .astraText(.callout)

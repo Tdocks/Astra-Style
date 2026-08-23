@@ -129,7 +129,11 @@ public actor MockShoppingRepository: ShoppingRepository {
     }
 
     public func fetchWishlist() async throws -> [ProductCandidate] {
-        catalog.filter { wishlist.contains($0.id) }
+        catalog.filter { wishlist.contains($0.id) && !purchased.contains($0.id) }
+    }
+
+    public func fetchPurchased() async throws -> [ProductCandidate] {
+        catalog.filter { purchased.contains($0.id) }
     }
 
     public func addToWishlist(candidateID: UUID) async throws {
@@ -142,5 +146,6 @@ public actor MockShoppingRepository: ShoppingRepository {
 
     public func markPurchased(candidateID: UUID) async throws {
         purchased.insert(candidateID)
+        wishlist.remove(candidateID)
     }
 }

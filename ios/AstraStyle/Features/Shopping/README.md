@@ -4,9 +4,9 @@ Owns the shopping-decision flow: product link analysis, "Shop the look", and the
 
 ## Status
 
-**Shop is the catalog.** The Shop tab lists curated `product_candidates`
-(`fetchCuratedProducts`). Discover Unlocks stays `fetchUnlocks` — HIS gap,
-not this list. Wishlist and Shop the look are still out.
+**Shop is the catalog.** Discover Unlocks scores the shared catalog (and
+paste-evaluations) with `computeUnlockCount`; zeros stay off that rail.
+Wishlist and purchased live on the decision page.
 
 ## What this module owns
 

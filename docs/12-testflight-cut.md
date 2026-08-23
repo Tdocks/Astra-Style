@@ -110,6 +110,6 @@ before inviting anyone outside yourself.
 
 - Not ASC screenshots, privacy nutrition labels, or subscription products
   (`P7-INFRA-05` / `P7-SUB-*`).
-- Not CI→TestFlight automation (no Fastlane/Match in-repo yet).
+- Fastlane + optional Match live under `ios/fastlane/` (`bundle exec fastlane beta`).
 - Not a substitute for measured 60 fps / device Vision acceptance criteria —
   those stay Partial until you run them on hardware.
