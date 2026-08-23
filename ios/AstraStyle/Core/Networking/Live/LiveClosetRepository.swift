@@ -261,6 +261,47 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
             String(localized: "Your Wardrobe Score isn't ready yet.")
         )
     }
+
+    public func migrateGuestLocalImages() async throws {
+        struct ImageRow: Decodable, Sendable {
+            let id: UUID
+            let storagePath: String
+            enum CodingKeys: String, CodingKey {
+                case id
+                case storagePath = "storage_path"
+            }
+        }
+        let rows: [ImageRow]
+        do {
+            rows = try await supabase.from("closet_item_images")
+                .select("id,storage_path")
+                .like("storage_path", pattern: "\(GuestLocalImageStore.pathPrefix)%")
+                .execute()
+                .value
+        } catch {
+            throw AstraError.server("Couldn't find guest photos to move into your account.")
+        }
+        for row in rows where GuestLocalImageStore.isLocal(row.storagePath) {
+            guard let data = GuestLocalImageStore.jpegData(for: row.storagePath), !data.isEmpty else {
+                continue
+            }
+            let remotePath: String
+            do {
+                remotePath = try await uploadCaptured(imageData: data)
+            } catch {
+                throw AstraError.network("Couldn't upload a closet photo after linking your account.")
+            }
+            do {
+                try await supabase.from("closet_item_images")
+                    .update(["storage_path": remotePath])
+                    .eq("id", value: row.id)
+                    .execute()
+            } catch {
+                throw AstraError.server("Couldn't attach that photo to your closet after linking.")
+            }
+            try? GuestLocalImageStore.delete(row.storagePath)
+        }
+    }
 }
 
 extension JSONEncoder {

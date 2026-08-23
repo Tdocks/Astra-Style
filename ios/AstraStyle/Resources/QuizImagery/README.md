@@ -40,6 +40,15 @@ produces a reading, and the reading is not statable. The pair that would fix it 
 under "One pair is missing" below. Both logo pairs ship; their branded frames are **composited**
 (`scripts/composite_quiz_logo.py`), not regenerated.
 
+## Women's graph (ADR 0019)
+
+`womenswear-quiz-pairs.json` is a **separate catalog** (pair ids `w-*`). Until a
+second reference figure exists, it points at the same shipped JPEGs as the men's
+set so the quiz is not empty grey boxes. Pairs whose files are missing still
+drop. A dedicated women's figure is content work, blocked the same way
+`silhouette-2` is: generate from a new reference, do not silently reuse a man
+as if she were the subject.
+
 ## Every frame is the same man, and that is the point
 
 This is the technique, and it matters more than any individual frame.

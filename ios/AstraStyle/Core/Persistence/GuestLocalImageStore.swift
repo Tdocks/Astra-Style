@@ -38,6 +38,12 @@ public enum GuestLocalImageStore: Sendable {
         try? FileManager.default.removeItem(at: url)
     }
 
+    /// JPEG bytes for a `guest-local/` path, or `nil` if the file is gone.
+    public static func jpegData(for storagePath: String) -> Data? {
+        guard let url = fileURL(for: storagePath) else { return nil }
+        return try? Data(contentsOf: url)
+    }
+
     private static func directoryURL(userID: UUID) throws -> URL {
         guard let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             throw AstraError.server("Couldn't store that photo on this device.")

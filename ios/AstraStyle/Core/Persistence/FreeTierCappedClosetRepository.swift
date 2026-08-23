@@ -116,4 +116,8 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
     public func fetchWardrobeScore() async throws -> WardrobeScore {
         try await base.fetchWardrobeScore()
     }
+
+    public func migrateGuestLocalImages() async throws {
+        try await base.migrateGuestLocalImages()
+    }
 }

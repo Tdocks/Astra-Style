@@ -74,6 +74,15 @@ public protocol ClosetRepository: Sendable {
 
     /// Wardrobe Score composite (spec §10) for the current user's closet.
     func fetchWardrobeScore() async throws -> WardrobeScore
+
+    /// After anonymous → Apple/email link, copy `guest-local/` photos into
+    /// `user-content` and rewrite `closet_item_images.storage_path`.
+    /// Default is a no-op so test doubles do not have to care.
+    func migrateGuestLocalImages() async throws
+}
+
+extension ClosetRepository {
+    public func migrateGuestLocalImages() async throws {}
 }
 
 /// The 0–100 composite Wardrobe Score plus its component breakdown

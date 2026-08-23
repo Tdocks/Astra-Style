@@ -2,7 +2,7 @@
   "version": 2,
   "pairs": [
     {
-      "id": "formality-01",
+      "id": "w-formality-01",
       "priority": 0,
       "option_a": {
         "id": "relaxed",
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "formality-02",
+      "id": "w-formality-02",
       "priority": 1,
       "option_a": {
         "id": "relaxed",
@@ -42,7 +42,7 @@
       }
     },
     {
-      "id": "colour-01",
+      "id": "w-colour-01",
       "priority": 10,
       "option_a": {
         "id": "restrained",
@@ -62,7 +62,7 @@
       }
     },
     {
-      "id": "colour-02",
+      "id": "w-colour-02",
       "priority": 11,
       "option_a": {
         "id": "restrained",
@@ -82,7 +82,7 @@
       }
     },
     {
-      "id": "silhouette-01",
+      "id": "w-silhouette-01",
       "priority": 20,
       "option_a": {
         "id": "close",
@@ -102,7 +102,7 @@
       }
     },
     {
-      "id": "texture-01",
+      "id": "w-texture-01",
       "priority": 30,
       "option_a": {
         "id": "flat",
@@ -122,7 +122,7 @@
       }
     },
     {
-      "id": "texture-02",
+      "id": "w-texture-02",
       "priority": 31,
       "option_a": {
         "id": "flat",
@@ -142,7 +142,7 @@
       }
     },
     {
-      "id": "logo-01",
+      "id": "w-logo-01",
       "priority": 40,
       "option_a": {
         "id": "unbranded",
@@ -162,7 +162,7 @@
       }
     },
     {
-      "id": "logo-02",
+      "id": "w-logo-02",
       "priority": 41,
       "option_a": {
         "id": "unbranded",
@@ -182,7 +182,7 @@
       }
     },
     {
-      "id": "trend-01",
+      "id": "w-trend-01",
       "priority": 50,
       "option_a": {
         "id": "classic",
@@ -202,7 +202,7 @@
       }
     },
     {
-      "id": "trend-02",
+      "id": "w-trend-02",
       "priority": 51,
       "option_a": {
         "id": "classic",
@@ -222,7 +222,7 @@
       }
     },
     {
-      "id": "accessory-01",
+      "id": "w-accessory-01",
       "priority": 60,
       "option_a": {
         "id": "bare",
@@ -242,7 +242,7 @@
       }
     },
     {
-      "id": "accessory-02",
+      "id": "w-accessory-02",
       "priority": 61,
       "option_a": {
         "id": "bare",
@@ -262,7 +262,7 @@
       }
     },
     {
-      "id": "contrast-01",
+      "id": "w-contrast-01",
       "priority": 70,
       "option_a": {
         "id": "tonal",
@@ -282,7 +282,7 @@
       }
     },
     {
-      "id": "contrast-02",
+      "id": "w-contrast-02",
       "priority": 71,
       "option_a": {
         "id": "tonal",

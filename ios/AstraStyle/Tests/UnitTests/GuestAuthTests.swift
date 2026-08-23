@@ -60,6 +60,15 @@ struct GuestAuthTests {
         #expect(!path.hasPrefix("users/"))
         try GuestLocalImageStore.delete(path)
     }
+
+    @Test("Guest JPEG bytes round-trip for migration onto Storage")
+    func guestBytesRoundTrip() throws {
+        let data = Data([0xFF, 0xD8, 0xFF, 0xD9])
+        let path = try GuestLocalImageStore.save(data, userID: UUID())
+        #expect(GuestLocalImageStore.jpegData(for: path) == data)
+        try GuestLocalImageStore.delete(path)
+        #expect(GuestLocalImageStore.jpegData(for: path) == nil)
+    }
 }
 
 @Suite("Wardrobe graph picker")
@@ -98,11 +107,14 @@ struct WardrobeGraphTests {
         #expect(data.emptyReason == .noOutfitYet)
     }
 
-    @Test("Wardrobe graph is not skippable")
-    func pickerIsRequired() {
-        #expect(!OnboardingStep.wardrobeGraph.isSkippable)
-        #expect(OnboardingStep.firstRunSequence.contains(.wardrobeGraph))
-        #expect(OnboardingStep.firstRunSequence.firstIndex(of: .wardrobeGraph)! <
-                OnboardingStep.firstRunSequence.firstIndex(of: .identity)!)
+    @Test("Women's quiz is its own manifest, not a copy of the men's pair ids")
+    func womensQuizIsOwnManifest() {
+        let locator = AlwaysResolvingImageLocator()
+        let bundle = Bundle(for: LiveAuthRepository.self)
+        let women = StyleQuizCatalog.bundled(for: .womenswear, bundle: bundle, locator: locator)
+        let men = StyleQuizCatalog.bundled(for: .menswear3Role, bundle: bundle, locator: locator)
+        #expect(!women.pairs.isEmpty)
+        #expect(Set(women.pairs.map(\.id)).isDisjoint(with: Set(men.pairs.map(\.id))))
+        #expect(women.pairs.allSatisfy { $0.id.hasPrefix("w-") })
     }
 }

@@ -191,6 +191,7 @@ struct EmailAuthSheet: View {
                         email: sentTo,
                         code: code.trimmingCharacters(in: .whitespaces)
                     )
+                    try await container.closetRepository.migrateGuestLocalImages()
                 } else {
                     session = try await container.authRepository.verifyEmailOTP(
                         email: sentTo,

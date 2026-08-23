@@ -295,6 +295,7 @@ struct ProfileGuestAccountCard: View {
                         identityToken: identityToken,
                         nonce: nonce
                     )
+                    try await container.closetRepository.migrateGuestLocalImages()
                 } catch let error as AstraError {
                     errorMessage = error.message
                 } catch {
