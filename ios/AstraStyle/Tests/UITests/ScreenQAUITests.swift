@@ -178,7 +178,7 @@ final class ScreenQAUITests: XCTestCase {
         app.launchArguments += ["-astra-mock-backend", "-astra-skip-onboarding"]
         app.launch()
 
-        awaitElement(app.tabBars.firstMatch, "Main tab bar")
+        awaitElement(app.chromeTabBar, "Main tab bar")
         capture("04-MainShell-Entered")
     }
 
@@ -188,19 +188,13 @@ final class ScreenQAUITests: XCTestCase {
         // Ordered as they appear in the dogfood tab bar.
         let tabs = ["Home", "Closet", "Studio", "Discover", "Shop", "Profile"]
         for (index, tab) in tabs.enumerated() {
-            let button = app.tabBars.buttons[tab]
-            awaitElement(button, "Tab bar item: \(tab)")
-            button.tap()
+            app.tapChromeTab(tab)
             usleep(600_000)
             capture(String(format: "%02d-Tab-%@", 5 + index, tab))
         }
         XCTAssertTrue(
-            app.tabBars.buttons["Studio"].exists,
+            app.chromeTab("Studio").exists,
             "Studio belongs on the bar as the generation gallery"
-        )
-        XCTAssertTrue(
-            app.tabBars.buttons["Shop"].exists,
-            "Shop is the curated catalog tab"
         )
     }
 
@@ -209,7 +203,7 @@ final class ScreenQAUITests: XCTestCase {
     func testTabStatePreservedThroughUI() {
         enterMainShell()
 
-        app.tabBars.buttons["Closet"].tap()
+        app.tapChromeTab("Closet")
         usleep(400_000)
         // "My Closet" is the real screen's title (spec §6.14). This used to
         // anchor on "Closet", which was the `FeaturePlaceholderView` title
@@ -220,11 +214,11 @@ final class ScreenQAUITests: XCTestCase {
         awaitElement(closetAnchor, "Closet root")
 
         for tab in ["Home", "Profile"] {
-            app.tabBars.buttons[tab].tap()
+            app.tapChromeTab(tab)
             usleep(200_000)
         }
 
-        app.tabBars.buttons["Closet"].tap()
+        app.tapChromeTab("Closet")
         usleep(400_000)
         capture("10-TabState-ReturnedToCloset")
         XCTAssertTrue(closetAnchor.exists, "Closet did not restore after switching away and back")

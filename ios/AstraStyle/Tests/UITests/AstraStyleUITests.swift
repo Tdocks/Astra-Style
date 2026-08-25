@@ -119,8 +119,8 @@ final class AstraStyleUITests: XCTestCase {
             "-astra-skip-onboarding"
         ]
         app.launch()
-        awaitElement(app.tabBars.firstMatch, "Main tab bar under mock backend")
-        let closetTab = app.tabBars.buttons["Closet"]
+        awaitElement(app.chromeTabBar, "Main tab bar under mock backend")
+        let closetTab = app.chromeTab("Closet")
         awaitElement(closetTab, "Closet tab")
         closetTab.tap()
     }
@@ -203,7 +203,7 @@ final class AstraStyleUITests: XCTestCase {
             "-astra-skip-onboarding"
         ]
         app.launch()
-        awaitElement(app.tabBars.firstMatch, "Main tab bar under mock backend")
+        awaitElement(app.chromeTabBar, "Main tab bar under mock backend")
 
         // The Ask Kyra global action floats above the tab bar on every tab.
         let askButton = app.descendants(matching: .any)["kyra.ask"]

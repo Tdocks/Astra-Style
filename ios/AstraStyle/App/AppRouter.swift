@@ -25,7 +25,7 @@ public enum AppRouteState: Equatable, Sendable {
     case main
 }
 
-/// The five primary tabs, in tab-bar order (spec §4).
+/// The six primary tabs, in tab-bar order (spec §4 plus Studio).
 public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     case home
     case closet
@@ -66,9 +66,8 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// SF Symbol shown inactive. Active state is rendered filled by the
-    /// DesignSystem tab bar styling (gold indicates active per spec §3
-    /// "Iconography").
+    /// SF Symbol shown inactive. Active state uses `selectedSymbolName`
+    /// (gold indicates active per spec §3 "Iconography").
     public var symbolName: String {
         switch self {
         case .home: "house"
@@ -77,6 +76,18 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         case .discover: "safari"
         case .shop: "bag"
         case .profile: "person.crop.circle"
+        }
+    }
+
+    /// Filled counterpart drawn when the tab is selected.
+    public var selectedSymbolName: String {
+        switch self {
+        case .home: "house.fill"
+        case .closet: "square.grid.2x2.fill"
+        case .studio: "camera.viewfinder"
+        case .discover: "safari.fill"
+        case .shop: "bag.fill"
+        case .profile: "person.crop.circle.fill"
         }
     }
 

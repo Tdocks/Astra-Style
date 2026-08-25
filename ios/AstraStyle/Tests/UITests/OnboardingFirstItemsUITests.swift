@@ -138,7 +138,7 @@ final class OnboardingFirstItemsUITests: OnboardingCaptureUITestCase {
         capture("56-SkippedBothSteps-Result")
 
         app.buttons["onboarding.advance"].tap()
-        awaitElement(app.tabBars.firstMatch, "Home after skipping both capture steps")
+        awaitElement(app.chromeTabBar, "Home after skipping both capture steps")
         capture("57-SkippedBothSteps-Home")
     }
 

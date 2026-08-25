@@ -22,21 +22,31 @@ struct MainTabView: View {
 
         TabView(selection: $router.selectedTab) {
             ForEach(AppTab.chromeTabs) { tab in
-                tabRoot(for: tab)
-                    .tabItem {
-                        Label {
-                            Text(tab.title)
-                        } icon: {
-                            Image(systemName: tab.symbolName)
-                        }
-                    }
-                    .accessibilityLabel(Text(tab.accessibilityLabel))
-                    .tag(tab)
+                Tab(tab.title, systemImage: tab.symbolName, value: tab) {
+                    tabRoot(for: tab)
+                }
             }
         }
         .tint(AstraColor.accentChampagne)
+        .background {
+            AstraSystemTabBarConfigurator()
+        }
+        .modifier(SystemTabBarFullSize())
         .sheet(item: $router.presentedModal) { modal in
             modalContent(for: modal)
+        }
+    }
+
+    /// Keep the system tab bar at its full glass size. Minimize-on-scroll
+    /// plus a sixth destination made a cramped pill with truncated labels.
+    /// Shop and Profile live under More — that's the iOS tab bar's own rule.
+    private struct SystemTabBarFullSize: ViewModifier {
+        func body(content: Content) -> some View {
+            if #available(iOS 26.0, *) {
+                content.tabBarMinimizeBehavior(.never)
+            } else {
+                content
+            }
         }
     }
 
