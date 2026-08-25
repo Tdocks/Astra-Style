@@ -242,7 +242,7 @@ public final class OnboardingViewModel {
                 || draft.shoeSize != nil || draft.shirtSize != nil || draft.trouserSize != nil
                 || draft.preferredFit != nil || !draft.fitIssues.isEmpty
         case .appearance:
-            draft.skinUndertone != nil || draft.hairColor != nil || draft.eyeColor != nil
+            draft.skinTone != nil || draft.skinUndertone != nil || draft.hairColor != nil || draft.eyeColor != nil
                 || draft.facialHair != nil || draft.wearsGlasses != nil || draft.tattoosVisible != nil
         case .lifestyle:
             draft.occupationCategory != nil || draft.dressCode != nil

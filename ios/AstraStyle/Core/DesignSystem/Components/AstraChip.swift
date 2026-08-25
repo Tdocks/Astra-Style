@@ -16,22 +16,28 @@ import SwiftUI
 public struct AstraChip: View {
     private let title: String
     private let systemImage: String?
+    private let swatches: [Color]
     private let isSelected: Bool
     private let action: () -> Void
 
     /// - Parameters:
     ///   - title: The chip's label (e.g. a category or color name).
     ///   - systemImage: Optional SF Symbol shown before the label.
+    ///   - swatches: Optional colour dots drawn before the label. Always paired
+    ///     with `title` so colour is never the only cue (spec §19). Light
+    ///     swatches are stroked so they keep an edge on a light background.
     ///   - isSelected: Whether the chip is in the active/selected (gold) state.
     ///   - action: Invoked on tap, typically toggling `isSelected` upstream.
     public init(
         _ title: String,
         systemImage: String? = nil,
+        swatches: [Color] = [],
         isSelected: Bool,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.systemImage = systemImage
+        self.swatches = swatches
         self.isSelected = isSelected
         self.action = action
     }
@@ -42,6 +48,19 @@ public struct AstraChip: View {
                 if let systemImage {
                     Image(systemName: systemImage)
                         .imageScale(.small)
+                }
+                if !swatches.isEmpty {
+                    HStack(spacing: AstraSpacing.xxs) {
+                        ForEach(Array(swatches.enumerated()), id: \.offset) { _, color in
+                            Circle()
+                                .fill(color)
+                                .frame(width: AstraSpacing.md, height: AstraSpacing.md)
+                                .overlay(
+                                    Circle().strokeBorder(AstraColor.divider, lineWidth: 1)
+                                )
+                                .accessibilityHidden(true)
+                        }
+                    }
                 }
                 Text(title)
                     .astraText(.caption)

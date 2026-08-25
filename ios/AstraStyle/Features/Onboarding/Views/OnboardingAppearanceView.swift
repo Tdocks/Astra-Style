@@ -57,16 +57,22 @@ struct OnboardingAppearanceView: View {
             )
 
             ChoiceGroup(
+                title: String(localized: "Skin tone", comment: "Appearance question"),
+                reason: String(localized: "How light or deep you are. Without this, recommended neutrals quietly assume a light complexion.",
+                               comment: "Why skin tone depth is asked"),
+                choices: AppearanceOptions.skinTones,
+                selection: $draft.skinTone,
+                identifier: "skinTone"
+            )
+
+            ChoiceGroup(
                 title: String(localized: "Skin undertone", comment: "Appearance question"),
-                reason: String(localized: "Decides which neutrals Kyra suggests — warm and cool skin call for different shades of gray, navy and brown.",
+                reason: String(localized: "Decides which neutrals Kyra suggests — warm, cool and olive call for different shades of gray, navy and brown. Independent of how light or deep you are.",
                                comment: "Why skin undertone is asked"),
-                options: AppearanceOptions.skinUndertones,
+                choices: AppearanceOptions.skinUndertoneChoices,
                 selection: $draft.skinUndertone,
                 identifier: "skinUndertone",
-                // Undertone is not obvious and men are routinely asked it for the
-                // first time here. A guess costs nothing to correct later; being
-                // stuck on a question you cannot answer costs the whole step.
-                hint: String(localized: "Not sure? Veins that look green lean warm, blue lean cool.",
+                hint: String(localized: "Match the swatch, not the word. Warm leans gold; cool leans rose or ash; olive leans green-gold. Deep skin can be any of these.",
                              comment: "Skin undertone hint")
             )
 
@@ -132,16 +138,56 @@ struct OnboardingAppearanceView: View {
 
 // MARK: - Components
 
+private struct ChoiceSection: Identifiable {
+    let title: String?
+    var items: [AppearanceSwatchChoice]
+    var id: String { title ?? items.map(\.label).joined(separator: ",") }
+}
+
 /// A labelled question with a reason and a row of single-select chips.
 private struct ChoiceGroup: View {
     let title: String
     let reason: String
-    let options: [String]
+    let choices: [AppearanceSwatchChoice]
     @Binding var selection: String?
     let identifier: String
     var hint: String?
 
     @Environment(\.dynamicTypeSize) private var typeSize
+
+    init(
+        title: String,
+        reason: String,
+        choices: [AppearanceSwatchChoice],
+        selection: Binding<String?>,
+        identifier: String,
+        hint: String? = nil
+    ) {
+        self.title = title
+        self.reason = reason
+        self.choices = choices
+        self._selection = selection
+        self.identifier = identifier
+        self.hint = hint
+    }
+
+    init(
+        title: String,
+        reason: String,
+        options: [String],
+        selection: Binding<String?>,
+        identifier: String,
+        hint: String? = nil
+    ) {
+        self.init(
+            title: title,
+            reason: reason,
+            choices: options.map { AppearanceSwatchChoice(label: $0, hexes: []) },
+            selection: selection,
+            identifier: identifier,
+            hint: hint
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xs) {
@@ -160,20 +206,21 @@ private struct ChoiceGroup: View {
             // with no scroll indicator — a choice the user cannot know exists.
             // Sideways scrolling is also the gesture least likely to be found by
             // someone who has enlarged the text.
-            AstraWrappingHStack(spacing: AstraSpacing.xs) {
-                ForEach(options, id: \.self) { option in
-                    AstraChip(
-                        option,
-                        isSelected: selection == option,
-                        action: {
-                            // Tapping the selected chip clears it. Every field
-                            // here is optional, so "no answer" has to remain
-                            // reachable after an accidental tap.
-                            selection = selection == option ? nil : option
-                            AstraHaptics.selection()
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                ForEach(choiceSections) { group in
+                    VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                        if let title = group.title {
+                            Text(title)
+                                .astraText(.caption)
+                                .foregroundStyle(AstraColor.textMuted)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                    )
-                    .accessibilityIdentifier("onboarding.appearance.\(identifier).\(Self.slug(option))")
+                        AstraWrappingHStack(spacing: AstraSpacing.xs) {
+                            ForEach(group.items) { choice in
+                                chip(choice)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -192,6 +239,37 @@ private struct ChoiceGroup: View {
         // explanation §6.7 requires without having to swipe onto a separate
         // caption element.
         .accessibilityHint(reason)
+    }
+
+    /// Groups that share a `section` stay together so Deep is a heading, not
+    /// two leftover chips after a fair-skin cluster. Hair and eyes have no
+    /// section and collapse to a single wrapping row.
+    private var choiceSections: [ChoiceSection] {
+        var groups: [ChoiceSection] = []
+        for choice in choices {
+            if let last = groups.last, last.title == choice.section {
+                groups[groups.count - 1].items.append(choice)
+            } else {
+                groups.append(ChoiceSection(title: choice.section, items: [choice]))
+            }
+        }
+        return groups
+    }
+
+    private func chip(_ choice: AppearanceSwatchChoice) -> some View {
+        AstraChip(
+            choice.label,
+            swatches: choice.hexes.map { Color(hex: $0) },
+            isSelected: selection == choice.label,
+            action: {
+                // Tapping the selected chip clears it. Every field
+                // here is optional, so "no answer" has to remain
+                // reachable after an accidental tap.
+                selection = selection == choice.label ? nil : choice.label
+                AstraHaptics.selection()
+            }
+        )
+        .accessibilityIdentifier("onboarding.appearance.\(identifier).\(Self.slug(choice.label))")
     }
 
     /// Stable identifier fragment: lowercase, spaces to underscores.

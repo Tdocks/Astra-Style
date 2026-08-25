@@ -214,6 +214,16 @@ Deno.test("stated inputs are named back to the user in the advice", () => {
   assert(document.palette.rationale.includes("warm undertone"));
 });
 
+Deno.test("a deep complexion is not advised as if the wearer were fair", () => {
+  const document = composeStyleDna(
+    contextWith({ primary_identity: "quiet_luxury" }, {
+      appearance: { skin_tone: "Deep", skin_undertone: "Warm" },
+    }),
+  );
+  assert(document.palette.rationale.includes("deeper complexion"));
+  assert(document.known_inputs.includes("your skin tone"));
+});
+
 Deno.test("the top priority comes from the week, not from the identity's generic list", () => {
   const document = composeStyleDna(RICH);
   assertEquals(document.wardrobe_priorities[0]?.rank, 1);

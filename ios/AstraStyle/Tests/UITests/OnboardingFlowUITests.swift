@@ -744,7 +744,8 @@ private extension OnboardingFlowUITests {
         // selected state is distinguishable from the unselected one, and a
         // single top-of-page shot leaves the questions below the fold unaudited
         // — both were real gaps found when these captures were reviewed.
-        awaitElement(app.buttons["onboarding.appearance.skinUndertone.warm"], "Appearance: chips")
+        awaitElement(app.buttons["onboarding.appearance.skinTone.deep"], "Appearance: chips")
+        app.buttons["onboarding.appearance.skinTone.deep"].tap()
         app.buttons["onboarding.appearance.skinUndertone.warm"].tap()
         app.buttons["onboarding.appearance.hairColor.dark_brown"].tap()
         usleep(400_000)
@@ -866,7 +867,7 @@ private extension OnboardingFlowUITests {
         // so the real transition needs proving exactly once, by the test that
         // owns the flow.
         app.buttons["onboarding.advance"].tap()
-        awaitElement(app.tabBars.firstMatch, "Main tab bar after finishing onboarding")
+        awaitElement(app.chromeTabBar, "Main tab bar after finishing onboarding")
         capture("31b-Onboarding-Finished-MainShell")
     }
 }

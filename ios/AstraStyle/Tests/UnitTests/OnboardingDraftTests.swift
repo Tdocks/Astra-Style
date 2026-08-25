@@ -174,6 +174,7 @@ struct OnboardingDraftTests {
     @Test("Every appearance answer reaches BodyProfile.appearance")
     func appearanceIsPersisted() {
         var draft = filledDraft()
+        draft.skinTone = "Deepest"
         draft.skinUndertone = "Cool"
         draft.hairColor = "Salt and pepper"
         draft.eyeColor = "Green"
@@ -182,6 +183,7 @@ struct OnboardingDraftTests {
         draft.tattoosVisible = false
 
         let appearance = draft.bodyProfile(userID: UUID()).appearance
+        #expect(appearance.skinTone == "Deepest")
         #expect(appearance.skinUndertone == "Cool")
         #expect(appearance.hairColor == "Salt and pepper")
         #expect(appearance.eyeColor == "Green")
@@ -197,11 +199,15 @@ struct OnboardingDraftTests {
     @Test("Appearance encodes to the snake_case keys the jsonb column expects")
     func appearanceUsesStorageKeys() throws {
         let appearance = AppearanceProfile(
-            skinUndertone: "Warm", wearsGlasses: true, referenceSelfiePaths: ["a/b.jpg"]
+            skinTone: "Deep",
+            skinUndertone: "Warm",
+            wearsGlasses: true,
+            referenceSelfiePaths: ["a/b.jpg"]
         )
         let json = try JSONSerialization.jsonObject(
             with: try JSONEncoder().encode(appearance)
         ) as? [String: Any]
+        #expect(json?["skin_tone"] as? String == "Deep")
         #expect(json?["skin_undertone"] as? String == "Warm")
         #expect(json?["wears_glasses"] as? Bool == true)
         #expect(json?["reference_selfie_paths"] as? [String] == ["a/b.jpg"])

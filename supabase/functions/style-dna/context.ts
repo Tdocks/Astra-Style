@@ -67,7 +67,8 @@ export interface StyleDnaContext {
     readonly taper: FrameAxis | null;
     readonly proportion: FrameAxis | null;
     readonly scale: FrameAxis | null;
-    /** §6.7's one appearance field that changes advice on its own (palette). */
+    /** Depth (light through deepest) and undertone both change palette advice. */
+    readonly skinTone: string | null;
     readonly skinUndertone: string | null;
   };
   readonly lifestyle: {
@@ -216,6 +217,9 @@ export function buildStyleDnaContext(
       taper: frameAxis(bodyRow, "frame_taper", "frame_taper_confidence"),
       proportion: frameAxis(bodyRow, "frame_proportion", "frame_proportion_confidence"),
       scale: frameAxis(bodyRow, "frame_scale", "frame_scale_confidence"),
+      skinTone: typeof appearanceRecord["skin_tone"] === "string"
+        ? appearanceRecord["skin_tone"] as string
+        : null,
       skinUndertone: typeof appearanceRecord["skin_undertone"] === "string"
         ? appearanceRecord["skin_undertone"] as string
         : null,

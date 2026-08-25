@@ -362,6 +362,12 @@ function composePalette(
       clauses.push("weighted toward the cooler neutrals here, which suit a cool undertone");
     }
   }
+  const skinTone = context.body.skinTone?.toLowerCase() ?? "";
+  if (skinTone.includes("deep")) {
+    clauses.push(
+      "using neutrals that still read against a deeper complexion, not only bone and light grey",
+    );
+  }
 
   return {
     preferred_colors: preferred,
@@ -675,6 +681,9 @@ function composeKnownInputs(context: StyleDnaContext, identity: ResolvedIdentity
   if (context.body.hasAnyMeasurement) {
     inputs.push("your measurements");
   }
+  if (context.body.skinTone !== null) {
+    inputs.push("your skin tone");
+  }
   if (context.body.skinUndertone !== null) {
     inputs.push("your skin undertone");
   }
@@ -714,9 +723,14 @@ function composeOpenQuestions(context: StyleDnaContext, identity: ResolvedIdenti
       "A chest and a waist measurement. They turn general cut advice into advice about the trousers you would actually buy.",
     );
   }
+  if (context.body.skinTone === null) {
+    questions.push(
+      "Your skin tone — how light or deep you are. Without it, neutrals quietly assume a light complexion.",
+    );
+  }
   if (context.body.skinUndertone === null) {
     questions.push(
-      "Your skin undertone. It is the one appearance answer that changes which neutrals get recommended.",
+      "Your skin undertone. It changes which neutrals get recommended, independent of how light or deep you are.",
     );
   }
 

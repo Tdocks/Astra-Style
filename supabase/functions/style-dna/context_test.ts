@@ -93,14 +93,16 @@ Deno.test("a frame axis with a confidence is carried through", () => {
   assertEquals(context.body.scale?.confidence, 0.8);
 });
 
-Deno.test("the appearance blob yields only skin undertone, and nothing identifying", () => {
+Deno.test("the appearance blob yields skin tone and undertone, and nothing identifying", () => {
   const context = buildStyleDnaContext(null, {
     appearance: {
+      skin_tone: "Deep",
       skin_undertone: "Cool",
       hair_color: "Dark brown",
       reference_selfie_paths: ["users/abc/references/1.jpg"],
     },
   }, null);
+  assertEquals(context.body.skinTone, "Deep");
   assertEquals(context.body.skinUndertone, "Cool");
   assert(!JSON.stringify(context).includes("references/1.jpg"));
 });

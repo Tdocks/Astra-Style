@@ -117,6 +117,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
 
     // §6.7 — Appearance. Optional in full; stored in `body_profiles.appearance`
     // as jsonb, so free-form strings rather than enums.
+    public var skinTone: String?
     public var skinUndertone: String?
     public var hairColor: String?
     public var eyeColor: String?
@@ -184,7 +185,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         case goals, selectedIdentities, primaryIdentity, units
         case height, weight, chest, waist, inseam, neck
         case shoeSize, shirtSize, trouserSize, preferredFit, fitIssues
-        case skinUndertone, hairColor, eyeColor, facialHair, wearsGlasses, tattoosVisible
+        case skinTone, skinUndertone, hairColor, eyeColor, facialHair, wearsGlasses, tattoosVisible
         case occupationCategory, dressCode, typicalWeek, commonOccasions, climatePreferences
         case laundryCadence, travelFrequency, religiousServiceAttireNeeds
         case sustainabilityPreference, preferredBrands, avoidedBrands
@@ -210,6 +211,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         trouserSize = try container.decodeIfPresent(String.self, forKey: .trouserSize)
         preferredFit = try container.decodeIfPresent(ItemFit.self, forKey: .preferredFit)
         fitIssues = try container.decodeIfPresent(Set<FitIssue>.self, forKey: .fitIssues) ?? []
+        skinTone = try container.decodeIfPresent(String.self, forKey: .skinTone)
         skinUndertone = try container.decodeIfPresent(String.self, forKey: .skinUndertone)
         hairColor = try container.decodeIfPresent(String.self, forKey: .hairColor)
         eyeColor = try container.decodeIfPresent(String.self, forKey: .eyeColor)
@@ -259,6 +261,7 @@ public struct OnboardingDraft: Codable, Hashable, Sendable {
         try container.encodeIfPresent(trouserSize, forKey: .trouserSize)
         try container.encodeIfPresent(preferredFit, forKey: .preferredFit)
         try container.encode(fitIssues, forKey: .fitIssues)
+        try container.encodeIfPresent(skinTone, forKey: .skinTone)
         try container.encodeIfPresent(skinUndertone, forKey: .skinUndertone)
         try container.encodeIfPresent(hairColor, forKey: .hairColor)
         try container.encodeIfPresent(eyeColor, forKey: .eyeColor)
@@ -337,6 +340,7 @@ public extension OnboardingDraft {
     /// the same shape of bug as the coding-key drift in BodyProfile's header.
     var appearanceProfile: AppearanceProfile {
         AppearanceProfile(
+            skinTone: skinTone,
             skinUndertone: skinUndertone,
             hairColor: hairColor,
             eyeColor: eyeColor,
