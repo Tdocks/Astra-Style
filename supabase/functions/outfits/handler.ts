@@ -63,7 +63,12 @@ import { createLogger, type RequestLogger } from "../_shared/logger.ts";
 import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
-import { parseEnvelope, parseGenerateOutfitsBody, parseRankOutfitsBody, parseRecordWearBody } from "./schema.ts";
+import {
+  parseEnvelope,
+  parseGenerateOutfitsBody,
+  parseRankOutfitsBody,
+  parseRecordWearBody,
+} from "./schema.ts";
 import {
   type ClosetItemMapperRow,
   mapClosetItemRowToScorableItem,
@@ -72,7 +77,6 @@ import { generateCandidateOutfits } from "./candidateGeneration.ts";
 import { buildReason } from "./reason.ts";
 import { scoreOutfit } from "../_shared/scoring/compatibility.ts";
 import { toScoredOutfit } from "../_shared/scoring/wire.ts";
-import { FREE_WEAR_THIS_COUNT, morningLoopQuotaError } from "../_shared/premium.ts";
 import type { ScoredOutfitEnvelope } from "../_shared/scoring/wire.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
 
@@ -107,8 +111,6 @@ export interface HandlerDeps {
   rateLimiter: RateLimiter;
   /** Injected clock so latency logging is deterministic in tests. */
   now: () => Date;
-  hasActivePremiumSubscription?: (nowIso: string) => Promise<boolean>;
-  countWearEvents?: (userId: string) => Promise<number>;
   insertWear?: (row: {
     user_id: string;
     outfit_id: string;
@@ -381,18 +383,6 @@ export async function handleRecordWear(req: Request, deps: HandlerDeps): Promise
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
     const body = parseRecordWearBody(envelope.body);
-
-    const premium = deps.hasActivePremiumSubscription
-      ? await deps.hasActivePremiumSubscription(deps.now().toISOString())
-      : true;
-    if (!premium) {
-      const used = deps.countWearEvents ? await deps.countWearEvents(userId) : 0;
-      if (used >= FREE_WEAR_THIS_COUNT) {
-        throw morningLoopQuotaError(
-          "You've used your free Wear This days. Upgrade to Astra Style Premium to keep logging looks.",
-        );
-      }
-    }
 
     if (!deps.insertWear) {
       throw serverError("Couldn't record that wear.");

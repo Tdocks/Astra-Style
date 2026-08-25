@@ -15,13 +15,13 @@ struct OnboardingWardrobeGraphView: View {
             graphCard(
                 graph: .menswear3Role,
                 title: String(localized: "Men's looks", comment: "Onboarding wardrobe graph option"),
-                detail: String(localized: "Tops, bottoms, and shoes. The graph already in the app.",
+                detail: String(localized: "Tops, bottoms, shoes, and the layers that pull them together.",
                                comment: "Onboarding wardrobe graph option detail")
             )
             graphCard(
                 graph: .womenswear,
                 title: String(localized: "Dresses and separates", comment: "Onboarding wardrobe graph option"),
-                detail: String(localized: "A dress or a top and bottom, plus shoes.",
+                detail: String(localized: "Dresses or separates, with shoes and finishing layers.",
                                comment: "Onboarding wardrobe graph option detail")
             )
         }

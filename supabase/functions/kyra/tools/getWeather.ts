@@ -13,9 +13,11 @@
 // weather-unavailable row forbids.
 //
 // `date_range_days` is accepted per the §3.6 schema, but the snapshot the
-// client sends is a single same-day reading (high/low/condition), so the
-// forecast array carries at most that one day and the response names its
-// own limitation rather than padding days that were never measured.
+// client sends is a single same-day reading (high/low/condition), in the
+// iOS WeatherSnapshot wire convention of Fahrenheit. Tool output is `_c`,
+// so conversion happens here before the model sees it. The forecast array
+// carries at most that one day and names its own limitation rather than
+// padding days that were never measured.
 // ============================================================================
 
 import type { StylistToolDefinition } from "../../_shared/providers/stylistReasoning.ts";
@@ -54,21 +56,27 @@ export function executeGetWeather(
     };
   }
   const today = deps.now().toISOString().slice(0, 10);
+  const highC = fahrenheitToCelsius(snapshot.temperatureHigh);
+  const lowC = fahrenheitToCelsius(snapshot.temperatureLow);
   return {
     available: true,
     current_temp_c: null,
-    high_c: snapshot.temperatureHigh,
-    low_c: snapshot.temperatureLow,
+    high_c: highC,
+    low_c: lowC,
     condition: snapshot.condition,
     forecast: [
       {
         date: today,
-        high_c: snapshot.temperatureHigh,
-        low_c: snapshot.temperatureLow,
+        high_c: highC,
+        low_c: lowC,
         condition: snapshot.condition,
       },
     ],
     detail: "Single same-day reading from the user's device. No multi-day forecast exists " +
       "server-side; do not extrapolate beyond today.",
   };
+}
+
+function fahrenheitToCelsius(value: number): number {
+  return Math.round(((value - 32) * 5 / 9) * 10) / 10;
 }

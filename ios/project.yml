@@ -59,7 +59,7 @@ settings:
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
     GENERATE_INFOPLIST_FILE: NO
     MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "6"
+    CURRENT_PROJECT_VERSION: "7"
 
 configs:
   Debug: debug
@@ -270,6 +270,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.astrastyle.app.unittests
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: Q9ZH8AA9NY
 
   AstraStyleUITests:
     type: bundle.ui-testing
@@ -283,6 +285,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.astrastyle.app.uitests
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: AstraStyle
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: Q9ZH8AA9NY
 
 schemes:
   AstraStyle:

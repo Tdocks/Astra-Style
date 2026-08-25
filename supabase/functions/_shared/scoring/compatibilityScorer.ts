@@ -54,10 +54,11 @@ export type CompatibilityScorerRow = OutfitScorerRow;
 
 export class CompatibilityOutfitScorer implements OutfitScorer {
   /**
-   * Context is constructor-injected rather than passed per call because the
-   * `OutfitScorer` interface has no room for it, and widening that interface
-   * would ripple into the placeholder and its tests for a parameter only one
-   * implementation reads.
+   * Constructor context is the caller's stable baseline (for example its
+   * wardrobe graph). `OutfitScorerOptions.context` overlays facts that vary
+   * per request, such as today's WeatherKit reading. Keeping both lets packing
+   * and tests retain a fixed context while Daily Brief cannot accidentally
+   * reuse one user's forecast for the next request.
    *
    * Today `daily-brief` has weather to give (the client sends it) and nothing
    * else — no stated preferences, no co-wear history. Those subscores fall to
@@ -71,6 +72,10 @@ export class CompatibilityOutfitScorer implements OutfitScorer {
     items: readonly CompatibilityScorerRow[],
     options: OutfitScorerOptions,
   ): ScoredOutfit[] {
+    const context: ScoringContext = {
+      ...this.context,
+      ...options.context,
+    };
     const scorable: ScorableItem[] = [];
     for (const row of items) {
       // Null for a row the engine cannot read at all — a fragrance, which has
@@ -83,7 +88,7 @@ export class CompatibilityOutfitScorer implements OutfitScorer {
       desiredCount: options.desiredCount,
       lockedItemIds: options.lockedItemIds,
       excludedItemIds: options.excludedItemIds,
-      context: this.context,
+      context,
     };
 
     return generateCandidateOutfits(scorable, generationOptions).map((outfit) => ({

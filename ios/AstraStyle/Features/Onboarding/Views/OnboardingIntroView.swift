@@ -59,7 +59,7 @@ struct OnboardingIntroView: View {
                     // Sets the expectation before the questions start. A user who
                     // knows the length and knows he can skip is far likelier to
                     // finish than one who discovers both halfway through.
-                    Text("\(OnboardingStep.answerableSteps.count) short steps. How you want to look is required — skip the rest.")
+                    Text("A few focused questions. Choose the wardrobe and style direction; everything else can wait.")
                         .astraText(.caption)
                         .foregroundStyle(AstraColor.textMuted)
                         .multilineTextAlignment(.center)

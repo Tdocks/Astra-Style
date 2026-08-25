@@ -207,8 +207,6 @@ public final class HomeViewModel {
             hasMarkedWorn = true
             canOfferPublicLook = data.primaryOutfit?.visibility != .shared
             analyticsClient.log(.outfitMarkedWorn(outfitID: outfitID))
-        } catch let error as AstraError where error.category == .rateLimited {
-            pendingPaywall = .wearThis
         } catch let error as AstraError {
             actionError = error
             isOffline = await networkMonitor.isOffline()

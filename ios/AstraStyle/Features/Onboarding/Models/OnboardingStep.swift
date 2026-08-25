@@ -106,7 +106,7 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
             String(localized: "A short introduction before the questions start.",
                    comment: "Onboarding step rationale")
         case .wardrobeGraph:
-            String(localized: "This chooses the outfit graph — men's three-role looks, or dresses and separates. It is not a setting you flip later.",
+            String(localized: "Choose the wardrobe Kyra should learn. This shapes every outfit she builds for you.",
                    comment: "Onboarding step rationale")
         case .goals:
             String(localized: "This decides what Kyra leads with — everyday outfits, filling gaps, or smarter buying.",
@@ -149,12 +149,11 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
 
     /// Whether this step may be passed without answering.
     ///
-    /// Only `identity` is required, because §6.5 specifies an exact shape
-    /// ("choose three, then rank one primary") that a partial answer cannot
-    /// satisfy — two identities with no primary is not a smaller answer, it is
-    /// an unusable one. Everything else, including all of §6.6 and §6.7,
-    /// tolerates being skipped entirely: `FrameProfile` is built to degrade
-    /// (docs/14 §2) and Style DNA is built to work from less.
+    /// Wardrobe graph and identity are required. The first chooses the product
+    /// model; §6.5 then requires three directions and one primary. Everything
+    /// else, including all of §6.6 and §6.7, tolerates being skipped entirely:
+    /// `FrameProfile` is built to degrade (docs/14 §2) and Style DNA is built
+    /// to work from less.
     public var isSkippable: Bool {
         self != .identity && self != .wardrobeGraph
     }

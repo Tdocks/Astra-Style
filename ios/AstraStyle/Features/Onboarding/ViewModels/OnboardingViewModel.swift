@@ -168,8 +168,8 @@ public final class OnboardingViewModel {
 
     public var canGoBack: Bool { step.previous != nil }
 
-    /// Whether Continue is enabled. Only §6.5 gates it — see
-    /// `OnboardingStep.isSkippable`.
+    /// Whether Continue is enabled. The product graph and §6.5 identity are
+    /// the two required first-run decisions — see `OnboardingStep.isSkippable`.
     public var canAdvance: Bool {
         switch step {
         case .identity: draft.hasCompleteIdentitySelection

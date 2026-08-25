@@ -19,11 +19,17 @@ public final class StudioHomeViewModel {
     }
 
     public private(set) var state: ViewState = .loading
+    public private(set) var imageURLs: [UUID: URL] = [:]
 
     private let studioRepository: StudioRepository
+    private let imageURLResolver: ClosetImageURLResolving
 
-    public init(studioRepository: StudioRepository) {
+    public init(
+        studioRepository: StudioRepository,
+        imageURLResolver: ClosetImageURLResolving
+    ) {
         self.studioRepository = studioRepository
+        self.imageURLResolver = imageURLResolver
     }
 
     public func onAppear() async {
@@ -35,6 +41,15 @@ public final class StudioHomeViewModel {
         do {
             let generations = try await studioRepository.fetchGenerations()
                 .filter { !$0.isDeleted }
+            let paths = generations.compactMap(\.resultImagePath)
+            let resolved = (try? await imageURLResolver.resolve(storagePaths: paths)) ?? [:]
+            imageURLs = Dictionary(
+                uniqueKeysWithValues: generations.compactMap { generation in
+                    guard let path = generation.resultImagePath,
+                          let url = resolved[path] else { return nil }
+                    return (generation.id, url)
+                }
+            )
             state = generations.isEmpty ? .empty : .loaded(generations)
         } catch let error as AstraError {
             state = .failed(error)

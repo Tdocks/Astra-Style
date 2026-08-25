@@ -140,8 +140,8 @@ struct HomeViewModelReliabilityTests {
         }
     }
 
-    @Test("A 429 on Wear This presents the wearThis paywall, not an error alert")
-    func wearThisQuotaPresentsPaywall() async {
+    @Test("A transport 429 on Wear This stays an error and never becomes monetization")
+    func wearThisRateLimitNeverPresentsPaywall() async {
         let provider = RecordingHomeProvider(
             data: loadedBrief(),
             markError: AstraError.rateLimited("Upgrade to keep logging looks.")
@@ -153,11 +153,11 @@ struct HomeViewModelReliabilityTests {
         await viewModel.onAppear()
         await viewModel.markPrimaryOutfitWorn()
 
-        #expect(viewModel.pendingPaywall == .wearThis)
-        #expect(viewModel.actionError == nil)
+        #expect(viewModel.pendingPaywall == nil)
+        #expect(viewModel.actionError?.category == .rateLimited)
         #expect(!viewModel.hasMarkedWorn)
         guard case .loaded = viewModel.state else {
-            Issue.record("expected .loaded after a Wear This paywall, got \(viewModel.state)")
+            Issue.record("expected .loaded after a Wear This rate limit, got \(viewModel.state)")
             return
         }
     }

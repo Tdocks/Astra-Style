@@ -14,9 +14,9 @@ Deno.test("no client snapshot -> available:false with an explicit do-not-guess r
   assertEquals(result["condition"], undefined);
 });
 
-Deno.test("client snapshot is returned verbatim, scoped to today only", () => {
+Deno.test("client Fahrenheit snapshot is returned as Celsius, scoped to today only", () => {
   const result = executeGetWeather({ date_range_days: 7 }, {
-    weatherSnapshot: { temperatureHigh: 23, temperatureLow: 14, condition: "rain" },
+    weatherSnapshot: { temperatureHigh: 73.4, temperatureLow: 57.2, condition: "rain" },
     now: NOW,
   });
   assertEquals(result["available"], true);

@@ -279,44 +279,77 @@ public struct HomeView: View {
             .disabled(viewModel.hasMarkedWorn)
             .accessibilityIdentifier("home.wearThis")
 
-            Button {
-                // The carousel lives in the Closet, where browsing belongs.
-                // Home's job is to have decided; this is the door out of that
-                // decision, not a second one on the same screen.
-                router.select(.closet)
-            } label: {
-                Text(String(localized: "Something Else", comment: "Home secondary action"))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.astraSecondary)
-            .accessibilityHint(Text(String(
-                localized: "Browse other outfits in your closet",
-                comment: "VoiceOver hint for the Home alternatives action"
-            )))
-            .accessibilityIdentifier("home.somethingElse")
-
-            pasteLinkButton
-
-            todayShareLink
-
-            if case .loaded(let data) = viewModel.state, data.primaryOutfit != nil {
-                Button {
-                    router.presentModal(.studioGeneration(outfitID: data.primaryOutfit?.id))
-                } label: {
-                    Text(String(localized: "See this on you", comment: "Home door into Studio for today's look"))
-                        .frame(maxWidth: .infinity)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AstraSpacing.sm) {
+                    somethingElseButton
+                    seeOnYouButton
                 }
-                .buttonStyle(.astraSecondary)
-                .accessibilityIdentifier("home.seeOnYou")
+                VStack(spacing: AstraSpacing.sm) {
+                    somethingElseButton
+                    seeOnYouButton
+                }
             }
+
+            Menu {
+                Button {
+                    isPastingLink = true
+                } label: {
+                    Label(
+                        String(localized: "Check a product link", comment: "Home utility menu paste-link action"),
+                        systemImage: "link"
+                    )
+                }
+                .accessibilityIdentifier("home.pasteLink")
+                todayShareMenuItem
+            } label: {
+                Label(
+                    String(localized: "More options", comment: "Home utility actions menu"),
+                    systemImage: "ellipsis"
+                )
+                .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraTertiary)
+            .accessibilityIdentifier("home.moreOptions")
 
             makePublicOffer
         }
     }
 
+    private var somethingElseButton: some View {
+        Button {
+            // The carousel lives in the Closet, where browsing belongs.
+            // Home's job is to have decided; this is the door out of that
+            // decision, not a second one on the same screen.
+            router.select(.closet)
+        } label: {
+            Text(String(localized: "Something Else", comment: "Home secondary action"))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.astraSecondary)
+        .accessibilityHint(Text(String(
+            localized: "Browse other outfits in your closet",
+            comment: "VoiceOver hint for the Home alternatives action"
+        )))
+        .accessibilityIdentifier("home.somethingElse")
+    }
+
+    @ViewBuilder
+    private var seeOnYouButton: some View {
+        if case .loaded(let data) = viewModel.state, data.primaryOutfit != nil {
+            Button {
+                router.presentModal(.studioGeneration(outfitID: data.primaryOutfit?.id))
+            } label: {
+                Text(String(localized: "See on you", comment: "Home door into Studio for today's look"))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("home.seeOnYou")
+        }
+    }
+
     /// System share of today's look name + why. Not a feed.
     @ViewBuilder
-    private var todayShareLink: some View {
+    private var todayShareMenuItem: some View {
         if case .loaded(let data) = viewModel.state, let outfit = data.primaryOutfit {
             let why = data.brief.kyraMessage ?? outfit.description
             ShareLink(item: HomeShareCopy.shareText(name: outfit.name, why: why)) {
@@ -324,11 +357,23 @@ public struct HomeView: View {
                     String(localized: "Share this look", comment: "Home share of today's look"),
                     systemImage: "square.and.arrow.up"
                 )
-                .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
             }
-            .buttonStyle(.astraSecondary)
             .accessibilityIdentifier("home.shareLook")
         }
+    }
+
+    /// Empty Home still needs a direct don't-buy door because there is no
+    /// outfit action menu yet. On loaded Home this same action moves under
+    /// More options to preserve the single-decision hierarchy.
+    private var pasteLinkButton: some View {
+        Button {
+            isPastingLink = true
+        } label: {
+            Text(String(localized: "Check a product link", comment: "Home paste-a-link don't-buy door"))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.astraSecondary)
+        .accessibilityIdentifier("home.pasteLink")
     }
 
     /// Opt-in after Wear This. Never auto-publishes the closet.
@@ -344,18 +389,6 @@ public struct HomeView: View {
             .buttonStyle(.astraSecondary)
             .accessibilityIdentifier("home.makeLookPublic")
         }
-    }
-
-    /// He brought the URL. This is not a shop suggestion.
-    private var pasteLinkButton: some View {
-        Button {
-            isPastingLink = true
-        } label: {
-            Text(String(localized: "Paste a link", comment: "Home paste-a-link don't-buy door"))
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.astraSecondary)
-        .accessibilityIdentifier("home.pasteLink")
     }
 
     /// Haptics live here, not in the view model — same rule as

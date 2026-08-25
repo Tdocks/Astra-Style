@@ -99,11 +99,6 @@ public final class PaywallViewModel {
                 localized: "One visual estimate on us. Upgrade for more.",
                 comment: "Paywall when Studio's free trial is used"
             )
-        case .wearThis:
-            String(
-                localized: "Seven Wear This days on us. Upgrade to keep logging looks.",
-                comment: "Paywall when free Wear This quota is used"
-            )
         case .dailyBrief:
             String(
                 localized: "Three Daily Briefs on us. Upgrade for a full brief every morning.",

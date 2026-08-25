@@ -51,7 +51,7 @@ function baseInput(overrides: Partial<ContextPacketInput> = {}): ContextPacketIn
       currency: "USD",
       sustainability_preference: null,
     },
-    weather: { temperatureHigh: 22, temperatureLow: 15, condition: "partly_cloudy" },
+    weather: { temperatureHigh: 71.6, temperatureLow: 59, condition: "partly_cloudy" },
     occasions: [],
     closetItems: [],
     recentFeedback: [],
@@ -147,6 +147,8 @@ Deno.test("never-truncated sections survive even a floor packet", () => {
   );
   const weather = packet["weather"] as Record<string, unknown>;
   assertEquals(weather["available"], true);
+  assertEquals(weather["high_c"], 22);
+  assertEquals(weather["low_c"], 15);
   const body = packet["body_fit_profile"] as Record<string, unknown>;
   assertEquals(body["fit_notes"], ["broad_chest"]);
   const budget = packet["budget_constraints"] as Record<string, unknown>;

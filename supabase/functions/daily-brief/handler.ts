@@ -12,21 +12,20 @@
 // One of §14's listed inputs is NOT assembled here, and its absence is the
 // honest answer rather than an oversight:
 //
-//   * A KYRA-AUTHORED MESSAGE. The scorer behind these outfits is
-//     `LeastRecentlyWornScorer`, which returns one identical hardcoded
-//     `reason` for every outfit it builds. A "Kyra's insight" module fed
-//     from that would be the same sentence every day, dressed as a
-//     judgement. `kyra_message` stays null until there is a real stylist
-//     behind it; `HomeView` already renders that module only when the
-//     message is present.
+//   * A KYRA-AUTHORED MESSAGE. The compatibility scorer explains measured
+//     components, but that deterministic explanation is not a model-authored
+//     stylist note. `kyra_message` stays null rather than relabeling scorer
+//     copy as Kyra's judgement; `HomeView` renders the module only when a
+//     genuine message is present.
 //
 // WEATHER (P4-HOME-05) is assembled, but not looked up here — there is
 // still no server-side weather provider. `weather_snapshot` is exactly
 // whatever the caller's own `WeatherService` reading was, validated by
-// `parseWeatherSnapshot` and passed straight through to `upsertBrief`. A
+// `parseWeatherSnapshot`, converted from the iOS wire convention (Fahrenheit)
+// to the scorer's canonical Celsius, and passed through to `upsertBrief`. A
 // request with no weather (permission never granted, or the lookup failed)
-// still succeeds; `weather_snapshot` is null, same as before this ticket.
-// This handler never invents a forecast to fill the column.
+// still succeeds; `weather_snapshot` is null and the weather component uses
+// its documented prior. This handler never invents a forecast.
 //
 // IDEMPOTENCY (P4-HOME-02's second acceptance criterion) is enforced in two
 // independent places, because one of them alone is a race. The handler
@@ -50,6 +49,7 @@ import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
 import type { OutfitScorer, OutfitScorerRow } from "../_shared/scoring/outfitScorer.ts";
+import type { ScoringContext } from "../_shared/scoring/types.ts";
 import { FREE_DAILY_BRIEF_COUNT, morningLoopQuotaError } from "../_shared/premium.ts";
 import {
   type DailyBriefRow,
@@ -128,6 +128,60 @@ export interface HandlerDeps {
  */
 const DESIRED_OUTFIT_COUNT = 4;
 
+const WET_CONDITIONS = new Set([
+  "rain",
+  "drizzle",
+  "thunderstorm",
+  "snow",
+  "sleet",
+]);
+
+/**
+ * Turns the device snapshot into the exact context §2.5 scores.
+ *
+ * `LiveWeatherService` stores the wire snapshot in Fahrenheit so the existing
+ * iOS formatter and persisted briefs remain backward compatible. The scoring
+ * core is canonical Celsius. Convert at this boundary rather than letting a
+ * 71°F day become 71°C and rank every warm garment as a total miss.
+ *
+ * Current apparent temperature is the best dressing signal when WeatherKit
+ * supplied it. Older briefs only carry high/low, so their midpoint is the
+ * honest fallback. Precipitation chance is measured when present; otherwise
+ * the measured condition answers only the binary rain threshold the scorer
+ * needs.
+ */
+export function weatherScoringContext(
+  snapshot: Record<string, unknown> | null,
+): ScoringContext {
+  if (snapshot === null) return {};
+
+  const high = snapshot["temperature_high"];
+  const low = snapshot["temperature_low"];
+  if (typeof high !== "number" || typeof low !== "number") return {};
+
+  const apparent = snapshot["apparent_temperature"];
+  const temperatureF = typeof apparent === "number" ? apparent : (high + low) / 2;
+  const rawPrecipitation = snapshot["precipitation_chance"];
+  const condition = snapshot["condition"];
+  const precipitationProbability = typeof rawPrecipitation === "number"
+    ? Math.min(1, Math.max(0, rawPrecipitation))
+    : typeof condition === "string" && WET_CONDITIONS.has(condition)
+    ? 1
+    : 0;
+
+  return {
+    weather: {
+      temperatureC: (temperatureF - 32) * 5 / 9,
+      precipitationProbability,
+    },
+  };
+}
+
+function hasStoredWeather(value: unknown): boolean {
+  return typeof value === "object" && value !== null && !Array.isArray(value) &&
+    Object.keys(value as Record<string, unknown>).length > 0;
+}
+
 async function readJsonBody(req: Request): Promise<unknown> {
   const text = await req.text();
   if (text.trim().length === 0) {
@@ -181,26 +235,36 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
 
     // 4. Idempotency, half one. The row is scoped by RLS to this caller, so
     // "the existing brief" can only ever be his own.
+    let refreshingMissingWeather = false;
     if (!body.regenerate) {
       const existing = await deps.repository.findBrief(userId, body.briefDate);
       if (existing) {
-        logger.info("daily_brief_generate.returned_existing", {
-          user_id: userId,
-          brief_date: body.briefDate,
-          latency_ms: deps.now().getTime() - startedAtMs,
-        });
-        return jsonResponse(mapBriefRowToWire(existing), {
-          status: 200,
-          requestId,
-          extraHeaders: CORS_HEADERS,
-        });
+        // Enabling weather after Home already created today's brief is the
+        // one non-destructive cache refresh. Returning the old row would put
+        // a real forecast in the header while keeping an outfit ranked with
+        // the no-weather prior. Rebuild once when the stored row has no
+        // forecast; later reads stay idempotent.
+        refreshingMissingWeather = body.weatherSnapshot !== null &&
+          !hasStoredWeather(existing.weather_snapshot);
+        if (!refreshingMissingWeather) {
+          logger.info("daily_brief_generate.returned_existing", {
+            user_id: userId,
+            brief_date: body.briefDate,
+            latency_ms: deps.now().getTime() - startedAtMs,
+          });
+          return jsonResponse(mapBriefRowToWire(existing), {
+            status: 200,
+            requestId,
+            extraHeaders: CORS_HEADERS,
+          });
+        }
       }
     }
 
     const premium = deps.hasActivePremiumSubscription
       ? await deps.hasActivePremiumSubscription(deps.now().toISOString())
       : true;
-    if (!premium) {
+    if (!premium && !refreshingMissingWeather) {
       const used = deps.countBriefs ? await deps.countBriefs(userId) : 0;
       if (used >= FREE_DAILY_BRIEF_COUNT) {
         throw morningLoopQuotaError(
@@ -215,6 +279,7 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
       user_id: userId,
       brief_date: body.briefDate,
       regenerated: body.regenerate,
+      refreshed_missing_weather: refreshingMissingWeather,
       has_primary_outfit: brief.primary_outfit_id !== null,
       alternative_count: Array.isArray(brief.alternative_outfit_ids)
         ? brief.alternative_outfit_ids.length
@@ -271,6 +336,7 @@ async function buildBrief(
     desiredCount: DESIRED_OUTFIT_COUNT,
     lockedItemIds: new Set<string>(),
     excludedItemIds: new Set<string>(),
+    context: weatherScoringContext(weatherSnapshot),
   });
 
   const occasionCount = await deps.repository.countOccasions(userId, briefDate);

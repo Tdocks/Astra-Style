@@ -161,6 +161,7 @@ public enum ShopRoute: Hashable, Sendable {
 /// Destinations pushed on the Profile tab's `NavigationStack`.
 public enum ProfileRoute: Hashable, Sendable {
     case styleDNA
+    case appearance
     case wardrobeScoreDetail
     case preferences
     case subscriptionManagement

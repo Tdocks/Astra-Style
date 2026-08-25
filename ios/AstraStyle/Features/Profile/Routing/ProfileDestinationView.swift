@@ -43,6 +43,13 @@ struct ProfileDestinationView: View {
                 systemImage: "swatchpalette"
             )
 
+        case .appearance:
+            AppearanceEditorView(
+                viewModel: AppearanceEditorViewModel(
+                    profileRepository: container.profileRepository
+                )
+            )
+
         case .wardrobeScoreDetail:
             FeaturePlaceholderView(
                 title: String(localized: "Wardrobe Score"),

@@ -94,13 +94,38 @@ struct StudioHomeView: View {
                         router.push(StudioRoute.generation(generationID: generation.id))
                     } label: {
                         AstraCard {
-                            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                                Text(statusLabel(generation.status))
-                                    .astraText(.headline)
-                                    .foregroundStyle(AstraColor.textPrimary)
-                                Text(generation.createdAt.formatted(date: .abbreviated, time: .shortened))
+                            HStack(spacing: AstraSpacing.md) {
+                                if generation.status == .complete {
+                                    AstraRemoteImage(
+                                        url: viewModel.imageURLs[generation.id],
+                                        aspectRatio: 4.0 / 5.0,
+                                        thumbnail: .listRowThumbnail,
+                                        accessibilityDescription: String(
+                                            localized: "Visual estimate from Style Studio",
+                                            comment: "Studio gallery image accessibility description"
+                                        )
+                                    )
+                                    .frame(width: 88)
+                                }
+                                VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                                    Text(statusLabel(generation.status))
+                                        .astraText(.headline)
+                                        .foregroundStyle(AstraColor.textPrimary)
+                                    Text(generation.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                        .astraText(.caption)
+                                        .foregroundStyle(AstraColor.textMuted)
+                                    Text(String(
+                                        localized: "Open estimate",
+                                        comment: "Studio gallery card action"
+                                    ))
                                     .astraText(.caption)
+                                    .foregroundStyle(AstraColor.accentChampagneAccessible)
+                                }
+                                Spacer(minLength: AstraSpacing.xs)
+                                Image(systemName: "chevron.right")
+                                    .astraIcon(.disclosure)
                                     .foregroundStyle(AstraColor.textMuted)
+                                    .accessibilityHidden(true)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }

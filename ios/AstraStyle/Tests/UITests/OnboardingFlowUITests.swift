@@ -141,8 +141,29 @@ final class OnboardingFlowUITests: XCTestCase {
     func testWalkTheWholeFlow() {
         enterOnboarding()
         walkIntro()
+        walkWardrobeGraph()
         walkIdentity()
         walkPreferenceQuiz()
+        walkFirstItems()
+        walkResult()
+    }
+
+    /// The deferred profile questions remain reusable and need a visual pass,
+    /// but they are intentionally not part of Release first-run (ADR 0015).
+    /// This separate Debug-only walk prevents the audit from conflating the
+    /// short stranger path with the full preferences wall.
+    func testWalkTheFullDeferredFlow() {
+        app.launchArguments += ["-astra-full-onboarding"]
+        enterOnboarding()
+        walkIntro()
+        walkWardrobeGraph()
+        walkGoals()
+        walkIdentity()
+        walkMeasurements()
+        walkAppearance()
+        walkLifestyle()
+        walkPreferenceQuiz()
+        walkReference()
         walkFirstItems()
         walkResult()
     }
@@ -153,6 +174,7 @@ final class OnboardingFlowUITests: XCTestCase {
         enterOnboarding()
         awaitElement(app.buttons["onboarding.begin"], "Intro")
         app.buttons["onboarding.begin"].tap()
+        walkWardrobeGraph()
 
         awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity")
         usleep(600_000)
@@ -186,6 +208,7 @@ final class OnboardingFlowUITests: XCTestCase {
         enterOnboarding()
         awaitElement(app.buttons["onboarding.begin"], "Intro at AX5")
         app.buttons["onboarding.begin"].tap()
+        walkWardrobeGraph(captureName: "33a-Onboarding-WardrobeGraph-AX5")
 
         awaitElement(app.buttons["onboarding.advance"], "Goals at AX5")
         capture("33-Onboarding-Goals-AX5")
@@ -564,9 +587,11 @@ private extension OnboardingFlowUITests {
     }
 
     /// Walks §6.3-§6.9 with the minimum input the flow requires, to reach
-    /// §6.10. Only the identity step is answered, because only it is required.
+    /// §6.10. The wardrobe graph and identity gates are answered; everything
+    /// after identity is optional on the Release sequence.
     private func walkToStyleDNAResult() {
         app.buttons["onboarding.begin"].tap()
+        walkWardrobeGraph()
 
         awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity")
 
@@ -674,6 +699,28 @@ private extension OnboardingFlowUITests {
         app.buttons["onboarding.begin"].tap()
     }
 
+    private func walkWardrobeGraph(captureName: String = "20b-Onboarding-WardrobeGraph") {
+        let menswear = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH[c] %@", "Men's looks")
+        ).firstMatch
+        awaitElement(menswear, "Wardrobe graph: men's looks")
+        XCTAssertFalse(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Wardrobe graph is required but Continue is enabled before a choice"
+        )
+        capture(captureName)
+        menswear.tap()
+        XCTAssertTrue(
+            menswear.waitUntilSelected(),
+            "The men's wardrobe graph never became selected"
+        )
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Selecting a wardrobe graph did not open the required gate"
+        )
+        app.buttons["onboarding.advance"].tap()
+    }
+
     private func walkGoals() {
         // §6.4 — Goals. Skippable, so Continue must already be enabled.
         awaitElement(app.buttons["onboarding.advance"], "Goals: advance button")
@@ -688,7 +735,8 @@ private extension OnboardingFlowUITests {
     }
 
     private func walkIdentity() {
-        // §6.5 — Identity. The ONLY required step: three picks plus a primary.
+        // §6.5 — Identity. Required after the wardrobe-graph product choice:
+        // three picks plus a primary.
         awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity: cards")
         XCTAssertFalse(
             app.buttons["onboarding.advance"].isEnabled,
@@ -821,6 +869,16 @@ private extension OnboardingFlowUITests {
         XCTAssertEqual(
             app.buttons["onboarding.advance"].label, "Continue",
             "With every comparison answered the forward button should offer to continue"
+        )
+        app.buttons["onboarding.advance"].tap()
+    }
+
+    private func walkReference() {
+        awaitElement(app.buttons["onboarding.reference.consent"], "Reference: consent gate")
+        capture("30d-Onboarding-Reference")
+        XCTAssertTrue(
+            app.buttons["onboarding.advance"].isEnabled,
+            "Reference is optional but cannot be skipped"
         )
         app.buttons["onboarding.advance"].tap()
     }

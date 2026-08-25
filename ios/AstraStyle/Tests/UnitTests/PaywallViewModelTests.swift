@@ -73,12 +73,6 @@ struct PaywallViewModelTests {
         )
         #expect(studio.subhead.contains("visual estimate"))
         #expect(!studio.subhead.contains("Wear This stays free"))
-        let wear = PaywallViewModel(
-            context: .wearThis,
-            purchasing: MockStoreKitPurchasing(),
-            subscriptionRepository: MockSubscriptionRepository(status: .expired)
-        )
-        #expect(wear.subhead.contains("Wear This"))
         let brief = PaywallViewModel(
             context: .dailyBrief,
             purchasing: MockStoreKitPurchasing(),

@@ -7,9 +7,9 @@
 //  because a global action that exists on some tabs is a navigation model
 //  the user has to memorize.
 //
-//  IT IS THE MONOGRAM, NOT A SPARKLE. Kyra's mark is `AstraMonogram`
-//  (spec §3 "technology remains invisible"; the SwiftLint custom rule
-//  bans the AI-sparkle glyph by regex), and the orb breathes on
+//  IT IS THE MONOGRAM, NOT A WAND. Kyra's mark is `AstraMonogram`
+//  (spec §3 "technology remains invisible"; the UI convention check
+//  bans the AI-wand glyph by regex), and the orb breathes on
 //  `AstraMotion.breathing` per §3's motion table — the same behaviour,
 //  and the same Reduce Motion stillness, as the thinking indicator.
 //

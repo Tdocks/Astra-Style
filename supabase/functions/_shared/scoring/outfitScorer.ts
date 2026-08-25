@@ -18,6 +18,7 @@
  */
 
 import type { ClosetItemMapperRow } from "./closetItemMapper.ts";
+import type { ScoringContext } from "./types.ts";
 
 /**
  * A closet row as the scorers now receive it.
@@ -42,6 +43,11 @@ export interface OutfitScorerOptions {
   desiredCount: number;
   lockedItemIds: ReadonlySet<string>;
   excludedItemIds: ReadonlySet<string>;
+  /**
+   * Per-request world context. Daily Brief supplies today's device weather;
+   * callers with no measured context omit it and retain the documented priors.
+   */
+  context?: ScoringContext;
 }
 
 export interface OutfitScorer {

@@ -136,18 +136,52 @@ struct AccountDeletionView: View {
     }
 
     private var acknowledgmentToggle: some View {
-        Toggle(isOn: $viewModel.hasAcknowledgedIrreversibility) {
-            Text(String(
-                localized: "I understand this is permanent and cannot be undone.",
-                comment: "Account deletion acknowledgment toggle"
-            ))
-            .astraText(.callout)
-            .foregroundStyle(AstraColor.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
+        Button {
+            viewModel.hasAcknowledgedIrreversibility.toggle()
+            AstraHaptics.selection()
+        } label: {
+            HStack(alignment: .top, spacing: AstraSpacing.md) {
+                Image(systemName: viewModel.hasAcknowledgedIrreversibility ? "checkmark.circle.fill" : "circle")
+                    .astraIcon(.emphasis)
+                    .foregroundStyle(
+                        viewModel.hasAcknowledgedIrreversibility
+                            ? AstraColor.destructive
+                            : AstraColor.textMuted
+                    )
+                    .accessibilityHidden(true)
+                Text(String(
+                    localized: "I understand this is permanent and cannot be undone.",
+                    comment: "Account deletion acknowledgment toggle"
+                ))
+                .astraText(.callout)
+                .foregroundStyle(AstraColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(AstraSpacing.md)
+            .frame(minHeight: AstraSize.minTapTarget)
+            .background(
+                RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
+                    .fill(AstraColor.backgroundSecondary)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
+                    .strokeBorder(
+                        viewModel.hasAcknowledgedIrreversibility
+                            ? AstraColor.destructive
+                            : AstraColor.divider,
+                        lineWidth: 1
+                    )
+            )
         }
-        .tint(AstraColor.destructive)
+        .buttonStyle(.plain)
         .disabled(viewModel.phase == .deleting)
         .accessibilityIdentifier("accountDeletion.acknowledgeToggle")
+        .accessibilityAddTraits(viewModel.hasAcknowledgedIrreversibility ? .isSelected : AccessibilityTraits())
+        .accessibilityHint(Text(String(
+            localized: "Required before the delete control can run.",
+            comment: "Account deletion acknowledgment hint"
+        )))
     }
 
     /// Not `.astraPrimary`: champagne is this app's "yes/continue" color
@@ -237,7 +271,6 @@ struct AccountDeletionView: View {
             }
             .accessibilityIdentifier("accountDeletion.doneButton")
         }
-        .accessibilityElement(children: .combine)
     }
 
     /// Handles the endpoint's documented idempotency: a retried DELETE

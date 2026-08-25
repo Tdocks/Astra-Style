@@ -251,8 +251,6 @@ public final class OutfitDetailViewModel {
                 feedback: nil
             )
             analyticsClient.log(.outfitMarkedWorn(outfitID: outfit.id))
-        } catch let error as AstraError where error.category == .rateLimited {
-            pendingPaywall = .wearThis
         } catch let error as AstraError {
             actionError = error
             isOffline = await networkMonitor.isOffline()

@@ -15,8 +15,15 @@
 import { assertEquals, assertNotEquals } from "@std/assert";
 import type { AuthClient } from "../_shared/jwt.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
+import { CompatibilityOutfitScorer } from "../_shared/scoring/compatibilityScorer.ts";
 import { LeastRecentlyWornScorer } from "../_shared/scoring/leastRecentlyWorn.ts";
-import type { OutfitScorerRow } from "../_shared/scoring/outfitScorer.ts";
+import type {
+  OutfitScorer,
+  OutfitScorerOptions,
+  OutfitScorerRow,
+  ScoredOutfit,
+} from "../_shared/scoring/outfitScorer.ts";
+import type { ScoringContext } from "../_shared/scoring/types.ts";
 import {
   type BriefRepository,
   handleGenerateDailyBrief,
@@ -142,6 +149,19 @@ function buildDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     now: () => new Date("2026-08-06T12:00:00Z"),
     ...overrides,
   };
+}
+
+class RecordingContextScorer implements OutfitScorer {
+  readonly contexts: Array<ScoringContext | undefined> = [];
+  private readonly fallback = new LeastRecentlyWornScorer();
+
+  generate(
+    items: readonly OutfitScorerRow[],
+    options: OutfitScorerOptions,
+  ): ScoredOutfit[] {
+    this.contexts.push(options.context);
+    return this.fallback.generate(items, options);
+  }
 }
 
 function requestFor(body: unknown, headers: Record<string, string> = {}): Request {
@@ -319,6 +339,106 @@ Deno.test("a client-supplied weather snapshot is persisted onto the brief", asyn
   assertEquals(response.status, 200);
   const json = await response.json();
   assertEquals(json.data.weather_snapshot, VALID_WEATHER_SNAPSHOT);
+});
+
+Deno.test("the device forecast reaches scoring in Celsius, not display Fahrenheit", async () => {
+  const scorer = new RecordingContextScorer();
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody({
+      weather_snapshot: {
+        temperature_high: 95,
+        temperature_low: 72,
+        apparent_temperature: 86,
+        precipitation_chance: 0.7,
+        condition: "rain",
+      },
+    })),
+    buildDeps({ scorer }),
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(scorer.contexts.length, 1);
+  assertEquals(scorer.contexts[0]?.weather, {
+    temperatureC: 30,
+    precipitationProbability: 0.7,
+  });
+});
+
+Deno.test("no forecast gives the scorer no weather claim", async () => {
+  const scorer = new RecordingContextScorer();
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({ scorer }),
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(scorer.contexts[0]?.weather, undefined);
+});
+
+Deno.test("adding weather refreshes an existing no-weather brief exactly once", async () => {
+  const repository = memoryRepository(POPULATED_CLOSET);
+  const first = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({ repository }),
+  );
+  assertEquals(first.status, 200);
+  assertEquals(repository.createdOutfits.length, 1);
+
+  // Context backfill is not a fourth free Daily Brief. It updates the same
+  // day's row so the header and ranking cannot contradict each other.
+  const withWeather = await handleGenerateDailyBrief(
+    requestFor(generateBody({ weather_snapshot: VALID_WEATHER_SNAPSHOT })),
+    buildDeps({
+      repository,
+      hasActivePremiumSubscription: () => Promise.resolve(false),
+      countBriefs: () => Promise.resolve(3),
+    }),
+  );
+  assertEquals(withWeather.status, 200);
+  assertEquals(repository.createdOutfits.length, 2);
+  const refreshed = await withWeather.json();
+  assertEquals(refreshed.data.weather_snapshot, VALID_WEATHER_SNAPSHOT);
+
+  const repeated = await handleGenerateDailyBrief(
+    requestFor(generateBody({ weather_snapshot: VALID_WEATHER_SNAPSHOT })),
+    buildDeps({ repository }),
+  );
+  assertEquals(repeated.status, 200);
+  assertEquals(repository.createdOutfits.length, 2);
+});
+
+Deno.test("hot and cold forecasts choose different warmth from the same closet", async () => {
+  const climateCloset: OutfitScorerRow[] = [
+    { ...closetRow("light-top", "top", null), warmth_score: 0 },
+    { ...closetRow("warm-top", "top", null), warmth_score: 100 },
+    { ...closetRow("bottom", "bottom", null), warmth_score: 50 },
+    { ...closetRow("shoes", "shoes", null), warmth_score: 50 },
+  ];
+
+  async function primaryItems(apparentTemperatureF: number): Promise<readonly string[]> {
+    const repository = memoryRepository(climateCloset);
+    const response = await handleGenerateDailyBrief(
+      requestFor(generateBody({
+        weather_snapshot: {
+          temperature_high: apparentTemperatureF,
+          temperature_low: apparentTemperatureF,
+          apparent_temperature: apparentTemperatureF,
+          precipitation_chance: 0,
+          condition: "clear",
+        },
+      })),
+      buildDeps({ repository, scorer: new CompatibilityOutfitScorer() }),
+    );
+    assertEquals(response.status, 200);
+    return repository.createdOutfits[0]?.[0]?.itemIds ?? [];
+  }
+
+  const hotPrimary = await primaryItems(95);
+  const coldPrimary = await primaryItems(20);
+  assertEquals(hotPrimary.includes("light-top"), true);
+  assertEquals(hotPrimary.includes("warm-top"), false);
+  assertEquals(coldPrimary.includes("warm-top"), true);
+  assertEquals(coldPrimary.includes("light-top"), false);
 });
 
 Deno.test("no weather_snapshot in the request stays honestly null, not an error", async () => {

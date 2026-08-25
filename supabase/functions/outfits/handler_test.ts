@@ -27,8 +27,8 @@ import {
   type ClosetRepository,
   handleGenerateOutfits,
   handleRankOutfits,
-  handleRecordWear,
   type HandlerDeps,
+  handleRecordWear,
 } from "./handler.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
 import { mapClosetItemRowToScorableItem } from "../_shared/scoring/closetItemMapper.ts";
@@ -485,31 +485,17 @@ const WEAR_ENVELOPE = {
   },
 };
 
-Deno.test("record-wear: free users are 429 after seven wears", async () => {
+Deno.test("record-wear: Wear This stays ungated regardless of prior wear count", async () => {
   const inserts: unknown[] = [];
   const response = await handleRecordWear(
     requestFor("record-wear", WEAR_ENVELOPE, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
     buildDeps({
-      hasActivePremiumSubscription: () => Promise.resolve(false),
-      countWearEvents: () => Promise.resolve(7),
       insertWear: (row) => {
         inserts.push(row);
         return Promise.resolve({ id: "wear-1", ...row });
       },
     }),
   );
-  assertEquals(response.status, 429);
-  assertEquals(inserts.length, 0);
-});
-
-Deno.test("record-wear: premium skips the wear quota", async () => {
-  const response = await handleRecordWear(
-    requestFor("record-wear", WEAR_ENVELOPE, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
-    buildDeps({
-      hasActivePremiumSubscription: () => Promise.resolve(true),
-      countWearEvents: () => Promise.resolve(99),
-      insertWear: (row) => Promise.resolve({ id: "wear-1", ...row }),
-    }),
-  );
   assertEquals(response.status, 200);
+  assertEquals(inserts.length, 1);
 });

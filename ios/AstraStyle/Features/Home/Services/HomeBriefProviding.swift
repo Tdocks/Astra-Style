@@ -84,7 +84,21 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private func todaysBrief(regenerate: Bool, weather weatherSnapshot: WeatherSnapshot?) async throws -> DailyBrief {
         let serverBrief: DailyBrief
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
-            serverBrief = cached
+            if let weatherSnapshot, cached.weatherSnapshot == nil {
+                // Weather may be enabled after today's first brief was built.
+                // Reading the cached outfit and merely repainting its header
+                // would claim a weather-aware choice the scorer never made.
+                // Sending `regenerate: false` lets the server perform its one
+                // idempotent "missing weather -> measured weather" refresh
+                // without turning this into a user-requested regeneration.
+                serverBrief = try await outfitRepository.generateDailyBrief(
+                    for: .now,
+                    regenerate: false,
+                    weather: weatherSnapshot
+                )
+            } else {
+                serverBrief = cached
+            }
         } else {
             // `regenerate` is threaded through rather than always false:
             // the endpoint is idempotent per `brief_date`, so §6.11's

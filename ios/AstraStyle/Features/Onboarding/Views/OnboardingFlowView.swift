@@ -105,7 +105,7 @@ public struct OnboardingFlowView: View {
                 )
                 VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                     Text(String(
-                        localized: "Have a code from a guy who hates shopping? Optional.",
+                        localized: "Have an invitation code? Optional.",
                         comment: "Onboarding optional referral"
                     ))
                     .astraText(.callout)

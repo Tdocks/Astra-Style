@@ -117,6 +117,13 @@ struct ProductDecisionView: View {
     @ViewBuilder
     private func identity(_ candidate: ProductCandidate?) -> some View {
         if let candidate {
+            if candidate.imageURL != nil {
+                AstraRemoteImage(
+                    url: candidate.imageURL,
+                    aspectRatio: 4.0 / 5.0,
+                    accessibilityDescription: "\(candidate.name) by \(candidate.brand ?? candidate.retailer)"
+                )
+            }
             Text(candidate.name)
                 .astraText(.title2)
                 .foregroundStyle(AstraColor.textPrimary)
@@ -124,6 +131,15 @@ struct ProductDecisionView: View {
             Text(candidate.retailer)
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
+            if candidate.isSponsored || candidate.isAffiliateLink {
+                Text(String(
+                    localized: "Commercial link. Astra may earn a commission if you buy; the verdict is still based on your wardrobe.",
+                    comment: "In-flow affiliate disclosure on a product decision"
+                ))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

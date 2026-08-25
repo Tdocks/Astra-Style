@@ -120,9 +120,13 @@ final class ScreenQAUITests: XCTestCase {
         XCTAssertTrue(app.buttons["welcome.termsLink"].exists, "Terms link missing from Welcome")
         XCTAssertTrue(app.buttons["welcome.privacyLink"].exists, "Privacy link missing from Welcome")
         XCTAssertTrue(app.buttons["Continue with Email"].exists)
-        // Two actions and no third. ADR 0014 removed "Explore in guest
-        // mode"; asserting on its ABSENCE is what stops it coming back by
-        // accident, which a missing positive assertion would not.
+        // ADR 0018 restored the anonymous trial with deliberately different
+        // copy and storage rules. Assert the real door exists while the old
+        // pre-linking "Explore in guest mode" label stays gone.
+        XCTAssertTrue(
+            app.buttons["welcome.tryWithoutAccount"].exists,
+            "Anonymous trial door missing from Welcome"
+        )
         XCTAssertFalse(app.staticTexts["Explore in guest mode"].exists)
         XCTAssertFalse(app.buttons["Explore in guest mode"].exists)
     }
@@ -153,7 +157,8 @@ final class ScreenQAUITests: XCTestCase {
 
     // MARK: - Main shell
 
-    /// Lands in the dogfood tab shell (Home, Closet, Discover, Profile).
+    /// Lands in the dogfood tab shell (Home, Closet, Studio, Discover, Shop,
+    /// Profile; iOS may place Shop/Profile under More).
     ///
     /// Deliberately does NOT walk §6.3–§6.10. It used to, back when onboarding
     /// was a single placeholder screen with one "Skip for now" button, and that
@@ -174,8 +179,9 @@ final class ScreenQAUITests: XCTestCase {
     /// Reached through `-astra-mock-backend`, which starts already signed in
     /// against `Core/Mocks`. This used to tap "Explore in guest mode" — the
     /// only account-free entry there was — which ADR 0014 removed.
-    private func enterMainShell() {
+    private func enterMainShell(extraArguments: [String] = []) {
         app.launchArguments += ["-astra-mock-backend", "-astra-skip-onboarding"]
+        app.launchArguments += extraArguments
         app.launch()
 
         awaitElement(app.chromeTabBar, "Main tab bar")
@@ -185,17 +191,29 @@ final class ScreenQAUITests: XCTestCase {
     func testEveryTab() {
         enterMainShell()
 
-        // Ordered as they appear in the dogfood tab bar.
-        let tabs = ["Home", "Closet", "Studio", "Discover", "Shop", "Profile"]
-        for (index, tab) in tabs.enumerated() {
-            app.tapChromeTab(tab)
-            usleep(600_000)
-            capture(String(format: "%02d-Tab-%@", 5 + index, tab))
-        }
+        captureEveryTab(prefix: "Tab", startingAt: 5)
         XCTAssertTrue(
             app.chromeTab("Studio").exists,
             "Studio belongs on the bar as the generation gallery"
         )
+    }
+
+    func testEveryTabInLightAppearance() {
+        enterMainShell(extraArguments: ["-astra-theme", "light"])
+        captureEveryTab(prefix: "Light-Tab", startingAt: 13)
+    }
+
+    func testEveryTabAtLargestDynamicType() {
+        enterMainShell(extraArguments: [
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ])
+        captureEveryTab(prefix: "AX5-Tab", startingAt: 19)
+    }
+
+    func testEveryTabWithReduceMotion() {
+        enterMainShell(extraArguments: ["-AppleReduceMotion", "1"])
+        captureEveryTab(prefix: "ReduceMotion-Tab", startingAt: 25)
     }
 
     /// Phase 1 exit criterion, verified through the UI rather than only at the
@@ -251,5 +269,23 @@ final class ScreenQAUITests: XCTestCase {
 
         awaitElement(app.buttons["Continue with Apple"], "Welcome in light mode")
         capture("12-Welcome-LightMode")
+    }
+
+    func testWelcomeWithReduceMotion() {
+        app.launchArguments += ["-AppleReduceMotion", "1"]
+        app.launch()
+        awaitElement(app.buttons["Continue with Apple"], "Welcome with Reduce Motion")
+        capture("31-Welcome-ReduceMotion")
+    }
+
+    private func captureEveryTab(prefix: String, startingAt first: Int) {
+        // Ordered as they appear in the dogfood tab bar. `tapChromeTab`
+        // deliberately opens iOS's native More list for overflow destinations.
+        let tabs = ["Home", "Closet", "Studio", "Discover", "Shop", "Profile"]
+        for (index, tab) in tabs.enumerated() {
+            app.tapChromeTab(tab)
+            usleep(600_000)
+            capture(String(format: "%02d-%@-%@", first + index, prefix, tab))
+        }
     }
 }

@@ -14,9 +14,15 @@ import Supabase
 public final class LiveKyraRepository: KyraRepository, @unchecked Sendable {
     private let apiClient: AstraAPIClient
     private let supabase: SupabaseClient
+    private let weatherService: WeatherService
 
-    public init(apiClient: AstraAPIClient, supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)) {
+    public init(
+        apiClient: AstraAPIClient,
+        weatherService: WeatherService,
+        supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)
+    ) {
         self.apiClient = apiClient
+        self.weatherService = weatherService
         self.supabase = supabase
     }
 
@@ -46,7 +52,16 @@ public final class LiveKyraRepository: KyraRepository, @unchecked Sendable {
     }
 
     public func send(threadID: UUID?, message: KyraOutgoingMessage) async throws -> KyraMessage {
-        let body = KyraRespondBody(threadID: threadID, message: message)
+        // Read-only and never prompts. The same WeatherService instance feeds
+        // Home, so Kyra cannot answer from a different forecast. When location
+        // is unavailable the body sends null and the server tool says so.
+        let weather: WeatherSnapshot?
+        if weatherService.currentAuthorization() == .authorized {
+            weather = try? await weatherService.currentSnapshot()
+        } else {
+            weather = nil
+        }
+        let body = KyraRespondBody(threadID: threadID, message: message, weatherSnapshot: weather)
         return try await apiClient.send(.kyraRespond, body: body, as: KyraMessage.self)
     }
 
@@ -95,17 +110,20 @@ private struct KyraRespondBody: Encodable, Sendable {
     let threadID: UUID?
     let text: String
     let attachments: [AttachmentBody]
+    let weatherSnapshot: WeatherSnapshot?
 
-    init(threadID: UUID?, message: KyraOutgoingMessage) {
+    init(threadID: UUID?, message: KyraOutgoingMessage, weatherSnapshot: WeatherSnapshot?) {
         self.threadID = threadID
         self.text = message.text
         self.attachments = message.attachments.map(AttachmentBody.init)
+        self.weatherSnapshot = weatherSnapshot
     }
 
     enum CodingKeys: String, CodingKey {
         case threadID = "thread_id"
         case text
         case attachments
+        case weatherSnapshot = "weather_snapshot"
     }
 
     struct AttachmentBody: Encodable, Sendable {

@@ -41,6 +41,31 @@ struct OnboardingAppearanceView: View {
     @Binding var draft: OnboardingDraft
 
     var body: some View {
+        AppearanceProfileEditorContent(
+            skinTone: $draft.skinTone,
+            skinUndertone: $draft.skinUndertone,
+            hairColor: $draft.hairColor,
+            eyeColor: $draft.eyeColor,
+            facialHair: $draft.facialHair,
+            wearsGlasses: $draft.wearsGlasses,
+            tattoosVisible: $draft.tattoosVisible
+        )
+    }
+}
+
+/// Shared by deferred onboarding and Profile. One implementation means the
+/// inclusive depth/undertone vocabulary cannot drift between first capture
+/// and later edits.
+struct AppearanceProfileEditorContent: View {
+    @Binding var skinTone: String?
+    @Binding var skinUndertone: String?
+    @Binding var hairColor: String?
+    @Binding var eyeColor: String?
+    @Binding var facialHair: String?
+    @Binding var wearsGlasses: Bool?
+    @Binding var tattoosVisible: Bool?
+
+    var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
             coloringSection
             featuresSection
@@ -61,7 +86,7 @@ struct OnboardingAppearanceView: View {
                 reason: String(localized: "How light or deep you are. Without this, recommended neutrals quietly assume a light complexion.",
                                comment: "Why skin tone depth is asked"),
                 choices: AppearanceOptions.skinTones,
-                selection: $draft.skinTone,
+                selection: $skinTone,
                 identifier: "skinTone"
             )
 
@@ -70,7 +95,7 @@ struct OnboardingAppearanceView: View {
                 reason: String(localized: "Decides which neutrals Kyra suggests — warm, cool and olive call for different shades of gray, navy and brown. Independent of how light or deep you are.",
                                comment: "Why skin undertone is asked"),
                 choices: AppearanceOptions.skinUndertoneChoices,
-                selection: $draft.skinUndertone,
+                selection: $skinUndertone,
                 identifier: "skinUndertone",
                 hint: String(localized: "Match the swatch, not the word. Warm leans gold; cool leans rose or ash; olive leans green-gold. Deep skin can be any of these.",
                              comment: "Skin undertone hint")
@@ -81,7 +106,7 @@ struct OnboardingAppearanceView: View {
                 reason: String(localized: "Sets how much contrast an outfit should carry between its lightest and darkest pieces.",
                                comment: "Why hair color is asked"),
                 options: AppearanceOptions.hairColors,
-                selection: $draft.hairColor,
+                selection: $hairColor,
                 identifier: "hairColor"
             )
 
@@ -90,7 +115,7 @@ struct OnboardingAppearanceView: View {
                 reason: String(localized: "Narrows the accent colors — a knit or a tie that picks up your eyes reads as deliberate.",
                                comment: "Why eye color is asked"),
                 options: AppearanceOptions.eyeColors,
-                selection: $draft.eyeColor,
+                selection: $eyeColor,
                 identifier: "eyeColor"
             )
         }
@@ -110,7 +135,7 @@ struct OnboardingAppearanceView: View {
                 reason: String(localized: "Affects which collars and necklines sit well, and keeps generated images looking like you.",
                                comment: "Why facial hair is asked"),
                 options: AppearanceOptions.facialHairStyles,
-                selection: $draft.facialHair,
+                selection: $facialHair,
                 identifier: "facialHair"
             )
 
@@ -118,7 +143,7 @@ struct OnboardingAppearanceView: View {
                 title: String(localized: "Do you wear glasses?", comment: "Appearance question"),
                 reason: String(localized: "Frames sit in the same space as a collar and a lapel, so Kyra factors them into necklines and proportions.",
                                comment: "Why glasses are asked"),
-                value: $draft.wearsGlasses,
+                value: $wearsGlasses,
                 identifier: "wearsGlasses"
             )
 
@@ -129,7 +154,7 @@ struct OnboardingAppearanceView: View {
                 // question is that the app is about to suggest covering up.
                 reason: String(localized: "Answer yes and Kyra will lean toward shorter sleeves. She'll never suggest covering anything up.",
                                comment: "Why tattoo visibility is asked"),
-                value: $draft.tattoosVisible,
+                value: $tattoosVisible,
                 identifier: "tattoosVisible"
             )
         }

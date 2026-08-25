@@ -162,6 +162,7 @@ extension AppContainer {
         let apiClient = AstraAPIClient(environment: environment)
         let sessionStore = SessionStore(apiClient: apiClient)
         let analyticsClient = LiveAnalyticsClient()
+        let weatherService = LiveWeatherService()
 
         // Fall back to an in-memory store if the on-disk container fails
         // to initialize (e.g. an unreadable/corrupt store) rather than
@@ -191,12 +192,15 @@ extension AppContainer {
                 offlineQueue: offlineMutationQueue,
                 cache: SwiftDataOutfitCache(modelContainer: modelContainer)
             ),
-            kyraRepository: LiveKyraRepository(apiClient: apiClient),
+            kyraRepository: LiveKyraRepository(
+                apiClient: apiClient,
+                weatherService: weatherService
+            ),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
             shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
             streakRepository: LiveStreakRepository(),
             subscriptionRepository: subscriptionRepository,
-            weatherService: LiveWeatherService(),
+            weatherService: weatherService,
             calendarService: LiveCalendarService(),
             captureSession: LiveCaptureSessionController(),
             pendingScanQueue: pendingScanQueue,

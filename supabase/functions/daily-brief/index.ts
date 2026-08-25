@@ -52,13 +52,11 @@ const rateLimiter = createRateLimiter({ limit: 10, windowMs: 60_000 });
 // fixed score, one hardcoded sentence — and it is retired here rather than
 // deleted, because its tests still document what a scorer must not do.
 //
-// Constructed with an empty context: the client's weather reaches the handler
-// as `weatherSnapshot` for the persisted row, but plumbing it into scoring
-// means parsing an untyped jsonb blob into `WeatherContext`, which belongs
-// with `P4-HOME-05`'s provider work rather than smuggled in here. Until then
-// the season/weather subscore takes its documented prior and reports itself
-// in `unmeasured` — the outfit is still ranked, and nothing claims it was
-// chosen for the weather.
+// Constructed without global context because this Edge isolate serves many
+// users. The handler converts each request's client-supplied WeatherKit
+// snapshot and passes it through `OutfitScorerOptions.context`; requests with
+// no measured weather retain §2.5's documented prior. Per-request injection
+// also prevents one user's forecast from leaking into the next invocation.
 const scorer = new CompatibilityOutfitScorer();
 
 // Widened past the placeholder's three. That scorer could only fill one slot

@@ -45,8 +45,10 @@ none of which the next request finds.
 
 ## What it does
 
-1. Returns the stored brief for that day unless `regenerate` is true.
-2. Reads wearable `closet_items` and scores them with `_shared/scoring/leastRecentlyWorn.ts`.
+1. Returns the stored brief for that day unless `regenerate` is true, with one exception: a
+   client-supplied forecast refreshes a cached brief that was created without weather exactly once.
+2. Reads wearable `closet_items` and scores them with
+   `_shared/scoring/CompatibilityOutfitScorer`, including measured weather when supplied.
 3. **Persists the outfits as real `outfits` + `outfit_items` rows**, then writes the brief
    referencing them.
 4. Upserts `daily_briefs` on `(user_id, brief_date)`.
@@ -64,6 +66,11 @@ itself.
 constraint. The read alone is a race: two requests that both miss it would otherwise have one
 succeed and one fail on the constraint.
 
+The only cache backfill is missing weather → measured weather. It rebuilds the same day's row
+without counting as another free Daily Brief, so enabling location cannot leave a real forecast in
+the header above an outfit ranked with the no-weather prior. A row that already stores weather stays
+idempotent.
+
 ## What it deliberately does not produce
 
 Spec §14 lists weather and a Kyra-authored message among this endpoint's inputs.
@@ -74,11 +81,11 @@ Spec §14 lists weather and a Kyra-authored message among this endpoint's inputs
   endpoint looking one up itself. `null` when the client had none to offer (permission not yet
   granted, denied, or the lookup failed) is still the honest, and common, answer — this endpoint
   never invents a forecast to fill the column, and rejects a populated-but-malformed one rather than
-  storing it (see `schema.ts`'s `parseWeatherSnapshot`).
-- **`kyra_message` is null.** The scorer behind these outfits returns one identical hardcoded
-  `reason` for every outfit it builds, so a "Kyra's insight" module fed from it would be the same
-  sentence every day, dressed as a judgement. `HomeView` already renders that module only when the
-  message is present.
+  storing it (see `schema.ts`'s `parseWeatherSnapshot`). The iOS wire snapshot is Fahrenheit; the
+  handler converts it to the scorer's canonical Celsius and uses apparent temperature when present.
+- **`kyra_message` is null.** The compatibility scorer returns a deterministic explanation made only
+  from measured components, but that is not a model-authored stylist note. Relabelling it as Kyra's
+  judgement would be false; `HomeView` renders that module only when a genuine message is present.
 
 Both columns are `jsonb NOT NULL DEFAULT '{}'` / nullable text, so the response DTO maps an **empty
 object to `null`** on the way out — the client decodes these into `WeatherSnapshot?`, whose

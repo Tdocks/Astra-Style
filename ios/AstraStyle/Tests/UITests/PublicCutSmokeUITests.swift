@@ -80,13 +80,11 @@ final class PublicCutSmokeUITests: XCTestCase {
         let wearThis = app.descendants(matching: .any)["home.wearThis"]
         if wearThis.waitForExistence(timeout: 20) {
             wearThis.tap()
-            // Paywall after quota must Close, not brick.
             let paywall = app.descendants(matching: .any)["paywall.hero"]
-            if paywall.waitForExistence(timeout: 8) {
-                let close = app.buttons["Close"].firstMatch
-                XCTAssertTrue(close.waitForExistence(timeout: 5), "Paywall must expose Close")
-                close.tap()
-            }
+            XCTAssertFalse(
+                paywall.waitForExistence(timeout: 3),
+                "Wear This is the habit loop and must never present a paywall"
+            )
         } else {
             XCTAssertTrue(
                 app.descendants(matching: .any)["home.empty"].waitForExistence(timeout: 5)
@@ -147,13 +145,8 @@ final class PublicCutSmokeUITests: XCTestCase {
         )
 
         tapTab("Profile")
-        let whatsLive = app.descendants(matching: .any)["profile.whatsLive"]
-        XCTAssertTrue(whatsLive.waitForExistence(timeout: timeout), "This build card missing")
-        XCTAssertTrue(
-            whatsLive.label.lowercased().contains("studio")
-                || app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Style Studio")).firstMatch.exists,
-            "This build should list Style Studio as live"
-        )
+        let version = app.descendants(matching: .any)["profile.about.version"]
+        XCTAssertTrue(version.waitForExistence(timeout: timeout), "App version missing from Profile")
 
         let privacyRow = app.descendants(matching: .any)["profile.privacyAndDataRow"]
         XCTAssertTrue(privacyRow.waitForExistence(timeout: timeout), "Privacy & Data row missing")

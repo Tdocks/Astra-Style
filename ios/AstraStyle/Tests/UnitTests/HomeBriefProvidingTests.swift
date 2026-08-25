@@ -245,14 +245,21 @@ struct HomeBriefProvidingTests {
         #expect(await outfitRepository.weatherSnapshotsReceived == [snapshot])
     }
 
-    @Test("Authorized weather overlays onto a cached brief without asking the server to regenerate it")
-    func authorizedWeatherOverlaysCachedBriefWithoutRegenerating() async throws {
+    @Test("Enabling weather refreshes a cached no-weather outfit without claiming a manual regenerate")
+    func authorizedWeatherRefreshesCachedBriefMissingWeather() async throws {
         let snapshot = WeatherSnapshot(temperatureHigh: 80, temperatureLow: 66, condition: .cloudy)
         let weatherSpy = WeatherPermissionSpy(authorization: .authorized, snapshot: snapshot)
-        // Throws if `generateDailyBrief` is called at all — this brief
-        // already exists, so attaching weather to it must stay a read.
+        let outfitRepository = RecordingOutfitRepository(
+            cachedBrief: DailyBrief(
+                id: UUID(),
+                userID: SampleData.profile.id,
+                briefDate: .now,
+                primaryOutfitID: SampleData.heroOutfit.id,
+                weatherSnapshot: nil
+            )
+        )
         let provider = DefaultHomeBriefProvider(
-            outfitRepository: NoWeatherCachedBriefOutfitRepository(),
+            outfitRepository: outfitRepository,
             profileRepository: MockProfileRepository(),
             closetRepository: MockClosetRepository(),
             weatherService: weatherSpy,
@@ -262,6 +269,34 @@ struct HomeBriefProvidingTests {
         let data = try await provider.loadTodayBrief(regenerate: false)
 
         #expect(data.weather == snapshot)
+        #expect(await outfitRepository.regenerateFlags == [false])
+        #expect(await outfitRepository.weatherSnapshotsReceived == [snapshot])
+    }
+
+    @Test("A cached weather-aware brief stays idempotent and only updates its displayed reading")
+    func weatherAwareCachedBriefDoesNotRegenerate() async throws {
+        let current = WeatherSnapshot(temperatureHigh: 82, temperatureLow: 69, condition: .clear)
+        let outfitRepository = RecordingOutfitRepository(
+            cachedBrief: DailyBrief(
+                id: UUID(),
+                userID: SampleData.profile.id,
+                briefDate: .now,
+                primaryOutfitID: SampleData.heroOutfit.id,
+                weatherSnapshot: SampleData.weatherSnapshot
+            )
+        )
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: outfitRepository,
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: WeatherPermissionSpy(authorization: .authorized, snapshot: current),
+            imageURLResolver: HomeStubURLResolver()
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        #expect(data.weather == current)
+        #expect(await outfitRepository.regenerateFlags.isEmpty)
     }
 
     @Test("weatherAuthorization() and requestWeatherPermission() delegate to WeatherService")
@@ -364,8 +399,13 @@ private struct AlwaysFailingProfileRepository: ProfileRepository {
 /// subject, and letting it short-circuit here would make the assertion
 /// pass for the wrong reason.
 private actor RecordingOutfitRepository: OutfitRepository {
+    private let cachedBrief: DailyBrief?
     private(set) var regenerateFlags: [Bool] = []
     private(set) var weatherSnapshotsReceived: [WeatherSnapshot?] = []
+
+    init(cachedBrief: DailyBrief? = nil) {
+        self.cachedBrief = cachedBrief
+    }
 
     func fetchOutfits() async throws -> [Outfit] { [] }
     func fetchOutfit(id: UUID) async throws -> Outfit { SampleData.heroOutfit }
@@ -405,7 +445,7 @@ private actor RecordingOutfitRepository: OutfitRepository {
     func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         throw AstraError.unimplemented("unused")
     }
-    func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { nil }
+    func fetchDailyBrief(for date: Date) async throws -> DailyBrief? { cachedBrief }
     func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
         regenerateFlags.append(regenerate)
         weatherSnapshotsReceived.append(weather)

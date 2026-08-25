@@ -12,7 +12,10 @@ import Testing
 struct StudioHomeViewModelTests {
     @Test("An empty gallery is empty, not a fake generation")
     func emptyGallery() async {
-        let model = StudioHomeViewModel(studioRepository: MockStudioRepository())
+        let model = StudioHomeViewModel(
+            studioRepository: MockStudioRepository(),
+            imageURLResolver: MockClosetImageURLResolver()
+        )
         await model.onAppear()
         guard case .empty = model.state else {
             Issue.record("expected .empty, got \(model.state)")
@@ -31,7 +34,10 @@ struct StudioHomeViewModelTests {
             resultImagePath: "preview/result.jpg"
         )
         await studio.seed(generation)
-        let model = StudioHomeViewModel(studioRepository: studio)
+        let model = StudioHomeViewModel(
+            studioRepository: studio,
+            imageURLResolver: MockClosetImageURLResolver()
+        )
         await model.onAppear()
         guard case .loaded(let items) = model.state else {
             Issue.record("expected .loaded, got \(model.state)")

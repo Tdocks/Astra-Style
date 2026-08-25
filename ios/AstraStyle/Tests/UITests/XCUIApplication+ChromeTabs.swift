@@ -30,8 +30,13 @@ extension XCUIApplication {
         let more = chromeTabBar.buttons["More"]
         XCTAssertTrue(more.waitForExistence(timeout: timeout), "\(title) tab missing and More is absent")
         more.tap()
+        usleep(600_000)
+        // iOS 26's More list surfaces extra tabs as cells, buttons, or
+        // static texts depending on size class. Match the title loosely
+        // enough to find "Profile" without grabbing an unrelated control
+        // that merely contains the word.
         let extra = descendants(matching: .any).matching(
-            NSPredicate(format: "label == %@ OR identifier == %@", title, title)
+            NSPredicate(format: "label == %@ OR identifier == %@ OR label BEGINSWITH[c] %@", title, title, title)
         ).firstMatch
         XCTAssertTrue(extra.waitForExistence(timeout: timeout), "\(title) not in the tab bar or More list")
         extra.tap()

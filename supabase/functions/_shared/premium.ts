@@ -30,7 +30,6 @@ export async function hasActivePremiumSubscription(
   );
 }
 
-export const FREE_WEAR_THIS_COUNT = 7;
 export const FREE_DAILY_BRIEF_COUNT = 3;
 export const FREE_PASTE_EVALUATE_COUNT = 1;
 

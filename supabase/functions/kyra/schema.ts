@@ -66,13 +66,14 @@ export interface KyraRespondRequestBody {
   readonly text: string;
   readonly attachments: KyraAttachment[];
   /**
-   * The client's own WeatherKit reading, same shape `daily-brief` accepts
+   * The client's own WeatherKit reading, in iOS's Fahrenheit wire convention,
+   * and the same shape `daily-brief` accepts
    * (`temperature_high` / `temperature_low` numbers + a known `condition`).
    * There is no server-side weather provider by design (see
    * `daily-brief/README.md`); when this is null the `get_weather` tool says
-   * so instead of inventing a forecast. The shipped `KyraRespondBody` in
-   * `LiveKyraRepository.swift` does not send this field yet — accepting it
-   * now means the client can start sending it without a server change.
+   * so instead of inventing a forecast. `LiveKyraRepository` sends it only
+   * after location is already authorized; neither Kyra nor this parser can
+   * trigger a permission prompt.
    */
   readonly weatherSnapshot: WeatherSnapshot | null;
 }

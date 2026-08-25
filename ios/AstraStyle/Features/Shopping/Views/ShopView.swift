@@ -93,32 +93,42 @@ struct ShopView: View {
 
     private func row(_ item: ProductCandidate) -> some View {
         AstraCard {
-            VStack(alignment: .leading, spacing: AstraSpacing.xs) {
-                HStack {
-                    Text(item.name)
-                        .astraText(.headline)
-                        .foregroundStyle(AstraColor.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: AstraSpacing.sm)
-                    if item.isSponsored {
-                        Text(String(localized: "Sponsored", comment: "Shop sponsored label"))
-                            .astraText(.caption)
-                            .foregroundStyle(AstraColor.textMuted)
+            HStack(alignment: .top, spacing: AstraSpacing.md) {
+                AstraRemoteImage(
+                    url: item.imageURL,
+                    aspectRatio: 4.0 / 5.0,
+                    thumbnail: .listRowThumbnail,
+                    accessibilityDescription: "\(item.name) by \(item.brand ?? item.retailer)"
+                )
+                .frame(width: 88)
+
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    HStack(alignment: .top) {
+                        Text(item.name)
+                            .astraText(.headline)
+                            .foregroundStyle(AstraColor.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: AstraSpacing.sm)
+                        if item.isSponsored {
+                            Text(String(localized: "Sponsored", comment: "Shop sponsored label"))
+                                .astraText(.caption)
+                                .foregroundStyle(AstraColor.textMuted)
+                        }
                     }
+                    Text(item.brand ?? item.retailer)
+                        .astraText(.callout)
+                        .foregroundStyle(AstraColor.textSecondary)
+                    if let price = item.price {
+                        Text(price, format: .currency(code: item.currency ?? "USD"))
+                            .astraText(.body)
+                            .foregroundStyle(AstraColor.textPrimary)
+                    }
+                    Text(item.category.displayName)
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textMuted)
                 }
-                Text(item.brand ?? item.retailer)
-                    .astraText(.callout)
-                    .foregroundStyle(AstraColor.textSecondary)
-                if let price = item.price {
-                    Text(price, format: .currency(code: item.currency ?? "USD"))
-                        .astraText(.body)
-                        .foregroundStyle(AstraColor.textPrimary)
-                }
-                Text(item.category.displayName)
-                    .astraText(.caption)
-                    .foregroundStyle(AstraColor.textMuted)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

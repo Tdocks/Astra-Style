@@ -139,4 +139,24 @@ public enum AstraFeatureFlags {
         }
         return ThemePreference(rawValue: args[i + 1])
     }
+
+    /// Presents one real paywall context after the Debug tab shell appears.
+    ///
+    /// Screenshot QA needs to inspect every quota message without performing
+    /// seven destructive/expensive setup sequences. Release ignores the
+    /// argument entirely, so this cannot expose a paywall unexpectedly in a
+    /// distributed build.
+    ///
+    /// Usage: `-astra-audit-paywall closetLimit`.
+    public static var auditPaywallContext: PaywallContext? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-astra-audit-paywall"), i + 1 < args.count else {
+            return nil
+        }
+        return PaywallContext(rawValue: args[i + 1])
+        #else
+        return nil
+        #endif
+    }
 }

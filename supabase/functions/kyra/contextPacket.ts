@@ -382,8 +382,10 @@ export function buildContextPacket(input: ContextPacketInput): ContextPacketResu
       },
       weather: weather === null ? { available: false } : {
         available: true,
-        high_c: weather.temperatureHigh,
-        low_c: weather.temperatureLow,
+        // The iOS WeatherSnapshot wire convention is Fahrenheit; context
+        // fields are explicitly Celsius so the model never reads 74°F as 74°C.
+        high_c: fahrenheitToCelsius(weather.temperatureHigh),
+        low_c: fahrenheitToCelsius(weather.temperatureLow),
         condition: weather.condition,
       },
       occasions: sections.occasions.map((occasion) => ({
@@ -488,4 +490,8 @@ export function buildContextPacket(input: ContextPacketInput): ContextPacketResu
     overflowed,
     closetItemIds,
   };
+}
+
+function fahrenheitToCelsius(value: number): number {
+  return Math.round(((value - 32) * 5 / 9) * 10) / 10;
 }

@@ -43,7 +43,6 @@ import {
 } from "./handler.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
 import { serverError } from "../_shared/errors.ts";
-import { hasActivePremiumSubscription } from "../_shared/premium.ts";
 
 // Read once at cold start (per isolate), not per request: a misconfigured
 // deploy should fail immediately and visibly rather than on the first
@@ -205,15 +204,6 @@ function recordWearRoute(req: Request): Promise<Response> {
     closetRepository: buildClosetRepository(authorizationHeader),
     rateLimiter,
     now: () => new Date(),
-    hasActivePremiumSubscription: (nowIso) => hasActivePremiumSubscription(supabase, nowIso),
-    async countWearEvents(userId) {
-      void userId;
-      const { count, error } = await supabase
-        .from("outfit_wears")
-        .select("*", { count: "exact", head: true });
-      if (error) return Number.MAX_SAFE_INTEGER;
-      return count ?? 0;
-    },
     async insertWear(row) {
       const { data, error } = await supabase
         .from("outfit_wears")

@@ -336,7 +336,8 @@ def parse_swift_enums(text: str) -> list[SwiftEnum]:
 
 
 PG_TYPE_RE = re.compile(
-    r"create\s+type\s+(\w+)\s+as\s+enum\s*\((.*?)\)\s*;", re.DOTALL | re.IGNORECASE
+    r"create\s+type\s+(?:public\.)?(\w+)\s+as\s+enum\s*\((.*?)\)\s*;",
+    re.DOTALL | re.IGNORECASE,
 )
 PG_MEMBER_RE = re.compile(r"'((?:[^'\\]|\\.)*)'")
 
@@ -351,8 +352,14 @@ PG_MEMBER_RE = re.compile(r"'((?:[^'\\]|\\.)*)'")
 # Extensions are collected from every migration in filename order, which is the
 # order Supabase applies them, so a value added and an anchor referenced in a
 # later file both resolve the same way the database resolves them.
+#
+# Schema-qualified names (`public.clothing_category`) have to match too.
+# Wave 6's dress/skirt values live in `20260823140000_wardrobe_graph.sql`
+# as `alter type public.clothing_category ...`; a checker that only accepted
+# a bare type name reported those Swift cases as drift against a Postgres
+# enum that already contained them.
 PG_ALTER_RE = re.compile(
-    r"alter\s+type\s+(\w+)\s+add\s+value\s+(?:if\s+not\s+exists\s+)?"
+    r"alter\s+type\s+(?:public\.)?(\w+)\s+add\s+value\s+(?:if\s+not\s+exists\s+)?"
     r"'((?:[^'\\]|\\.)*)'"
     r"(?:\s+(before|after)\s+'((?:[^'\\]|\\.)*)')?",
     re.IGNORECASE,

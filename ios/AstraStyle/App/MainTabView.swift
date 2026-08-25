@@ -16,6 +16,7 @@ import SwiftUI
 struct MainTabView: View {
     @Environment(AppRouter.self) private var router
     @Environment(AppContainer.self) private var container
+    @State private var didPresentAuditPaywall = false
 
     var body: some View {
         @Bindable var router = router
@@ -35,6 +36,12 @@ struct MainTabView: View {
         .sheet(item: $router.presentedModal) { modal in
             modalContent(for: modal)
         }
+        .onAppear {
+            guard !didPresentAuditPaywall,
+                  let context = AstraFeatureFlags.auditPaywallContext else { return }
+            didPresentAuditPaywall = true
+            router.presentModal(.paywall(context: context))
+        }
     }
 
     /// Keep the system tab bar at its full glass size. Minimize-on-scroll
@@ -53,11 +60,10 @@ struct MainTabView: View {
     /// Every tab root carries the floating Ask Kyra orb — spec §4 lists
     /// "Ask Kyra" as a GLOBAL action, and an entry point that exists on
     /// some tabs is a navigation model the user has to memorize. It is
-    /// overlaid here, on the tab's content INSIDE the tab bar's safe area,
-    /// rather than on the `TabView` itself: the TabView's own frame
-    /// includes the tab bar, so an overlay there needs a guessed bottom
-    /// padding to clear it, and the guess breaks the day the bar's height
-    /// changes. Inside the content, the safe area does the arithmetic.
+    /// inserted here, on the tab's content INSIDE the tab bar's safe area.
+    /// A prior overlay covered the bottom CTA on Product Decision and Home;
+    /// `safeAreaInset` reserves the orb's real height so every scroll view can
+    /// still bring its final control fully above it without guessed padding.
     @ViewBuilder
     private func tabRoot(for tab: AppTab) -> some View {
         Group {
@@ -70,12 +76,12 @@ struct MainTabView: View {
             case .profile: profileTab
             }
         }
-        .overlay(alignment: .bottomTrailing) {
+        .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: AstraSpacing.xxs) {
             KyraAskButton {
                 router.startAskKyra()
             }
             .padding(.trailing, AstraSpacing.pagePadding)
-            .padding(.bottom, AstraSpacing.md)
+            .padding(.top, AstraSpacing.xxs)
         }
     }
 
@@ -155,7 +161,8 @@ struct MainTabView: View {
         NavigationStack(path: $router.studioPath) {
             StudioHomeView(
                 viewModel: StudioHomeViewModel(
-                    studioRepository: container.studioRepository
+                    studioRepository: container.studioRepository,
+                    imageURLResolver: container.closetImageURLResolver
                 )
             )
             .navigationDestination(for: StudioRoute.self) { route in

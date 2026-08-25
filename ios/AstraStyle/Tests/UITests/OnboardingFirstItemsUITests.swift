@@ -108,10 +108,10 @@ final class OnboardingFirstItemsUITests: OnboardingCaptureUITestCase {
         )
         capture("55-FirstItems-Added")
 
-        for _ in 0..<10 { app.swipeDown(velocity: .slow) }
-        usleep(400_000)
+        let advance = app.buttons["onboarding.advance"]
+        advance.scrollIntoView(in: app)
         XCTAssertEqual(
-            app.buttons["onboarding.advance"].label, "Continue",
+            advance.label, "Continue",
             "An item was added, so the forward button should continue rather than skip"
         )
     }

@@ -5,9 +5,9 @@
 //  The Profile tab's root (spec §4, §6.22). Deliberately thin: the full
 //  profile-and-stats screen — Style DNA summary, Wardrobe Score, items
 //  owned, cost per wear, Style Journey — is `P7-HOME-05`'s scope, not
-//  this pass's. ADR 0015 added About (marketing version + build) and an
-//  honest live/next inventory so dogfood can tell binaries apart without
-//  growing that dashboard. Privacy & Data remains the App Store gate
+//  this pass's. About keeps the marketing version/build available to testers
+//  without exposing an internal live/not-live inventory in the customer
+//  experience. Privacy & Data remains the App Store gate
 //  (`P7-PRIVACY-02`/`P7-PRIVACY-03`).
 //
 //  NO IDENTITY HEADER, ON PURPOSE. `Profile.displayName`/`avatarURL` are
@@ -42,8 +42,8 @@ public struct ProfileView: View {
                         shoppingRepository: container.shoppingRepository
                     )
                 )
+                appearanceRow
                 aboutCard
-                whatsLiveCard
                 ProfileReferralCard(viewModel: ProfileReferralViewModel(
                     profileRepository: container.profileRepository
                 ))
@@ -69,6 +69,35 @@ public struct ProfileView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    private var appearanceRow: some View {
+        Button {
+            router.push(ProfileRoute.appearance)
+        } label: {
+            AstraCard {
+                HStack(spacing: AstraSpacing.md) {
+                    VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                        Text(String(localized: "Appearance & coloring", comment: "Profile appearance editor row"))
+                            .astraText(.headline)
+                            .foregroundStyle(AstraColor.textPrimary)
+                        Text(String(
+                            localized: "Refine palette, contrast, collars, and visual estimates.",
+                            comment: "Profile appearance editor subtitle"
+                        ))
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: AstraSpacing.sm)
+                    Image(systemName: "chevron.right")
+                        .astraIcon(.disclosure)
+                        .foregroundStyle(AstraColor.textMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("profile.appearanceRow")
+    }
+
     private var aboutCard: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xs) {
             Text(String(localized: "About", comment: "Profile about section title"))
@@ -90,35 +119,6 @@ public struct ProfileView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Astra Style \(AstraAppVersion.current.displayLabel)"))
-    }
-
-    /// Honest inventory of this binary (ADR 0015).
-    private var whatsLiveCard: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.xs) {
-            Text(String(localized: "This build", comment: "Profile what's-live section title"))
-                .astraText(.caption)
-                .foregroundStyle(AstraColor.textMuted)
-            AstraCard {
-                VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-                    Text(String(
-                        localized: "Live: Home (Today's Outfit, Wear This, paste a link, See this on you, streak), Closet, Scan One Piece, Style Studio, Discover (your lookbooks, worn looks, Unlocks), Shop, Ask Kyra.",
-                        comment: "Profile what's live"
-                    ))
-                    .astraText(.callout)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    Text(String(
-                        localized: "Not live: Shop the look, Style DNA editor, Wardrobe Score.",
-                        comment: "Profile what's next"
-                    ))
-                    .astraText(.callout)
-                    .foregroundStyle(AstraColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .accessibilityIdentifier("profile.whatsLive")
     }
 
     private var privacyAndDataRow: some View {
