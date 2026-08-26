@@ -116,7 +116,8 @@ public struct HomeView: View {
 
             HomeEmptyStateView(
                 reason: data.emptyReason ?? .noOutfitYet,
-                wardrobeGraph: data.wardrobeGraph
+                wardrobeGraph: data.wardrobeGraph,
+                presentRoles: data.presentRoles
             ) {
                 if case .inTheWash = data.emptyReason {
                     router.select(.closet)

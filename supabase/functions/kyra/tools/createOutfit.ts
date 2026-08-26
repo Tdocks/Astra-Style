@@ -32,6 +32,11 @@ import {
 } from "../../_shared/scoring/closetItemMapper.ts";
 import { scoreOutfit } from "../../_shared/scoring/compatibility.ts";
 import type { ScorableItem } from "../../_shared/scoring/types.ts";
+import {
+  parseWardrobeGraph,
+  requiredRoleSetsForGeneration,
+  type WardrobeGraphId,
+} from "../../_shared/scoring/wardrobeGraph.ts";
 import { isUUID } from "../../_shared/validation.ts";
 
 export interface NewOutfitRecord {
@@ -52,6 +57,7 @@ export interface CreateOutfitDeps {
   listItemsByIds(ids: readonly string[]): Promise<ClosetItemMapperRow[]>;
   /** Inserts the outfit and its items; returns the new outfit id. */
   insertOutfit(record: NewOutfitRecord): Promise<string>;
+  readWardrobeGraph(): Promise<WardrobeGraphId>;
 }
 
 export interface CreateOutfitArgs {
@@ -112,18 +118,23 @@ export function parseCreateOutfitArgs(raw: Record<string, unknown>): CreateOutfi
 }
 
 /**
- * §3.3's MINIMUM_ROLES_NOT_MET: an outfit needs a top+bottom+shoes
- * equivalent. Product-candidate slots count toward it — "complete the look"
- * outfits exist precisely because a role is missing from the closet — but
- * their categories are unknown here (the product catalog is Phase 6), so
- * only the closet side is checked strictly: closet items plus ANY product
- * slots must plausibly cover the three roles. With zero product slots the
- * check is exact.
+ * §3.3's MINIMUM_ROLES_NOT_MET: an outfit needs a complete required-role
+ * set for the caller's wardrobe graph (ADR 0019). Product-candidate slots
+ * count toward missing roles — "complete the look" outfits exist precisely
+ * because a role is missing from the closet — but their categories are
+ * unknown here, so only the closet side is checked strictly.
  */
-function coversMinimumRoles(items: readonly ScorableItem[], productSlotCount: number): boolean {
+function coversMinimumRoles(
+  items: readonly ScorableItem[],
+  productSlotCount: number,
+  graph: WardrobeGraphId,
+): boolean {
   const roles = new Set(items.map((item) => item.role));
-  const missing = ["top", "bottom", "shoes"].filter((role) => !roles.has(role as never)).length;
-  return missing <= productSlotCount;
+  for (const set of requiredRoleSetsForGeneration(graph)) {
+    const missing = set.filter((role) => !roles.has(role)).length;
+    if (missing <= productSlotCount) return true;
+  }
+  return false;
 }
 
 export async function executeCreateOutfit(
@@ -148,11 +159,12 @@ export async function executeCreateOutfit(
     const item = mapClosetItemRowToScorableItem(rowsById.get(id)!);
     if (item !== null) scorable.push(item);
   }
-  if (!coversMinimumRoles(scorable, args.productCandidateIds.length)) {
+  const wardrobeGraph = parseWardrobeGraph(await deps.readWardrobeGraph());
+  if (!coversMinimumRoles(scorable, args.productCandidateIds.length, wardrobeGraph)) {
     return { error: "MINIMUM_ROLES_NOT_MET" };
   }
 
-  const score = scoreOutfit(scorable);
+  const score = scoreOutfit(scorable, { wardrobeGraph });
 
   const items: Array<{
     closetItemId: string | null;

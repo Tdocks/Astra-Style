@@ -44,6 +44,7 @@ public final class DiscoverViewModel {
 
     public private(set) var state: ViewState = .loading
     public private(set) var frame: FrameProfile = .unknown
+    public private(set) var wardrobeGraph: WardrobeGraph = .menswear3Role
 
     private let outfitRepository: OutfitRepository
     private let shoppingRepository: ShoppingRepository
@@ -106,6 +107,9 @@ public final class DiscoverViewModel {
             )
             state = catalog.isEmpty ? .empty : .loaded(catalog)
             await loadFrame()
+            if let profile = try? await profileRepository.fetchCurrentProfile() {
+                wardrobeGraph = profile.wardrobeGraph
+            }
         } catch let error as AstraError {
             state = .failed(error)
         } catch {

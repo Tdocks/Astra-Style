@@ -76,12 +76,14 @@ const USER_A_ROWS: ProfileRows = {
     dress_code: "business_casual",
     typical_week: "Mostly in an office",
   },
+  wardrobeGraph: "menswear_3_role",
 };
 
 const USER_B_ROWS: ProfileRows = {
   style: { user_id: USER_B_ID, primary_identity: "luxury_streetwear" },
   body: null,
   lifestyle: null,
+  wardrobeGraph: "menswear_3_role",
 };
 
 function recordingRepository(
@@ -97,7 +99,14 @@ function recordingRepository(
     saves,
     load(userId: string) {
       loads.push(userId);
-      return Promise.resolve(rowsByUser[userId] ?? { style: null, body: null, lifestyle: null });
+      return Promise.resolve(
+        rowsByUser[userId] ?? {
+          style: null,
+          body: null,
+          lifestyle: null,
+          wardrobeGraph: "menswear_3_role",
+        },
+      );
     },
     saveGeneratedSummary(userId: string, summary: GeneratedSummary) {
       saves.push({ userId, summary });

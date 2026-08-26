@@ -39,6 +39,10 @@ import {
   CompatibilityOutfitScorer,
   type CompatibilityScorerRow,
 } from "../_shared/scoring/compatibilityScorer.ts";
+import {
+  parseWardrobeGraph,
+  type WardrobeGraphId,
+} from "../_shared/scoring/wardrobeGraph.ts";
 
 const env = readEdgeEnv();
 
@@ -64,7 +68,18 @@ const scorer = new CompatibilityOutfitScorer();
 // scores outerwear and accessories through §2.1's pair weights and will use
 // them when they help. `roleFor` folds `watch` into `accessory` and drops
 // `fragrance`, which has nothing any formula here can read.
-const CANDIDATE_ROLES = ["top", "bottom", "shoes", "outerwear", "accessory", "watch"] as const;
+// Matches outfits `SCORABLE_CATEGORIES`: dress/skirt feed the women's graph
+// beams; menswear simply never selects them into a top+bottom+shoes set.
+const CANDIDATE_ROLES = [
+  "top",
+  "bottom",
+  "shoes",
+  "outerwear",
+  "accessory",
+  "watch",
+  "dress",
+  "skirt",
+] as const;
 const WEARABLE_LAUNDRY_STATES = ["clean", "worn_once"] as const;
 
 const BRIEF_COLUMNS =
@@ -111,6 +126,19 @@ function generateRoute(req: Request): Promise<Response> {
         throw serverError("Couldn't load your closet.");
       }
       return (data ?? []) as unknown as CompatibilityScorerRow[];
+    },
+
+    async readWardrobeGraph(userId: string): Promise<WardrobeGraphId> {
+      void userId;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("wardrobe_graph")
+        .maybeSingle();
+      if (error) return "menswear_3_role";
+      const value = data && typeof data === "object"
+        ? (data as { wardrobe_graph?: unknown }).wardrobe_graph
+        : undefined;
+      return parseWardrobeGraph(value);
     },
 
     async countOccasions(userId: string, briefDate: string): Promise<number> {

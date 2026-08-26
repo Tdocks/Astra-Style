@@ -78,6 +78,9 @@ function memoryRepository(
     listCandidateItems() {
       return Promise.resolve(closet);
     },
+    readWardrobeGraph() {
+      return Promise.resolve("menswear_3_role" as const);
+    },
     listOccasions() {
       return Promise.resolve(occasions);
     },
@@ -218,8 +221,13 @@ function unusedRegistryDeps(): ToolRegistryDeps {
       listItemsByIds: unused,
       listOutfitItemIds: unused,
       getOccasionTitle: unused,
+      readWardrobeGraph: unused,
     },
-    createOutfit: { listItemsByIds: unused, insertOutfit: unused },
+    createOutfit: {
+      listItemsByIds: unused,
+      insertOutfit: unused,
+      readWardrobeGraph: unused,
+    },
     getWeather: { weatherSnapshot: null, now: () => new Date() },
     getSchedule: { listOccasions: unused, now: () => new Date() },
     savePreference: {

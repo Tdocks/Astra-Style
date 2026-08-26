@@ -9,9 +9,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serverError } from "../_shared/errors.ts";
 import type { CompatibilityScorerRow } from "../_shared/scoring/compatibilityScorer.ts";
+import {
+  parseWardrobeGraph,
+  type WardrobeGraphId,
+} from "../_shared/scoring/wardrobeGraph.ts";
 import type { BriefRow, OccasionRow, OutfitDraft, PackingRepository } from "./plan.ts";
 
-const CANDIDATE_ROLES = ["top", "bottom", "shoes", "outerwear", "accessory", "watch"] as const;
+const CANDIDATE_ROLES = [
+  "top",
+  "bottom",
+  "shoes",
+  "outerwear",
+  "accessory",
+  "watch",
+  "dress",
+  "skirt",
+] as const;
 const WEARABLE_LAUNDRY_STATES = ["clean", "worn_once"] as const;
 const BRIEF_COLUMNS =
   "id, user_id, brief_date, primary_outfit_id, alternative_outfit_ids, schedule_snapshot";
@@ -35,6 +48,19 @@ export function createPackingRepository(supabase: SupabaseClient): PackingReposi
         throw serverError("Couldn't load your closet.");
       }
       return (data ?? []) as unknown as CompatibilityScorerRow[];
+    },
+
+    async readWardrobeGraph(userId): Promise<WardrobeGraphId> {
+      void userId;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("wardrobe_graph")
+        .maybeSingle();
+      if (error) return "menswear_3_role";
+      const value = data && typeof data === "object"
+        ? (data as { wardrobe_graph?: unknown }).wardrobe_graph
+        : undefined;
+      return parseWardrobeGraph(value);
     },
 
     async listOccasions(userId, fromDate, toExclusive) {

@@ -51,6 +51,7 @@ import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.t
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { serverError } from "../_shared/errors.ts";
+import { parseWardrobeGraph } from "../_shared/scoring/wardrobeGraph.ts";
 import { DeterministicStylistProvider } from "./deterministicStylist.ts";
 import {
   type GeneratedSummary,
@@ -88,10 +89,11 @@ function generateStyleDnaRoute(req: Request): Promise<Response> {
       // change nothing, which is the point.
       void userId;
 
-      const [style, body, lifestyle] = await Promise.all([
+      const [style, body, lifestyle, profile] = await Promise.all([
         supabase.from("style_profiles").select("*").maybeSingle(),
         supabase.from("body_profiles").select("*").maybeSingle(),
         supabase.from("lifestyle_profiles").select("*").maybeSingle(),
+        supabase.from("profiles").select("wardrobe_graph").maybeSingle(),
       ]);
 
       // A missing ROW is normal — a user who skipped §6.6 and §6.8 entirely
@@ -99,16 +101,21 @@ function generateStyleDnaRoute(req: Request): Promise<Response> {
       // documented behaviour. A query ERROR is not normal and must not be
       // silently treated as "no data": that would generate a thin result
       // from a transient failure and then WRITE it over a good one.
-      for (const result of [style, body, lifestyle]) {
+      for (const result of [style, body, lifestyle, profile]) {
         if (result.error) {
           throw serverError("Couldn't read your profile.");
         }
       }
 
+      const graphRaw = profile.data && typeof profile.data === "object"
+        ? (profile.data as { wardrobe_graph?: unknown }).wardrobe_graph
+        : undefined;
+
       return {
         style: (style.data ?? null) as Record<string, unknown> | null,
         body: (body.data ?? null) as Record<string, unknown> | null,
         lifestyle: (lifestyle.data ?? null) as Record<string, unknown> | null,
+        wardrobeGraph: parseWardrobeGraph(graphRaw),
       };
     },
 

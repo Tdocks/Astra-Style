@@ -151,6 +151,8 @@ export interface KyraStore {
   listItemsByIds(ids: readonly string[]): Promise<ClosetItemMapperRow[]>;
   listOutfitItemIds(outfitIds: readonly string[]): Promise<ReadonlyMap<string, string[]>>;
   getOccasionTitle(occasionId: string): Promise<string | null>;
+  /** ADR 0019 product graph — menswear when unread. */
+  readWardrobeGraph(): Promise<"menswear_3_role" | "womenswear">;
   insertOutfit(userId: string, record: NewOutfitRecord): Promise<string>;
   listOwnedItemIds(ids: readonly string[]): Promise<string[]>;
   getOutfitItemIds(outfitId: string): Promise<string[] | null>;
@@ -924,10 +926,12 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         listItemsByIds: (ids) => deps.store.listItemsByIds(ids),
         listOutfitItemIds: (ids) => deps.store.listOutfitItemIds(ids),
         getOccasionTitle: (id) => deps.store.getOccasionTitle(id),
+        readWardrobeGraph: () => deps.store.readWardrobeGraph(),
       },
       createOutfit: {
         listItemsByIds: (ids) => deps.store.listItemsByIds(ids),
         insertOutfit: (record) => deps.store.insertOutfit(userId, record),
+        readWardrobeGraph: () => deps.store.readWardrobeGraph(),
       },
       getWeather: { weatherSnapshot: body.weatherSnapshot, now: deps.now },
       getSchedule: {
@@ -956,7 +960,8 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       createPackingList: {
         userId,
         repository: deps.store.packing,
-        scorerForDay: (targetOccasion) => new CompatibilityOutfitScorer({ targetOccasion }),
+        scorerForDay: (targetOccasion, wardrobeGraph) =>
+          new CompatibilityOutfitScorer({ targetOccasion, wardrobeGraph }),
       },
     });
 

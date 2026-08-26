@@ -112,6 +112,9 @@ function memoryRepository(closet: OutfitScorerRow[], occasions = 0): MemoryRepos
     listCandidateItems() {
       return Promise.resolve(closet);
     },
+    readWardrobeGraph() {
+      return Promise.resolve("menswear_3_role" as const);
+    },
     countOccasions() {
       return Promise.resolve(occasions);
     },
@@ -373,6 +376,18 @@ Deno.test("no forecast gives the scorer no weather claim", async () => {
 
   assertEquals(response.status, 200);
   assertEquals(scorer.contexts[0]?.weather, undefined);
+});
+
+Deno.test("the caller's wardrobe graph reaches the scorer", async () => {
+  const scorer = new RecordingContextScorer();
+  const repository = memoryRepository(POPULATED_CLOSET);
+  repository.readWardrobeGraph = () => Promise.resolve("womenswear");
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({ scorer, repository }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(scorer.contexts[0]?.wardrobeGraph, "womenswear");
 });
 
 Deno.test("adding weather refreshes an existing no-weather brief exactly once", async () => {

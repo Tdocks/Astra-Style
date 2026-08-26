@@ -42,12 +42,19 @@ under "One pair is missing" below. Both logo pairs ship; their branded frames ar
 
 ## Women's graph (ADR 0019)
 
-`womenswear-quiz-pairs.json` is a **separate catalog** (pair ids `w-*`). Until a
-second reference figure exists, it points at the same shipped JPEGs as the men's
-set so the quiz is not empty grey boxes. Pairs whose files are missing still
-drop. A dedicated women's figure is content work, blocked the same way
-`silhouette-2` is: generate from a new reference, do not silently reuse a man
-as if she were the subject.
+`womenswear-quiz-pairs.json` is a **separate catalog** (pair ids `w-*`) with its
+own reference figure (`brand/quiz-imagery/womenswear/_reference-figure-womenswear.png`)
+and shipped tiles (`quiz-w-*.jpg`). Generate with:
+
+```bash
+python3 scripts/generate_quiz_imagery.py --graph womenswear --reference
+python3 scripts/generate_quiz_imagery.py --graph womenswear --all
+python3 scripts/build_quiz_imagery.py --source brand/quiz-imagery/womenswear \
+  --out ios/AstraStyle/Resources/QuizImagery --pair w-formality-1 # …
+```
+
+Do not reuse men's JPEGs as if she were the subject. Reject confounded pairs
+rather than ship them — same rule as the men's bake.
 
 ## Every frame is the same man, and that is the point
 

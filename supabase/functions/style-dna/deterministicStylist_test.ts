@@ -34,8 +34,9 @@ function contextWith(
   style: Record<string, unknown> | null,
   body: Record<string, unknown> | null = null,
   lifestyle: Record<string, unknown> | null = null,
+  wardrobeGraph: "menswear_3_role" | "womenswear" = "menswear_3_role",
 ): StyleDnaContext {
-  return buildStyleDnaContext(style, body, lifestyle);
+  return buildStyleDnaContext(style, body, lifestyle, wardrobeGraph);
 }
 
 /** The sparsest profile the onboarding flow can actually produce: §6.5 only. */
@@ -108,6 +109,34 @@ Deno.test("an identity alone still produces concrete, non-empty advice", () => {
   const titles = document.signature_opportunities.map((item) => item.title).join(" ").toLowerCase();
   assert(titles.includes("knit"), `expected a named garment, got: ${titles}`);
   assert(titles.includes("loafer") || titles.includes("blazer"));
+});
+
+Deno.test("womenswear graph frames silhouette and signatures without a gender field", () => {
+  const menswear = composeStyleDna(IDENTITY_ONLY);
+  const womenswear = composeStyleDna(contextWith(
+    {
+      primary_identity: "quiet_luxury",
+      secondary_identities: [],
+      style_goals: [],
+      preference_vector: {},
+    },
+    null,
+    null,
+    "womenswear",
+  ));
+
+  assert(
+    womenswear.silhouette.detail.includes("dress with shoes"),
+    "women's silhouette must name the dress path",
+  );
+  assert(
+    !menswear.silhouette.detail.includes("dress with shoes"),
+    "men's silhouette must not carry women's framing",
+  );
+  const titles = womenswear.signature_opportunities.map((item) => item.title).join(" ").toLowerCase();
+  assert(titles.includes("dress"), `expected a dress signature, got: ${titles}`);
+  const priorities = womenswear.wardrobe_priorities.map((item) => item.title).join(" ").toLowerCase();
+  assert(priorities.includes("dress") || priorities.includes("separates"));
 });
 
 Deno.test("an identity alone says out loud what it does not know", () => {

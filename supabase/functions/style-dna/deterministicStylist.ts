@@ -66,7 +66,7 @@ import {
   type RankedRecommendation,
   type StyleDnaDocument,
 } from "./schema.ts";
-import { DRESS_CODE_SIGNATURES, IDENTITY_PLAYBOOK } from "./identityPlaybook.ts";
+import { DRESS_CODE_SIGNATURES, IDENTITY_PLAYBOOK, WOMENSWEAR_PRIORITIES, WOMENSWEAR_SIGNATURES, WOMENSWEAR_SILHOUETTE_FRAMING } from "./identityPlaybook.ts";
 
 /**
  * The version string this provider reports as `modelIdentifier`.
@@ -395,7 +395,11 @@ function composeSilhouette(
     return { headline: "Not enough to call yet.", detail: "No direction available." };
   }
 
-  const detail: string[] = [playbook.silhouetteDetail];
+  const detail: string[] = [];
+  if (context.wardrobeGraph === "womenswear") {
+    detail.push(WOMENSWEAR_SILHOUETTE_FRAMING);
+  }
+  detail.push(playbook.silhouetteDetail);
 
   // Stated fit preference (§6.6) comes before anything derived, because it is
   // the user telling us directly rather than us inferring.
@@ -481,7 +485,17 @@ function composeSignatures(
     return [];
   }
 
-  const items: NamedRecommendation[] = playbook.signatures.map((item) => ({ ...item }));
+  const items: NamedRecommendation[] = [];
+  if (context.wardrobeGraph === "womenswear") {
+    for (const item of WOMENSWEAR_SIGNATURES) {
+      items.push({ ...item });
+    }
+  }
+  for (const item of playbook.signatures) {
+    if (!items.some((existing) => existing.title === item.title)) {
+      items.push({ ...item });
+    }
+  }
 
   // A dress code adds a piece the identity alone would not call for — the two
   // inputs answer different questions (what he wants to look like vs what the
@@ -553,9 +567,16 @@ function composePriorities(
     });
   }
 
-  // 4. Only if the above produced too little: the identity's own priorities.
+  // 4. Women's graph: dress/separates coverage before identity fallbacks.
+  if (context.wardrobeGraph === "womenswear") {
+    for (const priority of WOMENSWEAR_PRIORITIES) {
+      candidates.push(priority);
+    }
+  }
+
+  // 5. Only if the above produced too little: the identity's own priorities.
   // Last, because they are the least personal thing available — true of the
-  // direction rather than of him.
+  // direction rather than of the wearer.
   if (primary !== null && candidates.length < 3) {
     const playbook = IDENTITY_PLAYBOOK[primary];
     for (const priority of playbook?.priorities ?? []) {

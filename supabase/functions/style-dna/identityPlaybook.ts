@@ -576,3 +576,32 @@ export const DRESS_CODE_SIGNATURES: Readonly<Record<string, SignatureItem>> = {
     reason: "You named an athletic dress code, and the cut is the only thing separating the two.",
   },
 };
+
+/**
+ * Women's-graph framing layered on the same StyleIdentity playbooks
+ * (ADR 0019). Not a parallel identity enum and not a gender field — the
+ * identity cases stay identical; only silhouette language and a few
+ * signature/priority pieces change when `wardrobe_graph = womenswear`.
+ */
+export const WOMENSWEAR_SILHOUETTE_FRAMING =
+  "A complete look can be a dress with shoes, or a top with a bottom or skirt plus shoes — both count.";
+
+export const WOMENSWEAR_SIGNATURES: readonly SignatureItem[] = [
+  {
+    title: "A day dress that works with the shoes already owned",
+    reason:
+      "On the women's graph it is one garment that completes a look, so it earns its place faster than another top.",
+  },
+  {
+    title: "A straight skirt in the same weight as the trousers already owned",
+    reason: "It sits in the bottom role of separates days without forcing a second shoe language.",
+  },
+];
+
+export const WOMENSWEAR_PRIORITIES: readonly SignatureItem[] = [
+  {
+    title: "Cover dress days and separates days",
+    reason:
+      "Wear This needs either path. Counting only tops leaves mornings without a look even when the closet is full.",
+  },
+];

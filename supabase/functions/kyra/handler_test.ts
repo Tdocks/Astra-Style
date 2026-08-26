@@ -93,6 +93,7 @@ function fakeStore(
     listItemsByIds: () => Promise.resolve([]),
     listOutfitItemIds: () => Promise.resolve(new Map()),
     getOccasionTitle: () => Promise.resolve(null),
+    readWardrobeGraph: () => Promise.resolve("menswear_3_role"),
     insertOutfit: () => Promise.resolve("ffffffff-0000-4000-8000-000000000001"),
     listOwnedItemIds: () => Promise.resolve([]),
     getOutfitItemIds: () => Promise.resolve(null),
@@ -115,6 +116,7 @@ function fakeStore(
 function emptyPackingRepository(): PackingRepository {
   return {
     listCandidateItems: () => Promise.resolve([]),
+    readWardrobeGraph: () => Promise.resolve("menswear_3_role"),
     listOccasions: () => Promise.resolve([]),
     findBriefs: () => Promise.resolve([]),
     createOutfits: () => Promise.resolve([]),

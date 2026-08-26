@@ -49,6 +49,11 @@ export interface StyleDnaContext {
   };
   readonly goals: readonly string[];
   readonly preferredFit: string | null;
+  /**
+   * Product graph from onboarding (ADR 0019). Defaults to menswear when
+   * absent — same prior the scorer uses. Never a Settings gender toggle.
+   */
+  readonly wardrobeGraph: "menswear_3_role" | "womenswear";
   readonly vector: {
     readonly comparisonsAnswered: number;
     readonly comparisonsOffered: number;
@@ -188,6 +193,7 @@ export function buildStyleDnaContext(
   styleRow: Row,
   bodyRow: Row,
   lifestyleRow: Row,
+  wardrobeGraph: "menswear_3_role" | "womenswear" = "menswear_3_role",
 ): StyleDnaContext {
   const appearance = bodyRow?.["appearance"];
   const appearanceRecord =
@@ -202,6 +208,7 @@ export function buildStyleDnaContext(
     },
     goals: stringList(styleRow, "style_goals"),
     preferredFit: str(styleRow, "preferred_fit"),
+    wardrobeGraph: wardrobeGraph === "womenswear" ? "womenswear" : "menswear_3_role",
     vector: readVector(styleRow?.["preference_vector"] ?? null),
     body: {
       hasAnyMeasurement: [

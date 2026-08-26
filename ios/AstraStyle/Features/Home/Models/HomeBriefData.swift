@@ -64,13 +64,23 @@ public struct HomeBriefData: Sendable {
         self.wardrobeGraph = wardrobeGraph
     }
 
-    /// The three roles an outfit needs before one can exist at all.
-    ///
-    /// Not a style opinion — a structural one. `generateCandidateOutfits`
-    /// builds top/bottom/shoes and returns nothing without all three, so a
-    /// closet missing any of them cannot produce a single outfit however
-    /// many garments it holds.
+    /// The three roles an outfit needs before one can exist at all
+    /// on the men's graph. Prefer `presentRoles` / `wardrobeGraph.missingRoles`
+    /// for graph-aware honesty.
     public static let requiredRoles: [ClothingCategory] = [.top, .bottom, .shoes]
+
+    /// Roles the closet actually holds among those Wear This can use.
+    public var presentRoles: [ClothingCategory] {
+        let counts = closetRoleCounts ?? [:]
+        let candidates: [ClothingCategory]
+        switch wardrobeGraph {
+        case .menswear3Role:
+            candidates = [.top, .bottom, .shoes]
+        case .womenswear:
+            candidates = [.dress, .top, .bottom, .skirt, .shoes]
+        }
+        return candidates.filter { (counts[$0] ?? 0) > 0 }
+    }
 
     public var missingRoles: [ClothingCategory] {
         wardrobeGraph.missingRoles(in: closetRoleCounts ?? [:])

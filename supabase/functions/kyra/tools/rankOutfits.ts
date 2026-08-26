@@ -24,6 +24,10 @@ import {
 import { scoreOutfit } from "../../_shared/scoring/compatibility.ts";
 import { breakdownToWire } from "../../_shared/scoring/wire.ts";
 import type { ScorableItem, ScoringContext } from "../../_shared/scoring/types.ts";
+import {
+  parseWardrobeGraph,
+  type WardrobeGraphId,
+} from "../../_shared/scoring/wardrobeGraph.ts";
 import { isUUID } from "../../_shared/validation.ts";
 
 export interface RankOutfitsDeps {
@@ -33,6 +37,7 @@ export interface RankOutfitsDeps {
   listOutfitItemIds(outfitIds: readonly string[]): Promise<ReadonlyMap<string, string[]>>;
   /** Occasion title lookup for the §2.8 subscore target. Null when unknown. */
   getOccasionTitle(occasionId: string): Promise<string | null>;
+  readWardrobeGraph(): Promise<WardrobeGraphId>;
 }
 
 export interface RankOutfitsArgs {
@@ -136,7 +141,11 @@ export async function executeRankOutfits(
   const occasionTitle = args.occasionId !== undefined
     ? await deps.getOccasionTitle(args.occasionId)
     : null;
-  const context: ScoringContext = occasionTitle === null ? {} : { targetOccasion: occasionTitle };
+  const wardrobeGraph = parseWardrobeGraph(await deps.readWardrobeGraph());
+  const context: ScoringContext = {
+    wardrobeGraph,
+    ...(occasionTitle === null ? {} : { targetOccasion: occasionTitle }),
+  };
 
   const dropped: string[] = [];
   const ranked: Array<Record<string, unknown>> = [];

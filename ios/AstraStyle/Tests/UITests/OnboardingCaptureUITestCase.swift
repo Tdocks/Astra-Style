@@ -107,16 +107,16 @@ class OnboardingCaptureUITestCase: XCTestCase {
         awaitElement(app.buttons["onboarding.begin"], "Intro")
         app.buttons["onboarding.begin"].tap()
 
-        let menswear = app.buttons.matching(
+        let choice = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH[c] %@", "Men's looks")
         ).firstMatch
-        awaitElement(menswear, "Wardrobe graph")
+        awaitElement(choice, "Wardrobe graph")
         XCTAssertFalse(
             app.buttons["onboarding.advance"].isEnabled,
             "Wardrobe graph is required but Continue is enabled before a choice"
         )
-        menswear.tap()
-        XCTAssertTrue(menswear.waitUntilSelected(), "Wardrobe graph choice never selected")
+        choice.tap()
+        XCTAssertTrue(choice.waitUntilSelected(), "Wardrobe graph choice never selected")
         app.buttons["onboarding.advance"].tap()
 
         awaitElement(app.buttons["onboarding.advance"], "Goals")

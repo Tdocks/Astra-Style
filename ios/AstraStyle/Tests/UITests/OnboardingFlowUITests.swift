@@ -148,6 +148,26 @@ final class OnboardingFlowUITests: XCTestCase {
         walkResult()
     }
 
+    /// Women's graph first-run: picker → dress + shoes → Home (honest brief or empty).
+    func testWomenswearWalkReachesHomeWithDressAndShoes() {
+        enterOnboarding()
+        walkIntro()
+        walkWardrobeGraph(captureName: "20c-Onboarding-WardrobeGraph-Women", graph: "womenswear")
+        walkIdentity()
+        walkPreferenceQuiz()
+        walkFirstItemsAdding(category: "dress", name: "Navy day dress", color: "navy")
+        walkFirstItemsAdding(category: "shoes", name: "Black loafers", color: "black", alreadyOnStep: true)
+        app.buttons["onboarding.advance"].tap()
+        walkResult()
+        // Home after finish — empty honesty or today's look are both valid.
+        let homeEmpty = app.descendants(matching: .any)["home.empty"]
+        let homeLook = app.descendants(matching: .any)["home.look"]
+        XCTAssertTrue(
+            homeEmpty.waitForExistence(timeout: timeout) || homeLook.waitForExistence(timeout: 2),
+            "Women's first-run never reached Home empty or today's look"
+        )
+    }
+
     /// The deferred profile questions remain reusable and need a visual pass,
     /// but they are intentionally not part of Release first-run (ADR 0015).
     /// This separate Debug-only walk prevents the audit from conflating the
@@ -699,20 +719,26 @@ private extension OnboardingFlowUITests {
         app.buttons["onboarding.begin"].tap()
     }
 
-    private func walkWardrobeGraph(captureName: String = "20b-Onboarding-WardrobeGraph") {
-        let menswear = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH[c] %@", "Men's looks")
+    private func walkWardrobeGraph(
+        captureName: String = "20b-Onboarding-WardrobeGraph",
+        graph: String = "menswear_3_role"
+    ) {
+        // Titles are unique; per-graph identifiers can be swallowed by the
+        // parent AX group on some iOS SDKs.
+        let titlePrefix = graph == "womenswear" ? "Dresses and separates" : "Men's looks"
+        let choice = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH[c] %@", titlePrefix)
         ).firstMatch
-        awaitElement(menswear, "Wardrobe graph: men's looks")
+        awaitElement(choice, "Wardrobe graph: \(graph)")
         XCTAssertFalse(
             app.buttons["onboarding.advance"].isEnabled,
             "Wardrobe graph is required but Continue is enabled before a choice"
         )
         capture(captureName)
-        menswear.tap()
+        choice.tap()
         XCTAssertTrue(
-            menswear.waitUntilSelected(),
-            "The men's wardrobe graph never became selected"
+            choice.waitUntilSelected(),
+            "The \(graph) wardrobe graph never became selected"
         )
         XCTAssertTrue(
             app.buttons["onboarding.advance"].isEnabled,
@@ -893,6 +919,40 @@ private extension OnboardingFlowUITests {
             "The first-items step is optional but its forward button is disabled"
         )
         app.buttons["onboarding.advance"].tap()
+    }
+
+    /// Typed add on the first-items step. Leaves the step open so a second
+    /// garment (or Continue) can follow.
+    private func walkFirstItemsAdding(
+        category: String,
+        name: String,
+        color: String,
+        alreadyOnStep: Bool = false
+    ) {
+        if !alreadyOnStep {
+            awaitElement(app.buttons["onboarding.firstItems.add"], "First closet items step")
+        }
+        let chip = app.buttons["onboarding.firstItems.category.\(category)"]
+        chip.scrollIntoView(in: app)
+        chip.waitForStableFrame()
+        chip.tap()
+        XCTAssertTrue(chip.waitUntilSelected(), "Category \(category) never selected")
+
+        let nameField = app.textFields["onboarding.firstItems.name"]
+        nameField.scrollIntoView(in: app)
+        nameField.tap()
+        nameField.typeText(name + "\n")
+
+        let colorField = app.textFields["onboarding.firstItems.color"]
+        colorField.scrollIntoView(in: app)
+        colorField.tap()
+        colorField.typeText(color + "\n")
+
+        let add = app.buttons["onboarding.firstItems.add"]
+        add.scrollIntoView(in: app)
+        XCTAssertTrue(add.isEnabled, "Add still disabled after filling \(category)")
+        add.tap()
+        usleep(400_000)
     }
 
     private func walkResult() {

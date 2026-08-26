@@ -25,6 +25,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serverError } from "../_shared/errors.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
+import {
+  parseWardrobeGraph,
+  type WardrobeGraphId,
+} from "../_shared/scoring/wardrobeGraph.ts";
 import type { HistoryMessageRow, InsertedMessage, KyraStore } from "./handler.ts";
 import type {
   BodyProfileSourceRow,
@@ -329,6 +333,18 @@ export function buildKyraStore(supabase: SupabaseClient): KyraStore {
         return null;
       }
       return (data as { title: string }).title;
+    },
+
+    async readWardrobeGraph(): Promise<WardrobeGraphId> {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("wardrobe_graph")
+        .maybeSingle();
+      if (error) return "menswear_3_role";
+      const value = data && typeof data === "object"
+        ? (data as { wardrobe_graph?: unknown }).wardrobe_graph
+        : undefined;
+      return parseWardrobeGraph(value);
     },
 
     async insertOutfit(userId: string, record: NewOutfitRecord): Promise<string> {

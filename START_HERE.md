@@ -19,7 +19,7 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `8`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `9`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
@@ -106,8 +106,8 @@ Never put provider keys in the iOS target.
 - [ ] Smoke results reported (and any Organizer errors pasted verbatim)
 
 **Out of scope for this cut:** App Store listing screenshots / sale, filling
-`[[NEEDS INPUT]]` legal entity names, Fastlane Match certs repo, full Kyra
-(Phase 5), women’s dedicated quiz figure.
+`[[NEEDS INPUT]]` legal entity names, Fastlane Match certs repo, full curated
+women’s Shop SKU catalog.
 
 ---
 

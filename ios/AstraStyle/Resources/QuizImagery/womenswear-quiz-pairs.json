@@ -6,7 +6,7 @@
       "priority": 0,
       "option_a": {
         "id": "relaxed",
-        "image": "quiz-formality-1-a",
+        "image": "quiz-w-formality-1-a",
         "accessibility_description": "A washed grey sweatshirt, olive cotton trousers, off-white canvas sneakers.",
         "loadings": {
           "formality": -1.0
@@ -14,8 +14,8 @@
       },
       "option_b": {
         "id": "tailored",
-        "image": "quiz-formality-1-b",
-        "accessibility_description": "A navy blazer with natural shoulders over a white shirt, mid-grey wool trousers, brown leather cap-toe oxfords.",
+        "image": "quiz-w-formality-1-b",
+        "accessibility_description": "A navy blazer with natural shoulders over a white blouse, mid-grey wool trousers, brown leather ballet flats.",
         "loadings": {
           "formality": 1.0
         }
@@ -26,7 +26,7 @@
       "priority": 1,
       "option_a": {
         "id": "relaxed",
-        "image": "quiz-formality-2-a",
+        "image": "quiz-w-formality-2-a",
         "accessibility_description": "A plain white crew-neck t-shirt, mid-blue jeans, white leather sneakers.",
         "loadings": {
           "formality": -1.0
@@ -34,8 +34,8 @@
       },
       "option_b": {
         "id": "tailored",
-        "image": "quiz-formality-2-b",
-        "accessibility_description": "A charcoal wool suit over a white shirt with a navy silk tie, black leather oxfords.",
+        "image": "quiz-w-formality-2-b",
+        "accessibility_description": "A charcoal wool sheath dress with a slim belt, black leather pumps.",
         "loadings": {
           "formality": 1.0
         }
@@ -46,7 +46,7 @@
       "priority": 10,
       "option_a": {
         "id": "restrained",
-        "image": "quiz-colour-1-a",
+        "image": "quiz-w-colour-1-a",
         "accessibility_description": "A putty crew-neck knit, stone flat-front trousers, tan suede loafers.",
         "loadings": {
           "colour_tolerance": -1.0
@@ -54,7 +54,7 @@
       },
       "option_b": {
         "id": "saturated",
-        "image": "quiz-colour-1-b",
+        "image": "quiz-w-colour-1-b",
         "accessibility_description": "A burgundy crew-neck knit, forest-green corduroy trousers, tan suede loafers.",
         "loadings": {
           "colour_tolerance": 1.0
@@ -66,7 +66,7 @@
       "priority": 11,
       "option_a": {
         "id": "restrained",
-        "image": "quiz-colour-2-a",
+        "image": "quiz-w-colour-2-a",
         "accessibility_description": "A stone-grey crew-neck knit, oatmeal flat-front trousers, tan suede loafers.",
         "loadings": {
           "colour_tolerance": -1.0
@@ -74,7 +74,7 @@
       },
       "option_b": {
         "id": "saturated",
-        "image": "quiz-colour-2-b",
+        "image": "quiz-w-colour-2-b",
         "accessibility_description": "A cobalt-blue crew-neck knit, rust-orange flat-front trousers, tan suede loafers.",
         "loadings": {
           "colour_tolerance": 1.0
@@ -86,16 +86,16 @@
       "priority": 20,
       "option_a": {
         "id": "close",
-        "image": "quiz-silhouette-1-a",
-        "accessibility_description": "A navy fine-gauge knit cut close through the body and sleeve, slim tapered navy trousers, black leather boots.",
+        "image": "quiz-w-silhouette-1-a",
+        "accessibility_description": "A close-cut navy fine-gauge knit, a slim navy pencil skirt, black leather ankle boots.",
         "loadings": {
           "silhouette": -1.0
         }
       },
       "option_b": {
         "id": "loose",
-        "image": "quiz-silhouette-1-b",
-        "accessibility_description": "An oversized navy knit with dropped shoulders, wide-leg navy trousers breaking over the shoe, black leather boots.",
+        "image": "quiz-w-silhouette-1-b",
+        "accessibility_description": "An oversized navy knit with dropped shoulders, a wide A-line navy skirt, black leather ankle boots.",
         "loadings": {
           "silhouette": 1.0
         }
@@ -106,16 +106,16 @@
       "priority": 30,
       "option_a": {
         "id": "flat",
-        "image": "quiz-texture-1-a",
-        "accessibility_description": "A smooth charcoal fine-gauge merino crew-neck, flat charcoal worsted wool trousers, black leather derbies.",
+        "image": "quiz-w-texture-1-a",
+        "accessibility_description": "A smooth charcoal fine-gauge merino crew-neck, a flat charcoal worsted wool skirt, black leather loafers.",
         "loadings": {
           "texture": -1.0
         }
       },
       "option_b": {
         "id": "pronounced",
-        "image": "quiz-texture-1-b",
-        "accessibility_description": "A chunky charcoal cable-knit crew-neck, charcoal corduroy trousers, black leather derbies.",
+        "image": "quiz-w-texture-1-b",
+        "accessibility_description": "A chunky charcoal cable-knit crew-neck, a charcoal corduroy skirt in the same tone, black leather loafers.",
         "loadings": {
           "texture": 1.0
         }
@@ -126,16 +126,16 @@
       "priority": 31,
       "option_a": {
         "id": "flat",
-        "image": "quiz-texture-2-a",
-        "accessibility_description": "A smooth navy fine-gauge merino crew-neck, flat navy wool trousers, black leather derbies.",
+        "image": "quiz-w-texture-2-a",
+        "accessibility_description": "A smooth navy fine-gauge merino crew-neck, a flat navy wool skirt, black leather loafers.",
         "loadings": {
           "texture": -1.0
         }
       },
       "option_b": {
         "id": "pronounced",
-        "image": "quiz-texture-2-b",
-        "accessibility_description": "A chunky navy cable-knit crew-neck, navy corduroy trousers, black leather derbies.",
+        "image": "quiz-w-texture-2-b",
+        "accessibility_description": "A chunky navy cable-knit crew-neck, a navy corduroy skirt in the same tone, black leather loafers.",
         "loadings": {
           "texture": 1.0
         }
@@ -146,16 +146,16 @@
       "priority": 40,
       "option_a": {
         "id": "unbranded",
-        "image": "quiz-logo-1-a",
-        "accessibility_description": "A plain navy cotton sweatshirt, mid-grey flat-front trousers, white leather sneakers.",
+        "image": "quiz-w-logo-1-a",
+        "accessibility_description": "A plain navy cotton crew-neck sweatshirt with no branding, mid-grey trousers, white leather sneakers.",
         "loadings": {
           "logo_tolerance": -1.0
         }
       },
       "option_b": {
         "id": "branded",
-        "image": "quiz-logo-1-b",
-        "accessibility_description": "A navy cotton sweatshirt with a small gold monogram on the left chest, mid-grey flat-front trousers, white leather sneakers.",
+        "image": "quiz-w-logo-1-b",
+        "accessibility_description": "A navy cotton crew-neck sweatshirt with a large abstract white chevron emblem, mid-grey trousers, white leather sneakers.",
         "loadings": {
           "logo_tolerance": 1.0
         }
@@ -166,16 +166,16 @@
       "priority": 41,
       "option_a": {
         "id": "unbranded",
-        "image": "quiz-logo-2-a",
-        "accessibility_description": "A plain black quarter-zip pullover, black flat-front trousers, black leather sneakers.",
+        "image": "quiz-w-logo-2-a",
+        "accessibility_description": "A plain black quarter-zip pullover with no branding, black trousers, black leather sneakers.",
         "loadings": {
           "logo_tolerance": -1.0
         }
       },
       "option_b": {
         "id": "branded",
-        "image": "quiz-logo-2-b",
-        "accessibility_description": "A black quarter-zip pullover with a small gold monogram on the left chest, black flat-front trousers, black leather sneakers.",
+        "image": "quiz-w-logo-2-b",
+        "accessibility_description": "A black quarter-zip with a large abstract concentric-ring emblem, black trousers, black leather sneakers.",
         "loadings": {
           "logo_tolerance": 1.0
         }
@@ -186,16 +186,16 @@
       "priority": 50,
       "option_a": {
         "id": "classic",
-        "image": "quiz-trend-1-a",
-        "accessibility_description": "A navy single-breasted two-button blazer with natural shoulders, straight-leg mid-grey wool trousers, brown leather cap-toe oxfords.",
+        "image": "quiz-w-trend-1-a",
+        "accessibility_description": "A classic navy single-breasted blazer, a straight mid-grey wool midi skirt, brown leather loafers.",
         "loadings": {
           "trend_tolerance": -1.0
         }
       },
       "option_b": {
         "id": "current",
-        "image": "quiz-trend-1-b",
-        "accessibility_description": "An unstructured navy double-breasted blazer with wide peak lapels worn open, pleated cropped mid-grey wool trousers, chunky lug-soled brown leather loafers.",
+        "image": "quiz-w-trend-1-b",
+        "accessibility_description": "An unstructured navy double-breasted blazer, a pleated cropped mid-grey wool skirt, chunky lug-soled brown loafers.",
         "loadings": {
           "trend_tolerance": 1.0
         }
@@ -206,16 +206,16 @@
       "priority": 51,
       "option_a": {
         "id": "classic",
-        "image": "quiz-trend-2-a",
-        "accessibility_description": "A beige cotton gabardine trench coat over a white shirt and navy trousers, brown leather derbies.",
+        "image": "quiz-w-trend-2-a",
+        "accessibility_description": "A classic beige cotton gabardine trench over a white blouse and navy trousers, brown leather loafers.",
         "loadings": {
           "trend_tolerance": -1.0
         }
       },
       "option_b": {
         "id": "current",
-        "image": "quiz-trend-2-b",
-        "accessibility_description": "A beige technical nylon trench coat with taped seams and a corded drawstring hem over a white shirt and navy trousers, brown leather derbies.",
+        "image": "quiz-w-trend-2-b",
+        "accessibility_description": "A beige technical nylon trench with taped seams and a drawcord hem over a white blouse and navy trousers, brown leather loafers.",
         "loadings": {
           "trend_tolerance": 1.0
         }
@@ -226,16 +226,16 @@
       "priority": 60,
       "option_a": {
         "id": "bare",
-        "image": "quiz-accessory-1-a",
-        "accessibility_description": "A light blue oxford shirt tucked into navy flat-front trousers, brown leather loafers, bare wrists and no belt.",
+        "image": "quiz-w-accessory-1-a",
+        "accessibility_description": "A light blue oxford blouse tucked into navy trousers, brown leather loafers, bare wrists and no belt.",
         "loadings": {
           "accessory_preference": -1.0
         }
       },
       "option_b": {
         "id": "layered",
-        "image": "quiz-accessory-1-b",
-        "accessibility_description": "A light blue oxford shirt tucked into navy flat-front trousers, brown leather loafers, a steel wristwatch and a patterned silk scarf at the neck.",
+        "image": "quiz-w-accessory-1-b",
+        "accessibility_description": "A light blue oxford blouse tucked into navy trousers, brown leather loafers, a steel wristwatch and a patterned silk scarf.",
         "loadings": {
           "accessory_preference": 1.0
         }
@@ -246,16 +246,16 @@
       "priority": 61,
       "option_a": {
         "id": "bare",
-        "image": "quiz-accessory-2-a",
-        "accessibility_description": "A charcoal crew-neck knit, mid-grey flat-front trousers, black leather boots, bare wrists and no belt.",
+        "image": "quiz-w-accessory-2-a",
+        "accessibility_description": "A charcoal crew-neck knit, mid-grey trousers, black leather boots, bare wrists and no belt.",
         "loadings": {
           "accessory_preference": -1.0
         }
       },
       "option_b": {
         "id": "layered",
-        "image": "quiz-accessory-2-b",
-        "accessibility_description": "A charcoal crew-neck knit, mid-grey flat-front trousers, black leather boots, a leather-strap wristwatch and a charcoal wool scarf at the neck.",
+        "image": "quiz-w-accessory-2-b",
+        "accessibility_description": "A charcoal crew-neck knit, mid-grey trousers, black leather boots, a leather-strap wristwatch and a charcoal wool scarf.",
         "loadings": {
           "accessory_preference": 1.0
         }
@@ -266,16 +266,16 @@
       "priority": 70,
       "option_a": {
         "id": "tonal",
-        "image": "quiz-contrast-1-a",
-        "accessibility_description": "A mid-grey crew-neck knit, mid-grey flat-front trousers, mid-grey leather sneakers.",
+        "image": "quiz-w-contrast-1-a",
+        "accessibility_description": "A mid-grey crew-neck knit, mid-grey trousers, mid-grey leather sneakers.",
         "loadings": {
           "contrast_preference": -1.0
         }
       },
       "option_b": {
         "id": "high_contrast",
-        "image": "quiz-contrast-1-b",
-        "accessibility_description": "A near-white crew-neck knit, near-black flat-front trousers, black leather sneakers.",
+        "image": "quiz-w-contrast-1-b",
+        "accessibility_description": "A near-white crew-neck knit, near-black trousers, black leather sneakers.",
         "loadings": {
           "contrast_preference": 1.0
         }
@@ -286,16 +286,16 @@
       "priority": 71,
       "option_a": {
         "id": "tonal",
-        "image": "quiz-contrast-2-a",
-        "accessibility_description": "A mid-blue chambray shirt, mid-blue flat-front trousers, mid-blue suede loafers.",
+        "image": "quiz-w-contrast-2-a",
+        "accessibility_description": "A mid-blue chambray blouse, mid-blue trousers, mid-blue suede loafers.",
         "loadings": {
           "contrast_preference": -1.0
         }
       },
       "option_b": {
         "id": "high_contrast",
-        "image": "quiz-contrast-2-b",
-        "accessibility_description": "A pale ice-blue shirt, deep navy flat-front trousers, deep navy suede loafers.",
+        "image": "quiz-w-contrast-2-b",
+        "accessibility_description": "A pale ice-blue blouse, deep navy trousers, deep navy suede loafers.",
         "loadings": {
           "contrast_preference": 1.0
         }

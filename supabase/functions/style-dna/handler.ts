@@ -118,6 +118,8 @@ export interface ProfileRows {
   style: Record<string, unknown> | null;
   body: Record<string, unknown> | null;
   lifestyle: Record<string, unknown> | null;
+  /** ADR 0019. Absent → menswear. */
+  wardrobeGraph: "menswear_3_role" | "womenswear";
 }
 
 /** The §6.10 summary this endpoint owns and writes back to `style_profiles`. */
@@ -258,7 +260,12 @@ export async function handleGenerateStyleDna(req: Request, deps: HandlerDeps): P
     // 4. Ownership: rows for the JWT-derived id, under RLS. Nothing in the
     // request body could name a different user even if it tried.
     const rows = await deps.profileRepository.load(userId);
-    const context = buildStyleDnaContext(rows.style, rows.body, rows.lifestyle);
+    const context = buildStyleDnaContext(
+      rows.style,
+      rows.body,
+      rows.lifestyle,
+      rows.wardrobeGraph,
+    );
 
     const result = await deps.provider.complete({
       systemPrompt: STYLE_DNA_SYSTEM_PROMPT,

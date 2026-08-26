@@ -19,6 +19,8 @@ import SwiftUI
 struct HomeEmptyStateView: View {
     let reason: HomeBriefData.EmptyReason
     var wardrobeGraph: WardrobeGraph = .menswear3Role
+    /// Roles currently owned among Wear This beams — used for "you have X" copy.
+    var presentRoles: [ClothingCategory] = []
     let onScanItem: () -> Void
 
     var body: some View {
@@ -114,11 +116,13 @@ struct HomeEmptyStateView: View {
         }
     }
 
-    /// What he DOES own, said back to him first. A screen that lists only
-    /// absences reads as a scolding; leading with the shirts he actually
-    /// photographed is what makes "and now some trousers" land as progress.
+    /// What they DO own, said back first. Prefers measured `presentRoles`
+    /// so a dress-only closet never invents tops in the sentence.
     private func present(excluding missing: [ClothingCategory]) -> [ClothingCategory] {
-        HomeBriefData.requiredRoles.filter { !missing.contains($0) }
+        let owned = presentRoles.isEmpty
+            ? HomeBriefData.requiredRoles.filter { !missing.contains($0) }
+            : presentRoles
+        return owned.filter { !missing.contains($0) }
     }
 
     private func list(_ roles: [ClothingCategory]) -> String {

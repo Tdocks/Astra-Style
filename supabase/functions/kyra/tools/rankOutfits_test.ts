@@ -44,6 +44,7 @@ function deps(overrides: Partial<RankOutfitsDeps> = {}): RankOutfitsDeps {
     listItemsByIds: (ids) => Promise.resolve(ROWS.filter((row) => ids.includes(row.id))),
     listOutfitItemIds: () => Promise.resolve(new Map([[OUTFIT_ID, [TOP, BOTTOM, SHOES]]])),
     getOccasionTitle: () => Promise.resolve(null),
+    readWardrobeGraph: () => Promise.resolve("menswear_3_role"),
     ...overrides,
   };
 }

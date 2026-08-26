@@ -76,6 +76,12 @@ export interface BriefRepository {
   listCandidateItems(userId: string): Promise<OutfitScorerRow[]>;
 
   /**
+   * Product graph chosen at onboarding (ADR 0019). Absent / unread falls
+   * back to menswear so a profile without the column still gets a brief.
+   */
+  readWardrobeGraph(userId: string): Promise<"menswear_3_role" | "womenswear">;
+
+  /**
    * Count of occasions starting within the brief's day, for
    * `schedule_snapshot`. Zero is a real answer and is stored as such — an
    * empty diary is a fact about the day, not a missing reading.
@@ -330,13 +336,17 @@ async function buildBrief(
   deps: HandlerDeps,
 ): Promise<DailyBriefRow> {
   const items = await deps.repository.listCandidateItems(userId);
+  const wardrobeGraph = await deps.repository.readWardrobeGraph(userId);
   const rolesByItemId = new Map(items.map((item) => [item.id, item.category as string]));
 
   const scored = deps.scorer.generate(items, {
     desiredCount: DESIRED_OUTFIT_COUNT,
     lockedItemIds: new Set<string>(),
     excludedItemIds: new Set<string>(),
-    context: weatherScoringContext(weatherSnapshot),
+    context: {
+      ...weatherScoringContext(weatherSnapshot),
+      wardrobeGraph,
+    },
   });
 
   const occasionCount = await deps.repository.countOccasions(userId, briefDate);

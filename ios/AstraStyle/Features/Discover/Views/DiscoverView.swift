@@ -73,7 +73,7 @@ struct DiscoverView: View {
                     identifier: "discover.mine"
                 )
                 lookbookRail(
-                    title: String(localized: "Worn by other men", comment: "Discover public worn looks"),
+                    title: wornByOthersTitle,
                     looks: catalog.wornByOthers,
                     empty: String(
                         localized: "Wear This, then make a look public.",
@@ -86,6 +86,16 @@ struct DiscoverView: View {
             .padding(AstraSpacing.pagePadding)
         }
         .scrollIndicators(.hidden)
+    }
+
+    /// Graph-keyed peer copy (ADR 0019). No Settings gender toggle.
+    private var wornByOthersTitle: String {
+        switch viewModel.wardrobeGraph {
+        case .menswear3Role:
+            String(localized: "Worn by other men", comment: "Discover public worn looks, men's graph")
+        case .womenswear:
+            String(localized: "Worn by other women", comment: "Discover public worn looks, women's graph")
+        }
     }
 
     private func lookbookRail(

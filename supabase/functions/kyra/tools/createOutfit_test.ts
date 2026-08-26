@@ -40,6 +40,7 @@ function deps(captured: NewOutfitRecord[]): CreateOutfitDeps {
       captured.push(record);
       return Promise.resolve(NEW_OUTFIT);
     },
+    readWardrobeGraph: () => Promise.resolve("menswear_3_role"),
   };
 }
 

@@ -96,6 +96,9 @@ function memoryRepository(
     listCandidateItems() {
       return Promise.resolve(closet);
     },
+    readWardrobeGraph() {
+      return Promise.resolve("menswear_3_role" as const);
+    },
     listOccasions() {
       return Promise.resolve(occasions);
     },

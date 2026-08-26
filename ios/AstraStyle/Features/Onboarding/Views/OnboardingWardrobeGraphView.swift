@@ -25,6 +25,7 @@ struct OnboardingWardrobeGraphView: View {
                                comment: "Onboarding wardrobe graph option detail")
             )
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.wardrobeGraph")
     }
 

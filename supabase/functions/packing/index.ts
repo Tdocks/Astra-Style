@@ -23,7 +23,8 @@ function generateRoute(req: Request): Promise<Response> {
   return handleGeneratePacking(req, {
     authClient: supabase,
     repository: createPackingRepository(supabase),
-    scorerForDay: (targetOccasion) => new CompatibilityOutfitScorer({ targetOccasion }),
+    scorerForDay: (targetOccasion, wardrobeGraph) =>
+      new CompatibilityOutfitScorer({ targetOccasion, wardrobeGraph }),
     rateLimiter,
     now: () => new Date(),
   });

@@ -129,6 +129,23 @@ struct WardrobeGraphTests {
         #expect(data.emptyReason == .noOutfitYet)
     }
 
+    @Test("Home presentRoles names owned women's roles without inventing tops")
+    func presentRolesForDressCloset() {
+        let data = HomeBriefData(
+            greetingName: "Ada",
+            weather: nil,
+            schedule: nil,
+            brief: DailyBrief(id: UUID(), userID: UUID(), briefDate: .now),
+            primaryOutfit: nil,
+            primaryOutfitItems: [],
+            closetRoleCounts: [.dress: 2, .shoes: 1],
+            wearableRoleCounts: [.dress: 2, .shoes: 1],
+            wardrobeGraph: .womenswear
+        )
+        #expect(Set(data.presentRoles) == Set([.dress, .shoes]))
+        #expect(!data.presentRoles.contains(.top))
+    }
+
     @Test("Women's quiz is its own manifest, not a copy of the men's pair ids")
     func womensQuizIsOwnManifest() {
         let locator = AlwaysResolvingImageLocator()

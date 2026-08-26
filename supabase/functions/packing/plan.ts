@@ -44,6 +44,7 @@ export interface BriefRow {
 
 export interface PackingRepository {
   listCandidateItems(userId: string): Promise<OutfitScorerRow[]>;
+  readWardrobeGraph(userId: string): Promise<"menswear_3_role" | "womenswear">;
   listOccasions(userId: string, fromDate: string, toExclusive: string): Promise<OccasionRow[]>;
   findBriefs(userId: string, dates: readonly string[]): Promise<BriefRow[]>;
   createOutfits(userId: string, drafts: readonly OutfitDraft[]): Promise<string[]>;
@@ -59,7 +60,10 @@ export interface PackingRepository {
 
 export interface BuildPlanDeps {
   repository: PackingRepository;
-  scorerForDay: (targetOccasion?: string) => OutfitScorer;
+  scorerForDay: (
+    targetOccasion: string | undefined,
+    wardrobeGraph: "menswear_3_role" | "womenswear",
+  ) => OutfitScorer;
 }
 
 function occasionsOnDay(rows: readonly OccasionRow[], day: string): OccasionRow[] {
@@ -96,6 +100,7 @@ export async function buildPlan(
   }
 
   const items = await deps.repository.listCandidateItems(userId);
+  const wardrobeGraph = await deps.repository.readWardrobeGraph(userId);
   const rolesByItemId = new Map(items.map((item) => [item.id, item.category as string]));
   const lastExclusive = dates[dates.length - 1] ? nextDay(dates[dates.length - 1]!) : body.endDate;
   const occasions = await deps.repository.listOccasions(userId, body.startDate, lastExclusive);
@@ -108,7 +113,7 @@ export async function buildPlan(
   for (const day of dates) {
     const dayOccasions = occasionsOnDay(occasions, day);
     const occasion = targetOccasion(dayOccasions, body.dressCodes, body.activities);
-    const scorer = deps.scorerForDay(occasion);
+    const scorer = deps.scorerForDay(occasion, wardrobeGraph);
     const scored = pickOutfit(scorer, items, used);
     if (!scored.outfit) {
       missing.push(`No wearable look for ${day}.`);
