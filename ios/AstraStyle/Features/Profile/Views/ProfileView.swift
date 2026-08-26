@@ -42,6 +42,8 @@ public struct ProfileView: View {
                         shoppingRepository: container.shoppingRepository
                     )
                 )
+                styleDNARow
+                preferencesRow
                 appearanceRow
                 aboutCard
                 ProfileReferralCard(viewModel: ProfileReferralViewModel(
@@ -67,6 +69,61 @@ public struct ProfileView: View {
             .astraText(.displayL)
             .foregroundStyle(AstraColor.textPrimary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var styleDNARow: some View {
+        profileNavigationRow(
+            title: String(localized: "Style DNA", comment: "Profile Style DNA row"),
+            subtitle: String(
+                localized: "Your palette, silhouette, and the reasoning behind them.",
+                comment: "Profile Style DNA subtitle"
+            ),
+            identifier: "profile.styleDNARow",
+            route: .styleDNA
+        )
+    }
+
+    private var preferencesRow: some View {
+        profileNavigationRow(
+            title: String(localized: "Preferences", comment: "Profile preferences row"),
+            subtitle: String(
+                localized: "Edit the answers behind your Style DNA.",
+                comment: "Profile preferences subtitle"
+            ),
+            identifier: "profile.preferencesRow",
+            route: .preferences
+        )
+    }
+
+    private func profileNavigationRow(
+        title: String,
+        subtitle: String,
+        identifier: String,
+        route: ProfileRoute
+    ) -> some View {
+        Button {
+            router.push(route)
+        } label: {
+            AstraCard {
+                HStack(spacing: AstraSpacing.md) {
+                    VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                        Text(title)
+                            .astraText(.headline)
+                            .foregroundStyle(AstraColor.textPrimary)
+                        Text(subtitle)
+                            .astraText(.caption)
+                            .foregroundStyle(AstraColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: AstraSpacing.sm)
+                    Image(systemName: "chevron.right")
+                        .astraIcon(.disclosure)
+                        .foregroundStyle(AstraColor.textMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 
     private var appearanceRow: some View {

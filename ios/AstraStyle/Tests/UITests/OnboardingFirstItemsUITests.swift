@@ -92,14 +92,27 @@ final class OnboardingFirstItemsUITests: OnboardingCaptureUITestCase {
         let add = app.buttons["onboarding.firstItems.add"]
         add.scrollIntoView(in: app)
         XCTAssertTrue(add.isEnabled, "A named, categorised item still cannot be added")
+        // scrollIntoView stops when Add first peeks above the fold, but
+        // XCUITest taps the centre — which can still sit under the footer.
+        for _ in 0..<4 { app.swipeUp(velocity: .slow) }
+        usleep(400_000)
         add.waitForStableFrame()
         add.tap()
+
+        // Confirmation or list — either proves the write landed before we
+        // hunt for the row, which may sit below the fold.
+        let added = anyElement("onboarding.firstItems.added")
+        let list = anyElement("onboarding.firstItems.list")
+        XCTAssertTrue(
+            scrollUntilPresent(added) || scrollUntilPresent(list),
+            "Add did not register — no confirmation and no list"
+        )
 
         // The row is the only evidence the user has that the write landed; a
         // confirmation message alone would be the app telling him rather than
         // showing him.
         XCTAssertTrue(
-            scrollUntilPresent(anyElement("onboarding.firstItems.list")),
+            scrollUntilPresent(list),
             "The added item never appeared in the list"
         )
         XCTAssertTrue(

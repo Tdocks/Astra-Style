@@ -8,17 +8,6 @@
 //  file's header for why view models are built here rather than inside
 //  `MainTabView` or inside the pushed view itself.
 //
-//  Two of `ProfileRoute`'s eight cases are real: `.privacyAndData` and
-//  `.accountDeletion`, this pass's own two tickets (P7-PRIVACY-02/03).
-//  The remaining six — `.styleDNA`, `.wardrobeScoreDetail`,
-//  `.preferences`, `.subscriptionManagement`, `.styleMemories`,
-//  `.styleJourney` — belong to other tickets not yet built
-//  (`P7-HOME-05`, `P2-ONBOARD`'s editing flow, `P7-SUB`, `P5-KYRA-17`)
-//  and get the same honest `FeaturePlaceholderView` treatment
-//  `MainTabView` already uses for every other unbuilt tab/route, rather
-//  than silently doing nothing or being left to fail an exhaustiveness
-//  check the moment a route is added.
-//
 
 import SwiftUI
 
@@ -37,16 +26,29 @@ struct ProfileDestinationView: View {
             )
 
         case .styleDNA:
-            FeaturePlaceholderView(
-                title: String(localized: "Style DNA"),
-                message: String(localized: "Your palette, silhouette, and the reasoning behind them."),
-                systemImage: "swatchpalette"
+            StyleDNAView(
+                viewModel: StyleDNAViewModel(profileRepository: container.profileRepository)
             )
 
         case .appearance:
             AppearanceEditorView(
                 viewModel: AppearanceEditorViewModel(
                     profileRepository: container.profileRepository
+                )
+            )
+
+        case .savedItems:
+            SavedItemsView(
+                viewModel: SavedItemsViewModel(
+                    shoppingRepository: container.shoppingRepository
+                )
+            )
+
+        case .productDecision(let candidateID):
+            ProductDecisionView(
+                viewModel: ProductDecisionViewModel(
+                    candidateID: candidateID,
+                    shoppingRepository: container.shoppingRepository
                 )
             )
 
@@ -58,10 +60,10 @@ struct ProfileDestinationView: View {
             )
 
         case .preferences:
-            FeaturePlaceholderView(
-                title: String(localized: "Preferences"),
-                message: String(localized: "Edit the answers behind your Style DNA."),
-                systemImage: "slider.horizontal.3"
+            PreferencesEditorView(
+                viewModel: PreferencesEditorViewModel(
+                    profileRepository: container.profileRepository
+                )
             )
 
         case .subscriptionManagement:

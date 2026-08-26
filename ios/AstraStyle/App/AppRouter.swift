@@ -40,9 +40,11 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
         AstraFeatureFlags.showsUnfinishedChrome ? Array(allCases) : dogfoodTabs
     }
 
-    /// Home, Closet, Studio, Discover, Shop, Profile.
+    /// Home, Closet, Studio, Profile, Discover, Shop.
+    /// Profile sits before Discover/Shop so the privacy/deletion door stays
+    /// on the visible bar instead of under More on every phone.
     public static let dogfoodTabs: [AppTab] = [
-        .home, .closet, .studio, .discover, .shop, .profile,
+        .home, .closet, .studio, .profile, .discover, .shop,
     ]
 
     public var isShownInChrome: Bool {
@@ -169,6 +171,8 @@ public enum ProfileRoute: Hashable, Sendable {
     case styleMemories
     case styleJourney
     case accountDeletion
+    case savedItems
+    case productDecision(candidateID: UUID)
 }
 
 /// Destinations pushed on the Scanner flow's `NavigationStack` (presented

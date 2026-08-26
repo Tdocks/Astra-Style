@@ -18,6 +18,7 @@ public struct HomeView: View {
     @Environment(AppContainer.self) private var container
     private let shoppingRepository: ShoppingRepository
     @State private var isPastingLink = false
+    @State private var wearFeedbackViewModel: WearFeedbackViewModel?
 
     public init(viewModel: HomeViewModel, shoppingRepository: ShoppingRepository) {
         _viewModel = State(wrappedValue: viewModel)
@@ -187,8 +188,10 @@ public struct HomeView: View {
             reason(data)
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
-            actions
+            actions(for: data)
                 .padding(.horizontal, AstraSpacing.pagePadding)
+                .onAppear { syncWearFeedback(for: data) }
+                .onChange(of: data.primaryOutfit?.id) { _, _ in syncWearFeedback(for: data) }
 
             if !viewModel.weekSlots.isEmpty {
                 HomeWeekStripView(
@@ -268,7 +271,7 @@ public struct HomeView: View {
         }
     }
 
-    private var actions: some View {
+    private func actions(for data: HomeBriefData) -> some View {
         VStack(spacing: AstraSpacing.sm) {
             AstraButton(
                 title: wearThisTitle,
@@ -290,6 +293,14 @@ public struct HomeView: View {
                 }
             }
 
+            if let confirmation = homeFeedbackConfirmation {
+                Text(confirmation)
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("home.feedback.confirmation")
+            }
+
             Menu {
                 Button {
                     isPastingLink = true
@@ -301,6 +312,7 @@ public struct HomeView: View {
                 }
                 .accessibilityIdentifier("home.pasteLink")
                 todayShareMenuItem
+                homeSkipDislikeItems(for: data)
             } label: {
                 Label(
                     String(localized: "More options", comment: "Home utility actions menu"),
@@ -312,6 +324,59 @@ public struct HomeView: View {
             .accessibilityIdentifier("home.moreOptions")
 
             makePublicOffer
+        }
+    }
+
+    @ViewBuilder
+    private func homeSkipDislikeItems(for data: HomeBriefData) -> some View {
+        if data.primaryOutfit != nil, wearFeedbackViewModel != nil {
+            Button {
+                Task { await wearFeedbackViewModel?.skip() }
+            } label: {
+                Label(
+                    String(localized: "Not today", comment: "Home skip today's look"),
+                    systemImage: "arrow.uturn.forward"
+                )
+            }
+            .accessibilityIdentifier("home.skip")
+
+            Button {
+                Task { await wearFeedbackViewModel?.dislike() }
+            } label: {
+                Label(
+                    String(localized: "Don't show this again", comment: "Home dislike today's look"),
+                    systemImage: "hand.thumbsdown"
+                )
+            }
+            .accessibilityIdentifier("home.dislike")
+        }
+    }
+
+    private var homeFeedbackConfirmation: String? {
+        guard let outcome = wearFeedbackViewModel?.lastOutcome else { return nil }
+        switch outcome {
+        case .wore:
+            return String(localized: "Logged as worn today.", comment: "Home wear confirmation")
+        case .feedback(.skipped):
+            return String(localized: "Noted — skipped.", comment: "Home skip confirmation")
+        case .feedback(.dislike):
+            return String(localized: "Noted — Kyra will factor this in.", comment: "Home dislike confirmation")
+        case .feedback:
+            return String(localized: "Feedback recorded.", comment: "Home feedback confirmation")
+        }
+    }
+
+    private func syncWearFeedback(for data: HomeBriefData) {
+        guard let outfitID = data.primaryOutfit?.id else {
+            wearFeedbackViewModel = nil
+            return
+        }
+        if wearFeedbackViewModel?.outfitID != outfitID {
+            wearFeedbackViewModel = WearFeedbackViewModel(
+                outfitID: outfitID,
+                outfitRepository: container.outfitRepository,
+                analyticsClient: container.analyticsClient
+            )
         }
     }
 

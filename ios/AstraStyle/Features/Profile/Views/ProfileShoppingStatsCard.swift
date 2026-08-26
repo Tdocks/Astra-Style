@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ProfileShoppingStatsCard: View {
     @State private var viewModel: ProfileShoppingStatsViewModel
+    @Environment(AppRouter.self) private var router
 
     init(viewModel: ProfileShoppingStatsViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -19,18 +20,52 @@ struct ProfileShoppingStatsCard: View {
             Text(String(localized: "Saved", comment: "Profile wishlist section"))
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
-            AstraCard {
+            if viewModel.savedCount > 0 {
+                Button {
+                    router.push(ProfileRoute.savedItems)
+                } label: {
+                    cardContent(showChevron: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("profile.savedRow")
+                .accessibilityHint(Text(String(
+                    localized: "Opens your saved pieces",
+                    comment: "Saved row hint"
+                )))
+            } else {
+                cardContent(showChevron: false)
+            }
+        }
+        .task { await viewModel.onAppear() }
+    }
+
+    private func cardContent(showChevron: Bool) -> some View {
+        AstraCard {
+            HStack(spacing: AstraSpacing.md) {
                 VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
                     Text(viewModel.line)
                         .astraText(.body)
                         .foregroundStyle(AstraColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("profile.shoppingStats")
+                    if showChevron {
+                        Text(String(
+                            localized: "View saved pieces",
+                            comment: "Profile saved list affordance"
+                        ))
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.accentChampagneAccessible)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                if showChevron {
+                    Spacer(minLength: AstraSpacing.sm)
+                    Image(systemName: "chevron.right")
+                        .astraIcon(.disclosure)
+                        .foregroundStyle(AstraColor.textMuted)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .task { await viewModel.onAppear() }
     }
 }
 
@@ -41,6 +76,7 @@ final class ProfileShoppingStatsViewModel {
         localized: "Saved and purchased items will show here.",
         comment: "Profile shopping stats placeholder"
     )
+    private(set) var savedCount = 0
 
     private let shoppingRepository: ShoppingRepository
 
@@ -51,6 +87,7 @@ final class ProfileShoppingStatsViewModel {
     func onAppear() async {
         let saved = (try? await shoppingRepository.fetchWishlist())?.count ?? 0
         let bought = (try? await shoppingRepository.fetchPurchased())?.count ?? 0
+        savedCount = saved
         line = String(
             localized: "\(saved) saved · \(bought) purchased",
             comment: "Profile wishlist and purchased counts"

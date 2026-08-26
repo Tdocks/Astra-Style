@@ -65,7 +65,7 @@ struct DiscoverView: View {
             LazyVStack(alignment: .leading, spacing: AstraSpacing.xl) {
                 lookbookRail(
                     title: String(localized: "Your lookbooks", comment: "Discover own looks rail"),
-                    outfits: catalog.mine,
+                    looks: catalog.mine,
                     empty: String(
                         localized: "Wear This or save a look first.",
                         comment: "Discover own lookbooks empty"
@@ -74,7 +74,7 @@ struct DiscoverView: View {
                 )
                 lookbookRail(
                     title: String(localized: "Worn by other men", comment: "Discover public worn looks"),
-                    outfits: catalog.wornByOthers,
+                    looks: catalog.wornByOthers,
                     empty: String(
                         localized: "Wear This, then make a look public.",
                         comment: "Discover public looks empty"
@@ -90,7 +90,7 @@ struct DiscoverView: View {
 
     private func lookbookRail(
         title: String,
-        outfits: [Outfit],
+        looks: [DiscoverViewModel.DiscoverLook],
         empty: String,
         identifier: String
     ) -> some View {
@@ -98,33 +98,43 @@ struct DiscoverView: View {
             Text(title)
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)
-            if outfits.isEmpty {
+            if looks.isEmpty {
                 Text(empty)
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("\(identifier).empty")
             } else {
-                ForEach(outfits) { outfit in
+                ForEach(looks) { look in
                     Button {
-                        router.push(DiscoverRoute.lookbook(id: outfit.id))
+                        router.push(DiscoverRoute.lookbook(id: look.outfit.id))
                     } label: {
-                        lookbookCard(outfit)
+                        lookbookCard(look)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("\(identifier).\(outfit.id.uuidString)")
+                    .accessibilityIdentifier("\(identifier).\(look.outfit.id.uuidString)")
                 }
             }
         }
     }
 
-    private func lookbookCard(_ outfit: Outfit) -> some View {
+    private func lookbookCard(_ look: DiscoverViewModel.DiscoverLook) -> some View {
         AstraCard {
-            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                Text(outfit.name)
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                if !look.garments.isEmpty {
+                    LookSilhouetteView(
+                        garments: look.garments,
+                        frame: viewModel.frame,
+                        onTapGarment: nil
+                    )
+                    .frame(maxHeight: AstraSize.silhouetteHeight * 0.65)
+                    .allowsHitTesting(false)
+                }
+
+                Text(look.outfit.name)
                     .astraText(.headline)
                     .foregroundStyle(AstraColor.textPrimary)
-                if let description = outfit.description, !description.isEmpty {
+                if let description = look.outfit.description, !description.isEmpty {
                     Text(description)
                         .astraText(.callout)
                         .foregroundStyle(AstraColor.textSecondary)
@@ -154,25 +164,39 @@ struct DiscoverView: View {
                     Button {
                         router.push(DiscoverRoute.productDecision(candidateID: item.candidate.id))
                     } label: {
-                        AstraCard {
-                            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                                Text(item.candidate.name)
-                                    .astraText(.headline)
-                                    .foregroundStyle(AstraColor.textPrimary)
-                                Text(item.candidate.retailer)
-                                    .astraText(.caption)
-                                    .foregroundStyle(AstraColor.textMuted)
-                                Text(unlockLine(item.outfitsUnlocked))
-                                    .astraText(.callout)
-                                    .foregroundStyle(AstraColor.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
+                        unlockRow(item)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("discover.unlocks.\(item.candidate.id.uuidString)")
                 }
+            }
+        }
+    }
+
+    private func unlockRow(_ item: ProductUnlock) -> some View {
+        AstraCard {
+            HStack(alignment: .top, spacing: AstraSpacing.md) {
+                AstraRemoteImage(
+                    url: item.candidate.imageURL,
+                    aspectRatio: 4.0 / 5.0,
+                    thumbnail: .listRowThumbnail,
+                    accessibilityDescription: item.candidate.name
+                )
+                .frame(width: 88)
+
+                VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                    Text(item.candidate.name)
+                        .astraText(.headline)
+                        .foregroundStyle(AstraColor.textPrimary)
+                    Text(item.candidate.retailer)
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textMuted)
+                    Text(unlockLine(item.outfitsUnlocked))
+                        .astraText(.callout)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

@@ -19,7 +19,7 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `7`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `8`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |

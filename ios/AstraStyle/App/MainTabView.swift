@@ -184,7 +184,10 @@ struct MainTabView: View {
             DiscoverView(
                 viewModel: DiscoverViewModel(
                     outfitRepository: container.outfitRepository,
-                    shoppingRepository: container.shoppingRepository
+                    shoppingRepository: container.shoppingRepository,
+                    closetRepository: container.closetRepository,
+                    profileRepository: container.profileRepository,
+                    imageURLResolver: container.closetImageURLResolver
                 )
             )
             .navigationDestination(for: DiscoverRoute.self) { route in

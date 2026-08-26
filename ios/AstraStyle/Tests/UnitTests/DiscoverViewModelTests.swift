@@ -14,9 +14,22 @@ import Testing
 @MainActor
 struct DiscoverViewModelTests {
 
+    private func makeModel(
+        outfitRepository: OutfitRepository,
+        shoppingRepository: ShoppingRepository
+    ) -> DiscoverViewModel {
+        DiscoverViewModel(
+            outfitRepository: outfitRepository,
+            shoppingRepository: shoppingRepository,
+            closetRepository: MockClosetRepository(items: []),
+            profileRepository: MockProfileRepository(),
+            imageURLResolver: MockClosetImageURLResolver()
+        )
+    }
+
     @Test("No saved outfits and no unlocks is empty, not a storefront")
     func emptyClosetLooksEmpty() async {
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: []),
             shoppingRepository: EmptyShoppingStub()
         )
@@ -36,7 +49,7 @@ struct DiscoverViewModelTests {
             name: "Old look",
             archivedAt: Date()
         )
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: [live, archived]),
             shoppingRepository: EmptyShoppingStub()
         )
@@ -46,8 +59,8 @@ struct DiscoverViewModelTests {
             Issue.record("expected .loaded, got \(model.state)")
             return
         }
-        #expect(catalog.mine.map(\.id) == [live.id])
-        #expect(catalog.mine.allSatisfy { !$0.isArchived })
+        #expect(catalog.mine.map(\.outfit.id) == [live.id])
+        #expect(catalog.mine.allSatisfy { !$0.outfit.isArchived })
         #expect(catalog.wornByOthers.isEmpty)
     }
 
@@ -60,7 +73,7 @@ struct DiscoverViewModelTests {
             name: "His navy",
             visibility: .shared
         )
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: [mine], publicLooks: [other]),
             shoppingRepository: EmptyShoppingStub()
         )
@@ -69,15 +82,15 @@ struct DiscoverViewModelTests {
             Issue.record("expected .loaded, got \(model.state)")
             return
         }
-        #expect(catalog.mine.map(\.id) == [mine.id])
-        #expect(catalog.wornByOthers.map(\.id) == [other.id])
+        #expect(catalog.mine.map(\.outfit.id) == [mine.id])
+        #expect(catalog.wornByOthers.map(\.outfit.id) == [other.id])
     }
 
     @Test("A candidate with more unlocks ranks above one with fewer")
     func higherGapRanksFirst() async throws {
         let few = unlock(name: "Few looks", outfitsUnlocked: 2)
         let many = unlock(name: "Many looks", outfitsUnlocked: 8)
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: [
                 Outfit(id: UUID(), userID: SampleData.userID, name: "Keep loaded")
             ]),
@@ -95,7 +108,7 @@ struct DiscoverViewModelTests {
     @Test("Discover Unlocks does not read the curated catalog")
     func unlocksDoesNotCallCuratedCatalog() async {
         let shopping = UnlocksShoppingStub([])
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: []),
             shoppingRepository: shopping
         )
@@ -111,7 +124,7 @@ struct DiscoverViewModelTests {
             affiliate: true
         )
         let organicMany = unlock(name: "Organic boot", outfitsUnlocked: 9)
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: [
                 Outfit(id: UUID(), userID: SampleData.userID, name: "Keep loaded")
             ]),
@@ -131,7 +144,7 @@ struct DiscoverViewModelTests {
     func zeroUnlockOmitted() async throws {
         let zero = unlock(name: "Already covered", outfitsUnlocked: 0)
         let gap = unlock(name: "New looks", outfitsUnlocked: 4)
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: [
                 Outfit(id: UUID(), userID: SampleData.userID, name: "Keep loaded")
             ]),
@@ -148,7 +161,7 @@ struct DiscoverViewModelTests {
 
     @Test("An unlocks-only empty catalog stays empty, not a mall dump")
     func emptyUnlocksStayEmpty() async {
-        let model = DiscoverViewModel(
+        let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: []),
             shoppingRepository: UnlocksShoppingStub([
                 unlock(name: "No gap", outfitsUnlocked: 0)
