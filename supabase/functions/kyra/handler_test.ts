@@ -473,6 +473,30 @@ Deno.test("docs/06 §6: a provider outage becomes an in-voice fallback, never a 
   assert(String(payload["message"]).includes("couldn't reach"));
 });
 
+Deno.test("a missing provider key is identified separately from a transient outage", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([
+    {
+      kind: "throw",
+      error: new ProviderError(
+        "PROVIDER_UNAVAILABLE",
+        false,
+        "stylist key missing",
+        undefined,
+        true,
+      ),
+    },
+  ]);
+  const response = await handleKyraRespond(
+    request({ text: "hi" }),
+    deps(provider, fakeStore(recording)),
+  );
+  assertEquals(response.status, 200);
+  const data = (await envelope(response))["data"] as Record<string, unknown>;
+  const metadata = data["model_metadata"] as Record<string, unknown>;
+  assertEquals(metadata["fallback_reason"], "provider_not_configured");
+});
+
 Deno.test("hallucinated closet-item cards are dropped before persistence and the wire", async () => {
   const recording = emptyRecording();
   const provider = scriptedProvider([

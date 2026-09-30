@@ -598,7 +598,7 @@ async function orchestrateTurn(
         response: safeFallbackResponse(FALLBACK_PROVIDER_DOWN),
         tierUsed,
         escalated,
-        fallbackReason: "provider_error",
+        fallbackReason: err.isConfigurationIssue ? "provider_not_configured" : "provider_error",
         modelIdentifier: null,
         usage,
       };

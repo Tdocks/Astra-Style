@@ -58,6 +58,13 @@ public struct KyraTranscriptEntry: Identifiable, Sendable {
     public var sendFailure: AstraError?
     public var pending: PendingSend?
 
+    /// Provider failures are currently persisted as a successful HTTP
+    /// response so the conversation keeps its server-created thread. Keep
+    /// the original prompt on the assistant row and offer an explicit retry
+    /// instead of rendering the provider fallback as a normal Kyra answer.
+    public var assistantFailureMessage: String?
+    public var assistantRetryPrompt: String?
+
     public init(
         id: UUID = UUID(),
         role: KyraMessageRole,
@@ -68,7 +75,9 @@ public struct KyraTranscriptEntry: Identifiable, Sendable {
         suggestedActions: [KyraSuggestedAction] = [],
         memoryNotes: [String] = [],
         sendFailure: AstraError? = nil,
-        pending: PendingSend? = nil
+        pending: PendingSend? = nil,
+        assistantFailureMessage: String? = nil,
+        assistantRetryPrompt: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -80,5 +89,7 @@ public struct KyraTranscriptEntry: Identifiable, Sendable {
         self.memoryNotes = memoryNotes
         self.sendFailure = sendFailure
         self.pending = pending
+        self.assistantFailureMessage = assistantFailureMessage
+        self.assistantRetryPrompt = assistantRetryPrompt
     }
 }

@@ -193,8 +193,9 @@ public final class KyraConversationViewModel {
         do {
             let messages = try await kyraRepository.fetchMessages(threadID: threadID)
             var loaded: [KyraTranscriptEntry] = []
-            for message in messages {
-                loaded.append(await entry(for: message))
+            for (index, message) in messages.enumerated() {
+                let previousUserPrompt = messages[..<index].last(where: { $0.role == .user })?.content
+                loaded.append(await entry(for: message, retryPrompt: previousUserPrompt))
             }
             entries = loaded
             historyState = .loaded
@@ -259,6 +260,15 @@ public final class KyraConversationViewModel {
         )
     }
 
+    /// A provider fallback is a persisted assistant row, not a transport
+    /// failure. Retry it as a new turn on the same server-created thread.
+    public func retryAssistantFailure(entryID: UUID) async {
+        guard !isSending, !isOffline,
+              let entry = entries.first(where: { $0.id == entryID }),
+              let prompt = entry.assistantRetryPrompt else { return }
+        await send(text: prompt, drafts: [], contextualOutfitID: contextualOutfitID)
+    }
+
     private func send(text: String, drafts: [KyraAttachmentDraft], contextualOutfitID: UUID? = nil) async {
         isSending = true
         defer { isSending = false }
@@ -285,7 +295,7 @@ public final class KyraConversationViewModel {
             let reply = try await kyraRepository.send(threadID: threadID, message: outgoing)
             threadID = reply.threadID
             markSendDelivered(entryID: localID)
-            entries.append(await entry(for: reply))
+            entries.append(await entry(for: reply, retryPrompt: text))
             analyticsClient.log(.kyraPromptSent(intent: reply.structuredPayload?.intent))
         } catch {
             markSendFailed(entryID: localID, error: asAstraError(error))
@@ -324,10 +334,12 @@ public final class KyraConversationViewModel {
 
     // MARK: - Entry construction
 
-    private func entry(for message: KyraMessage) async -> KyraTranscriptEntry {
+    private func entry(for message: KyraMessage, retryPrompt: String? = nil) async -> KyraTranscriptEntry {
         guard message.role == .assistant, let payload = message.structuredPayload else {
             return KyraTranscriptEntry(id: message.id, role: message.role, text: message.content)
         }
+        let fallbackReason = providerFallbackReason(message)
+        let providerFailed = fallbackReason != nil
         return KyraTranscriptEntry(
             id: message.id,
             role: .assistant,
@@ -338,8 +350,21 @@ public final class KyraConversationViewModel {
             rawCards: payload.cards,
             cards: await hydrator.hydrate(payload.cards),
             suggestedActions: payload.suggestedActions,
-            memoryNotes: payload.memoryProposals.map(\.content)
+            memoryNotes: payload.memoryProposals.map(\.content),
+            assistantFailureMessage: providerFailed
+                ? (fallbackReason == "provider_not_configured"
+                    ? String(localized: "Kyra's styling service hasn't been connected yet.", comment: "Kyra provider configuration failure")
+                    : String(localized: "Kyra couldn't reach her styling service just now.", comment: "Kyra provider failure"))
+                : nil,
+            assistantRetryPrompt: providerFailed ? retryPrompt : nil
         )
+    }
+
+    private func providerFallbackReason(_ message: KyraMessage) -> String? {
+        guard case .object(let metadata)? = message.modelMetadata,
+              case .string(let reason)? = metadata["fallback_reason"],
+              reason == "provider_error" || reason == "provider_not_configured" else { return nil }
+        return reason
     }
 
     /// Re-runs hydration for one message's cards — the retry behind an

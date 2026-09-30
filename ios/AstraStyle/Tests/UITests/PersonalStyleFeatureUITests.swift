@@ -29,31 +29,53 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         return found
     }
 
-    /// The dedicated Home action asks the everyday question directly and
-    /// sends it once, with the current weather and calendar context attached.
-    func testAskKyraWhatToWearToday() throws {
+    /// Home's inspiration action opens a contextual Kyra conversation.
+    func testHomeStyleInspiration() throws {
         launchMockMain()
 
-        let askToday = app.buttons["home.askKyra.today"]
-        askToday.scrollIntoView(in: app)
-        awaitElement(askToday, "Home daily styling chat action")
-        askToday.tap()
+        let inspiration = app.buttons["home.style.inspiration"]
+        inspiration.scrollIntoView(in: app)
+        awaitElement(inspiration, "Home style inspiration action")
+        inspiration.tap()
 
         let userMessage = app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier == %@ AND label CONTAINS %@",
                 "kyra.message.user",
-                "What should I wear today?"
+                "Create a style inspiration"
             )
         ).firstMatch
-        awaitElement(userMessage, "Today's styling question in the conversation")
+        awaitElement(userMessage, "Today's inspiration request in the conversation")
         awaitElement(
             app.descendants(matching: .any)["kyra.message.assistant"].firstMatch,
-            "Kyra's daily outfit recommendation"
+            "Kyra's inspiration response"
         )
         awaitElement(
             app.descendants(matching: .any)["kyra.card.outfit"].firstMatch,
             "Structured outfit recommendation"
+        )
+    }
+
+    /// The second Home path explicitly tells Kyra to use only owned pieces.
+    func testHomeClosetBasedOutfit() throws {
+        launchMockMain()
+
+        let closetOutfit = app.buttons["home.style.fromCloset"]
+        closetOutfit.scrollIntoView(in: app)
+        awaitElement(closetOutfit, "Home closet outfit action")
+        closetOutfit.tap()
+
+        let userMessage = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier == %@ AND label CONTAINS %@",
+                "kyra.message.user",
+                "using only pieces in my closet"
+            )
+        ).firstMatch
+        awaitElement(userMessage, "Closet-only outfit request in the conversation")
+        awaitElement(
+            app.descendants(matching: .any)["kyra.card.outfit"].firstMatch,
+            "Outfit card built from closet pieces"
         )
     }
 

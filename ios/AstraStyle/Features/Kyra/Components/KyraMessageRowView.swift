@@ -100,11 +100,20 @@ struct KyraMessageRowView: View {
             AstraMonogram(size: AstraSpacing.xl)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-                Text(entry.text)
-                    .astraText(.body)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("kyra.message.assistant")
+                if let failure = entry.assistantFailureMessage {
+                    Text(failure)
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("kyra.message.assistant")
+                    assistantFailureRow
+                } else {
+                    Text(entry.text)
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("kyra.message.assistant")
+                }
                 ForEach(entry.cards) { card in
                     KyraCardView(card: card, entryID: entry.id, viewModel: viewModel)
                 }
@@ -117,6 +126,33 @@ struct KyraMessageRowView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var assistantFailureRow: some View {
+        HStack(alignment: .center, spacing: AstraSpacing.xs) {
+            Image(systemName: "exclamationmark.circle")
+                .astraIcon(.disclosure)
+                .foregroundStyle(AstraColor.textMuted)
+                .accessibilityHidden(true)
+            Text("Your question is saved here.")
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textSecondary)
+            if let prompt = entry.assistantRetryPrompt {
+                if viewModel.isOffline {
+                    Text("Reconnect to try again.")
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textMuted)
+                } else {
+                    Button("Try again") {
+                        Task { await viewModel.retryAssistantFailure(entryID: entry.id) }
+                    }
+                    .buttonStyle(.astraTertiary)
+                    .disabled(viewModel.isSending || prompt.isEmpty)
+                    .accessibilityIdentifier("kyra.assistant.retry")
+                }
+            }
+        }
+        .accessibilityIdentifier("kyra.assistant.failure")
     }
 
     private var performableActions: [KyraSuggestedAction] {

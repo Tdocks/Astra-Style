@@ -119,6 +119,27 @@ struct KyraConversationViewModelTests {
         #expect(model.entries[1].role == .assistant)
     }
 
+    @Test("A persisted provider fallback is identified and retried in the same thread")
+    func providerFallbackCanBeRetried() async throws {
+        let repository = ProviderFallbackThenSuccessKyraRepository()
+        let model = makeModel(kyra: repository)
+        await model.onAppear()
+
+        await model.send(prompt: "What should I wear today?")
+
+        let fallback = try #require(model.entries.last)
+        #expect(fallback.assistantFailureMessage != nil)
+        #expect(fallback.assistantRetryPrompt == "What should I wear today?")
+        let originalThreadID = try #require(model.threadID)
+
+        await model.retryAssistantFailure(entryID: fallback.id)
+
+        #expect(repository.sentThreadIDs == [nil, originalThreadID])
+        #expect(model.entries.count == 4)
+        #expect(model.entries[2].text == "What should I wear today?")
+        #expect(model.entries[3].assistantFailureMessage == nil)
+    }
+
     @Test("Offline blocks send with a stated condition instead of a queue")
     func offlineBlocksSend() async {
         let model = makeModel(offline: true)
@@ -254,6 +275,47 @@ private final class FlakyKyraRepository: KyraRepository, @unchecked Sendable {
         if remainingFailures > 0 {
             remainingFailures -= 1
             throw AstraError.network("Couldn't reach Kyra.")
+        }
+        return try await base.send(threadID: threadID, message: message)
+    }
+
+    func fetchThreads() async throws -> [KyraThread] { try await base.fetchThreads() }
+    func fetchMessages(threadID: UUID) async throws -> [KyraMessage] {
+        try await base.fetchMessages(threadID: threadID)
+    }
+    func fetchMemories() async throws -> [StyleMemory] { try await base.fetchMemories() }
+    func confirmMemoryProposal(_ proposal: KyraMemoryProposal, sourceMessageID: UUID) async throws -> StyleMemory {
+        try await base.confirmMemoryProposal(proposal, sourceMessageID: sourceMessageID)
+    }
+    func deleteMemory(id: UUID) async throws { try await base.deleteMemory(id: id) }
+}
+
+/// The live handler's provider fallback arrives as HTTP 200 with a
+/// `fallback_reason` in model metadata. The first response mirrors that
+/// contract; the next delegates to the normal mock to prove retry uses the
+/// already-created thread.
+private final class ProviderFallbackThenSuccessKyraRepository: KyraRepository, @unchecked Sendable {
+    private let base = MockKyraRepository()
+    private var didReturnFallback = false
+    private(set) var sentThreadIDs: [UUID?] = []
+
+    func send(threadID: UUID?, message: KyraOutgoingMessage) async throws -> KyraMessage {
+        sentThreadIDs.append(threadID)
+        guard didReturnFallback else {
+            didReturnFallback = true
+            let resolvedThreadID = threadID ?? UUID()
+            return KyraMessage(
+                id: UUID(),
+                threadID: resolvedThreadID,
+                role: .assistant,
+                content: "I couldn't reach my styling tools just now.",
+                structuredPayload: KyraStructuredResponse(
+                    message: "I couldn't reach my styling tools just now.",
+                    intent: .general,
+                    confidence: 0
+                ),
+                modelMetadata: .object(["fallback_reason": .string("provider_error")])
+            )
         }
         return try await base.send(threadID: threadID, message: message)
     }

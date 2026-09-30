@@ -62,8 +62,8 @@ extension HomeView {
                 }
             }
 
-            pasteLinkButton
-                .padding(.horizontal, AstraSpacing.pagePadding)
+            styleEntryPoints
+
         }
     }
 
@@ -132,6 +132,8 @@ extension HomeView {
             DailyReminderOptInCard(service: container.reminderService)
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
+            styleEntryPoints
+
             TodaysLookView(garments: data.lookGarments) { garment in
                 router.select(.closet)
                 router.push(ClosetRoute.itemDetail(itemID: garment.item.id))
@@ -145,9 +147,6 @@ extension HomeView {
                 .padding(.horizontal, AstraSpacing.pagePadding)
                 .onAppear { syncWearFeedback(for: data) }
                 .onChange(of: data.primaryOutfit?.id) { _, _ in syncWearFeedback(for: data) }
-
-            askKyraTodayButton
-                .padding(.horizontal, AstraSpacing.pagePadding)
 
             if !viewModel.weekSlots.isEmpty {
                 HomeWeekStripView(
@@ -167,15 +166,22 @@ extension HomeView {
         }
     }
 
-    private var askKyraTodayButton: some View {
-        Button {
-            router.startAskKyra(initialPrompt: "What should I wear today?", autoSend: true)
-        } label: {
-            Label("Ask Kyra what to wear today", systemImage: "bubble.left")
-                .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
-        }
-        .buttonStyle(.astraSecondary)
-        .accessibilityIdentifier("home.askKyra.today")
+    private var styleEntryPoints: some View {
+        HomeStyleEntryPointsView(
+            onInspiration: {
+                router.startAskKyra(
+                    initialPrompt: "Create a style inspiration for today using my style preferences, today's weather, and my upcoming plans. You may suggest pieces beyond my closet, but clearly distinguish inspiration from items I own.",
+                    autoSend: true
+                )
+            },
+            onClosetOutfit: {
+                router.startAskKyra(
+                    initialPrompt: "Build me an outfit for today using only pieces in my closet. Consider today's weather and my upcoming plans. Show the actual closet items, and make it easy for me to swap a piece or ask for a more casual or dressy version.",
+                    autoSend: true
+                )
+            }
+        )
+        .padding(.horizontal, AstraSpacing.pagePadding)
     }
 
     private var monthlyReviewCard: some View {

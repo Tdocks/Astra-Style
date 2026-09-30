@@ -85,6 +85,8 @@ const unconfiguredProvider: StylistReasoningProvider = {
         false,
         "STYLIST_PROVIDER_API_KEY is not set; the live stylist provider is not configured " +
           "for this deployment.",
+        undefined,
+        true,
       ),
     );
   },
@@ -94,6 +96,8 @@ const unconfiguredProvider: StylistReasoningProvider = {
       "PROVIDER_UNAVAILABLE",
       false,
       "STYLIST_PROVIDER_API_KEY is not set.",
+      undefined,
+      true,
     );
   },
 };

@@ -64,18 +64,21 @@ export class ProviderError extends Error {
   readonly code: ProviderErrorCode;
   readonly retryable: boolean;
   readonly providerRawStatus?: number;
+  readonly isConfigurationIssue: boolean;
 
   constructor(
     code: ProviderErrorCode,
     retryable: boolean,
     message: string,
     providerRawStatus?: number,
+    isConfigurationIssue = false,
   ) {
     super(message);
     this.name = "ProviderError";
     this.code = code;
     this.retryable = retryable;
     this.providerRawStatus = providerRawStatus;
+    this.isConfigurationIssue = isConfigurationIssue;
   }
 }
 
