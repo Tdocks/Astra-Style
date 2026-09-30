@@ -5,12 +5,13 @@ default_platform(:ios)
 ASC_KEY_ID = "AV4QQKM7Q5"
 ASC_ISSUER_ID = "ac46a433-b795-401f-8044-832650880809"
 ASC_KEY_PATH = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_#{ASC_KEY_ID}.p8")
+IOS_DIR = File.expand_path("..", __dir__)
 
 platform :ios do
   desc "Unit tests on the booted simulator"
   lane :tests do
     run_tests(
-      project: "AstraStyle.xcodeproj",
+      project: File.join(IOS_DIR, "AstraStyle.xcodeproj"),
       scheme: "AstraStyle",
       device: ENV["FASTLANE_DEVICE"] || "iPhone 17 Pro"
     )
@@ -21,7 +22,7 @@ platform :ios do
     ensure_bundle
     api_key = connect_api_key
     gym(
-      project: "AstraStyle.xcodeproj",
+      project: File.join(IOS_DIR, "AstraStyle.xcodeproj"),
       scheme: "AstraStyle",
       configuration: "Release",
       export_method: "app-store",
@@ -31,7 +32,7 @@ platform :ios do
         teamID: "Q9ZH8AA9NY"
       },
       xcargs: "-allowProvisioningUpdates",
-      output_directory: "build/export",
+      output_directory: File.join(IOS_DIR, "build/export"),
       clean: true
     )
     upload_to_testflight(
@@ -63,7 +64,10 @@ platform :ios do
   end
 
   private_lane :ensure_bundle do
-    UI.user_error!("Copy Config/Secrets.example.xcconfig to Config/Secrets.xcconfig") unless File.exist?("Config/Secrets.xcconfig")
-    sh("xcodegen generate")
+    secrets_path = File.join(IOS_DIR, "Config/Secrets.xcconfig")
+    UI.user_error!("Copy Config/Secrets.example.xcconfig to Config/Secrets.xcconfig") unless File.exist?(secrets_path)
+    Dir.chdir(IOS_DIR) do
+      sh("xcodegen generate")
+    end
   end
 end
