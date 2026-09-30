@@ -31,9 +31,9 @@ Version **1.0.0 (10)** is processed as **VALID** and is attached to both the
 owner's Internal group and the public External group. Beta App Review was
 submitted and is **Waiting for Review**. The owner can install build 10 through
 Internal TestFlight now; external testers can install it after Apple approves
-the review. The App Store Server Notifications V2 URLs are still not configured
-in App Store Connect; set both Production and Sandbox to
-`https://anutsdzbxycaavmmkewo.supabase.co/functions/v1/app-store/webhook`.
+the review. Production and Sandbox App Store Server Notifications URLs are
+configured at `https://anutsdzbxycaavmmkewo.supabase.co/functions/v1/app-store/webhook`.
+Signed Apple test-notification acceptance and sandbox purchase checks remain.
 
 ---
 
