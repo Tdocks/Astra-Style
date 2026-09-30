@@ -13,6 +13,16 @@ public protocol ProfileRepository: Sendable {
     func fetchCurrentProfile() async throws -> Profile
     func updateProfile(_ profile: Profile) async throws -> Profile
 
+    /// Stores an optimized profile portrait in the owner's private storage.
+    /// Returns a durable object path; callers persist the path in `profiles`.
+    func uploadProfileAvatar(_ imageData: Data) async throws -> String
+
+    /// Deletes an unreferenced profile avatar owned by the current user.
+    func deleteProfileAvatar(path: String) async throws
+
+    /// Explicitly writes or clears avatar columns, including SQL NULL values.
+    func updateAvatarStoragePath(_ path: String?) async throws -> Profile
+
     func fetchStyleProfile() async throws -> StyleProfile?
     func updateStyleProfile(_ styleProfile: StyleProfile) async throws -> StyleProfile
 
@@ -76,6 +86,18 @@ public protocol ProfileRepository: Sendable {
 
 public extension ProfileRepository {
     func applyReferralCode(_ code: String) async throws {}
+
+    func uploadProfileAvatar(_ imageData: Data) async throws -> String {
+        throw AstraError.unimplemented("Profile photos aren't available here yet.")
+    }
+
+    func deleteProfileAvatar(path: String) async throws {
+        throw AstraError.unimplemented("Removing a profile photo isn't available here yet.")
+    }
+
+    func updateAvatarStoragePath(_ path: String?) async throws -> Profile {
+        throw AstraError.unimplemented("Profile photos aren't available here yet.")
+    }
 
     func deleteReferenceImage(path: String) async throws {
         throw AstraError.unimplemented("Removing a reference photo isn't available here yet.")

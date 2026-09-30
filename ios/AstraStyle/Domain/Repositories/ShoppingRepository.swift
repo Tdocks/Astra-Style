@@ -33,10 +33,17 @@ public protocol ShoppingRepository: Sendable {
 
     func fetchWishlist() async throws -> [ProductCandidate]
     func fetchPurchased() async throws -> [ProductCandidate]
+
+    /// Product evaluations made during an inclusive date range.
+    func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation]
     func addToWishlist(candidateID: UUID) async throws
     func removeFromWishlist(candidateID: UUID) async throws
 
     /// Records a purchase for cost-per-wear tracking once the item is
     /// eventually scanned into the closet (spec §5.5 "mark purchased").
     func markPurchased(candidateID: UUID) async throws
+}
+
+public extension ShoppingRepository {
+    func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation] { [] }
 }

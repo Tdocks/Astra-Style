@@ -64,6 +64,7 @@ export function executeGetWeather(
     high_c: highC,
     low_c: lowC,
     condition: snapshot.condition,
+    season: snapshot.season,
     forecast: [
       {
         date: today,

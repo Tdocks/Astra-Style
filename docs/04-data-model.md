@@ -28,6 +28,7 @@ erDiagram
     AUTH_USERS ||--o{ KYRA_THREADS : has
     AUTH_USERS ||--o{ OCCASIONS : plans
     AUTH_USERS ||--o{ DAILY_BRIEFS : receives
+    AUTH_USERS ||--o{ WARDROBE_SCORE_MONTHLY_SNAPSHOTS : captures
     AUTH_USERS ||--o{ STUDIO_GENERATIONS : requests
     AUTH_USERS ||--o{ SUBSCRIPTIONS : has
     AUTH_USERS ||--o{ USER_PRODUCT_EVALUATIONS : evaluates
@@ -80,6 +81,13 @@ erDiagram
 
     OUTFITS |o--o{ DAILY_BRIEFS : "recommended as primary in"
     OUTFITS |o--o{ STUDIO_GENERATIONS : visualizes
+
+    WARDROBE_SCORE_MONTHLY_SNAPSHOTS {
+        uuid user_id PK,FK
+        date month_start PK
+        smallint versatility_score
+        timestamptz captured_at
+    }
 ```
 
 Notes on reading this diagram:
@@ -97,6 +105,11 @@ Notes on reading this diagram:
   Wardrobe Graph — see §4 below.
 - `PRODUCT_CANDIDATES` has no edge from `AUTH_USERS`: it's shared reference
   data, not user-owned (see §2.6).
+- `WARDROBE_SCORE_MONTHLY_SNAPSHOTS` records a caller's score when Monthly
+  Review is opened. The first record is the honest baseline; later records
+  compare against the preceding calendar month. It uses `(user_id,
+  month_start)` as its primary key, so reopening a review refreshes that
+  month's snapshot instead of creating duplicate points.
 
 ---
 

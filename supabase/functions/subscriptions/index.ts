@@ -14,6 +14,7 @@ import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.t
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { authenticateRequest } from "../_shared/jwt.ts";
+import { appStoreSignedDataVerifier } from "../_shared/appStoreVerifier.ts";
 import {
   type AppError,
   errorResponse,
@@ -61,6 +62,7 @@ function serviceStore(): SubscriptionStore {
         status: row.status,
         expires_at: row.expiresAt,
         environment: row.environment,
+        app_store_last_signed_at: row.signedAt,
         updated_at: new Date().toISOString(),
       };
       if (existing) {
@@ -96,6 +98,41 @@ function serviceStore(): SubscriptionStore {
       }
       return data ? mapStoredRow(data as Record<string, unknown>) : null;
     },
+    async fetchByOriginalTransactionId(originalTransactionId) {
+      const { data, error } = await serviceRoleClient
+        .from("subscriptions")
+        .select("*")
+        .eq("app_store_original_transaction_id", originalTransactionId)
+        .maybeSingle();
+      if (error) throw serverError("Couldn't read the subscription lineage.");
+      return data ? mapStoredRow(data as Record<string, unknown>) : null;
+    },
+    async fetchPending(originalTransactionId) {
+      const { data, error } = await serviceRoleClient
+        .from("pending_app_store_notifications")
+        .select("*")
+        .eq("app_store_original_transaction_id", originalTransactionId)
+        .maybeSingle();
+      if (error) throw serverError("Couldn't read pending App Store state.");
+      if (!data) return null;
+      const row = data as Record<string, unknown>;
+      return {
+        originalTransactionId: String(row["app_store_original_transaction_id"]),
+        notificationUUID: String(row["notification_uuid"]),
+        productId: String(row["product_id"]),
+        status: String(row["status"]),
+        expiresAt: typeof row["expires_at"] === "string" ? row["expires_at"] : null,
+        environment: String(row["environment"]),
+        signedAt: String(row["signed_at"]),
+      };
+    },
+    async removePending(originalTransactionId) {
+      const { error } = await serviceRoleClient
+        .from("pending_app_store_notifications")
+        .delete()
+        .eq("app_store_original_transaction_id", originalTransactionId);
+      if (error) throw serverError("Couldn't clear pending App Store state.");
+    },
   };
 }
 
@@ -126,6 +163,7 @@ async function syncRoute(req: Request): Promise<Response> {
 
     const dto = await handleSync(body, userID, {
       store: serviceStore(),
+      verifier: appStoreSignedDataVerifier,
       now: () => new Date(),
     });
     return jsonResponse(dto, { requestId: requestID });

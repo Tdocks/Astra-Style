@@ -117,10 +117,15 @@ struct HomeWeekStripTests {
     @Test("Pack a trip stores the daily plan from the same generate path")
     @MainActor
     func packingTripGeneratesAPlan() async {
+        let reminders = MockReminderService()
+        _ = try? await reminders.setEnabled(.packingTrip, enabled: true)
         let viewModel = PackingTripViewModel(
             outfitRepository: MockOutfitRepository(),
-            closetRepository: MockClosetRepository()
+            closetRepository: MockClosetRepository(),
+            reminderService: reminders
         )
+        let departure = Calendar.current.date(byAdding: .day, value: 7, to: .now) ?? .now
+        viewModel.startDate = departure
         viewModel.destination = "Lisbon"
         viewModel.hasLaundryAccess = true
         await viewModel.generate()
@@ -129,6 +134,7 @@ struct HomeWeekStripTests {
         #expect((viewModel.plan?.dailyOutfitPlan.count ?? 0) >= 1)
         #expect(viewModel.error == nil)
         #expect(!viewModel.bagGarmentNames.isEmpty)
+        #expect(reminders.scheduledPackingDates == [departure])
         let namesAreNotUUIDs = viewModel.bagGarmentNames.allSatisfy { name in
             UUID(uuidString: name) == nil
         }

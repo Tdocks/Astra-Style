@@ -1,16 +1,20 @@
-// ============================================================================
-// subscriptions/handler.ts
-// ============================================================================
-// Persist a StoreKit-observed transaction so `fetchCurrentSubscription`
-// (PostgREST, RLS) can uncap the closet. Writes go through the service-role
-// store — authenticated INSERT is forbidden by RLS.
-//
-// Identity is the JWT. The body has no user_id.
-// ============================================================================
+// Reconcile a server-verified StoreKit transaction and the latest verified
+// notification state for its original transaction lineage.
 
-import { notFound } from "../_shared/errors.ts";
+import { badRequest, notFound, serverError } from "../_shared/errors.ts";
+import {
+  AppStoreConfigurationError,
+  type AppStoreSignedDataVerifier,
+  AppStoreVerificationError,
+  type VerifiedTransaction,
+} from "../_shared/appStoreVerifier.ts";
 import { requireIso8601Seconds, toIso8601Seconds } from "../_shared/time.ts";
-import { parseSyncBody, type SubscriptionDTO, type SyncBody } from "./schema.ts";
+import {
+  parseSyncBody,
+  PREMIUM_PRODUCT_IDS,
+  type SubscriptionDTO,
+  type SyncBody,
+} from "./schema.ts";
 
 export interface SubscriptionRow {
   readonly user_id: string;
@@ -19,6 +23,17 @@ export interface SubscriptionRow {
   readonly status: string;
   readonly expires_at: string | null;
   readonly environment: string;
+  readonly app_store_last_signed_at: string;
+}
+
+export interface PendingAppStoreState {
+  readonly originalTransactionId: string;
+  readonly notificationUUID: string;
+  readonly productId: string;
+  readonly status: string;
+  readonly expiresAt: string | null;
+  readonly environment: string;
+  readonly signedAt: string;
 }
 
 export interface SubscriptionStore {
@@ -27,14 +42,19 @@ export interface SubscriptionStore {
     readonly originalTransactionId: string;
     readonly productId: string;
     readonly status: string;
-    readonly expiresAt: string | null;
+    readonly expiresAt: string;
     readonly environment: string;
+    readonly signedAt: string;
   }): Promise<SubscriptionRow>;
   fetchForUser(userId: string): Promise<SubscriptionRow | null>;
+  fetchByOriginalTransactionId(originalTransactionId: string): Promise<SubscriptionRow | null>;
+  fetchPending(originalTransactionId: string): Promise<PendingAppStoreState | null>;
+  removePending(originalTransactionId: string): Promise<void>;
 }
 
 export interface SyncDependencies {
   readonly store: SubscriptionStore;
+  readonly verifier: AppStoreSignedDataVerifier;
   readonly now: () => Date;
 }
 
@@ -46,33 +66,71 @@ export async function handleSync(
   const body: SyncBody = parseSyncBody(rawBody);
   if (body.kind === "restore") {
     const existing = await deps.store.fetchForUser(userID);
-    if (!existing) {
-      throw notFound("No subscription to restore.");
-    }
+    if (!existing) throw notFound("No subscription to restore.");
     return toDTO(existing, deps.now());
   }
 
-  const expiresAt = body.expiresDate ? requireIso8601Seconds(body.expiresDate, deps.now()) : null;
+  let transaction: VerifiedTransaction;
+  try {
+    transaction = await deps.verifier.verifyTransaction(body.signedTransactionInfo);
+  } catch (error) {
+    if (error instanceof AppStoreConfigurationError) {
+      throw serverError("Apple purchase verification isn't configured yet.");
+    }
+    if (error instanceof AppStoreVerificationError && error.retryable) {
+      throw serverError("Apple purchase verification is temporarily unavailable.");
+    }
+    throw badRequest(
+      "Apple couldn't verify that purchase. Please restore purchases and try again.",
+    );
+  }
+
+  const originalTransactionId = requiredVerifiedString(transaction.originalTransactionId);
+  const productId = requiredVerifiedString(transaction.productId);
+  const expiresAt = millisecondsToISO(transaction.expiresDate);
+  const signedAt = millisecondsToISO(transaction.signedDate);
+  const transactionID = requiredVerifiedString(transaction.transactionId);
+  void transactionID;
+  const existingLineage = await deps.store.fetchByOriginalTransactionId(originalTransactionId);
+  if (transaction.appAccountToken) {
+    if (transaction.appAccountToken.toLowerCase() !== userID.toLowerCase()) {
+      throw badRequest("This App Store purchase is linked to a different Astra Style account.");
+    }
+  } else if (existingLineage?.user_id !== userID) {
+    throw badRequest(
+      "This older App Store purchase must already be linked to your Astra Style account before it can be restored.",
+    );
+  }
+  if (!PREMIUM_PRODUCT_IDS.includes(productId as typeof PREMIUM_PRODUCT_IDS[number])) {
+    throw badRequest("That App Store product isn't an Astra Style subscription.");
+  }
+  if (!expiresAt || !signedAt) {
+    throw badRequest("Apple's transaction is missing its subscription dates.");
+  }
+  let state = transactionState(transaction, expiresAt, deps.now());
+
+  const pending = await deps.store.fetchPending(originalTransactionId);
+  if (pending && new Date(pending.signedAt) > new Date(signedAt)) {
+    state = {
+      productId: pending.productId,
+      status: pending.status,
+      expiresAt: pending.expiresAt ?? expiresAt,
+      environment: pending.environment,
+      signedAt: pending.signedAt,
+    };
+  }
+
   const row = await deps.store.upsertForUser({
     userId: userID,
-    originalTransactionId: body.originalTransactionId,
-    productId: body.productId,
-    status: "active",
-    expiresAt,
-    environment: body.environment,
+    originalTransactionId,
+    productId: state.productId,
+    status: state.status,
+    expiresAt: state.expiresAt,
+    environment: state.environment,
+    signedAt: state.signedAt,
   });
+  if (pending) await deps.store.removePending(originalTransactionId);
   return toDTO(row, deps.now());
-}
-
-function toDTO(row: SubscriptionRow, now: Date): SubscriptionDTO {
-  return {
-    user_id: row.user_id,
-    app_store_original_transaction_id: row.app_store_original_transaction_id,
-    product_id: row.product_id,
-    status: row.status,
-    expires_at: row.expires_at ? requireIso8601Seconds(row.expires_at, now) : null,
-    environment: row.environment,
-  };
 }
 
 export function mapStoredRow(data: Record<string, unknown>): SubscriptionRow {
@@ -83,5 +141,61 @@ export function mapStoredRow(data: Record<string, unknown>): SubscriptionRow {
     status: String(data["status"]),
     expires_at: toIso8601Seconds(data["expires_at"]),
     environment: String(data["environment"]),
+    app_store_last_signed_at: toIso8601Seconds(data["app_store_last_signed_at"]) ??
+      "1970-01-01T00:00:00Z",
   };
+}
+
+export function toDTO(row: SubscriptionRow, now: Date): SubscriptionDTO {
+  return {
+    user_id: row.user_id,
+    app_store_original_transaction_id: row.app_store_original_transaction_id,
+    product_id: row.product_id,
+    status: row.status,
+    expires_at: row.expires_at ? requireIso8601Seconds(row.expires_at, now) : null,
+    environment: row.environment,
+  };
+}
+
+export function millisecondsToISO(value: number | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export function normalizeEnvironment(value: string | undefined): "sandbox" | "production" {
+  if (value === "Sandbox") return "sandbox";
+  if (value === "Production") return "production";
+  throw badRequest("Apple returned an unsupported subscription environment.");
+}
+
+export function transactionState(
+  transaction: VerifiedTransaction,
+  expiresAt: string,
+  now: Date,
+): { productId: string; status: string; expiresAt: string; environment: string; signedAt: string } {
+  const productId = requiredVerifiedString(transaction.productId);
+  const signedAt = millisecondsToISO(transaction.signedDate);
+  if (!signedAt) throw badRequest("Apple's transaction is missing its signed date.");
+  const status = transaction.revocationDate !== undefined
+    ? "revoked"
+    : transaction.isUpgraded === true
+    ? "expired"
+    : new Date(expiresAt) > now
+    ? "active"
+    : "expired";
+  return {
+    productId,
+    status,
+    expiresAt,
+    environment: normalizeEnvironment(transaction.environment),
+    signedAt,
+  };
+}
+
+function requiredVerifiedString(value: string | undefined): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 128) {
+    throw badRequest("Apple's signed transaction is incomplete.");
+  }
+  return value;
 }

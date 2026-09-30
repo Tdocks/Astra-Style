@@ -154,6 +154,8 @@ export interface WardrobeContext {
   readonly feedbackByItemId?: ReadonlyMap<string, ItemFeedback>;
   /** `body_profiles.fit_notes`, same enum §4.3 reads. */
   readonly fitNotes?: readonly FitNote[];
+  /** Profile fit notes with no implemented Wardrobe Score adjustment yet. Kept visible in degradation metadata rather than silently dropped. */
+  readonly unavailableFitNotes?: readonly string[];
   /** `lifestyle_profiles.common_occasions` ∪ whatever the caller infers from `dress_code`. The fixed four are unioned in automatically — do not repeat them here. */
   readonly additionalTargetOccasions?: readonly string[];
   /** Per-occasion "does ≥1 outfit at compatibility ≥0.7 already cover this," computed by the caller from real/generated outfits. Absent (not `false`) means "not checked." */
@@ -404,6 +406,9 @@ function computeFitConfidence(active: readonly WardrobeItem[], context: Wardrobe
     degraded.push(
       `the "${note}" fit adjustment (no garment length or break is stored, so it cannot be applied)`,
     );
+  }
+  for (const note of context.unavailableFitNotes ?? []) {
+    degraded.push(`fit note "${note}" has no Wardrobe Score adjustment yet`);
   }
   return degraded.length === 0 ? measured(value) : degradedScore(value, ...degraded);
 }

@@ -75,6 +75,17 @@ public protocol ClosetRepository: Sendable {
     /// Wardrobe Score composite (spec §10) for the current user's closet.
     func fetchWardrobeScore() async throws -> WardrobeScore
 
+    /// Full Wardrobe Score state, including the empty-closet case and the
+    /// component signals used by Profile. Older conformers can keep returning
+    /// their score through `fetchWardrobeScore()` until they provide richer
+    /// metadata.
+    func fetchWardrobeScoreSnapshot() async throws -> WardrobeScoreSnapshot
+
+    /// Captures this month's server-computed versatility score and returns
+    /// the previous month's captured value when one exists. The first saved
+    /// month establishes a baseline; a later review can show a real change.
+    func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int?
+
     /// After anonymous → Apple/email link, copy `guest-local/` photos into
     /// `user-content` and rewrite `closet_item_images.storage_path`.
     /// Default is a no-op so test doubles do not have to care.
@@ -83,6 +94,12 @@ public protocol ClosetRepository: Sendable {
 
 extension ClosetRepository {
     public func migrateGuestLocalImages() async throws {}
+
+    public func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int? { nil }
+
+    public func fetchWardrobeScoreSnapshot() async throws -> WardrobeScoreSnapshot {
+        WardrobeScoreSnapshot(score: try await fetchWardrobeScore())
+    }
 }
 
 /// The 0–100 composite Wardrobe Score plus its component breakdown
@@ -126,5 +143,50 @@ public struct WardrobeScore: Codable, Hashable, Sendable {
         case wearUtilization = "wear_utilization"
         case condition
         case redundancyControl = "redundancy_control"
+    }
+}
+
+public enum WardrobeScoreComponentName: String, CaseIterable, Hashable, Sendable, Identifiable {
+    case versatility
+    case fitConfidence = "fit_confidence"
+    case occasionCoverage = "occasion_coverage"
+    case colorCohesion = "color_cohesion"
+    case wearUtilization = "wear_utilization"
+    case condition
+    case redundancyControl = "redundancy_control"
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .versatility: String(localized: "Versatility", comment: "Wardrobe Score component")
+        case .fitConfidence: String(localized: "Fit confidence", comment: "Wardrobe Score component")
+        case .occasionCoverage: String(localized: "Occasion coverage", comment: "Wardrobe Score component")
+        case .colorCohesion: String(localized: "Color cohesion", comment: "Wardrobe Score component")
+        case .wearUtilization: String(localized: "Wear rotation", comment: "Wardrobe Score component")
+        case .condition: String(localized: "Condition", comment: "Wardrobe Score component")
+        case .redundancyControl: String(localized: "Wardrobe balance", comment: "Wardrobe Score component")
+        }
+    }
+}
+
+public struct WardrobeScoreSnapshot: Hashable, Sendable {
+    /// `nil` means there is no active closet yet, so the app must show its
+    /// empty state instead of treating an empty wardrobe as a score of zero.
+    public let score: WardrobeScore?
+    public let activeItemCount: Int?
+    public let confidence: Double?
+    public let degradedComponents: Set<WardrobeScoreComponentName>
+
+    public init(
+        score: WardrobeScore?,
+        activeItemCount: Int? = nil,
+        confidence: Double? = nil,
+        degradedComponents: Set<WardrobeScoreComponentName> = []
+    ) {
+        self.score = score
+        self.activeItemCount = activeItemCount
+        self.confidence = confidence
+        self.degradedComponents = degradedComponents
     }
 }

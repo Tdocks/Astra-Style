@@ -52,6 +52,7 @@ function baseInput(overrides: Partial<ContextPacketInput> = {}): ContextPacketIn
       sustainability_preference: null,
     },
     weather: { temperatureHigh: 71.6, temperatureLow: 59, condition: "partly_cloudy" },
+    calendarSnapshot: null,
     occasions: [],
     closetItems: [],
     recentFeedback: [],

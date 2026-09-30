@@ -60,7 +60,9 @@ public struct KyraConversationView: View {
                 PaywallView(
                     viewModel: PaywallViewModel(
                         context: .kyraDailyLimit,
-                        purchasing: LiveStoreKitPurchasing(),
+                        purchasing: LiveStoreKitPurchasing(appAccountTokenProvider: {
+                            await container.sessionStore.currentUserID()
+                        }),
                         subscriptionRepository: container.subscriptionRepository
                     )
                 )

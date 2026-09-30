@@ -11,6 +11,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var displayName: String?
     public var avatarURL: URL?
+    public var avatarStoragePath: String?
     public var locationName: String?
     public var timezone: String?
     public var units: UnitsPreference
@@ -27,6 +28,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         id: UUID,
         displayName: String? = nil,
         avatarURL: URL? = nil,
+        avatarStoragePath: String? = nil,
         locationName: String? = nil,
         timezone: String? = nil,
         units: UnitsPreference = .imperial,
@@ -42,6 +44,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         self.id = id
         self.displayName = displayName
         self.avatarURL = avatarURL
+        self.avatarStoragePath = avatarStoragePath
         self.locationName = locationName
         self.timezone = timezone
         self.units = units
@@ -59,6 +62,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         case id
         case displayName = "display_name"
         case avatarURL = "avatar_url"
+        case avatarStoragePath = "avatar_storage_path"
         case locationName = "location_name"
         case timezone
         case units
@@ -77,6 +81,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         id = try container.decode(UUID.self, forKey: .id)
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
         avatarURL = try container.decodeIfPresent(URL.self, forKey: .avatarURL)
+        avatarStoragePath = try container.decodeIfPresent(String.self, forKey: .avatarStoragePath)
         locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
         timezone = try container.decodeIfPresent(String.self, forKey: .timezone)
         units = try container.decodeIfPresent(UnitsPreference.self, forKey: .units) ?? .imperial
@@ -95,6 +100,7 @@ public struct Profile: Identifiable, Codable, Hashable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encodeIfPresent(displayName, forKey: .displayName)
         try container.encodeIfPresent(avatarURL, forKey: .avatarURL)
+        try container.encodeIfPresent(avatarStoragePath, forKey: .avatarStoragePath)
         try container.encodeIfPresent(locationName, forKey: .locationName)
         try container.encodeIfPresent(timezone, forKey: .timezone)
         try container.encode(units, forKey: .units)

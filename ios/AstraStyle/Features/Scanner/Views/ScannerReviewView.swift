@@ -30,7 +30,9 @@ struct ScannerReviewView: View {
             PaywallView(
                 viewModel: PaywallViewModel(
                     context: .closetLimit,
-                    purchasing: LiveStoreKitPurchasing(),
+                    purchasing: LiveStoreKitPurchasing(appAccountTokenProvider: {
+                        await container.sessionStore.currentUserID()
+                    }),
                     subscriptionRepository: container.subscriptionRepository
                 )
             )

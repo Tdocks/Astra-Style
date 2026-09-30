@@ -19,6 +19,10 @@ public struct AppStoreTransactionPayload: Encodable, Sendable {
     public var purchaseDate: Date
     public var expiresDate: Date?
     public var environment: SubscriptionEnvironment
+    /// Apple-signed transaction JWS, verified again by the server before it
+    /// grants or changes subscription access. The other fields are display
+    /// context only and are not trusted by the backend.
+    public var signedTransactionInfo: String?
 
     public init(
         originalTransactionID: String,
@@ -26,7 +30,8 @@ public struct AppStoreTransactionPayload: Encodable, Sendable {
         productID: String,
         purchaseDate: Date,
         expiresDate: Date? = nil,
-        environment: SubscriptionEnvironment
+        environment: SubscriptionEnvironment,
+        signedTransactionInfo: String? = nil
     ) {
         self.originalTransactionID = originalTransactionID
         self.transactionID = transactionID
@@ -34,6 +39,7 @@ public struct AppStoreTransactionPayload: Encodable, Sendable {
         self.purchaseDate = purchaseDate
         self.expiresDate = expiresDate
         self.environment = environment
+        self.signedTransactionInfo = signedTransactionInfo
     }
 
     enum CodingKeys: String, CodingKey {
@@ -43,5 +49,6 @@ public struct AppStoreTransactionPayload: Encodable, Sendable {
         case purchaseDate = "purchase_date"
         case expiresDate = "expires_date"
         case environment
+        case signedTransactionInfo = "signed_transaction_info"
     }
 }

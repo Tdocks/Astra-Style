@@ -77,6 +77,7 @@ function toProfileDTO(row: Record<string, unknown>, now: Date): ProfileDTO {
     id,
     display_name: asString("display_name"),
     avatar_url: asString("avatar_url"),
+    avatar_storage_path: asString("avatar_storage_path"),
     location_name: asString("location_name"),
     timezone: asString("timezone"),
     // NOT NULL columns with defaults. Falling back rather than emitting null
@@ -182,6 +183,11 @@ function personalDataExportRoute(req: Request): Promise<Response> {
     { name: "lookbook_reports", ownerColumn: "reporter_id", orderColumn: "id" },
     { name: "wear_days", ownerColumn: "user_id", orderColumn: "worn_on" },
     { name: "wishlist_items", ownerColumn: "user_id", orderColumn: "id" },
+    {
+      name: "wardrobe_score_monthly_snapshots",
+      ownerColumn: "user_id",
+      orderColumn: "month_start",
+    },
   ] as const;
 
   return handlePersonalDataExport(req, {

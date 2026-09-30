@@ -8,7 +8,7 @@ Owns the wardrobe browsing/management surface: the Closet tab, category grids, i
 - Closet metrics: total items, estimated closet value, average cost per wear, most/least worn (versatility is deliberately absent — Phase 4 inputs).
 - Item detail: image, editable fields, actions (mark worn, edit, archive) (§6.15). Insights that need the Wardrobe Graph (best pairings, redundancy, replacement) are not wired yet.
 - Manual item creation/editing (as opposed to the camera capture flow, which belongs to **Scanner**).
-- Surfacing the Wardrobe Score composite on the Closet tab when a server implementation exists (`ClosetRepository.fetchWardrobeScore()` currently throws `unimplemented`; the overview deliberately never calls it).
+- Surfacing the server Wardrobe Score in the Closet overview. The live score is currently presented from Profile; the Closet overview deliberately keeps its local metrics separate.
 
 ## Governing spec sections
 
@@ -33,4 +33,4 @@ Domain seams this module builds on: `ClosetRepository`, `ClosetImageURLResolving
 - **Paywall UI for the free-tier 30-item cap.** Cap enforcement is at `FreeTierCappedClosetRepository`. The form presents `PaywallView` via `See Premium`.
 - **§6.15 insights** that need outfit/graph data (best pairings, redundancy, replacement).
 - **Dead route cases.** `ClosetRoute.filters` and `ClosetRoute.editItem` resolve to honest placeholders and nothing pushes them (filters are a sheet; edit is presented from detail with a loaded item). Do not wire them to the wrong thing on the assumption they are wanted.
-- **Wardrobe Score** — no `wardrobe_scores` table / scorer; the overview must not call `fetchWardrobeScore()` until one exists.
+- **Wardrobe Score in the Closet overview** is still absent. The live score endpoint and Profile detail are now implemented; the Closet overview still does not request or render that score.

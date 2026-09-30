@@ -17,6 +17,7 @@ import {
   measured,
   type ScorableItem,
   type ScoringContext,
+  type Season,
   type Subscore,
   unitClamp,
 } from "../types.ts";
@@ -35,6 +36,9 @@ const TEMP_TOLERANCE_C = 20;
 /** Below this water resistance, rain hurts. §2.5's "< 3" on the 0–100 column. */
 const RAIN_VULNERABLE_BELOW = 30;
 const RAIN_LIKELY_ABOVE = 0.4;
+const SEASON_TAG_MISS_SCORE = 0.35;
+const UNTAGGED_SEASON_PRIOR = 0.75;
+const WEATHER_WEIGHT_WITH_SEASON = 0.8;
 
 /**
  * §2.5's mapping, rescaled to the shipped column.
@@ -59,6 +63,20 @@ export function seasonWeatherSubscore(
   items: readonly ScorableItem[],
   context: ScoringContext,
 ): Subscore {
+  const weatherScore = scoreWeather(items, context);
+  const season = context.weather?.season;
+  if (season === undefined) return weatherScore;
+
+  const seasonScore = scoreSeason(items, season);
+  const value = WEATHER_WEIGHT_WITH_SEASON * weatherScore.value +
+    (1 - WEATHER_WEIGHT_WITH_SEASON) * seasonScore.value;
+  const degradedReasons = [...weatherScore.degraded, ...seasonScore.degraded];
+  return degradedReasons.length === 0
+    ? measured(value)
+    : degradedScore(value, degradedReasons.join("; "));
+}
+
+function scoreWeather(items: readonly ScorableItem[], context: ScoringContext): Subscore {
   if (!context.weather) {
     // A mild positive prior, not a penalty. The user did not withhold the
     // forecast; we simply do not have it. Kyra is required to omit every
@@ -72,14 +90,10 @@ export function seasonWeatherSubscore(
 
   const { temperatureC, precipitationProbability } = context.weather;
   const rainLikely = precipitationProbability > RAIN_LIKELY_ABOVE;
-
   let total = 0;
   for (const item of scoreable) {
     const ideal = idealTemperatureC(item.warmthScore!);
     let fit = 1 - unitClamp(Math.abs(ideal - temperatureC) / TEMP_TOLERANCE_C);
-
-    // Only the garments that actually meet the rain. A shirt under a coat is
-    // not what gets wet.
     const exposed = item.role === "outerwear" || item.role === "shoes";
     if (rainLikely && exposed && (item.waterResistanceScore ?? 0) < RAIN_VULNERABLE_BELOW) {
       fit *= 0.6;
@@ -92,6 +106,26 @@ export function seasonWeatherSubscore(
   return unrated === 0
     ? measured(value)
     : degradedScore(value, `warmth ratings for ${unrated} garment(s) in this outfit`);
+}
+
+function scoreSeason(items: readonly ScorableItem[], season: Season): Subscore {
+  if (items.length === 0) {
+    return degradedScore(UNTAGGED_SEASON_PRIOR, "garments for seasonal suitability");
+  }
+  let total = 0;
+  let untagged = 0;
+  for (const item of items) {
+    if (item.seasonality.length === 0) {
+      untagged += 1;
+      total += UNTAGGED_SEASON_PRIOR;
+    } else {
+      total += item.seasonality.includes(season) ? 1 : SEASON_TAG_MISS_SCORE;
+    }
+  }
+  const value = total / items.length;
+  return untagged === 0
+    ? measured(value)
+    : degradedScore(value, `seasonality tags for ${untagged} garment(s)`);
 }
 
 // ── §2.6 user preference ────────────────────────────────────────────────────
@@ -253,7 +287,21 @@ function adjacencyKey(a: string, b: string): string {
 export function occasionSubscore(
   context: ScoringContext,
   outfitOccasionTags: readonly string[] = [],
+  items: readonly ScorableItem[] = [],
 ): Subscore {
+  if (context.targetFormalityScore !== undefined) {
+    const scores = items.flatMap((item) =>
+      item.formalityScore === null ? [] : [item.formalityScore]
+    );
+    if (scores.length === 0) {
+      return degradedScore(
+        NO_OCCASION_PRIOR,
+        "garment formality scores for today's calendar context",
+      );
+    }
+    const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    return measured(Math.max(0, 1 - Math.abs(average - context.targetFormalityScore) / 100));
+  }
   const target = context.targetOccasion;
   if (!target) {
     // The overwhelmingly common case: "what should I wear today". Marking an

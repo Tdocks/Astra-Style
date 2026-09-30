@@ -26,6 +26,15 @@ public final class StudioGenerationViewModel {
     public private(set) var pendingImageData: Data?
     public private(set) var generation: StudioGeneration?
     public private(set) var resultImageURL: URL?
+    public var selectedPreset: StudioPromptPreset? = .smartCasual
+    public var selectedBackground: StudioBackground = .studio
+    public var selectedPose: StudioPose = .standingFront
+    public var selectedFormality: FormalityLevel? = .balanced
+    public var selectedSeason: Season? = StudioGenerationViewModel.currentSeason
+    public var paletteText = ""
+    public var preservesFace = true
+    public var preservesBodyProportions = true
+    public var preservesHair = true
 
     /// Nested paywall after the free Visualize trial. First open stays ungated.
     public private(set) var pendingPaywall: PaywallContext?
@@ -91,6 +100,21 @@ public final class StudioGenerationViewModel {
             let request = StudioGenerationRequest(
                 referenceImagePath: path,
                 outfitID: outfitID,
+                preset: selectedPreset,
+                preserveFace: preservesFace,
+                preserveBodyProportions: preservesBodyProportions,
+                preserveHair: preservesHair,
+                background: selectedBackground,
+                pose: selectedPose,
+                formality: selectedFormality,
+                season: selectedSeason,
+                colorPalette: Array(
+                    paletteText
+                        .split(separator: ",")
+                        .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                        .prefix(8)
+                ),
                 hasUserConsent: true,
                 consentTermsVersion: StudioConsentTerms.currentVersion
             )
@@ -207,5 +231,14 @@ public final class StudioGenerationViewModel {
             throw AstraError.validation("Add a photo of you first.")
         }
         return try await profileRepository.uploadReferenceImage(pendingImageData)
+    }
+
+    private static var currentSeason: Season {
+        switch Calendar.current.component(.month, from: .now) {
+        case 3...5: .spring
+        case 6...8: .summer
+        case 9...11: .fall
+        default: .winter
+        }
     }
 }

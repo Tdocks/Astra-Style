@@ -21,6 +21,9 @@ public struct WeatherSnapshot: Codable, Hashable, Sendable {
     public var windSpeed: Double?
     public var humidity: Double?
     public var locationName: String?
+    /// Meteorological season at the device's current location. Optional so
+    /// older stored briefs and callers without location context still decode.
+    public var season: Season?
 
     public init(
         temperatureHigh: Double,
@@ -30,7 +33,8 @@ public struct WeatherSnapshot: Codable, Hashable, Sendable {
         precipitationChance: Double? = nil,
         windSpeed: Double? = nil,
         humidity: Double? = nil,
-        locationName: String? = nil
+        locationName: String? = nil,
+        season: Season? = nil
     ) {
         self.temperatureHigh = temperatureHigh
         self.temperatureLow = temperatureLow
@@ -40,6 +44,7 @@ public struct WeatherSnapshot: Codable, Hashable, Sendable {
         self.windSpeed = windSpeed
         self.humidity = humidity
         self.locationName = locationName
+        self.season = season
     }
 
     enum CodingKeys: String, CodingKey {
@@ -51,6 +56,7 @@ public struct WeatherSnapshot: Codable, Hashable, Sendable {
         case windSpeed = "wind_speed"
         case humidity
         case locationName = "location_name"
+        case season
     }
 }
 

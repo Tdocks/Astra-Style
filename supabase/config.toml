@@ -1,0 +1,4 @@
+project_id = "anutsdzbxycaavmmkewo"
+
+[functions.app-store]
+verify_jwt = false

@@ -38,6 +38,8 @@ export interface GenerateDailyBriefBody {
    * why a malformed snapshot must not reach that column.
    */
   readonly weatherSnapshot: Record<string, unknown> | null;
+  /** Privacy-minimized calendar summary. Event titles never leave the device. */
+  readonly scheduleSnapshot: Record<string, unknown> | null;
 }
 
 /** Envelope every Astra client wraps its bodies in (`AstraRequestEnvelope`). */
@@ -87,6 +89,15 @@ const KNOWN_WEATHER_CONDITIONS = new Set([
   "windy",
 ]);
 
+const KNOWN_FORMALITY_LEVELS = new Set([
+  "very_casual",
+  "casual",
+  "balanced",
+  "formal",
+  "very_formal",
+]);
+const KNOWN_SEASONS = new Set(["spring", "summer", "fall", "winter"]);
+
 /**
  * Validates an optional client-supplied weather reading against the shape
  * `WeatherSnapshot.init(from:)` on the client actually decodes.
@@ -115,8 +126,47 @@ function parseWeatherSnapshot(raw: unknown): Record<string, unknown> | null {
   if (typeof condition !== "string" || !KNOWN_WEATHER_CONDITIONS.has(condition)) {
     throw badRequest("`weather_snapshot.condition` must be a known weather condition.");
   }
+  const season = record["season"];
+  if (
+    season !== undefined && season !== null &&
+    (typeof season !== "string" || !KNOWN_SEASONS.has(season))
+  ) {
+    throw badRequest("`weather_snapshot.season` must be a known season when present.");
+  }
 
   return record;
+}
+
+function parseScheduleSnapshot(raw: unknown): Record<string, unknown> | null {
+  if (raw === undefined || raw === null) return null;
+  const record = asRecord(raw, "`schedule_snapshot`");
+  const eventCount = record["event_count"];
+  if (
+    typeof eventCount !== "number" || !Number.isInteger(eventCount) || eventCount < 0 ||
+    eventCount > 100
+  ) {
+    throw badRequest("`schedule_snapshot.event_count` must be an integer from 0 to 100.");
+  }
+  const formality = record["earliest_formality_level"];
+  if (
+    formality !== undefined && formality !== null &&
+    (typeof formality !== "string" || !KNOWN_FORMALITY_LEVELS.has(formality))
+  ) {
+    throw badRequest(
+      "`schedule_snapshot.earliest_formality_level` must be a known formality level.",
+    );
+  }
+  return {
+    event_count: eventCount,
+    ...(typeof formality === "string" ? { earliest_formality_level: formality } : {}),
+    ...(eventCount > 0
+      ? {
+        headline: eventCount === 1
+          ? "One event coming up today"
+          : `${eventCount} events coming up today`,
+      }
+      : {}),
+  };
 }
 
 export function parseGenerateDailyBriefBody(raw: unknown): GenerateDailyBriefBody {
@@ -138,8 +188,9 @@ export function parseGenerateDailyBriefBody(raw: unknown): GenerateDailyBriefBod
   }
 
   const weatherSnapshot = parseWeatherSnapshot(record["weather_snapshot"]);
+  const scheduleSnapshot = parseScheduleSnapshot(record["schedule_snapshot"]);
 
-  return { briefDate, regenerate: regenerate === true, weatherSnapshot };
+  return { briefDate, regenerate: regenerate === true, weatherSnapshot, scheduleSnapshot };
 }
 
 // ---------------------------------------------------------------------------

@@ -211,6 +211,8 @@ export interface WeatherContext {
   readonly temperatureC: number;
   /** 0–1. */
   readonly precipitationProbability: number;
+  /** Local meteorological season, if the device resolved it from location. */
+  readonly season?: Season;
 }
 
 /** The user's stated preferences, for §2.6. */
@@ -239,6 +241,8 @@ export interface CoWearStat {
  */
 export interface ScoringContext {
   readonly weather?: WeatherContext;
+  /** The earliest remaining calendar event's formality, 0–100. */
+  readonly targetFormalityScore?: number;
   readonly preferences?: PreferenceContext;
   /** Keyed `"<itemIdA>|<itemIdB>"` with ids sorted, so lookup is order-free. */
   readonly coWear?: ReadonlyMap<string, CoWearStat>;

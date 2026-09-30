@@ -344,6 +344,21 @@ Deno.test("a client-supplied weather snapshot is persisted onto the brief", asyn
   assertEquals(json.data.weather_snapshot, VALID_WEATHER_SNAPSHOT);
 });
 
+Deno.test("device season reaches the scorer as part of weather context", async () => {
+  const scorer = new RecordingContextScorer();
+  const result = await handleGenerateDailyBrief(
+    requestFor(generateBody({
+      weather_snapshot: {
+        ...VALID_WEATHER_SNAPSHOT,
+        season: "fall",
+      },
+    })),
+    buildDeps({ scorer }),
+  );
+  assertEquals(result.status, 200);
+  assertEquals(scorer.contexts[0]?.weather?.season, "fall");
+});
+
 Deno.test("the device forecast reaches scoring in Celsius, not display Fahrenheit", async () => {
   const scorer = new RecordingContextScorer();
   const response = await handleGenerateDailyBrief(

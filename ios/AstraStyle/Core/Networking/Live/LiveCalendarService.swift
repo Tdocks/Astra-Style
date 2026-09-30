@@ -18,6 +18,19 @@ public final class LiveCalendarService: CalendarService, @unchecked Sendable {
 
     public init() {}
 
+    public func currentAuthorization() -> CalendarAuthorization {
+        switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess:
+            .authorized
+        case .notDetermined:
+            .notDetermined
+        case .writeOnly, .denied, .restricted:
+            .denied
+        @unknown default:
+            .notDetermined
+        }
+    }
+
     public func requestAccessIfNeeded() async -> Bool {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .fullAccess:
@@ -34,7 +47,7 @@ public final class LiveCalendarService: CalendarService, @unchecked Sendable {
     }
 
     public func fetchUpcomingEvents(in range: DateInterval, userID: UUID) async -> [Occasion] {
-        guard await requestAccessIfNeeded() else { return [] }
+        guard currentAuthorization() == .authorized else { return [] }
 
         let predicate = store.predicateForEvents(withStart: range.start, end: range.end, calendars: nil)
         let events = store.events(matching: predicate)

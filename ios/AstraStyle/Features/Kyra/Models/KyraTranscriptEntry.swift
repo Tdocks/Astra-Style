@@ -21,10 +21,12 @@ public struct KyraTranscriptEntry: Identifiable, Sendable {
     public struct PendingSend: Sendable {
         public var text: String
         public var drafts: [KyraAttachmentDraft]
+        public var contextualOutfitID: UUID?
 
-        public init(text: String, drafts: [KyraAttachmentDraft]) {
+        public init(text: String, drafts: [KyraAttachmentDraft], contextualOutfitID: UUID? = nil) {
             self.text = text
             self.drafts = drafts
+            self.contextualOutfitID = contextualOutfitID
         }
     }
 

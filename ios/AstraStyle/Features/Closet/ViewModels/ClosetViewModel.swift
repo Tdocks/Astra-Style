@@ -31,11 +31,10 @@
 //  `ClosetFilterOptions`'s header, which argues that call-site decision
 //  in full.
 //
-//  WHY `fetchWardrobeScore()` IS NOT CALLED. It throws
-//  `AstraError.unimplemented` unconditionally today — there is no
-//  `wardrobe_scores` table (see docs/03-progress.md). Calling it to render
-//  a score would put a permanent, unwinnable error on the closet's first
-//  screen.
+//  WHY `fetchWardrobeScore()` IS NOT CALLED. The real score is now served
+//  from the authenticated closet Edge Function and shown in Profile. The
+//  Closet overview keeps its local metrics independent of that heavier
+//  server computation; it must not quietly substitute a local estimate.
 //
 //  DEGRADE A MODULE, NEVER THE SCREEN. That is what
 //  `AstraError.Category.unimplemented` exists for, and this file applies

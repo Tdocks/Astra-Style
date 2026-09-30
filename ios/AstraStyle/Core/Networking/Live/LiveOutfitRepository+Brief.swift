@@ -33,6 +33,15 @@ public extension LiveOutfitRepository {
     }
 
     func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief {
+        try await generateDailyBrief(for: date, regenerate: regenerate, weather: weather, schedule: nil)
+    }
+
+    func generateDailyBrief(
+        for date: Date,
+        regenerate: Bool,
+        weather: WeatherSnapshot?,
+        schedule: ScheduleSnapshot?
+    ) async throws -> DailyBrief {
         struct Body: Encodable, Sendable {
             let date: String
             let regenerate: Bool
@@ -40,15 +49,22 @@ public extension LiveOutfitRepository {
             // wire shape matches `weather_snapshot` exactly — no second,
             // divergent JSON shape for the same data.
             let weatherSnapshot: WeatherSnapshot?
+            let scheduleSnapshot: ScheduleSnapshot?
             enum CodingKeys: String, CodingKey {
                 case date
                 case regenerate
                 case weatherSnapshot = "weather_snapshot"
+                case scheduleSnapshot = "schedule_snapshot"
             }
         }
         return try await apiClient.send(
             .generateDailyBrief,
-            body: Body(date: DateFormatter.astraDay.string(from: date), regenerate: regenerate, weatherSnapshot: weather),
+            body: Body(
+                date: DateFormatter.astraDay.string(from: date),
+                regenerate: regenerate,
+                weatherSnapshot: weather,
+                scheduleSnapshot: schedule
+            ),
             as: DailyBrief.self
         )
     }
@@ -101,6 +117,22 @@ public extension LiveOutfitRepository {
                 .value
         } catch {
             throw AstraError.network("Couldn't load this week's looks.")
+        }
+    }
+
+    func fetchOutfitWears(from: Date, to: Date) async throws -> [OutfitWear] {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        do {
+            return try await supabase.from("outfit_wears")
+                .select()
+                .gte("worn_at", value: formatter.string(from: from))
+                .lte("worn_at", value: formatter.string(from: to))
+                .order("worn_at", ascending: true)
+                .execute()
+                .value
+        } catch {
+            throw AstraError.network("Couldn't load your outfit history.")
         }
     }
 

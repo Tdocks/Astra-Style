@@ -245,6 +245,34 @@ struct HomeBriefProvidingTests {
         #expect(await outfitRepository.weatherSnapshotsReceived == [snapshot])
     }
 
+    @Test("Authorized calendar events reach generation as private, minimized context")
+    func authorizedCalendarReachesGeneration() async throws {
+        let event = Occasion(
+            id: UUID(),
+            userID: SampleData.userID,
+            title: "Private board meeting",
+            startsAt: Date.now.addingTimeInterval(60 * 60),
+            location: "Private office",
+            dressCode: .businessFormal,
+            source: .calendarSync
+        )
+        let outfitRepository = RecordingOutfitRepository()
+        let provider = DefaultHomeBriefProvider(
+            outfitRepository: outfitRepository,
+            profileRepository: MockProfileRepository(),
+            closetRepository: MockClosetRepository(),
+            weatherService: MockWeatherService(),
+            imageURLResolver: HomeStubURLResolver(),
+            calendarService: MockCalendarService(events: [event])
+        )
+
+        let data = try await provider.loadTodayBrief(regenerate: false)
+
+        let expectedSchedule = ScheduleSnapshotBuilder.build(from: [event])
+        #expect(data.schedule == expectedSchedule)
+        #expect(await outfitRepository.scheduleSnapshotsReceived == [expectedSchedule])
+    }
+
     @Test("Enabling weather refreshes a cached no-weather outfit without claiming a manual regenerate")
     func authorizedWeatherRefreshesCachedBriefMissingWeather() async throws {
         let snapshot = WeatherSnapshot(temperatureHigh: 80, temperatureLow: 66, condition: .cloudy)
@@ -402,6 +430,7 @@ private actor RecordingOutfitRepository: OutfitRepository {
     private let cachedBrief: DailyBrief?
     private(set) var regenerateFlags: [Bool] = []
     private(set) var weatherSnapshotsReceived: [WeatherSnapshot?] = []
+    private(set) var scheduleSnapshotsReceived: [ScheduleSnapshot?] = []
 
     init(cachedBrief: DailyBrief? = nil) {
         self.cachedBrief = cachedBrief
@@ -455,6 +484,17 @@ private actor RecordingOutfitRepository: OutfitRepository {
             briefDate: date,
             primaryOutfitID: SampleData.heroOutfit.id
         )
+    }
+    func generateDailyBrief(
+        for date: Date,
+        regenerate: Bool,
+        weather: WeatherSnapshot?,
+        schedule: ScheduleSnapshot?
+    ) async throws -> DailyBrief {
+        scheduleSnapshotsReceived.append(schedule)
+        var brief = try await generateDailyBrief(for: date, regenerate: regenerate, weather: weather)
+        brief.scheduleSnapshot = schedule
+        return brief
     }
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan {
         throw AstraError.unimplemented("unused")

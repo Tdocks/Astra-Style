@@ -347,7 +347,8 @@ extension SampleData {
         precipitationChance: 0.1,
         windSpeed: 8,
         humidity: 0.45,
-        locationName: "Brooklyn, NY"
+        locationName: "Brooklyn, NY",
+        season: .fall
     )
 
     public static let scheduleSnapshot = ScheduleSnapshot(

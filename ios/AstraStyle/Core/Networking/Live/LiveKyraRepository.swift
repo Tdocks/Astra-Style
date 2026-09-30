@@ -15,14 +15,17 @@ public final class LiveKyraRepository: KyraRepository, @unchecked Sendable {
     private let apiClient: AstraAPIClient
     private let supabase: SupabaseClient
     private let weatherService: WeatherService
+    private let calendarService: CalendarService?
 
     public init(
         apiClient: AstraAPIClient,
         weatherService: WeatherService,
+        calendarService: CalendarService? = nil,
         supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)
     ) {
         self.apiClient = apiClient
         self.weatherService = weatherService
+        self.calendarService = calendarService
         self.supabase = supabase
     }
 
@@ -61,8 +64,26 @@ public final class LiveKyraRepository: KyraRepository, @unchecked Sendable {
         } else {
             weather = nil
         }
-        let body = KyraRespondBody(threadID: threadID, message: message, weatherSnapshot: weather)
+        let schedule = await currentScheduleSnapshotIfAuthorized()
+        let body = KyraRespondBody(
+            threadID: threadID,
+            message: message,
+            weatherSnapshot: weather,
+            scheduleSnapshot: schedule
+        )
         return try await apiClient.send(.kyraRespond, body: body, as: KyraMessage.self)
+    }
+
+    private func currentScheduleSnapshotIfAuthorized() async -> ScheduleSnapshot? {
+        guard let calendarService, calendarService.currentAuthorization() == .authorized,
+              let userID = try? await supabase.auth.session.user.id else { return nil }
+        let calendar = Calendar.current
+        guard let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: .now) else { return nil }
+        let events = await calendarService.fetchUpcomingEvents(
+            in: DateInterval(start: .now, end: end),
+            userID: userID
+        )
+        return ScheduleSnapshotBuilder.build(from: events)
     }
 
     public func fetchMemories() async throws -> [StyleMemory] {
@@ -111,12 +132,19 @@ private struct KyraRespondBody: Encodable, Sendable {
     let text: String
     let attachments: [AttachmentBody]
     let weatherSnapshot: WeatherSnapshot?
+    let scheduleSnapshot: ScheduleSnapshot?
 
-    init(threadID: UUID?, message: KyraOutgoingMessage, weatherSnapshot: WeatherSnapshot?) {
+    init(
+        threadID: UUID?,
+        message: KyraOutgoingMessage,
+        weatherSnapshot: WeatherSnapshot?,
+        scheduleSnapshot: ScheduleSnapshot?
+    ) {
         self.threadID = threadID
         self.text = message.text
         self.attachments = message.attachments.map(AttachmentBody.init)
         self.weatherSnapshot = weatherSnapshot
+        self.scheduleSnapshot = scheduleSnapshot
     }
 
     enum CodingKeys: String, CodingKey {
@@ -124,6 +152,7 @@ private struct KyraRespondBody: Encodable, Sendable {
         case text
         case attachments
         case weatherSnapshot = "weather_snapshot"
+        case scheduleSnapshot = "schedule_snapshot"
     }
 
     struct AttachmentBody: Encodable, Sendable {

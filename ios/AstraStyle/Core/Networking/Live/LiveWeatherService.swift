@@ -76,7 +76,8 @@ public final class LiveWeatherService: NSObject, WeatherService, CLLocationManag
                 precipitationChance: today?.precipitationChance,
                 windSpeed: weather.currentWeather.wind.speed.converted(to: .milesPerHour).value,
                 humidity: weather.currentWeather.humidity,
-                locationName: nil
+                locationName: nil,
+                season: CurrentSeasonResolver.season(at: .now, latitude: location.coordinate.latitude)
             )
         } catch {
             throw AstraError.provider("Kyra couldn't check today's weather. Try again shortly.")

@@ -69,6 +69,7 @@ import type {
   ClosetItemAnalysisBatchItemDTO,
   ClosetItemAnalysisResultDTO,
 } from "./schema.ts";
+import { handleWardrobeScore } from "./wardrobeScore.ts";
 
 const env = readEdgeEnv();
 
@@ -76,6 +77,7 @@ const env = readEdgeEnv();
 // the isolate (and the user's provider budget), not any one endpoint. Batch
 // work must stay job+poll so it cannot monopolise this budget.
 const rateLimiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
+const wardrobeScoreRateLimiter = createRateLimiter({ limit: 5, windowMs: 60_000 });
 
 function buildProvider(authorizationHeader: string): VisionAnalysisProvider {
   const mode = (Deno.env.get("VISION_ANALYSIS_PROVIDER") ?? "mock").toLowerCase();
@@ -304,8 +306,21 @@ function batchStatusRoute(
   );
 }
 
+function wardrobeScoreRoute(req: Request): Promise<Response> {
+  const authorizationHeader = req.headers.get("Authorization") ??
+    req.headers.get("authorization") ?? "";
+  const supabase = createUserScopedClient(env, authorizationHeader);
+  return handleWardrobeScore(req, {
+    authClient: supabase,
+    supabase,
+    rateLimiter: wardrobeScoreRateLimiter,
+    now: () => new Date(),
+  });
+}
+
 Deno.serve(createRouter("closet", [
   { method: "POST", pattern: "/analyze-item", handler: analyzeItemRoute },
   { method: "POST", pattern: "/batch-analyze", handler: batchAnalyzeRoute },
   { method: "GET", pattern: "/batch-status/:id", handler: batchStatusRoute },
+  { method: "GET", pattern: "/wardrobe-score", handler: wardrobeScoreRoute },
 ]));

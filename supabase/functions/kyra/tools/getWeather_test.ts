@@ -29,3 +29,16 @@ Deno.test("client Fahrenheit snapshot is returned as Celsius, scoped to today on
   assertEquals(forecast[0]!["date"], "2026-08-16");
   assert(String(result["detail"]).includes("do not extrapolate"));
 });
+
+Deno.test("season from the device is passed through without inferring location", () => {
+  const result = executeGetWeather({}, {
+    weatherSnapshot: {
+      temperatureHigh: 65,
+      temperatureLow: 52,
+      condition: "clear",
+      season: "fall",
+    },
+    now: NOW,
+  });
+  assertEquals(result["season"], "fall");
+});

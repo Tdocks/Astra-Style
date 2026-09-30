@@ -107,6 +107,13 @@ public struct OutfitDetailView: View {
                 onSchedule: { router.presentModal(.addOccasion) },
                 onEdit: { router.presentModal(.outfitBuilder(.builder(startingOutfitID: detail.outfit.id))) },
                 onVisualize: { router.presentModal(.studioGeneration(outfitID: detail.outfit.id)) },
+                onAskKyra: {
+                    router.startAskKyra(
+                        initialPrompt: "Let's refine this outfit. What if I swap the pants or make it more casual?",
+                        outfitID: detail.outfit.id,
+                        autoSend: true
+                    )
+                },
                 onTogglePublic: {
                     Task {
                         let next: OutfitVisibility = detail.outfit.visibility == .shared ? .personal : .shared
@@ -168,6 +175,7 @@ private struct OutfitDetailContent: View {
     let onSchedule: () -> Void
     let onEdit: () -> Void
     let onVisualize: () -> Void
+    let onAskKyra: () -> Void
     let onTogglePublic: () -> Void
     let onReport: () -> Void
     /// Wave E: Visualize is still the generate door from this screen.
@@ -326,6 +334,13 @@ private struct OutfitDetailContent: View {
                 )
             }
 
+            Button(action: onAskKyra) {
+                Label(askKyraTitle, systemImage: "bubble.left")
+                    .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("outfitDetail.action.askKyra")
+
             Button(action: requestVisibilityChange) {
                 Text(publicToggleTitle)
                     .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
@@ -435,6 +450,10 @@ private struct OutfitDetailContent: View {
 
     private var visualizeTitle: String {
         String(localized: "Visualize", comment: "Opens Style Studio to preview this outfit on the user")
+    }
+
+    private var askKyraTitle: String {
+        String(localized: "Ask Kyra to adjust this look", comment: "Opens contextual chat about the current outfit")
     }
 
     private var shareTitle: String {
@@ -702,38 +721,4 @@ private struct OutfitDetailErrorView: View {
         default: "exclamationmark.triangle"
         }
     }
-}
-
-// MARK: - Previews
-
-#Preview("Loaded") {
-    NavigationStack {
-        OutfitDetailView(
-            viewModel: OutfitDetailViewModel(
-                outfitID: SampleData.heroOutfit.id,
-                outfitRepository: MockOutfitRepository(),
-                closetRepository: MockClosetRepository(),
-                closetImageURLResolver: MockClosetImageURLResolver(),
-                profileRepository: MockProfileRepository()
-            )
-        )
-    }
-    .environment(AppRouter())
-    .preferredColorScheme(.dark)
-}
-
-#Preview("Not found") {
-    NavigationStack {
-        OutfitDetailView(
-            viewModel: OutfitDetailViewModel(
-                outfitID: UUID(),
-                outfitRepository: MockOutfitRepository(),
-                closetRepository: MockClosetRepository(),
-                closetImageURLResolver: MockClosetImageURLResolver(),
-                profileRepository: MockProfileRepository()
-            )
-        )
-    }
-    .environment(AppRouter())
-    .preferredColorScheme(.dark)
 }

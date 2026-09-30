@@ -3,6 +3,10 @@
 Written 2026-08-16, against `d5a1c175`. This is the dependency-ordered route from
 "the core loop works on a phone" to "submittable, chargeable product".
 
+> **Historical baseline:** the repository and hosted function inventory have moved materially
+> since this was written. Use [`docs/03-progress.md`](03-progress.md) for current ticket status
+> and verify implementation against `main`; counts and component inventories below are not current.
+
 Owner's decision, recorded so nobody re-litigates it mid-way: **all of it, in
 dependency order, with full Phase 5** — every server tool, not a voice-only
 first cut. There is no intermediate public release baked into this plan.

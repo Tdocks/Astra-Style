@@ -2,13 +2,21 @@
 
 Grouped function for every spec §14 path under `/closet/…` (ADR 0013):
 
-| Method | Path remainder      | Handler                                               |
-| ------ | ------------------- | ----------------------------------------------------- |
-| `POST` | `/analyze-item`     | `handleAnalyzeItem` — idempotent single-item analysis |
-| `POST` | `/batch-analyze`    | `handleBatchAnalyze` — enqueue only (HTTP 202)        |
-| `GET`  | `/batch-status/:id` | `handleBatchStatus` — advance one item per poll       |
+| Method | Path remainder      | Handler                                                    |
+| ------ | ------------------- | ---------------------------------------------------------- |
+| `POST` | `/analyze-item`     | `handleAnalyzeItem` — idempotent single-item analysis      |
+| `POST` | `/batch-analyze`    | `handleBatchAnalyze` — enqueue only (HTTP 202)             |
+| `GET`  | `/batch-status/:id` | `handleBatchStatus` — advance one item per poll            |
+| `GET`  | `/wardrobe-score`   | `handleWardrobeScore` — compute the caller's current score |
 
 Deployed slug: `closet`. Client paths are `/functions/v1/closet/analyze-item`, etc.
+
+The Wardrobe Score route is caller-authenticated and reads through the caller's JWT/RLS scope. It
+joins the current active closet with fit notes, lifestyle occasions, outfit coverage, and available
+item feedback. The score is derived on request rather than written to a duplicate table; an empty
+closet returns `score: null`. It has a tighter per-isolate refresh limit because the versatility
+scan does work proportional to closet size. The in-memory limiter is best-effort and is not a
+durable abuse boundary.
 
 ## Vision provider gate (docs/08 §2.5)
 

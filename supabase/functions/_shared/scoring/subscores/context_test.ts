@@ -90,6 +90,44 @@ Deno.test("No forecast is a mild prior, not a penalty, and it is reported", () =
   assert(score.degraded[0]!.includes("weather"));
 });
 
+Deno.test("current season favors matching garment tags while weather remains the stronger signal", () => {
+  const mildFall: ScoringContext = {
+    weather: { temperatureC: 12.5, precipitationProbability: 0, season: "fall" },
+  };
+  const fallCoat = garment("fall-coat", "outerwear", {
+    warmthScore: 50,
+    seasonality: ["fall"],
+  });
+  const summerCoat = garment("summer-coat", "outerwear", {
+    warmthScore: 50,
+    seasonality: ["summer"],
+  });
+  assert(
+    seasonWeatherSubscore([fallCoat], mildFall).value >
+      seasonWeatherSubscore([summerCoat], mildFall).value,
+  );
+
+  const coldFall: ScoringContext = {
+    weather: { temperatureC: -5, precipitationProbability: 0, season: "fall" },
+  };
+  const warmFall: ScoringContext = {
+    weather: { temperatureC: 25, precipitationProbability: 0, season: "fall" },
+  };
+  const coldWeatherCoat = { ...fallCoat, warmthScore: 100 };
+  assert(
+    seasonWeatherSubscore([coldWeatherCoat], coldFall).value >
+      seasonWeatherSubscore([coldWeatherCoat], warmFall).value,
+  );
+});
+
+Deno.test("missing garment season tags are reported as degraded context", () => {
+  const score = seasonWeatherSubscore(
+    [garment("untagged", "top", { warmthScore: 50 })],
+    { weather: { temperatureC: 12.5, precipitationProbability: 0, season: "fall" } },
+  );
+  assert(score.degraded.some((reason) => reason.includes("seasonality tags")));
+});
+
 // ── §2.6 preference ─────────────────────────────────────────────────────────
 
 Deno.test("Cold start is 0.7 — neither distrust nor a promise", () => {

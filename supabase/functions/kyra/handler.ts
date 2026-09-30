@@ -910,6 +910,10 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       bodyProfile,
       lifestyleProfile,
       weather: body.weatherSnapshot,
+      calendarSnapshot: body.scheduleSnapshot === null ? null : {
+        event_count: body.scheduleSnapshot.eventCount,
+        earliest_formality_level: body.scheduleSnapshot.earliestFormalityLevel,
+      },
       occasions,
       closetItems,
       recentFeedback: feedback,
@@ -1050,6 +1054,7 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       confidence: finalResponse.confidence,
       packet_truncations: packetResult.truncationApplied.length,
       had_weather_snapshot: body.weatherSnapshot !== null,
+      had_calendar_snapshot: body.scheduleSnapshot !== null,
       prompt_version: KYRA_SYSTEM_PROMPT_VERSION,
       latency_ms: latencyMs,
     });

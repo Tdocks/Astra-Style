@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import StoreKit
 
 struct ProfileDestinationView: View {
     let route: ProfileRoute
@@ -57,10 +58,8 @@ struct ProfileDestinationView: View {
             )
 
         case .wardrobeScoreDetail:
-            FeaturePlaceholderView(
-                title: String(localized: "Wardrobe Score"),
-                message: String(localized: "How versatile, current, and well-loved your closet is."),
-                systemImage: "chart.bar.fill"
+            WardrobeScoreDetailView(
+                viewModel: WardrobeScoreViewModel(closetRepository: container.closetRepository)
             )
 
         case .preferences:
@@ -70,11 +69,17 @@ struct ProfileDestinationView: View {
                 )
             )
 
+        case .notificationSettings:
+            NotificationSettingsView(service: container.reminderService)
+
         case .subscriptionManagement:
-            FeaturePlaceholderView(
-                title: String(localized: "Subscription"),
-                message: String(localized: "Manage your Astra Style plan."),
-                systemImage: "creditcard"
+            SubscriptionManagementView(
+                viewModel: SubscriptionManagementViewModel(
+                    purchasing: LiveStoreKitPurchasing(appAccountTokenProvider: {
+                        await container.sessionStore.currentUserID()
+                    }),
+                    subscriptionRepository: container.subscriptionRepository
+                )
             )
 
         case .styleMemories:
@@ -94,10 +99,11 @@ struct ProfileDestinationView: View {
             )
 
         case .styleJourney:
-            FeaturePlaceholderView(
-                title: String(localized: "Style Journey"),
-                message: String(localized: "New items, spend, wears, and what to focus on next."),
-                systemImage: "chart.line.uptrend.xyaxis"
+            StyleJourneyView(
+                viewModel: ProfileDashboardViewModel(
+                    closetRepository: container.closetRepository,
+                    outfitRepository: container.outfitRepository
+                )
             )
         }
     }

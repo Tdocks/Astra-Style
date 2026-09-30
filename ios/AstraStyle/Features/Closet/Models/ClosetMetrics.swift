@@ -42,34 +42,15 @@
 //  measurement, not a gap — spec §22 rules out dead numbers and placeholder
 //  values, and "$0.00" for a closet nobody has priced is both.
 //
-//  WHY THERE IS NO `versatility` MEMBER, THOUGH §6.14 LISTS ONE.
-//  Versatility is defined — precisely, in docs/05-wardrobe-graph.md §5.1 —
-//  as the count of distinct outfits an item appears in with a compatibility
-//  score of at least 0.65, normalised against a size-indexed expectation
-//  curve. Every input to that definition is Phase 4 work: there is no
-//  outfit data on the device, and the compatibility scorer it depends on
-//  has not been built. `WardrobeScore.versatility` is a field on a struct
-//  whose only producer, `LiveClosetRepository.fetchWardrobeScore()`, throws
-//  `AstraError.unimplemented` unconditionally — there is no
-//  `wardrobe_scores` table behind it.
-//
-//  Three options existed. Fetch it and hide the metric when it throws: this
-//  type is a pure function of an item array and cannot fetch anything, and
-//  `ClosetViewModel`'s header already records why that call is not made on
-//  this screen at all. Compute a client-side substitute from data that does
-//  exist — category spread, colour spread, formality range: this is the one
-//  that had to be turned down deliberately. Any of those is a defensible
-//  number about *something*, but none of them is versatility, and it would
-//  render in the same type, in the same row, beside four measured figures,
-//  indistinguishable from them. Worse, it would move — sometimes sharply —
-//  the day the real scorer lands, for reasons the user could never connect
-//  to anything he did. That is the confounded reading this codebase's rule
-//  names: absent is honest; a confounded reading is not.
-//
-//  So the metric is absent, and this comment is the record of the gap. When
-//  Phase 4 lands, versatility arrives as a real member here, fed by real
-//  outfit data, and the row grows a sixth tile. Nothing about the shape of
-//  this file has to change for that.
+//  WHY THE SERVER WARDROBE SCORE IS NOT A MEMBER HERE.
+//  The Wardrobe Score is now computed from caller-scoped closet, profile,
+//  outfit, and wear data by `GET /closet/wardrobe-score`, and Profile shows
+//  its seven components. `ClosetMetrics` deliberately remains a pure local
+//  function of closet items: making it call the server would break that
+//  contract, add a network dependency to every closet refresh, and conflate
+//  the score with the distinct metrics rendered here. The Closet overview
+//  still does not show a server score; it must never fabricate a local
+//  substitute for one.
 //
 
 import Foundation

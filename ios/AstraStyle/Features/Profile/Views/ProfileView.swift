@@ -2,22 +2,8 @@
 //  ProfileView.swift
 //  AstraStyle
 //
-//  The Profile tab's root (spec §4, §6.22). Deliberately thin: the full
-//  profile-and-stats screen — Style DNA summary, Wardrobe Score, items
-//  owned, cost per wear, Style Journey — is `P7-HOME-05`'s scope, not
-//  this pass's. About keeps the marketing version/build available to testers
-//  without exposing an internal live/not-live inventory in the customer
-//  experience. Privacy & Data remains the App Store gate
-//  (`P7-PRIVACY-02`/`P7-PRIVACY-03`).
-//
-//  NO IDENTITY HEADER, ON PURPOSE. `Profile.displayName`/`avatarURL` are
-//  real, fetchable fields, and a "Hi, [name]" line would be an easy
-//  addition — but it is the first sentence of the screen P7-HOME-05 owns
-//  ("profile image, Style DNA...", `Features/Profile/README.md`), and
-//  adding half of that header today means deciding, once P7-HOME-05
-//  lands, which of two files owns the `fetchCurrentProfile()` call site.
-//  Leaving it out entirely is the version of "minimal" that does not have
-//  to be partially undone later.
+//  The Profile tab's root (spec §4, §6.22). It composes the live closet
+//  dashboard, private identity photo, score, Style DNA, subscription, and privacy controls.
 //
 
 import SwiftUI
@@ -33,6 +19,19 @@ public struct ProfileView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AstraSpacing.xl) {
                 title
+                ProfileIdentityCard(
+                    viewModel: ProfileIdentityViewModel(
+                        profileRepository: container.profileRepository,
+                        imageURLResolver: container.closetImageURLResolver
+                    ),
+                    canEdit: container.sessionStore.currentSession?.isAnonymous == false
+                )
+                ProfileDashboardCard(
+                    viewModel: ProfileDashboardViewModel(
+                        closetRepository: container.closetRepository,
+                        outfitRepository: container.outfitRepository
+                    )
+                )
                 WearStreakBanner(
                     viewModel: WearStreakViewModel(streakRepository: container.streakRepository),
                     showsBest: true
@@ -42,9 +41,19 @@ public struct ProfileView: View {
                         shoppingRepository: container.shoppingRepository
                     )
                 )
+                ProfileWardrobeScoreCard(
+                    viewModel: WardrobeScoreViewModel(closetRepository: container.closetRepository)
+                )
                 styleDNARow
                 preferencesRow
+                profileNavigationRow(
+                    title: String(localized: "Notifications", comment: "Profile notifications settings row"),
+                    subtitle: String(localized: "Choose which style and closet reminders you receive.", comment: "Profile notifications subtitle"),
+                    identifier: "profile.notificationsRow",
+                    route: .notificationSettings
+                )
                 appearanceRow
+                subscriptionRow
                 aboutCard
                 ProfileReferralCard(viewModel: ProfileReferralViewModel(
                     profileRepository: container.profileRepository
@@ -153,6 +162,15 @@ public struct ProfileView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("profile.appearanceRow")
+    }
+
+    private var subscriptionRow: some View {
+        profileNavigationRow(
+            title: String(localized: "Subscription", comment: "Profile subscription row"),
+            subtitle: String(localized: "View your plan, restore purchases, or manage billing with Apple.", comment: "Profile subscription subtitle"),
+            identifier: "profile.subscriptionRow",
+            route: .subscriptionManagement
+        )
     }
 
     private var aboutCard: some View {

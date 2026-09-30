@@ -98,6 +98,10 @@ public final class KyraConversationViewModel {
     private let networkMonitor: NetworkReachabilityMonitoring
     private let analyticsClient: AnalyticsClient
     private let hydrator: KyraCardHydrator
+    private let initialPrompt: String?
+    private let contextualOutfitID: UUID?
+    private let autoSendInitialPrompt: Bool
+    private var didSendInitialPrompt = false
     private var connectivityTask: Task<Void, Never>?
 
     public init(
@@ -108,7 +112,10 @@ public final class KyraConversationViewModel {
         shoppingRepository: ShoppingRepository,
         imageURLResolver: ClosetImageURLResolving,
         networkMonitor: NetworkReachabilityMonitoring,
-        analyticsClient: AnalyticsClient
+        analyticsClient: AnalyticsClient,
+        initialPrompt: String? = nil,
+        contextualOutfitID: UUID? = nil,
+        autoSendInitialPrompt: Bool = false
     ) {
         self.threadID = threadID
         self.kyraRepository = kyraRepository
@@ -116,6 +123,9 @@ public final class KyraConversationViewModel {
         self.closetRepository = closetRepository
         self.networkMonitor = networkMonitor
         self.analyticsClient = analyticsClient
+        self.initialPrompt = initialPrompt
+        self.contextualOutfitID = contextualOutfitID
+        self.autoSendInitialPrompt = autoSendInitialPrompt
         self.hydrator = KyraCardHydrator(
             outfitRepository: outfitRepository,
             closetRepository: closetRepository,
@@ -147,6 +157,10 @@ public final class KyraConversationViewModel {
         }
         guard case .loading = historyState else { return }
         await loadHistory()
+        guard autoSendInitialPrompt, !didSendInitialPrompt, threadID == nil,
+              entries.isEmpty, let initialPrompt else { return }
+        didSendInitialPrompt = true
+        await send(text: initialPrompt, drafts: [], contextualOutfitID: contextualOutfitID)
     }
 
     public func onDisappear() {
@@ -219,14 +233,14 @@ public final class KyraConversationViewModel {
         let drafts = attachments
         draftText = ""
         attachments = []
-        await send(text: text, drafts: drafts)
+        await send(text: text, drafts: drafts, contextualOutfitID: contextualOutfitID)
     }
 
     /// P5-KYRA-15: a tapped prompt IS a message, through the same path as
     /// typed text — not a pre-fill the user must re-confirm.
     public func send(prompt: String) async {
         guard !isSending, !isOffline else { return }
-        await send(text: prompt, drafts: [])
+        await send(text: prompt, drafts: [], contextualOutfitID: contextualOutfitID)
     }
 
     /// Re-sends a failed message. The failed echo is removed and the send
@@ -238,10 +252,14 @@ public final class KyraConversationViewModel {
               let pending = entries[index].pending,
               entries[index].sendFailure != nil else { return }
         entries.remove(at: index)
-        await send(text: pending.text, drafts: pending.drafts)
+        await send(
+            text: pending.text,
+            drafts: pending.drafts,
+            contextualOutfitID: pending.contextualOutfitID
+        )
     }
 
-    private func send(text: String, drafts: [KyraAttachmentDraft]) async {
+    private func send(text: String, drafts: [KyraAttachmentDraft], contextualOutfitID: UUID? = nil) async {
         isSending = true
         defer { isSending = false }
 
@@ -250,12 +268,20 @@ public final class KyraConversationViewModel {
             id: localID,
             role: .user,
             text: text,
-            attachmentLabels: drafts.map(\.label),
-            pending: KyraTranscriptEntry.PendingSend(text: text, drafts: drafts)
+            attachmentLabels: drafts.map(\.label) + (contextualOutfitID == nil ? [] : [String(localized: "Current outfit")]),
+            pending: KyraTranscriptEntry.PendingSend(
+                text: text,
+                drafts: drafts,
+                contextualOutfitID: contextualOutfitID
+            )
         ))
 
         do {
-            let outgoing = try await outgoingMessage(text: text, drafts: drafts)
+            let outgoing = try await outgoingMessage(
+                text: text,
+                drafts: drafts,
+                contextualOutfitID: contextualOutfitID
+            )
             let reply = try await kyraRepository.send(threadID: threadID, message: outgoing)
             threadID = reply.threadID
             markSendDelivered(entryID: localID)
@@ -271,7 +297,11 @@ public final class KyraConversationViewModel {
     /// shape. Throws rather than dropping a failed upload: a message sent
     /// with fewer attachments than the user chose would be a silent edit
     /// of what he said.
-    private func outgoingMessage(text: String, drafts: [KyraAttachmentDraft]) async throws -> KyraOutgoingMessage {
+    private func outgoingMessage(
+        text: String,
+        drafts: [KyraAttachmentDraft],
+        contextualOutfitID: UUID?
+    ) async throws -> KyraOutgoingMessage {
         var wireAttachments: [KyraOutgoingMessage.Attachment] = []
         for draft in drafts {
             switch draft.payload {
@@ -285,6 +315,9 @@ public final class KyraConversationViewModel {
             case .outfit(let outfit):
                 wireAttachments.append(.outfit(outfitID: outfit.id))
             }
+        }
+        if let contextualOutfitID {
+            wireAttachments.append(.outfit(outfitID: contextualOutfitID))
         }
         return KyraOutgoingMessage(text: text, attachments: wireAttachments)
     }

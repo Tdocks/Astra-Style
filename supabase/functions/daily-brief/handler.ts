@@ -169,6 +169,11 @@ export function weatherScoringContext(
   const temperatureF = typeof apparent === "number" ? apparent : (high + low) / 2;
   const rawPrecipitation = snapshot["precipitation_chance"];
   const condition = snapshot["condition"];
+  const rawSeason = snapshot["season"];
+  const season = typeof rawSeason === "string" &&
+      ["spring", "summer", "fall", "winter"].includes(rawSeason)
+    ? rawSeason as "spring" | "summer" | "fall" | "winter"
+    : undefined;
   const precipitationProbability = typeof rawPrecipitation === "number"
     ? Math.min(1, Math.max(0, rawPrecipitation))
     : typeof condition === "string" && WET_CONDITIONS.has(condition)
@@ -179,6 +184,7 @@ export function weatherScoringContext(
     weather: {
       temperatureC: (temperatureF - 32) * 5 / 9,
       precipitationProbability,
+      ...(season === undefined ? {} : { season }),
     },
   };
 }
@@ -241,7 +247,7 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
 
     // 4. Idempotency, half one. The row is scoped by RLS to this caller, so
     // "the existing brief" can only ever be his own.
-    let refreshingMissingWeather = false;
+    let refreshingMeasuredContext = false;
     if (!body.regenerate) {
       const existing = await deps.repository.findBrief(userId, body.briefDate);
       if (existing) {
@@ -250,9 +256,13 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
         // a real forecast in the header while keeping an outfit ranked with
         // the no-weather prior. Rebuild once when the stored row has no
         // forecast; later reads stay idempotent.
-        refreshingMissingWeather = body.weatherSnapshot !== null &&
+        const refreshingMissingWeather = body.weatherSnapshot !== null &&
           !hasStoredWeather(existing.weather_snapshot);
-        if (!refreshingMissingWeather) {
+        const refreshingSchedule = body.scheduleSnapshot !== null &&
+          JSON.stringify(existing.schedule_snapshot ?? {}) !==
+            JSON.stringify(body.scheduleSnapshot);
+        refreshingMeasuredContext = refreshingMissingWeather || refreshingSchedule;
+        if (!refreshingMeasuredContext) {
           logger.info("daily_brief_generate.returned_existing", {
             user_id: userId,
             brief_date: body.briefDate,
@@ -270,7 +280,7 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
     const premium = deps.hasActivePremiumSubscription
       ? await deps.hasActivePremiumSubscription(deps.now().toISOString())
       : true;
-    if (!premium && !refreshingMissingWeather) {
+    if (!premium && !refreshingMeasuredContext) {
       const used = deps.countBriefs ? await deps.countBriefs(userId) : 0;
       if (used >= FREE_DAILY_BRIEF_COUNT) {
         throw morningLoopQuotaError(
@@ -279,13 +289,19 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
       }
     }
 
-    const brief = await buildBrief(userId, body.briefDate, body.weatherSnapshot, deps);
+    const brief = await buildBrief(
+      userId,
+      body.briefDate,
+      body.weatherSnapshot,
+      body.scheduleSnapshot,
+      deps,
+    );
 
     logger.info("daily_brief_generate.success", {
       user_id: userId,
       brief_date: body.briefDate,
       regenerated: body.regenerate,
-      refreshed_missing_weather: refreshingMissingWeather,
+      refreshed_measured_context: refreshingMeasuredContext,
       has_primary_outfit: brief.primary_outfit_id !== null,
       alternative_count: Array.isArray(brief.alternative_outfit_ids)
         ? brief.alternative_outfit_ids.length
@@ -333,6 +349,7 @@ async function buildBrief(
   userId: string,
   briefDate: string,
   weatherSnapshot: Record<string, unknown> | null,
+  scheduleSnapshot: Record<string, unknown> | null,
   deps: HandlerDeps,
 ): Promise<DailyBriefRow> {
   const items = await deps.repository.listCandidateItems(userId);
@@ -345,11 +362,14 @@ async function buildBrief(
     excludedItemIds: new Set<string>(),
     context: {
       ...weatherScoringContext(weatherSnapshot),
+      ...scheduleScoringContext(scheduleSnapshot),
       wardrobeGraph,
     },
   });
 
-  const occasionCount = await deps.repository.countOccasions(userId, briefDate);
+  const occasionCount = scheduleSnapshot === null
+    ? await deps.repository.countOccasions(userId, briefDate)
+    : Number(scheduleSnapshot["event_count"] ?? 0);
 
   const outfitIds = scored.length === 0 ? [] : await deps.repository.createOutfits(
     userId,
@@ -367,10 +387,19 @@ async function buildBrief(
     primaryOutfitId: outfitIds[0] ?? null,
     alternativeOutfitIds: outfitIds.slice(1),
     weatherSnapshot,
-    // `event_count` only. `earliest_formality_level` would need each
-    // occasion's dress code mapped onto a formality band, and
-    // `headline` would be prose about the day — both are P4-HOME-06 work
-    // and neither is derivable from a count.
-    scheduleSnapshot: { event_count: occasionCount },
+    scheduleSnapshot: scheduleSnapshot ?? { event_count: occasionCount },
   });
+}
+
+function scheduleScoringContext(snapshot: Record<string, unknown> | null): ScoringContext {
+  const level = snapshot?.["earliest_formality_level"];
+  const scoreByLevel: Record<string, number> = {
+    very_casual: 10,
+    casual: 30,
+    balanced: 50,
+    formal: 70,
+    very_formal: 90,
+  };
+  const score = typeof level === "string" ? scoreByLevel[level] : undefined;
+  return score === undefined ? {} : { targetFormalityScore: score };
 }

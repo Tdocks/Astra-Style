@@ -14,6 +14,7 @@ public actor MockShoppingRepository: ShoppingRepository {
     private var wishlist: Set<UUID> = []
     private var purchased: Set<UUID> = []
     private var evaluationOverride: ProductEvaluation?
+    private var evaluations: [ProductEvaluation] = []
     private var extractError: AstraError?
     private var evaluateError: AstraError?
 
@@ -88,7 +89,7 @@ public actor MockShoppingRepository: ShoppingRepository {
     public func evaluateProduct(candidateID: UUID) async throws -> ProductEvaluation {
         if let evaluateError { throw evaluateError }
         if let evaluationOverride {
-            return ProductEvaluation(
+            let result = ProductEvaluation(
                 userID: evaluationOverride.userID,
                 productCandidateID: candidateID,
                 compatibilityScore: evaluationOverride.compatibilityScore,
@@ -99,8 +100,10 @@ public actor MockShoppingRepository: ShoppingRepository {
                 reasoning: evaluationOverride.reasoning,
                 createdAt: evaluationOverride.createdAt
             )
+            evaluations.append(result)
+            return result
         }
-        return ProductEvaluation(
+        let result = ProductEvaluation(
             userID: SampleData.userID,
             productCandidateID: candidateID,
             compatibilityScore: 84,
@@ -110,6 +113,12 @@ public actor MockShoppingRepository: ShoppingRepository {
             verdict: .consider,
             reasoning: "Strong color match to your existing palette, but you already own two similar outer layers — I'd wait for a sale unless this replaces one of them."
         )
+        evaluations.append(result)
+        return result
+    }
+
+    public func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation] {
+        evaluations.filter { $0.createdAt >= from && $0.createdAt <= to }
     }
 
     public func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {

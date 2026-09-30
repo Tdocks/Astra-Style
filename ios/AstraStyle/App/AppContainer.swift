@@ -84,6 +84,7 @@ public final class AppContainer {
 
     public let weatherService: WeatherService
     public let calendarService: CalendarService
+    public let reminderService: ReminderService
 
     /// Camera session for the scanner modal (P3-SCAN-01). Protocol-typed so
     /// previews and unit tests inject `MockCaptureSessionController` without
@@ -118,6 +119,7 @@ public final class AppContainer {
         subscriptionRepository: SubscriptionRepository,
         weatherService: WeatherService,
         calendarService: CalendarService,
+        reminderService: ReminderService,
         captureSession: any CaptureSessionControlling,
         captureDraftStore: CaptureDraftStore = CaptureDraftStore(),
         pendingScanQueue: PendingScanQueue,
@@ -140,6 +142,7 @@ public final class AppContainer {
         self.subscriptionRepository = subscriptionRepository
         self.weatherService = weatherService
         self.calendarService = calendarService
+        self.reminderService = reminderService
         self.captureSession = captureSession
         self.captureDraftStore = captureDraftStore
         self.pendingScanQueue = pendingScanQueue
@@ -163,6 +166,7 @@ extension AppContainer {
         let sessionStore = SessionStore(apiClient: apiClient)
         let analyticsClient = LiveAnalyticsClient()
         let weatherService = LiveWeatherService()
+        let calendarService = LiveCalendarService()
 
         // Fall back to an in-memory store if the on-disk container fails
         // to initialize (e.g. an unreadable/corrupt store) rather than
@@ -194,14 +198,16 @@ extension AppContainer {
             ),
             kyraRepository: LiveKyraRepository(
                 apiClient: apiClient,
-                weatherService: weatherService
+                weatherService: weatherService,
+                calendarService: calendarService
             ),
             studioRepository: LiveStudioRepository(apiClient: apiClient),
             shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
             streakRepository: LiveStreakRepository(),
             subscriptionRepository: subscriptionRepository,
             weatherService: weatherService,
-            calendarService: LiveCalendarService(),
+            calendarService: calendarService,
+            reminderService: LiveReminderService(),
             captureSession: LiveCaptureSessionController(),
             pendingScanQueue: pendingScanQueue,
             apiClient: apiClient,
@@ -284,6 +290,7 @@ extension AppContainer {
             subscriptionRepository: subscriptionRepository,
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),
+            reminderService: MockReminderService(),
             captureSession: MockCaptureSessionController(isHardwareAvailable: false),
             captureDraftStore: CaptureDraftStore(),
             pendingScanQueue: InMemoryPendingScanQueue(),

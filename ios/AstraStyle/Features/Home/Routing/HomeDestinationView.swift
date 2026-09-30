@@ -58,11 +58,14 @@ struct HomeDestinationView: View {
                 message: String(localized: "What's coming up, and what Kyra suggests wearing to it."),
                 systemImage: "calendar"
             )
-        case .monthlyReview:
-            FeaturePlaceholderView(
-                title: String(localized: "Monthly Review"),
-                message: String(localized: "What you wore, what you bought, and what's worth changing."),
-                systemImage: "chart.line.uptrend.xyaxis"
+        case .monthlyReview(let month):
+            MonthlyReviewView(
+                viewModel: MonthlyReviewViewModel(
+                    month: month,
+                    closetRepository: container.closetRepository,
+                    outfitRepository: container.outfitRepository,
+                    shoppingRepository: container.shoppingRepository
+                )
             )
         case .productDecision(let candidateID):
             ProductDecisionView(

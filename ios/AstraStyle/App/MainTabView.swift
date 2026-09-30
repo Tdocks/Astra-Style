@@ -113,7 +113,9 @@ struct MainTabView: View {
                         profileRepository: container.profileRepository,
                         closetRepository: container.closetRepository,
                         weatherService: container.weatherService,
-                        imageURLResolver: container.closetImageURLResolver
+                        imageURLResolver: container.closetImageURLResolver,
+                        calendarService: container.calendarService,
+                        reminderService: container.reminderService
                     ),
                     analyticsClient: container.analyticsClient,
                     outfitRepository: container.outfitRepository
@@ -228,11 +230,8 @@ struct MainTabView: View {
         // project bindings at all.
         @Bindable var router = router
         NavigationStack(path: $router.profilePath) {
-            // Real now, where it used to be a placeholder over a placeholder.
-            // The tab is deliberately thin — P7-HOME-05 owns the full profile
-            // and stats screen — but the two things behind it are the App
-            // Store's own gate (Guideline 5.1.1(v)), so they ship first and
-            // the rest of the tab grows around them.
+            // The Profile root owns the dashboard and pushes its focused
+            // score, subscription, privacy, and Style Journey screens here.
             ProfileView()
                 .navigationDestination(for: ProfileRoute.self) { route in
                     ProfileDestinationView(route: route, container: container)
@@ -249,7 +248,9 @@ struct MainTabView: View {
             PaywallView(
                 viewModel: PaywallViewModel(
                     context: context,
-                    purchasing: LiveStoreKitPurchasing(),
+                    purchasing: LiveStoreKitPurchasing(appAccountTokenProvider: {
+                        await container.sessionStore.currentUserID()
+                    }),
                     subscriptionRepository: container.subscriptionRepository
                 )
             )
@@ -277,7 +278,8 @@ struct MainTabView: View {
             PackingTripView(
                 viewModel: PackingTripViewModel(
                     outfitRepository: container.outfitRepository,
-                    closetRepository: container.closetRepository
+                    closetRepository: container.closetRepository,
+                    reminderService: container.reminderService
                 )
             )
         }

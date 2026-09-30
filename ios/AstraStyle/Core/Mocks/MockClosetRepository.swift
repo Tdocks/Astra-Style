@@ -11,6 +11,7 @@ import Foundation
 public actor MockClosetRepository: ClosetRepository {
     private var items: [UUID: ClosetItem]
     private let previewBatchFailureIndex: Int?
+    private var monthlyVersatilityScores: [String: Int] = [:]
 
     /// Capture paths this mock has handed out and not yet been asked to
     /// delete — the in-memory stand-in for objects sitting in
@@ -33,6 +34,13 @@ public actor MockClosetRepository: ClosetRepository {
     public init(items: [ClosetItem] = SampleData.closetItems, previewBatchFailureIndex: Int? = 3) {
         self.items = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         self.previewBatchFailureIndex = previewBatchFailureIndex
+        if let currentMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start,
+           let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) {
+            monthlyVersatilityScores[DateFormatter.astraDay.string(from: previousMonth)] = max(
+                0,
+                SampleData.wardrobeScore.versatility - 4
+            )
+        }
     }
 
     public func fetchItems() async throws -> [ClosetItem] {
@@ -185,5 +193,16 @@ public actor MockClosetRepository: ClosetRepository {
 
     public func fetchWardrobeScore() async throws -> WardrobeScore {
         SampleData.wardrobeScore
+    }
+
+    public func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int? {
+        guard (0...100).contains(score),
+              let currentMonth = Calendar.current.dateInterval(of: .month, for: monthStart)?.start,
+              let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) else {
+            throw AstraError.validation("That monthly score couldn't be saved.")
+        }
+        let previousScore = monthlyVersatilityScores[DateFormatter.astraDay.string(from: previousMonth)]
+        monthlyVersatilityScores[DateFormatter.astraDay.string(from: currentMonth)] = score
+        return previousScore
     }
 }

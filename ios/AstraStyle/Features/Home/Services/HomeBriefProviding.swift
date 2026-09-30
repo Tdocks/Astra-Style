@@ -41,12 +41,18 @@ public protocol HomeBriefProviding: Sendable {
     /// this after `WeatherOptInCardView` has already explained why.
     /// Returns whether permission is now granted.
     func requestWeatherPermission() async -> Bool
+    /// Calendar status is read without prompting. The opt-in card is the
+    /// only Home path that may request full calendar access.
+    func calendarAuthorization() -> CalendarAuthorization
+    func requestCalendarPermission() async -> Bool
     /// Next seven local days. Empty on failure so today still renders.
     func loadWeekStrip() async -> [WeekDaySlot]
 }
 
 public extension HomeBriefProviding {
     func loadWeekStrip() async -> [WeekDaySlot] { [] }
+    func calendarAuthorization() -> CalendarAuthorization { .notDetermined }
+    func requestCalendarPermission() async -> Bool { false }
 }
 
 public final class DefaultHomeBriefProvider: HomeBriefProviding {
@@ -54,6 +60,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     private let profileRepository: ProfileRepository
     private let closetRepository: ClosetRepository
     private let weatherService: WeatherService
+    private let calendarService: CalendarService?
+    private let reminderService: ReminderService?
     /// Added so Home can draw the garments rather than a placeholder. Signing
     /// is batched — one request for the whole look, not one per garment —
     /// which is the reason `ClosetImageURLResolving` has a plural method at
@@ -65,12 +73,16 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         profileRepository: ProfileRepository,
         closetRepository: ClosetRepository,
         weatherService: WeatherService,
-        imageURLResolver: ClosetImageURLResolving
+        imageURLResolver: ClosetImageURLResolving,
+        calendarService: CalendarService? = nil,
+        reminderService: ReminderService? = nil
     ) {
         self.outfitRepository = outfitRepository
         self.profileRepository = profileRepository
         self.closetRepository = closetRepository
         self.weatherService = weatherService
+        self.calendarService = calendarService
+        self.reminderService = reminderService
         self.imageURLResolver = imageURLResolver
     }
 
@@ -81,10 +93,16 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     /// one screenful can hold; the two halves are independent — this one is
     /// about where the brief comes from, the caller is about what Home needs
     /// alongside it.
-    private func todaysBrief(regenerate: Bool, weather weatherSnapshot: WeatherSnapshot?) async throws -> DailyBrief {
+    private func todaysBrief(
+        regenerate: Bool,
+        weather weatherSnapshot: WeatherSnapshot?,
+        schedule scheduleSnapshot: ScheduleSnapshot?
+    ) async throws -> DailyBrief {
         let serverBrief: DailyBrief
         if !regenerate, let cached = try await outfitRepository.fetchDailyBrief(for: .now) {
-            if let weatherSnapshot, cached.weatherSnapshot == nil {
+            let needsWeatherRefresh = weatherSnapshot != nil && cached.weatherSnapshot == nil
+            let needsScheduleRefresh = scheduleSnapshot != nil && cached.scheduleSnapshot != scheduleSnapshot
+            if needsWeatherRefresh || needsScheduleRefresh {
                 // Weather may be enabled after today's first brief was built.
                 // Reading the cached outfit and merely repainting its header
                 // would claim a weather-aware choice the scorer never made.
@@ -94,7 +112,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
                 serverBrief = try await outfitRepository.generateDailyBrief(
                     for: .now,
                     regenerate: false,
-                    weather: weatherSnapshot
+                    weather: weatherSnapshot ?? cached.weatherSnapshot,
+                    schedule: scheduleSnapshot
                 )
             } else {
                 serverBrief = cached
@@ -107,7 +126,8 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             serverBrief = try await outfitRepository.generateDailyBrief(
                 for: .now,
                 regenerate: regenerate,
-                weather: weatherSnapshot
+                weather: weatherSnapshot,
+                schedule: scheduleSnapshot
             )
         }
 
@@ -167,8 +187,14 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // WeatherKit lookup from being attempted twice for one screen load.
         // Never prompts — see `currentWeatherSnapshotIfAuthorized()`.
         let weatherSnapshot = await currentWeatherSnapshotIfAuthorized()
+        let scheduleSnapshot = await todayScheduleSnapshot(userID: profile.id)
+        await refreshCalendarReminders(userID: profile.id)
 
-        let brief = try await todaysBrief(regenerate: regenerate, weather: weatherSnapshot)
+        let brief = try await todaysBrief(
+            regenerate: regenerate,
+            weather: weatherSnapshot,
+            schedule: scheduleSnapshot
+        )
 
         // Both degrade to nil/empty via `try?` inside the wrapper: a hiccup
         // fetching the outfit's items should not cost the user the outfit's
@@ -180,9 +206,10 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // upcoming occasions — were fetched on every Home load and rendered
         // by nothing after the screen became one look: two network round
         // trips and a calendar read per morning, feeding fields no view
-        // read. (`fetchWardrobeScore()` throws `.unimplemented`
-        // unconditionally, so that one had never returned a value in
-        // production at all.) They come back when something draws them.
+        // read. The Wardrobe Score route now exists, but Home still has no
+        // score module wired to this provider; it belongs here when the
+        // Daily Brief screen draws it. They come back when something draws
+        // them.
         async let primaryOutfitTask = fetchPrimaryOutfit(id: brief.primaryOutfitID)
         async let primaryOutfitItemsTask = fetchPrimaryOutfitItems(id: brief.primaryOutfitID)
 
@@ -225,6 +252,47 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
 
     public func requestWeatherPermission() async -> Bool {
         await weatherService.requestLocationPermissionIfNeeded()
+    }
+
+    public func calendarAuthorization() -> CalendarAuthorization {
+        calendarService?.currentAuthorization() ?? .notDetermined
+    }
+
+    public func requestCalendarPermission() async -> Bool {
+        guard let calendarService else { return false }
+        return await calendarService.requestAccessIfNeeded()
+    }
+
+    /// A privacy-minimized schedule summary used to steer today's ranking.
+    /// Event titles and locations remain on device; the server receives only
+    /// the number of remaining events and the earliest event's formality.
+    private func todayScheduleSnapshot(userID: UUID) async -> ScheduleSnapshot? {
+        guard let calendarService, calendarService.currentAuthorization() == .authorized else { return nil }
+        let calendar = Calendar.current
+        let start = Date.now
+        guard let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: start) else { return nil }
+        let range = DateInterval(start: start, end: end)
+        let calendarEvents = await calendarService.fetchUpcomingEvents(in: range, userID: userID)
+        guard let manualEvents = try? await outfitRepository.fetchOccasions(from: start, to: end) else {
+            // Preserve the server-side manual-event count if its read fails;
+            // replacing it with a calendar-only number would be misleading.
+            return nil
+        }
+        return ScheduleSnapshotBuilder.build(from: calendarEvents + manualEvents)
+    }
+
+    private func refreshCalendarReminders(userID: UUID) async {
+        guard let calendarService, let reminderService,
+              calendarService.currentAuthorization() == .authorized,
+              await reminderService.preferences().isEnabled(.upcomingOccasion) else { return }
+        let now = Date.now
+        guard let end = Calendar.current.date(byAdding: .day, value: 30, to: now) else { return }
+        let range = DateInterval(start: now, end: end)
+        let calendarEvents = await calendarService.fetchUpcomingEvents(in: range, userID: userID)
+        let manualEvents = (try? await outfitRepository.fetchOccasions(from: now, to: end)) ?? []
+        await reminderService.refreshOccasionReminders(
+            eventDates: (calendarEvents + manualEvents).map(\.startsAt)
+        )
     }
 
     /// Carried into `HomeBriefData` so the empty state can name what is

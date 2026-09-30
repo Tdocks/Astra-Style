@@ -167,6 +167,7 @@ public enum ProfileRoute: Hashable, Sendable {
     case appearance
     case wardrobeScoreDetail
     case preferences
+    case notificationSettings
     case subscriptionManagement
     case privacyAndData
     case styleMemories
@@ -204,7 +205,7 @@ public enum KyraRoute: Hashable, Sendable {
     /// minting a fresh `UUID()` — an id the database had never heard of,
     /// which the first send would then have posted as if it named a real
     /// thread. Optional is the honest shape.
-    case thread(threadID: UUID?)
+    case thread(threadID: UUID?, initialPrompt: String?, outfitID: UUID?, autoSend: Bool)
     case memories
     case productCard(productID: UUID)
 }
@@ -355,8 +356,18 @@ public final class AppRouter {
 
     // MARK: - Global actions (spec §4 "Global actions")
 
-    public func startAskKyra(threadID: UUID? = nil) {
-        presentModal(.askKyra(.thread(threadID: threadID)))
+    public func startAskKyra(
+        threadID: UUID? = nil,
+        initialPrompt: String? = nil,
+        outfitID: UUID? = nil,
+        autoSend: Bool = false
+    ) {
+        presentModal(.askKyra(.thread(
+            threadID: threadID,
+            initialPrompt: initialPrompt,
+            outfitID: outfitID,
+            autoSend: autoSend
+        )))
     }
 
     /// No gate in front of this any more. It used to check

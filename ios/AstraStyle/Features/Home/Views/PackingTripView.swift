@@ -157,10 +157,16 @@ final class PackingTripViewModel {
 
     private let outfitRepository: OutfitRepository
     private let closetRepository: ClosetRepository
+    private let reminderService: ReminderService?
 
-    init(outfitRepository: OutfitRepository, closetRepository: ClosetRepository) {
+    init(
+        outfitRepository: OutfitRepository,
+        closetRepository: ClosetRepository,
+        reminderService: ReminderService? = nil
+    ) {
         self.outfitRepository = outfitRepository
         self.closetRepository = closetRepository
+        self.reminderService = reminderService
     }
 
     func generate() async {
@@ -182,6 +188,7 @@ final class PackingTripViewModel {
             )
             plan = generated
             bagGarmentNames = await resolveGarmentNames(generated.packingListItemIDs)
+            await reminderService?.schedulePackingReminder(at: startDate)
         } catch let err as AstraError {
             error = err
         } catch {

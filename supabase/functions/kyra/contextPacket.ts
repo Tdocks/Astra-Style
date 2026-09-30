@@ -122,6 +122,11 @@ export interface ContextPacketInput {
     readonly temperatureHigh: number;
     readonly temperatureLow: number;
     readonly condition: string;
+    readonly season?: string | null;
+  } | null;
+  readonly calendarSnapshot: {
+    readonly event_count: number;
+    readonly earliest_formality_level: string | null;
   } | null;
   readonly occasions: readonly OccasionSourceRow[];
   readonly closetItems: readonly PacketClosetItemRow[];
@@ -387,6 +392,14 @@ export function buildContextPacket(input: ContextPacketInput): ContextPacketResu
         high_c: fahrenheitToCelsius(weather.temperatureHigh),
         low_c: fahrenheitToCelsius(weather.temperatureLow),
         condition: weather.condition,
+        season: weather.season,
+      },
+      calendar: input.calendarSnapshot === null ? { available: false } : {
+        available: true,
+        event_count: input.calendarSnapshot.event_count,
+        earliest_formality_level: input.calendarSnapshot.earliest_formality_level,
+        detail:
+          "Summary inferred on device. Event names, locations, and descriptions were not shared.",
       },
       occasions: sections.occasions.map((occasion) => ({
         id: occasion.id,

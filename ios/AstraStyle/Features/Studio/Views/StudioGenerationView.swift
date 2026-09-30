@@ -30,6 +30,7 @@ struct StudioGenerationView: View {
                     acknowledgment
                     if viewModel.hasGrantedConsent {
                         photoSection
+                        generationControls
                     }
                     statusSection
                 }
@@ -55,7 +56,9 @@ struct StudioGenerationView: View {
                     PaywallView(
                         viewModel: PaywallViewModel(
                             context: .studioQuota,
-                            purchasing: LiveStoreKitPurchasing(),
+                            purchasing: LiveStoreKitPurchasing(appAccountTokenProvider: {
+                                await container.sessionStore.currentUserID()
+                            }),
                             subscriptionRepository: container.subscriptionRepository
                         )
                     )
@@ -159,6 +162,52 @@ struct StudioGenerationView: View {
         }
     }
 
+    private var generationControls: some View {
+        DisclosureGroup("Customize this look") {
+            VStack(alignment: .leading, spacing: AstraSpacing.md) {
+                Picker("Style preset", selection: $viewModel.selectedPreset) {
+                    Text("No preset").tag(StudioPromptPreset?.none)
+                    ForEach(StudioPromptPreset.allCases, id: \.rawValue) { preset in
+                        Text(preset.displayTitle).tag(Optional(preset))
+                    }
+                }
+                Picker("Background", selection: $viewModel.selectedBackground) {
+                    ForEach(StudioBackground.allCases, id: \.rawValue) { option in
+                        Text(option.displayTitle).tag(option)
+                    }
+                }
+                Picker("Pose", selection: $viewModel.selectedPose) {
+                    ForEach(StudioPose.allCases, id: \.rawValue) { option in
+                        Text(option.displayTitle).tag(option)
+                    }
+                }
+                Picker("Formality", selection: $viewModel.selectedFormality) {
+                    Text("Use the preset").tag(FormalityLevel?.none)
+                    ForEach(FormalityLevel.allCases, id: \.rawValue) { option in
+                        Text(option.displayTitle).tag(Optional(option))
+                    }
+                }
+                Picker("Season", selection: $viewModel.selectedSeason) {
+                    Text("Use the current season").tag(Season?.none)
+                    ForEach(Season.allCases, id: \.rawValue) { option in
+                        Text(option.displayTitle).tag(Optional(option))
+                    }
+                }
+                TextField("Palette colors, separated by commas", text: $viewModel.paletteText)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+                Toggle("Keep my face consistent", isOn: $viewModel.preservesFace)
+                Toggle("Keep my body proportions consistent", isOn: $viewModel.preservesBodyProportions)
+                Toggle("Keep my hair consistent", isOn: $viewModel.preservesHair)
+            }
+            .padding(.top, AstraSpacing.sm)
+        }
+        .tint(AstraColor.accentChampagneAccessible)
+        .astraText(.callout)
+        .accessibilityIdentifier("studio.generationControls")
+    }
+
     @ViewBuilder
     private var captureControls: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
@@ -190,8 +239,21 @@ struct StudioGenerationView: View {
         }
     }
 
+    private func startGeneration(retrying: Bool) {
+        generationTask?.cancel()
+        generationTask = Task {
+            if retrying {
+                await viewModel.retry()
+            } else {
+                await viewModel.generate()
+            }
+        }
+    }
+}
+
+private extension StudioGenerationView {
     @ViewBuilder
-    private var statusSection: some View {
+    var statusSection: some View {
         switch viewModel.phase {
         case .preparing:
             ProgressView()
@@ -244,15 +306,65 @@ struct StudioGenerationView: View {
             }
         }
     }
+}
 
-    private func startGeneration(retrying: Bool) {
-        generationTask?.cancel()
-        generationTask = Task {
-            if retrying {
-                await viewModel.retry()
-            } else {
-                await viewModel.generate()
-            }
+private extension StudioPromptPreset {
+    var displayTitle: String {
+        switch self {
+        case .smartCasual: "Smart casual"
+        case .dateNight: "Date night"
+        case .wedding: "Wedding guest"
+        case .vacation: "Vacation"
+        case .executive: "Executive"
+        case .oldMoneyInspired: "Old money inspired"
+        case .minimalist: "Minimalist"
+        case .nightOut: "Night out"
+        }
+    }
+}
+
+private extension StudioBackground {
+    var displayTitle: String {
+        switch self {
+        case .studio: "Studio"
+        case .editorialOutdoor: "Outdoors"
+        case .urban: "Urban"
+        case .neutral: "Neutral"
+        }
+    }
+}
+
+private extension StudioPose {
+    var displayTitle: String {
+        switch self {
+        case .standingFront: "Standing, front"
+        case .standingThreeQuarter: "Standing, three-quarter"
+        case .walking: "Walking"
+        case .seated: "Seated"
+        }
+    }
+}
+
+private extension FormalityLevel {
+    var displayTitle: String {
+        switch self {
+        case .veryCasual: "Very casual"
+        case .casual: "Casual"
+        case .balanced: "Balanced"
+        case .formal: "Formal"
+        case .veryFormal: "Very formal"
+        }
+    }
+}
+
+private extension Season {
+    var displayTitle: String {
+        switch self {
+        case .spring: "Spring"
+        case .summer: "Summer"
+        case .fall: "Fall"
+        case .winter: "Winter"
+        case .allSeason: "All season"
         }
     }
 }

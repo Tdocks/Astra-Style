@@ -39,6 +39,10 @@ public struct MockCalendarService: CalendarService {
 
     public func requestAccessIfNeeded() async -> Bool { permissionGranted }
 
+    public func currentAuthorization() -> CalendarAuthorization {
+        permissionGranted ? .authorized : .notDetermined
+    }
+
     public func fetchUpcomingEvents(in range: DateInterval, userID: UUID) async -> [Occasion] {
         guard permissionGranted else { return [] }
         return events.filter { range.contains($0.startsAt) }

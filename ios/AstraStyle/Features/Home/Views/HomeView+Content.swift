@@ -43,6 +43,9 @@ extension HomeView {
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
             weatherAffordance(for: data)
+            calendarAffordance
+            DailyReminderOptInCard(service: container.reminderService)
+                .padding(.horizontal, AstraSpacing.pagePadding)
 
             HomeEmptyStateView(
                 reason: data.emptyReason ?? .noOutfitYet,
@@ -83,6 +86,22 @@ extension HomeView {
         }
     }
 
+    @ViewBuilder
+    var calendarAffordance: some View {
+        switch viewModel.calendarAuthorization {
+        case .notDetermined:
+            CalendarOptInCardView(isRequesting: viewModel.isRequestingCalendarPermission) {
+                Task { await viewModel.enableCalendar() }
+            }
+            .padding(.horizontal, AstraSpacing.pagePadding)
+        case .denied:
+            CalendarDeniedNoticeView()
+                .padding(.horizontal, AstraSpacing.pagePadding)
+        case .authorized:
+            EmptyView()
+        }
+    }
+
     /// Home is one decision, not a dashboard.
     ///
     /// This screen used to stack NINE modules: greeting header, weather
@@ -109,6 +128,9 @@ extension HomeView {
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
             weatherAffordance(for: data)
+            calendarAffordance
+            DailyReminderOptInCard(service: container.reminderService)
+                .padding(.horizontal, AstraSpacing.pagePadding)
 
             TodaysLookView(garments: data.lookGarments) { garment in
                 router.select(.closet)
@@ -124,6 +146,9 @@ extension HomeView {
                 .onAppear { syncWearFeedback(for: data) }
                 .onChange(of: data.primaryOutfit?.id) { _, _ in syncWearFeedback(for: data) }
 
+            askKyraTodayButton
+                .padding(.horizontal, AstraSpacing.pagePadding)
+
             if !viewModel.weekSlots.isEmpty {
                 HomeWeekStripView(
                     slots: viewModel.weekSlots,
@@ -137,7 +162,49 @@ extension HomeView {
                 )
                 .padding(.horizontal, AstraSpacing.pagePadding)
             }
+
+            monthlyReviewCard
         }
+    }
+
+    private var askKyraTodayButton: some View {
+        Button {
+            router.startAskKyra(initialPrompt: "What should I wear today?", autoSend: true)
+        } label: {
+            Label("Ask Kyra what to wear today", systemImage: "bubble.left")
+                .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+        }
+        .buttonStyle(.astraSecondary)
+        .accessibilityIdentifier("home.askKyra.today")
+    }
+
+    private var monthlyReviewCard: some View {
+        Button {
+            router.push(.monthlyReview(month: .now))
+        } label: {
+            AstraCard {
+                HStack(spacing: AstraSpacing.md) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .astraIcon(.emphasis)
+                        .foregroundStyle(AstraColor.accentChampagneAccessible)
+                    VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                        Text("Your month in style")
+                            .astraText(.headline)
+                            .foregroundStyle(AstraColor.textPrimary)
+                        Text("See what you wore, added, and want to improve.")
+                            .astraText(.caption)
+                            .foregroundStyle(AstraColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: AstraSpacing.xs)
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(AstraColor.textMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, AstraSpacing.pagePadding)
+        .accessibilityIdentifier("home.monthlyReview")
     }
 
     /// The date, and nothing else. Shared by the loaded screen and the empty
@@ -174,6 +241,11 @@ extension HomeView {
                     units: .imperial
                 ))
                     .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+            }
+            if let scheduleHeadline = data.schedule?.headline {
+                Text(scheduleHeadline)
+                    .astraText(.caption)
                     .foregroundStyle(AstraColor.textSecondary)
             }
         }

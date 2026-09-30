@@ -95,11 +95,24 @@ public protocol OutfitRepository: Sendable {
     /// what it is given and never invents a forecast to fill the column.
     func generateDailyBrief(for date: Date, regenerate: Bool, weather: WeatherSnapshot?) async throws -> DailyBrief
 
+    /// The caller's current-day schedule summary, when Calendar access was
+    /// explicitly enabled. The payload omits event titles, locations, and
+    /// descriptions; it carries only count and formality context.
+    func generateDailyBrief(
+        for date: Date,
+        regenerate: Bool,
+        weather: WeatherSnapshot?,
+        schedule: ScheduleSnapshot?
+    ) async throws -> DailyBrief
+
     /// Calls `POST /packing/generate` (spec §6.24, §14).
     func generatePackingPlan(_ request: PackingRequest) async throws -> PackingPlan
 
     /// Briefs in `[from, to]` inclusive, local calendar days.
     func fetchDailyBriefs(from: Date, to: Date) async throws -> [DailyBrief]
+
+    /// Wear events in the inclusive date range, used by the Monthly Review.
+    func fetchOutfitWears(from: Date, to: Date) async throws -> [OutfitWear]
 
     func fetchOccasions(from: Date, to: Date) async throws -> [Occasion]
     func saveOccasion(_ occasion: Occasion) async throws -> Occasion
@@ -115,6 +128,16 @@ public protocol OutfitRepository: Sendable {
 }
 
 public extension OutfitRepository {
+    func generateDailyBrief(
+        for date: Date,
+        regenerate: Bool,
+        weather: WeatherSnapshot?,
+        schedule: ScheduleSnapshot?
+    ) async throws -> DailyBrief {
+        _ = schedule
+        return try await generateDailyBrief(for: date, regenerate: regenerate, weather: weather)
+    }
+
     /// The overwhelmingly common call — "today's brief, whatever already
     /// exists" — kept as a default so every caller that does not mean
     /// "rebuild" does not have to say so.
@@ -158,6 +181,8 @@ public extension OutfitRepository {
     func reportLookbook(outfitID: UUID) async throws {}
 
     func fetchDailyBriefs(from: Date, to: Date) async throws -> [DailyBrief] { [] }
+
+    func fetchOutfitWears(from: Date, to: Date) async throws -> [OutfitWear] { [] }
 
     func fetchOccasions(from: Date, to: Date) async throws -> [Occasion] { [] }
 

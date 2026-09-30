@@ -76,12 +76,20 @@ export interface KyraRespondRequestBody {
    * trigger a permission prompt.
    */
   readonly weatherSnapshot: WeatherSnapshot | null;
+  /** Count and locally inferred formality only; event details stay on device. */
+  readonly scheduleSnapshot: KyraScheduleSnapshot | null;
 }
 
 export interface WeatherSnapshot {
   readonly temperatureHigh: number;
   readonly temperatureLow: number;
   readonly condition: string;
+  readonly season?: string | null;
+}
+
+export interface KyraScheduleSnapshot {
+  readonly eventCount: number;
+  readonly earliestFormalityLevel: string | null;
 }
 
 const MAX_TEXT_LENGTH = 2_000;
@@ -130,7 +138,42 @@ function parseWeatherSnapshot(raw: unknown): WeatherSnapshot | null {
   if (typeof condition !== "string" || !KNOWN_WEATHER_CONDITIONS.has(condition)) {
     throw badRequest("body.weather_snapshot.condition must be a known weather condition.");
   }
-  return { temperatureHigh: high, temperatureLow: low, condition };
+  const season = raw["season"];
+  const knownSeasons = new Set(["spring", "summer", "fall", "winter"]);
+  if (
+    season !== undefined && season !== null &&
+    (typeof season !== "string" || !knownSeasons.has(season))
+  ) {
+    throw badRequest("body.weather_snapshot.season must be a known season when present.");
+  }
+  return {
+    temperatureHigh: high,
+    temperatureLow: low,
+    condition,
+    season: typeof season === "string" ? season : null,
+  };
+}
+
+function parseScheduleSnapshot(raw: unknown): KyraScheduleSnapshot | null {
+  if (raw === undefined || raw === null) return null;
+  if (!isRecord(raw)) throw badRequest("body.schedule_snapshot must be an object when present.");
+  const eventCount = raw["event_count"];
+  if (
+    typeof eventCount !== "number" || !Number.isInteger(eventCount) || eventCount < 0 ||
+    eventCount > 100
+  ) {
+    throw badRequest("body.schedule_snapshot.event_count must be an integer from 0 to 100.");
+  }
+  const level = raw["earliest_formality_level"];
+  const knownLevels = new Set(["very_casual", "casual", "balanced", "formal", "very_formal"]);
+  if (
+    level !== undefined && level !== null && (typeof level !== "string" || !knownLevels.has(level))
+  ) {
+    throw badRequest(
+      "body.schedule_snapshot.earliest_formality_level must be a known formality level.",
+    );
+  }
+  return { eventCount, earliestFormalityLevel: typeof level === "string" ? level : null };
 }
 
 function parseAttachments(raw: unknown): KyraAttachment[] {
@@ -180,6 +223,7 @@ export function parseKyraRespondBody(rawBody: unknown): KyraRespondRequestBody {
     text: text.trim(),
     attachments: parseAttachments(rawBody["attachments"]),
     weatherSnapshot: parseWeatherSnapshot(rawBody["weather_snapshot"]),
+    scheduleSnapshot: parseScheduleSnapshot(rawBody["schedule_snapshot"]),
   };
 }
 

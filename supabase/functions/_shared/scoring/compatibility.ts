@@ -138,7 +138,7 @@ export function scoreOutfit(
     seasonWeather: seasonWeatherSubscore(items, context),
     userPreference: userPreferenceSubscore(items, context, options.colorNameOf),
     coWear: coWearSubscore(items, context),
-    occasion: occasionSubscore(context, options.outfitOccasionTags ?? []),
+    occasion: occasionSubscore(context, options.outfitOccasionTags ?? [], items),
     availability: availabilitySubscore(items),
   };
 

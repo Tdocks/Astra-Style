@@ -15,6 +15,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     case exportPersonalData
     case generateStyleDNA
     case analyzeClosetItem
+    case fetchWardrobeScore
     case batchAnalyzeCloset
     /// Poll endpoint for `batchAnalyzeCloset` jobs (HANDOFF §9.3 — batch is
     /// job+poll, never an in-request fan-out on the shared `closet` isolate).
@@ -41,7 +42,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// HTTP method for the endpoint.
     public var method: HTTPMethod {
         switch self {
-        case .studioStatus, .batchAnalyzeClosetStatus, .exportPersonalData:
+        case .studioStatus, .batchAnalyzeClosetStatus, .exportPersonalData, .fetchWardrobeScore:
             .get
         case .deleteAccount:
             .delete
@@ -58,6 +59,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .exportPersonalData: "profile/export-data"
         case .generateStyleDNA: "style-dna/generate"
         case .analyzeClosetItem: "closet/analyze-item"
+        case .fetchWardrobeScore: "closet/wardrobe-score"
         case .batchAnalyzeCloset: "closet/batch-analyze"
         case .batchAnalyzeClosetStatus(let id): "closet/batch-status/\(id.uuidString.lowercased())"
         case .generateOutfits: "outfits/generate"

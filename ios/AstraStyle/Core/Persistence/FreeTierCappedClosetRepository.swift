@@ -117,6 +117,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
         try await base.fetchWardrobeScore()
     }
 
+    public func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int? {
+        try await base.captureMonthlyVersatilitySnapshot(monthStart: monthStart, score: score)
+    }
+
     public func migrateGuestLocalImages() async throws {
         try await base.migrateGuestLocalImages()
     }

@@ -30,7 +30,11 @@ public protocol StoreKitPurchasing: Sendable {
 }
 
 public struct LiveStoreKitPurchasing: StoreKitPurchasing {
-    public init() {}
+    private let appAccountTokenProvider: @Sendable () async -> UUID?
+
+    public init(appAccountTokenProvider: @escaping @Sendable () async -> UUID? = { nil }) {
+        self.appAccountTokenProvider = appAccountTokenProvider
+    }
 
     public func offerings() async throws -> [PaywallOffering] {
         let ids = Set(AstraProductID.allCases.map(\.rawValue))
@@ -50,12 +54,17 @@ public struct LiveStoreKitPurchasing: StoreKitPurchasing {
         guard let product = products.first else {
             throw AstraError.unimplemented("That Premium plan is not configured on this App Store account.")
         }
-        let result = try await product.purchase()
+        let result: Product.PurchaseResult
+        if let appAccountToken = await appAccountTokenProvider() {
+            result = try await product.purchase(options: [.appAccountToken(appAccountToken)])
+        } else {
+            result = try await product.purchase()
+        }
         switch result {
         case .success(let verification):
-            let transaction = try Self.verified(verification)
-            let payload = Self.payload(from: transaction)
-            await transaction.finish()
+            let transaction = try Self.verifiedTransaction(from: verification)
+            let payload = Self.payload(from: transaction.transaction, signedInfo: transaction.signedInfo)
+            await transaction.transaction.finish()
             return payload
         case .userCancelled, .pending:
             return nil
@@ -68,22 +77,27 @@ public struct LiveStoreKitPurchasing: StoreKitPurchasing {
         try await AppStore.sync()
         var payloads: [AppStoreTransactionPayload] = []
         for await verification in Transaction.currentEntitlements {
-            let transaction = try Self.verified(verification)
-            payloads.append(Self.payload(from: transaction))
+            let transaction = try Self.verifiedTransaction(from: verification)
+            payloads.append(Self.payload(from: transaction.transaction, signedInfo: transaction.signedInfo))
         }
         return payloads
     }
 
-    private static func verified(_ result: VerificationResult<Transaction>) throws -> Transaction {
+    private static func verifiedTransaction(
+        from result: VerificationResult<Transaction>
+    ) throws -> (transaction: Transaction, signedInfo: String) {
         switch result {
         case .unverified:
             throw AstraError.validation("Apple could not verify that purchase.")
         case .verified(let transaction):
-            return transaction
+            return (transaction, result.jwsRepresentation)
         }
     }
 
-    private static func payload(from transaction: Transaction) -> AppStoreTransactionPayload {
+    private static func payload(
+        from transaction: Transaction,
+        signedInfo: String
+    ) -> AppStoreTransactionPayload {
         let environment: SubscriptionEnvironment = transaction.environment == .production
             ? .production
             : .sandbox
@@ -93,7 +107,8 @@ public struct LiveStoreKitPurchasing: StoreKitPurchasing {
             productID: transaction.productID,
             purchaseDate: transaction.purchaseDate,
             expiresDate: transaction.expirationDate,
-            environment: environment
+            environment: environment,
+            signedTransactionInfo: signedInfo
         )
     }
 }

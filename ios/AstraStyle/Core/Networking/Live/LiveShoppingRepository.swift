@@ -84,6 +84,22 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
         try await fetchWishlistRows(purchased: true)
     }
 
+    public func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation] {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        do {
+            return try await supabase.from("user_product_evaluations")
+                .select()
+                .gte("created_at", value: formatter.string(from: from))
+                .lte("created_at", value: formatter.string(from: to))
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+        } catch {
+            throw AstraError.network("Couldn't load your shopping evaluations.")
+        }
+    }
+
     public func addToWishlist(candidateID: UUID) async throws {
         guard let userID = try? await supabase.auth.session.user.id else {
             throw AstraError.auth("Sign in to save items.")

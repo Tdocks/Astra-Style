@@ -646,6 +646,7 @@ export interface ProfileDTO {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  avatar_storage_path?: string | null;
   location_name: string | null;
   timezone: string | null;
   units: string;

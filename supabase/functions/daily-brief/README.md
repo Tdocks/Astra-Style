@@ -27,15 +27,25 @@ supabase functions deploy daily-brief --project-ref anutsdzbxycaavmmkewo
     "weather_snapshot": {
       "temperature_high": 68,
       "temperature_low": 54,
-      "condition": "partly_cloudy"
+      "condition": "partly_cloudy",
+      "season": "fall"
+    },
+    "schedule_snapshot": {
+      "event_count": 2,
+      "earliest_formality_level": "balanced"
     }
   }
 }
 ```
 
 `weather_snapshot` is optional and, when present, must match the client's own `WeatherSnapshot`
-shape (`temperature_high`/`temperature_low` numbers, a known `condition` string — see `schema.ts`'s
-`parseWeatherSnapshot`). Omit it, or send `null`, when the client has no weather reading to offer.
+shape (`temperature_high`/`temperature_low` numbers, a known `condition` string, and an optional
+`season` value — see `schema.ts`'s `parseWeatherSnapshot`). The device resolves the season locally
+from its date and latitude; it sends neither coordinates nor a location name. Omit the object, or
+send `null`, when the client has no weather reading to offer.
+
+`schedule_snapshot` is also optional. It carries an event count and the earliest inferred formality
+level; calendar titles, locations, and descriptions remain on device.
 
 `date` is the caller's local calendar day and is matched strictly against `YYYY-MM-DD`, then
 re-checked for being a real day. `new Date(value)` would accept `2026-13-45`, `2026-8-6` and a full
@@ -46,9 +56,10 @@ none of which the next request finds.
 ## What it does
 
 1. Returns the stored brief for that day unless `regenerate` is true, with one exception: a
-   client-supplied forecast refreshes a cached brief that was created without weather exactly once.
+   client-supplied weather or schedule context refreshes a cached brief whose measured context
+   changed.
 2. Reads wearable `closet_items` and scores them with `_shared/scoring/CompatibilityOutfitScorer`,
-   including measured weather when supplied.
+   using temperature, rain exposure, garment season tags, and event formality when supplied.
 3. **Persists the outfits as real `outfits` + `outfit_items` rows**, then writes the brief
    referencing them.
 4. Upserts `daily_briefs` on `(user_id, brief_date)`.
@@ -66,10 +77,9 @@ itself.
 constraint. The read alone is a race: two requests that both miss it would otherwise have one
 succeed and one fail on the constraint.
 
-The only cache backfill is missing weather → measured weather. It rebuilds the same day's row
-without counting as another free Daily Brief, so enabling location cannot leave a real forecast in
-the header above an outfit ranked with the no-weather prior. A row that already stores weather stays
-idempotent.
+Changed measured context rebuilds the same day's row without counting as another free Daily Brief.
+This keeps the recommendation aligned with newly enabled weather or calendar access. Once the stored
+measured context matches the device, the brief stays idempotent.
 
 ## What it deliberately does not produce
 
@@ -83,6 +93,9 @@ Spec §14 lists weather and a Kyra-authored message among this endpoint's inputs
   never invents a forecast to fill the column, and rejects a populated-but-malformed one rather than
   storing it (see `schema.ts`'s `parseWeatherSnapshot`). The iOS wire snapshot is Fahrenheit; the
   handler converts it to the scorer's canonical Celsius and uses apparent temperature when present.
+- **`schedule_snapshot` is a privacy-minimized summary.** It contains the number of today's events
+  and a locally inferred formality band. Event names, locations, descriptions, and raw coordinates
+  never reach this endpoint.
 - **`kyra_message` is null.** The compatibility scorer returns a deterministic explanation made only
   from measured components, but that is not a model-authored stylist note. Relabelling it as Kyra's
   judgement would be false; `HomeView` renders that module only when a genuine message is present.

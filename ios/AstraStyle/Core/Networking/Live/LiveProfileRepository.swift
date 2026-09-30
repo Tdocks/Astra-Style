@@ -44,6 +44,66 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
         }
     }
 
+    public func uploadProfileAvatar(_ imageData: Data) async throws -> String {
+        do {
+            let session = try await supabase.auth.session
+            let userID = session.user.id.uuidString.lowercased()
+            let path = "users/\(userID)/avatars/\(UUID().uuidString.lowercased()).jpg"
+            _ = try await supabase.storage
+                .from("user-content")
+                .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
+            return path
+        } catch {
+            throw AstraError.network("Couldn't upload your profile photo. Check your connection and try again.")
+        }
+    }
+
+    public func updateAvatarStoragePath(_ path: String?) async throws -> Profile {
+        do {
+            let session = try await supabase.auth.session
+            return try await supabase.from("profiles")
+                .update(ProfileAvatarUpdatePayload(storagePath: path))
+                .eq("id", value: session.user.id)
+                .select()
+                .single()
+                .execute()
+                .value
+        } catch {
+            throw AstraError.server("Couldn't update your profile photo.")
+        }
+    }
+
+    public func deleteProfileAvatar(path: String) async throws {
+        let userID: String
+        do {
+            let session = try await supabase.auth.session
+            userID = session.user.id.uuidString.lowercased()
+        } catch {
+            throw AstraError.auth("Sign in again to remove your profile photo.")
+        }
+
+        let components = path.split(separator: "/").map(String.init)
+        guard components.count == 4,
+              components[0] == "users",
+              components[1] == userID,
+              components[2] == "avatars",
+              components[3].lowercased().hasSuffix(".jpg"),
+              UUID(uuidString: String(components[3].dropLast(4))) != nil else {
+            throw AstraError.validation("That profile photo doesn't belong to your account.")
+        }
+
+        let currentProfile = try await fetchCurrentProfile()
+        guard currentProfile.avatarStoragePath != path else {
+            throw AstraError.validation("Your current profile photo must be cleared before its file can be removed.")
+        }
+
+        do {
+            _ = try await supabase.storage.from("user-content").remove(paths: [path])
+        } catch {
+            throw AstraError.network("Couldn't remove your profile photo. Please try again.")
+        }
+    }
+
     public func fetchStyleProfile() async throws -> StyleProfile? {
         try await fetchOptionalSingle(table: "style_profiles")
     }
@@ -214,5 +274,20 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
             // is an expected, non-error state.
             return nil
         }
+    }
+}
+
+private struct ProfileAvatarUpdatePayload: Encodable, Sendable {
+    let storagePath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case storagePath = "avatar_storage_path"
+        case avatarURL = "avatar_url"
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(storagePath, forKey: .storagePath)
+        try container.encodeNil(forKey: .avatarURL)
     }
 }

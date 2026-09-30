@@ -41,7 +41,9 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     let writer: any ClosetWriting
     let conflictRecorder: OfflineConflictRecording
     private let cache: ClosetItemCaching
-    private let currentUserID: @Sendable () async -> UUID?
+    // Internal so the wardrobe-score extension can scope monthly history to
+    // the restored auth session before it performs an RLS-protected write.
+    let currentUserID: @Sendable () async -> UUID?
     /// Test seam: when non-nil, `fetchItems` uses this instead of Postgrest
     /// so cache write-through / offline fallback can be asserted without a
     /// live Supabase project.
@@ -231,35 +233,6 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         } catch {
             throw AstraError.server("Couldn't update laundry status.")
         }
-    }
-
-    /// - Note: **Not implemented.** This used to `select()` from a
-    ///   `wardrobe_scores` table that no migration in supabase/migrations
-    ///   creates, so it failed on every call in production — invisibly,
-    ///   because `HomeBriefProviding.fetchWardrobeScoreSafely()` does
-    ///   `try?` and Home simply hides the module. The result was a screen
-    ///   that has never once shown a real score and never reported why.
-    ///
-    ///   Updated 2026-08-07 (P4-HOME-04): the scorer itself is no longer
-    ///   the missing piece — `computeWardrobeScore`
-    ///   (`supabase/functions/_shared/scoring/wardrobeScore.ts`, P4-OUTFIT-10)
-    ///   is implemented and unit-tested. What is still missing is
-    ///   everything between here and it: no `closet/` route calls it (only
-    ///   `analyze-item` / `batch-analyze` / `batch-status` are deployed —
-    ///   see `closet/index.ts`), and there is still no `wardrobe_scores`
-    ///   table (or any other persistence) for a route to write to or this
-    ///   method to read from. `WardrobeScoring` (Domain/Services) — a
-    ///   client-side protocol for an offline-safe estimate — still has no
-    ///   conforming type either. Wiring an Edge Function route to the now-
-    ///   real TypeScript scorer is P4-HOME-04's honest blocker, checked and
-    ///   confirmed rather than assumed while building that ticket: do not
-    ///   have this method fabricate a score from partial local data in the
-    ///   meantime — an unmeasured composite that LOOKS measured is exactly
-    ///   what "absent is honest; a confounded reading is not" forbids.
-    public func fetchWardrobeScore() async throws -> WardrobeScore {
-        throw AstraError.unimplemented(
-            String(localized: "Your Wardrobe Score isn't ready yet.")
-        )
     }
 
     public func migrateGuestLocalImages() async throws {

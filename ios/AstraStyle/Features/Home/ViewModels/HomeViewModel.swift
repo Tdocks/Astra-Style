@@ -95,6 +95,8 @@ public final class HomeViewModel {
     /// model) shows nothing rather than a false "denied" state.
     public private(set) var weatherAuthorization: WeatherLocationAuthorization = .notDetermined
     public private(set) var isRequestingWeatherPermission = false
+    public private(set) var calendarAuthorization: CalendarAuthorization = .notDetermined
+    public private(set) var isRequestingCalendarPermission = false
 
     private let provider: HomeBriefProviding
     private let analyticsClient: AnalyticsClient
@@ -120,6 +122,7 @@ public final class HomeViewModel {
         // waits for `enableWeather()`, which only `WeatherOptInCardView`'s
         // button calls.
         weatherAuthorization = provider.weatherAuthorization()
+        calendarAuthorization = provider.calendarAuthorization()
         guard case .loading = state else { return }
         await load(regenerate: false, showingSkeleton: true)
     }
@@ -176,6 +179,19 @@ public final class HomeViewModel {
         // looking at was generated/read before weather existed, and a
         // fresh `loadTodayBrief()` is what actually attaches it (see
         // `DefaultHomeBriefProvider`'s cached-vs-generate weather overlay).
+        await load(regenerate: false, showingSkeleton: false)
+    }
+
+    /// Calendar permission is asked only after the Home opt-in explains the
+    /// local read and the compact context Kyra receives. Once enabled, Home
+    /// refreshes today's recommendation from the current schedule.
+    public func enableCalendar() async {
+        guard calendarAuthorization == .notDetermined, !isRequestingCalendarPermission else { return }
+        isRequestingCalendarPermission = true
+        defer { isRequestingCalendarPermission = false }
+        let granted = await provider.requestCalendarPermission()
+        calendarAuthorization = granted ? .authorized : .denied
+        guard granted else { return }
         await load(regenerate: false, showingSkeleton: false)
     }
 
