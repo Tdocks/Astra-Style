@@ -19,7 +19,7 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `10`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `11`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
@@ -27,11 +27,13 @@ current brief.
 
 ## Current release — 2026-09-30
 
-Version **1.0.0 (10)** is processed as **VALID** and is attached to both the
-owner's Internal group and the public External group. Beta App Review was
-approved. The owner can install build 10 through Internal TestFlight or the
-public join link above. Production and Sandbox App Store Server Notifications
-URLs are configured at
+Version **1.0.0 (11)** is processed as **VALID** and available to the owner's
+Internal group and the public External group. Beta App Review is **APPROVED**.
+The owner can install build 11 through Internal TestFlight, and the public join
+link above offers it to external testers. Kyra's live provider is still
+unavailable in production because `STYLIST_PROVIDER_API_KEY` is not configured;
+the app now explains this configuration failure clearly. Production and
+Sandbox App Store Server Notifications URLs are configured at
 `https://anutsdzbxycaavmmkewo.supabase.co/functions/v1/app-store/webhook`.
 Signed Apple test-notification acceptance and sandbox purchase checks remain.
 
