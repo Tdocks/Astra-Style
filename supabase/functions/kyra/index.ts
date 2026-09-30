@@ -15,14 +15,15 @@
 // `deno check`, `_shared/routing_test.ts`, and a live `supabase functions
 // serve` round trip.
 //
-// PROVIDER WIRING. `STYLIST_PROVIDER_API_KEY` (spec §25's per-capability
-// name — NOT `OPENAI_API_KEY`; see docs/08 §2.5's postmortem on that exact
-// mistake) selects the live adapter. When it is absent, the wired provider
-// throws `PROVIDER_UNAVAILABLE` on first use and the handler returns its
-// docs/06 §6 in-voice fallback — Kyra says she can't reach her tools,
-// honestly, instead of a deterministic fake pretending to converse. There
-// is no mock stylist here on purpose: a scripted Kyra that looks finished
-// is exactly the "looks done, is not" failure this repo's rules name.
+// PROVIDER WIRING. `STYLIST_PROVIDER_API_KEY` is the preferred capability
+// key. Since this adapter calls OpenAI, it can reuse the already-configured
+// `IMAGE_PROVIDER_API_KEY` only while `IMAGE_GENERATION_PROVIDER=openai`.
+// This keeps an existing production install working without reading or
+// copying a secret; a dedicated stylist key still takes precedence. The
+// fallback is logged so operators can see that stylist and image usage share
+// one OpenAI credential/project. If neither key is available, the handler
+// returns its in-voice unavailable response rather than simulating a live
+// conversation.
 //
 // NOTE ON SERVICE-ROLE: never constructed here. RLS with the caller's own
 // JWT covers every table this function touches — see store.ts's header.
@@ -83,8 +84,9 @@ const unconfiguredProvider: StylistReasoningProvider = {
       new ProviderError(
         "PROVIDER_UNAVAILABLE",
         false,
-        "STYLIST_PROVIDER_API_KEY is not set; the live stylist provider is not configured " +
-          "for this deployment.",
+        "No OpenAI key is configured for the stylist provider. Set " +
+          "STYLIST_PROVIDER_API_KEY, or configure IMAGE_GENERATION_PROVIDER=openai " +
+          "with IMAGE_PROVIDER_API_KEY.",
         undefined,
         true,
       ),
@@ -95,7 +97,7 @@ const unconfiguredProvider: StylistReasoningProvider = {
     throw new ProviderError(
       "PROVIDER_UNAVAILABLE",
       false,
-      "STYLIST_PROVIDER_API_KEY is not set.",
+      "No OpenAI key is configured for the stylist provider.",
       undefined,
       true,
     );
@@ -103,7 +105,12 @@ const unconfiguredProvider: StylistReasoningProvider = {
 };
 
 function buildProvider(): StylistReasoningProvider {
-  const apiKey = Deno.env.get("STYLIST_PROVIDER_API_KEY");
+  const dedicatedApiKey = Deno.env.get("STYLIST_PROVIDER_API_KEY")?.trim();
+  const imageProvider = Deno.env.get("IMAGE_GENERATION_PROVIDER")?.trim().toLowerCase();
+  const sharedOpenAIApiKey = imageProvider === "openai"
+    ? Deno.env.get("IMAGE_PROVIDER_API_KEY")?.trim()
+    : undefined;
+  const apiKey = dedicatedApiKey || sharedOpenAIApiKey;
   if (!apiKey) {
     console.error(
       JSON.stringify({
@@ -114,6 +121,16 @@ function buildProvider(): StylistReasoningProvider {
       }),
     );
     return unconfiguredProvider;
+  }
+  if (!dedicatedApiKey) {
+    console.info(
+      JSON.stringify({
+        level: "info",
+        event: "kyra.provider_key_reused",
+        detail: "Using IMAGE_PROVIDER_API_KEY for the OpenAI stylist adapter; " +
+          "stylist and image calls share provider billing and limits.",
+      }),
+    );
   }
   return new LiveStylistProvider({
     apiKey,

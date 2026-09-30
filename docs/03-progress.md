@@ -93,11 +93,13 @@ Ranked by what stops the next user-visible thing from working.
    public detail screen. Mock-backed Discover/Shop and owned-look simulator
    flows pass, but the public peer-look detail path still lacks a direct
    app-level acceptance run; live device/TestFlight acceptance remains open.
-5. **Kyra is implemented and deployed, but needs a real-account smoke test.**
-   Supabase reports the `kyra` Edge Function active at version 5. The UI test
-   exercises the conversation against the mock backend; confirm a successful
-   signed-in conversation against production before relying on the model
-   provider configuration with first users.
+5. **Kyra is deployed; production signed-in acceptance remains open.**
+   Supabase reports the `kyra` Edge Function active at version 10. When the
+   dedicated `STYLIST_PROVIDER_API_KEY` is absent, it reuses the configured
+   OpenAI image key only when `IMAGE_GENERATION_PROVIDER=openai`; those calls
+   share provider billing and limits. The UI test uses a mock backend, so
+   confirm a successful signed-in conversation against production before
+   relying on the live provider with first users.
 6. **The owner confirmed leaked-password protection is enabled** (2026-09-29),
    closing the previous dashboard-setting blocker. The two user-callable RPCs
    (`apply_referral_code`, `request_account_deletion`) now expose only
@@ -318,7 +320,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | Ticket | Status | Evidence |
 |---|---|---|
 | P5-KYRA-01 | Done | `20260728100500_feedback_and_memory.sql` creates `kyra_threads`/`kyra_messages`/`style_memories` with embeddings; cross-user RLS asserted and run in CI. |
-| P5-KYRA-02 | Done | `supabase/functions/kyra/` implements `POST /respond`; production function is active at v5 with JWT verification. |
+| P5-KYRA-02 | Done | `supabase/functions/kyra/` implements `POST /respond`; production function is active at v10 with JWT verification and a live OpenAI provider fallback to the existing image key. |
 | P5-KYRA-03 | Done | `handler.ts` enforces context budgets, tool limits, fallbacks, and provider escalation; covered by Kyra handler tests. |
 | P5-KYRA-04 | Done | `tools/searchCloset.ts` implements authenticated closet retrieval and has tool tests. |
 | P5-KYRA-05 | Done | `tools/rankOutfits.ts` ranks owned outfits through the shared compatibility scorer. |

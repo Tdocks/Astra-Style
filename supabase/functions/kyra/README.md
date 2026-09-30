@@ -3,13 +3,13 @@
 Serves spec §14's `POST /kyra/respond` — the Kyra stylist orchestration endpoint (§6.20, §11),
 designed in `docs/06-kyra-orchestration.md`. Tickets `P5-KYRA-02..12` and `P5-KYRA-19`.
 
-|            |                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------ |
-| Slug       | `kyra`                                                                                                 |
-| Routes     | `POST /respond`                                                                                        |
-| Auth       | `verify_jwt`; the JWT is the only source of identity                                                   |
-| Rate limit | 10/min per user in-isolate burst + 3 conversations/day free tier (below)                               |
-| Deployed   | **Active, version 5** in project `anutsdzbxycaavmmkewo` as of 2026-09-29; JWT verification is enabled. |
+|            |                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| Slug       | `kyra`                                                                                                  |
+| Routes     | `POST /respond`                                                                                         |
+| Auth       | `verify_jwt`; the JWT is the only source of identity                                                    |
+| Rate limit | 10/min per user in-isolate burst + 3 conversations/day free tier (below)                                |
+| Deployed   | **Active, version 10** in project `anutsdzbxycaavmmkewo` as of 2026-09-30; JWT verification is enabled. |
 
 ```bash
 supabase functions deploy kyra --project-ref <ref>
@@ -20,15 +20,15 @@ supabase functions deploy kyra --project-ref <ref>
 
 ## Environment
 
-| Variable                               | Required | Notes                                                                                                                                                                   |
-| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY`   | auto     | Injected by Supabase; never set manually                                                                                                                                |
-| `STYLIST_PROVIDER_API_KEY`             | yes*     | Spec §25's name. Missing → every turn returns the in-voice "can't reach my tools" fallback (logged loudly at cold start). *The function runs without it; Kyra does not. |
-| `STYLIST_PROVIDER_MODEL_LUNA`          | no       | Defaults `gpt-5.6-luna`                                                                                                                                                 |
-| `STYLIST_PROVIDER_MODEL_TERRA`         | no       | Defaults `gpt-5.6-terra`                                                                                                                                                |
-| `KYRA_FREE_DAILY_CONVERSATION_LIMIT`   | no       | Default 3 (spec §16); config value per P5-KYRA-19                                                                                                                       |
-| `KYRA_CONFIDENCE_ESCALATION_THRESHOLD` | no       | Default 0.55 (docs/09 §2.1's launch default)                                                                                                                            |
-| `KYRA_MEMORY_MINIMUM_CONFIDENCE`       | no       | Default 0.7 (docs/06 §5.2's explicit-statement bar)                                                                                                                     |
+| Variable                               | Required  | Notes                                                                                                                                                                                                                                            |
+| -------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY`   | auto      | Injected by Supabase; never set manually                                                                                                                                                                                                         |
+| `STYLIST_PROVIDER_API_KEY`             | preferred | Dedicated stylist credential. If unset, Kyra reuses `IMAGE_PROVIDER_API_KEY` only when `IMAGE_GENERATION_PROVIDER=openai`; those calls share OpenAI billing and limits. If both are unavailable, Kyra returns the in-voice unavailable fallback. |
+| `STYLIST_PROVIDER_MODEL_LUNA`          | no        | Defaults `gpt-5.6-luna`                                                                                                                                                                                                                          |
+| `STYLIST_PROVIDER_MODEL_TERRA`         | no        | Defaults `gpt-5.6-terra`                                                                                                                                                                                                                         |
+| `KYRA_FREE_DAILY_CONVERSATION_LIMIT`   | no        | Default 3 (spec §16); config value per P5-KYRA-19                                                                                                                                                                                                |
+| `KYRA_CONFIDENCE_ESCALATION_THRESHOLD` | no        | Default 0.55 (docs/09 §2.1's launch default)                                                                                                                                                                                                     |
+| `KYRA_MEMORY_MINIMUM_CONFIDENCE`       | no        | Default 0.7 (docs/06 §5.2's explicit-statement bar)                                                                                                                                                                                              |
 
 No service-role key. RLS with the caller's own JWT covers every table this function touches.
 

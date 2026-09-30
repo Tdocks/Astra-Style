@@ -30,9 +30,11 @@ current brief.
 Version **1.0.0 (11)** is processed as **VALID** and available to the owner's
 Internal group and the public External group. Beta App Review is **APPROVED**.
 The owner can install build 11 through Internal TestFlight, and the public join
-link above offers it to external testers. Kyra's live provider is still
-unavailable in production because `STYLIST_PROVIDER_API_KEY` is not configured;
-the app now explains this configuration failure clearly. Production and
+link above offers it to external testers. Kyra now uses the existing OpenAI
+`IMAGE_PROVIDER_API_KEY` while `IMAGE_GENERATION_PROVIDER=openai`; those calls
+share OpenAI billing and limits. A dedicated `STYLIST_PROVIDER_API_KEY` still
+takes precedence when configured.
+A signed-in production conversation smoke test remains open. Production and
 Sandbox App Store Server Notifications URLs are configured at
 `https://anutsdzbxycaavmmkewo.supabase.co/functions/v1/app-store/webhook`.
 Signed Apple test-notification acceptance and sandbox purchase checks remain.
