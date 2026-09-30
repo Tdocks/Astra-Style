@@ -91,8 +91,7 @@ public struct MeasurementEntry: Codable, Hashable, Sendable {
 
 public struct OnboardingDraft: Codable, Hashable, Sendable {
 
-    // §6.4 — Style goals. Multi-select, no minimum: a user who wants none of
-    // the eight is telling us something, and forcing a pick would record noise.
+    // §6.4 — Style goals. Multi-select with at least one required selection.
     public var goals: Set<StyleGoal> = []
 
     // §6.5 — Style identity. Exactly three, then one nominated primary.

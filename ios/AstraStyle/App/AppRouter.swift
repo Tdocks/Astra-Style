@@ -44,7 +44,7 @@ public enum AppTab: String, CaseIterable, Identifiable, Sendable {
     /// Profile sits before Discover/Shop so the privacy/deletion door stays
     /// on the visible bar instead of under More on every phone.
     public static let dogfoodTabs: [AppTab] = [
-        .home, .closet, .studio, .profile, .discover, .shop,
+        .home, .closet, .studio, .profile, .discover, .shop
     ]
 
     public var isShownInChrome: Bool {
@@ -149,6 +149,7 @@ public enum StudioRoute: Hashable, Sendable {
 /// Destinations pushed on the Discover tab's `NavigationStack`.
 public enum DiscoverRoute: Hashable, Sendable {
     case lookbook(id: UUID)
+    case publicLook(id: UUID)
     case productDecision(candidateID: UUID)
     case styleGuide(slug: String)
     case brandSpotlight(brand: String)
@@ -169,6 +170,7 @@ public enum ProfileRoute: Hashable, Sendable {
     case subscriptionManagement
     case privacyAndData
     case styleMemories
+    case referencePhotos
     case styleJourney
     case accountDeletion
     case savedItems

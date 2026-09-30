@@ -15,11 +15,9 @@
 //  exists (locally echoed or server-persisted), because a bubble that was
 //  never sent teaches the user that bubbles here might be theatre.
 //
-//  VOICE INPUT IS ABSENT, NOT STUBBED. Spec §6.20 lists voice among the
-//  input kinds; P5-KYRA-16 owns it (it is the one input that needs a new
-//  permission, which is why the completion plan sequences it last). A mic
-//  button that opens an apology would be §22's dead button, so the
-//  composer simply doesn't draw one until the feature exists.
+//  Voice input asks for microphone and speech permission only after the
+//  user taps the mic. Speech is required to stay on-device; the transcript
+//  enters the same editable text field and send path as typed text.
 //
 
 import SwiftUI

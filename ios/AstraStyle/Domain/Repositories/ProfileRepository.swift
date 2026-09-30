@@ -63,6 +63,10 @@ public protocol ProfileRepository: Sendable {
     /// single, named, mockable method.
     func uploadReferenceImage(_ imageData: Data) async throws -> String
 
+    /// Removes one saved Style Studio reference image from private Storage
+    /// and from the caller's appearance profile.
+    func deleteReferenceImage(path: String) async throws
+
     /// Exports all personal data (spec §29 "Export personal data").
     func exportPersonalData() async throws -> URL
 
@@ -72,6 +76,10 @@ public protocol ProfileRepository: Sendable {
 
 public extension ProfileRepository {
     func applyReferralCode(_ code: String) async throws {}
+
+    func deleteReferenceImage(path: String) async throws {
+        throw AstraError.unimplemented("Removing a reference photo isn't available here yet.")
+    }
 }
 
 /// Everything collected across the onboarding flow (spec §6.4-§6.9),

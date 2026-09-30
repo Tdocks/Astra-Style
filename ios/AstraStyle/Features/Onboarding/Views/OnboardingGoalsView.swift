@@ -9,8 +9,8 @@
 //  user who picks everything has told us nothing. Making the consequence
 //  visible turns it into a real choice.
 //
-//  There is deliberately no minimum. A man who wants none of these is telling us
-//  something true, and a forced pick would record noise as signal.
+//  At least one goal is required by §6.4. The screen says so before the user
+//  reaches the disabled Continue control.
 //
 
 import SwiftUI
@@ -19,13 +19,25 @@ struct OnboardingGoalsView: View {
     @Binding var selected: Set<StyleGoal>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-            ForEach(StyleGoal.allCases) { goal in
-                GoalRow(
-                    goal: goal,
-                    isSelected: selected.contains(goal),
-                    toggle: { toggle(goal) }
-                )
+        VStack(alignment: .leading, spacing: AstraSpacing.md) {
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                ForEach(StyleGoal.allCases) { goal in
+                    GoalRow(
+                        goal: goal,
+                        isSelected: selected.contains(goal),
+                        toggle: { toggle(goal) }
+                    )
+                }
+            }
+
+            if selected.isEmpty {
+                Text(String(
+                    localized: "Choose at least one goal to continue.",
+                    comment: "Required selection hint on the style goals onboarding step"
+                ))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textSecondary)
+                .accessibilityIdentifier("onboarding.goals.requirement")
             }
         }
     }

@@ -199,9 +199,10 @@ extension ClosetMetricsRow {
         if value.isComplete {
             lines.append(String(localized: "Every piece has a price on file.", comment: "Closet value covers the whole closet"))
         } else {
+            let pricedPieces = AstraQuantityText.count(value.pricedItemCount, singular: "piece", plural: "pieces")
             lines.append(
                 String(
-                    localized: "From ^[\(value.pricedItemCount) piece](inflect: true) of \(value.itemCount). The rest have no price on file, so the real total is higher.",
+                    localized: "From \(pricedPieces) of \(value.itemCount). The rest have no price on file, so the real total is higher.",
                     comment: "Closet value covers only the garments that have a recorded price"
                 )
             )
@@ -247,9 +248,14 @@ extension ClosetMetricsRow {
     private var averageCostPerWearDetails: [String] {
         switch metrics.averageCostPerWear {
         case .amount:
+            let pricedPieces = AstraQuantityText.count(
+                metrics.estimatedValue.pricedItemCount,
+                singular: "piece",
+                plural: "pieces"
+            )
             return [
                 String(
-                    localized: "Total spend across the ^[\(metrics.estimatedValue.pricedItemCount) piece](inflect: true) with a price, over every wear those have.",
+                    localized: "Total spend across the \(pricedPieces) with a price, over every wear those have.",
                     comment: "Explains which garments the average cost per wear covers"
                 )
             ]
@@ -337,20 +343,23 @@ extension ClosetMetricsRow {
     /// A tie at zero wears is not "tied" in any useful sense — it is the
     /// pile he has never reached for, which is the reading worth having.
     private func tieHeadline(itemCount: Int, wearCount: Int) -> String {
+        let pieces = AstraQuantityText.count(itemCount, singular: "piece", plural: "pieces")
         guard wearCount > 0 else {
-            return String(localized: "^[\(itemCount) piece](inflect: true) not worn yet", comment: "Several garments share the lowest wear count, which is zero")
+            return String(localized: "\(pieces) not worn yet", comment: "Several garments share the lowest wear count, which is zero")
         }
-        return String(localized: "^[\(itemCount) piece](inflect: true) tied", comment: "Several garments share the same wear count")
+        return String(localized: "\(pieces) tied", comment: "Several garments share the same wear count")
     }
 
     private func wearExtremeDetails(_ extreme: ClosetMetrics.WearExtreme, emptyHistoryDetail: String) -> [String] {
         switch extreme {
         case .item(_, _, let wearCount):
-            return [String(localized: "^[\(wearCount) wear](inflect: true)", comment: "How many times a garment has been worn")]
+            let wears = AstraQuantityText.count(wearCount, singular: "wear", plural: "wears")
+            return [String(localized: "\(wears)", comment: "How many times a garment has been worn")]
         case .tie(_, let wearCount) where wearCount > 0:
+            let wears = AstraQuantityText.count(wearCount, singular: "wear", plural: "wears")
             return [
                 String(
-                    localized: "^[\(wearCount) wear](inflect: true) each, so no single piece leads.",
+                    localized: "\(wears) each, so no single piece leads.",
                     comment: "Several garments share the same wear count and none can be singled out"
                 )
             ]

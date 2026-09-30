@@ -133,9 +133,11 @@ Deno.test("womenswear graph frames silhouette and signatures without a gender fi
     !menswear.silhouette.detail.includes("dress with shoes"),
     "men's silhouette must not carry women's framing",
   );
-  const titles = womenswear.signature_opportunities.map((item) => item.title).join(" ").toLowerCase();
+  const titles = womenswear.signature_opportunities.map((item) => item.title).join(" ")
+    .toLowerCase();
   assert(titles.includes("dress"), `expected a dress signature, got: ${titles}`);
-  const priorities = womenswear.wardrobe_priorities.map((item) => item.title).join(" ").toLowerCase();
+  const priorities = womenswear.wardrobe_priorities.map((item) => item.title).join(" ")
+    .toLowerCase();
   assert(priorities.includes("dress") || priorities.includes("separates"));
 });
 

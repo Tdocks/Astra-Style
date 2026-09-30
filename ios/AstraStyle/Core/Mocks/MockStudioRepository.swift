@@ -12,9 +12,12 @@ import Foundation
 public actor MockStudioRepository: StudioRepository {
     private var generations: [UUID: StudioGeneration] = [:]
     private let quotaExhausted: Bool
+    private var failFirstGeneration: Bool
+    private var retryCount = 0
 
-    public init(quotaExhausted: Bool = false) {
+    public init(quotaExhausted: Bool = false, failFirstGeneration: Bool = false) {
         self.quotaExhausted = quotaExhausted
+        self.failFirstGeneration = failFirstGeneration
     }
 
     public func seed(_ generation: StudioGeneration) {
@@ -54,6 +57,14 @@ public actor MockStudioRepository: StudioRepository {
 
     public func fetchStatus(generationID: UUID) async throws -> StudioGeneration {
         guard var generation = generations[generationID] else { throw AstraError.server("That generation couldn't be found.") }
+        if failFirstGeneration {
+            failFirstGeneration = false
+            generation.status = .failed
+            generation.errorMessage = "The preview service could not finish."
+            generation.promptPayload = .object(["is_retryable_failure": .bool(true)])
+            generations[generationID] = generation
+            return generation
+        }
         // Advance the simulated pipeline one step each time status is
         // polled, so a preview driving a polling loop sees real state
         // transitions.
@@ -72,10 +83,16 @@ public actor MockStudioRepository: StudioRepository {
 
     public func retryGeneration(id: UUID) async throws -> StudioGeneration {
         guard var generation = generations[id] else { throw AstraError.server("That generation couldn't be found.") }
+        retryCount += 1
         generation.status = .queued
         generation.errorMessage = nil
+        generation.promptPayload = .object(["is_retryable_failure": .bool(false)])
         generations[id] = generation
         return generation
+    }
+
+    public func retryCountValue() -> Int {
+        retryCount
     }
 
     public func deleteGeneration(id: UUID) async throws {

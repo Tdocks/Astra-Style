@@ -128,9 +128,9 @@ struct PendingIntegrationRequirementsTests {
     }
 
     @Test(
-        "Personal data export: a signed export URL that resolves to a real, current snapshot of the user's data",
+        "Personal data export: user-scoped data from major user-owned tables",
         .disabled(
-            "Not implemented: there is no export Edge Function, scheduled job, or `exports` storage bucket anywhere in this codebase — `LiveProfileRepository.exportPersonalData()` signs a URL for an object nothing ever writes. No UI was built on top of it either (Features/Profile/README.md), per spec §22's 'no dead buttons'. Owner: P7-PRIVACY-03. Spec §29 'Export personal data'."
+            "The authenticated profile/export-data route and shareable JSON file are implemented locally. This live integration acceptance still needs the function deployed and run with a disposable authenticated account so RLS isolation and completeness are checked against the hosted schema. Owner: P7-PRIVACY-03. Spec section 22 and section 29."
         )
     )
     func personalDataExportEndToEnd() {

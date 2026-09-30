@@ -9,10 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serverError } from "../_shared/errors.ts";
 import type { CompatibilityScorerRow } from "../_shared/scoring/compatibilityScorer.ts";
-import {
-  parseWardrobeGraph,
-  type WardrobeGraphId,
-} from "../_shared/scoring/wardrobeGraph.ts";
+import { parseWardrobeGraph, type WardrobeGraphId } from "../_shared/scoring/wardrobeGraph.ts";
 import type { BriefRow, OccasionRow, OutfitDraft, PackingRepository } from "./plan.ts";
 
 const CANDIDATE_ROLES = [

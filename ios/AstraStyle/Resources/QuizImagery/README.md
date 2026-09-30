@@ -8,11 +8,11 @@ quiz's questions lives in Swift.
 here, add a stanza to `quiz-pairs.json`, rebuild. No Swift is touched, no project file is
 edited, and nothing needs to know how many pairs there are.
 
-## Current state: 15 pairs (30 frames), and all 8 dimensions produce a reading
+## Current state: 16 pairs (32 frames), and all 8 dimensions have two comparisons
 
-15 is inside spec §6.9's 12–20 and leaves headroom under `StyleQuizEngine.maximumComparisons`.
-The whole set was regenerated from scratch on 2026-07-31; nothing from the first batch survives
-here or in `brand/quiz-imagery/`.
+16 is inside spec §6.9's 12–20 and leaves headroom under `StyleQuizEngine.maximumComparisons`.
+The original set was regenerated from scratch on 2026-07-31. `silhouette-2` was added on
+2026-09-29; its source pair isolates fit and its normalized backdrops match exactly.
 
 | Pair | Axis | Option A (negative end) | Option B (positive end) |
 |---|---|---|---|
@@ -21,6 +21,7 @@ here or in `brand/quiz-imagery/`.
 | `colour-01` | Colour tolerance | Putty knit, stone trouser, tan suede loafer | Burgundy knit, forest-green cord, tan suede loafer |
 | `colour-02` | Colour tolerance | Stone-grey knit, oatmeal trouser, tan suede loafer | Cobalt knit, rust-orange trouser, tan suede loafer |
 | `silhouette-01` | Silhouette | Close-cut navy fine knit, slim tapered navy trouser, black boot | Oversized navy knit, wide-leg navy trouser, black boot |
+| `silhouette-02` | Silhouette | Close-cut charcoal long-sleeve button-up, matching tapered trouser, black shoe | Relaxed-fit charcoal long-sleeve button-up, matching straight-relaxed trouser, black shoe |
 | `texture-01` | Texture | Smooth charcoal fine-gauge merino, flat worsted trouser | Chunky charcoal cable knit, charcoal corduroy trouser |
 | `texture-02` | Texture | Smooth navy fine-gauge merino, flat navy wool trouser | Chunky navy cable knit, navy corduroy trouser |
 | `logo-01` | Logo tolerance | Plain black crew-neck sweatshirt | Same, with Astra monogram composited on the left chest |
@@ -32,13 +33,11 @@ here or in `brand/quiz-imagery/`.
 | `contrast-01` | Contrast preference | Mid-grey knit, mid-grey trouser, mid-grey sneaker | Near-white knit, near-black trouser, black sneaker |
 | `contrast-02` | Contrast preference | Mid-blue chambray, mid-blue trouser, mid-blue loafer | Pale ice-blue shirt, deep navy trouser, deep navy loafer |
 
-Seven axes have two pairs, which is the bar at which `StylePreferenceInference` will report
-`.moderate` confidence on agreeing answers and Kyra is allowed to say the preference out loud.
-**`silhouette` has one pair, so it sits at `.low` confidence permanently** — a single forced
-choice gives a direction and nothing else, no matter how clean the photograph is. That axis
-produces a reading, and the reading is not statable. The pair that would fix it is described
-under "One pair is missing" below. Both logo pairs ship; their branded frames are **composited**
-(`scripts/composite_quiz_logo.py`), not regenerated.
+All eight axes have two pairs. When a user answers both comparisons in agreement,
+`StylePreferenceInference` can report `.moderate` confidence and Kyra may reflect that preference
+back. The onboarding front door currently asks only a short taste snapshot (ADR 0015); confidence
+still depends on which comparisons a user actually answers. Both logo pairs ship; their branded
+frames are **composited** (`scripts/composite_quiz_logo.py`), not generated as wordmarks.
 
 ## Women's graph (ADR 0019)
 
@@ -89,23 +88,15 @@ What the change bought, measured:
 - **Hands are clean** across the set, checked at full resolution. That is a property of this
   batch, not a guarantee about the model, and it is the first thing to re-check on anything new.
 
-## One pair is missing, and it was rejected for a reason worth keeping
+## Silhouette pair history
 
-`silhouette-2` was generated and thrown away rather than shipped. Its prompt is already fixed and
-committed in `scripts/generate_quiz_imagery.py`; **regeneration is blocked on an OpenAI billing
-hard limit** (`billing_hard_limit_reached`), not on an unresolved question. Once the limit is
-raised:
-
-```sh
-python3 scripts/generate_quiz_imagery.py --pair silhouette-2
-python3 scripts/build_quiz_imagery.py --pair silhouette-2
-```
+The first `silhouette-2` candidate was rejected because:
 
 **`silhouette-2-b` came back short-sleeved while its partner was long-sleeved.** Sleeve length
-then sits in the frame alongside volume — two variables in a pair whose entire job is to isolate
-one. The prompt now says "long-sleeved" and "with the sleeves down to the wrist". The two
-rejected `silhouette-2` frames are still on disk in `brand/quiz-imagery/` as candidates; they are
-not in this directory and are not in the manifest, so nothing can render them.
+would have varied alongside volume. That rejected source pair remains under
+`brand/quiz-imagery/rejected/`. The current close/relaxed pair uses long sleeves on both sides,
+the same charcoal outfit, model, crop and background; the image pipeline measured a 0.0 residual
+backdrop delta after normalization. The pair is in the manifest and both JPEGs are bundled.
 
 **Logo history (shipped via compositing, not regeneration).** An earlier `logo-1-b` came back
 wearing "HILFIGER" across the chest — unshippable; the file was deleted. The logo axis now ships
@@ -133,8 +124,9 @@ downstream from a real one.
 
 ## What is still genuinely at risk
 
-- **`silhouette` is at one pair and therefore at `.low` confidence permanently.** Not a defect in
-  the imagery; a shortfall in coverage, fixed by regenerating `silhouette-2` and by nothing else.
+- **No blinded user rating yet.** A person who was not involved in creating the imagery should
+  confirm the pair reads as a fit preference rather than a difference in garment color, before a
+  broad release.
 - **No blinded human rating.** Nobody has confirmed these read as *photographs of clothes* rather
   than as renders to a real user. Same gap `docs/16` §5 records.
 - **One man throughout is a coverage question as well as a control.** The instrument now shows

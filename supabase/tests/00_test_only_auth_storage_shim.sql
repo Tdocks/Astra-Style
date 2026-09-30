@@ -148,6 +148,9 @@ create or replace function storage.foldername(name text)
   end;
   $$;
 
+-- Supabase Storage creates storage.objects with RLS enabled.
+alter table storage.objects enable row level security;
+
 grant usage on schema storage to anon, authenticated, service_role;
 grant select on storage.buckets to anon, authenticated;
 grant select, insert, update, delete on storage.objects to anon, authenticated;

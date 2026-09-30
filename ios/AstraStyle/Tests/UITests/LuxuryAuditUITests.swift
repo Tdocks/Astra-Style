@@ -23,9 +23,10 @@ final class LuxuryAuditUITests: XCTestCase {
         app.launchArguments = [
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge",
             "-astra-reset-state",
             "-astra-mock-backend",
-            "-astra-skip-onboarding",
+            "-astra-skip-onboarding"
         ] + extraArguments
         app.launch()
         awaitElement(app.chromeTabBar, "Main tab bar")
@@ -100,8 +101,26 @@ final class LuxuryAuditUITests: XCTestCase {
         firstItem.scrollIntoView(in: app)
         firstItem.tap()
         awaitElement(app.navigationBars.firstMatch, "Closet item detail")
+        let toolbarAsk = anyElement("kyra.ask.toolbar")
+        awaitElement(toolbarAsk, "Ask Kyra in the pushed-screen toolbar")
+        XCTAssertTrue(toolbarAsk.isHittable, "Ask Kyra should remain reachable from item detail")
+        XCTAssertFalse(anyElement("kyra.ask").exists, "The floating orb should leave the item's action area clear")
+        XCTAssertTrue(app.buttons["Edit"].isHittable, "Edit must remain visible and tappable beside item actions")
         capture("67-Closet-Item-Detail")
+        toolbarAsk.tap()
+        awaitElement(anyElement("kyra.empty"), "Kyra opened from item detail")
+        anyElement("kyra.close").tap()
+        XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: timeout))
+
+        let archive = app.buttons["Archive"]
+        archive.scrollIntoView(in: app)
+        XCTAssertTrue(archive.isHittable, "The bottom archive action must scroll clear of the tab bar")
+        XCTAssertFalse(archive.frame.intersects(app.chromeTabBar.frame), "The tab bar must not cover Archive")
         app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(
+            anyElement("kyra.ask").waitForExistence(timeout: timeout),
+            "The floating Ask Kyra action should return when Closet detail closes"
+        )
 
         awaitElement(anyElement("closet.header.scan"), "Closet scan menu")
         anyElement("closet.header.scan").tap()
@@ -193,6 +212,11 @@ final class LuxuryAuditUITests: XCTestCase {
         privacy.tap()
         awaitElement(anyElement("privacyAndData.deleteAccountRow"), "Privacy and Data")
         capture("81-Privacy-And-Data")
+        let createExport = anyElement("privacyAndData.export.create")
+        createExport.scrollIntoView(in: app)
+        createExport.tap()
+        awaitElement(anyElement("privacyAndData.export.share"), "Personal data export ready to share")
+        capture("81b-Privacy-Data-Export")
         anyElement("privacyAndData.deleteAccountRow").tap()
         awaitElement(anyElement("accountDeletion.deleteButton"), "Account deletion confirmation")
         capture("82-Account-Deletion-Confirmation")
@@ -207,7 +231,7 @@ final class LuxuryAuditUITests: XCTestCase {
             "pasteEvaluate",
             "studioQuota",
             "kyraDailyLimit",
-            "settingsUpgrade",
+            "settingsUpgrade"
         ]
 
         for (index, context) in contexts.enumerated() {

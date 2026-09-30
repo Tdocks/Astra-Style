@@ -328,10 +328,11 @@ struct OnboardingStepTests {
         #expect(OnboardingStep.identity.clampedToActiveSequence() == .identity)
     }
 
-    @Test("Only the identity and wardrobe-graph steps are required")
-    func onlyIdentityIsRequired() {
+    @Test("Goals, identity and wardrobe graph are required")
+    func requiredStepsCannotBeSkipped() {
         for step in OnboardingStep.allCases {
-            #expect(step.isSkippable == (step != .identity && step != .wardrobeGraph), "\(step) skippability")
+            let isRequired = step == .goals || step == .identity || step == .wardrobeGraph
+            #expect(step.isSkippable == !isRequired, "\(step) skippability")
         }
     }
 

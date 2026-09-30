@@ -114,8 +114,9 @@ struct ClosetLaundryAlertView: View {
     }
 
     private var message: String {
-        String(
-            localized: "^[\(items.count) item](inflect: true) in the wash",
+        let itemCount = AstraQuantityText.count(items.count, singular: "item", plural: "items")
+        return String(
+            localized: "\(itemCount) in the wash",
             comment: "Closet laundry alert summary"
         )
     }

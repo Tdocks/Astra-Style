@@ -24,7 +24,14 @@
 // ============================================================================
 
 import { badRequest } from "../_shared/errors.ts";
-import { isRecord, isUUID, optionalString, optionalUUID, optionalUUIDArray, optionalIntInRange } from "../_shared/validation.ts";
+import {
+  isRecord,
+  isUUID,
+  optionalIntInRange,
+  optionalString,
+  optionalUUID,
+  optionalUUIDArray,
+} from "../_shared/validation.ts";
 
 export interface GenerateOutfitsRequestBody {
   occasionId?: string;

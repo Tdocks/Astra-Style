@@ -60,14 +60,16 @@ struct AstraStyleApp: App {
     }
 
     private func resolveLaunchRoute() async -> AppRouteState {
+        if AstraFeatureFlags.resetsStateOnLaunch {
+            // Test-only reset is local. Calling Supabase Auth's sign-out here
+            // would add a network dependency to UI tests and fail offline.
+            appContainer.sessionStore.resetForUITest()
+        }
+
         if AstraFeatureFlags.usesMockBackend {
-            // A throwaway signed-in session, adopted rather than restored:
-            // `adopt` overwrites whatever the Keychain held, so this needs no
-            // sign-out first — which matters, because signing out makes a
-            // network call this mode exists to avoid.
-            // The id is fresh per launch, which also scopes the onboarding
-            // draft to this run and nothing else.
-            try? appContainer.sessionStore.adopt(
+            // A fresh in-memory identity scopes mock writes to this process
+            // and cannot pollute the real Keychain session.
+            appContainer.sessionStore.adoptInMemory(
                 AuthSession(
                     userID: UUID(),
                     accessToken: "mock-backend",
@@ -83,10 +85,6 @@ struct AstraStyleApp: App {
         }
 
         if AstraFeatureFlags.resetsStateOnLaunch {
-            // UI-test entry point only (see AstraFeatureFlags). Clears the
-            // Keychain session so the sweep starts from Welcome regardless of
-            // what a previous run left behind.
-            try? await appContainer.sessionStore.signOut()
             return .signedOut
         }
 

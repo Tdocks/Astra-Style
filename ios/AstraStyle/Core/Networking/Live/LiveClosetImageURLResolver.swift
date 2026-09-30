@@ -2,10 +2,10 @@
 //  LiveClosetImageURLResolver.swift
 //  AstraStyle
 //
-//  Signs `user-content` storage paths through Supabase Storage, using the
-//  same `createSignedURL(path:expiresIn:)` mechanism
-//  `LiveProfileRepository.exportPersonalData()` already uses, and caches
-//  the results in memory.
+//  Signs the current user's `user-content` paths through Supabase Storage and
+//  signs selected public-look images through the authenticated lookbook Edge
+//  Function. Owner signatures are cached in memory; peer signatures are short
+//  lived and never expose a storage path to the app.
 //
 //  THE THREE NUMBERS, AND WHY THEY ARE THOSE NUMBERS.
 //
@@ -49,7 +49,6 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
 
     /// Maximum paths per batch sign request.
     static let batchLimit = 100
-
     /// The one private bucket (spec §15). Not "closet" — `closet` is a
     /// folder inside this bucket. Same fact that
     /// `LiveClosetRepository.uploadCaptured()` documents at its own call
@@ -65,6 +64,7 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
     }
 
     private let supabase: SupabaseClient
+    private let apiClient: AstraAPIClient
     private let now: @Sendable () -> Date
     private var cache: [String: CachedSignature] = [:]
 
@@ -76,10 +76,12 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
     ///     policy that cannot be tested is a policy that quietly stops
     ///     holding.
     public init(
+        apiClient: AstraAPIClient,
         supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current),
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.supabase = supabase
+        self.apiClient = apiClient
         self.now = now
     }
 
@@ -123,6 +125,28 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
         for chunk in Array(Set(needsSigning)).chunked(into: Self.batchLimit) {
             for (path, url) in try await sign(chunk) {
                 resolved[path] = url
+            }
+        }
+        return resolved
+    }
+
+    public func resolve(publicLookImages: [PublicLookImageReference]) async throws -> [UUID: URL] {
+        guard !publicLookImages.isEmpty else { return [:] }
+        let unique = Array(Set(publicLookImages))
+        var resolved: [UUID: URL] = [:]
+        for start in stride(from: 0, to: unique.count, by: Self.batchLimit) {
+            let batch = Array(unique[start ..< min(start + Self.batchLimit, unique.count)])
+            do {
+                let response = try await apiClient.send(
+                    .signPublicLookImages,
+                    body: PublicLookImageSigningRequest(images: batch),
+                    as: PublicLookImageSigningResponse.self
+                )
+                for image in response.images {
+                    resolved[image.imageID] = image.signedURL
+                }
+            } catch {
+                throw AstraError.server(String(localized: "Couldn't load photos for that shared look.", comment: "Public look image signing failed"))
             }
         }
         return resolved
@@ -189,6 +213,24 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
         let cutoff = now()
         cache = cache.filter { $0.value.expiresAt > cutoff }
     }
+}
+
+private struct PublicLookImageSigningRequest: Encodable, Sendable {
+    let images: [PublicLookImageReference]
+}
+
+private struct PublicLookImageSigningResponse: Decodable, Sendable {
+    struct Image: Decodable, Sendable {
+        let imageID: UUID
+        let signedURL: URL
+
+        enum CodingKeys: String, CodingKey {
+            case imageID = "image_id"
+            case signedURL = "signed_url"
+        }
+    }
+
+    let images: [Image]
 }
 
 private extension Array {

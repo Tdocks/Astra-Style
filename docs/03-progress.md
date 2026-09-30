@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-08-23 (Waves 2–6: P6-SHOP-08 ingest, Shop+streaks, morning-loop server 429s, anonymous guest, women's second graph); 2026-08-23 (Wave 2: P6-SHOP-08 curated ingest + service-role extract upsert; Unlocks still HIS evaluations); 2026-08-23 (ADRs 0018–0020 permit later still-out waves; hosted Visualize spend is live; Wear This ungated); 2026-08-22 (Unlocks ranked by HIS `computeUnlockCount`, not a catalog dump; Wear This ungated); 2026-08-22 (P7-HOME-04 closed: Kyra `create_packing_list` + named packing list; Wear This ungated); 2026-08-22 (GO: week-strip + packing from calendar; Wear This ungated); 2026-08-22 (leftover growth: share moments, one-guy referral, Kyra/Studio paywalls, Discover public worn looks + Unlocks; Wear This ungated); 2026-08-22 (paywall at the 30-item cap + `subscriptions/sync` stub; Wear This ungated); 2026-08-22 (Waves D–F: paste-a-link don't-buy, Studio after consent, Discover as his lookbooks; Wave G deferred as ADR 0016; build 3); 2026-08-22 (ADR 0015 first-run taste snapshot; Profile About); 2026-08-08 (M1 — the §10 engine, both outfit endpoints, the Outfits module, weather, and the placeholder scorer retired; verified against production); 2026-08-06 (photo-first first-items, `P2-ONBOARD-13`); 2026-08-06 (guest mode removed, ADR 0014; `daily-brief` built and deployed); 2026-08-06 (TestFlight defects: §6.11 empty state reachable for signed-in users, 404 mapped to `.unimplemented`, full-bleed app icon, placeholders labelled); 2026-08-01 (Phase 3 exit for TestFlight: SCAN-06 pre-review hints, INFRA-01/02 offline queue+conflict, SCAN-11 unlock report, AppIcon xcassets + `docs/12-testflight-cut.md`); 2026-08-01 (Phase 3 debts + Vision/OCR + review/upload on main); 2026-07-31 (Phase 2 onboarding); earlier 2026-07-30 at `45b4b90c`.
+**Last audited:** 2026-09-29 (Astra Style readiness pass: personal data export route and UI implemented locally; paginated Studio gallery, provider retry without another trial, and bounded polling added; hosted deployment, live backend, real-device, image-provider, and legal acceptance remain open).
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -39,16 +39,16 @@ lands data layers, protocols, and models long before the screens that use them.
 
 | Phase | Tickets | Done | Partial | Not started |
 |---|---|---|---|---|
-| 1 — Foundation | 25 | 11 | 12 | 0 |
-| 2 — Identity | 18 | 13 | 5 | 0 |
+| 1 — Foundation | 25 | 15 | 10 | 0 |
+| 2 — Identity | 18 | 14 | 4 | 0 |
 | 3 — Closet | 27 | 15 | 9 | 3 |
 | 4 — Outfit intelligence | 26 | 16 | 7 | 3 |
-| 5 — Kyra | 22 | 1 | 3 | 18 |
-| 6 — Studio and commerce | 25 | 10 | 11 | 4 |
-| 7 — Monetization and hardening | 36 | 1 | 13 | 22 |
-| **Total** | **179** | **67** | **60** | **50** |
+| 5 — Kyra | 22 | 18 | 4 | 0 |
+| 6 — Studio and commerce | 25 | 12 | 10 | 3 |
+| 7 — Monetization and hardening | 36 | 4 | 14 | 18 |
+| **Total** | **179** | **94** | **58** | **27** |
 
-Read that table carefully before drawing a conclusion from it. 57 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 92 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -61,31 +61,52 @@ already applied to production. It also *overstates* readiness in one specific wa
 
 Ranked by what stops the next user-visible thing from working.
 
-1. **iOS CI's negative case is still unproven.** SwiftLint `--strict` and the zero-compiler-
+1. **iOS CI's negative case is now self-tested.** SwiftLint `--strict` and the zero-compiler-
    warnings gate are green locally and on real PRs: **#3 and #4** opened, ran the full
    `ios.yml` job green, and merged (#5 closed without merging; its content landed on `main`).
-   First-party code is clean (0 warnings under `ios/AstraStyle/`). What remains open for
-   `P1-INFRA-03` is the negative case — no PR has yet been made to *fail* on a warning or a
-   lint violation — and the working convention moved to committing directly to `main` on
-   2026-08-01, so further positive PR validation may not arrive soon.
-2. **The quiz covers all eight dimensions now; one of them is a pair short.** The §6.9
-   imagery was regenerated from scratch on 2026-07-31 against a single canonical reference
-   figure, and the shipped catalog holds **15 pairs** — inside §6.9's 12–20, with every one of
-   the eight preference dimensions returning a value rather than *absent*. What remains is
-   narrower, and it is not a code problem: `silhouette` ships with one pair, which is `.low`
-   confidence permanently, so Kyra may not state that axis back to the user. `logo_tolerance`
-   was in the same position until `logo-01` shipped 2026-07-31 with its mark composited rather
-   than generated. The pair that would fix silhouette was generated and rejected — it
-   varied sleeve length alongside volume — and its corrected prompt is committed in
-   `scripts/generate_quiz_imagery.py`; regeneration is blocked on an OpenAI billing hard limit,
-   not on an open question. `POST /style-dna/generate` handles a sparse vector correctly either
-   way: an unasked axis contributes nothing and is named in the result's `open_questions`, and an
-   axis asked-and-declined is not asked again.
+   First-party code is clean (0 warnings under `ios/AstraStyle/`). `scripts/check_ci_warning_gate.py`
+   now injects a known SwiftLint violation and proves strict lint rejects it, and checks the
+   first-party warning matcher against first-party, dependency, and test-target fixtures before
+   each CI build. The same script gates the actual Xcode build log.
+2. **The quiz catalog now has 16 matched pairs across all eight dimensions.** The new
+   `silhouette-02` fit pair replaces the candidate that varied sleeve length as well as fit. Its
+   two frames use the same charcoal outfit, long sleeves, model and crop; the normalization script
+   measured zero residual backdrop delta. The catalog remains inside §6.9's 12–20 range. The
+   first-run experience deliberately asks only a short taste snapshot (ADR 0015), so sparse
+   answers remain normal and `POST /style-dna/generate` leaves unasked axes open rather than
+   inventing preferences. A blinded user review of the new visual pair is still needed before a
+   broad release.
 3. **Terms and Privacy are live on astra-style.com** (`/privacy/`, `/terms/`,
    `/privacy/delete/`, `/affiliate-disclosure/`). `AstraLegal.isPublished` is
    `true` and in-app links match those URLs. The HTML is still a draft with
    `[[NEEDS INPUT]]` counsel placeholders — do not invent entity names to
    clear them. Ticket `P7-PRIVACY-05`.
+4. **Public lookbooks now have a safer deployed boundary, but the updated app
+   still needs acceptance.** The production migration removes raw peer outfit,
+   outfit-item, closet-item, and image-row reads. Authenticated RPCs return
+   display-safe summaries and garments; the deployed `lookbook` Edge Function
+   verifies each outfit/item/image tuple and signs the selected image for ten
+   minutes. Its unauthenticated request returned 401, and the local RLS suite
+   passes all 150 assertions. The four foreign-key indexes from the same
+   release pass are deployed; the live performance advisor now reports no
+   unindexed foreign keys. The app source now uses those RPCs and a read-only
+   public detail screen. Mock-backed Discover/Shop and owned-look simulator
+   flows pass, but the public peer-look detail path still lacks a direct
+   app-level acceptance run; live device/TestFlight acceptance remains open.
+5. **Kyra is implemented and deployed, but needs a real-account smoke test.**
+   Supabase reports the `kyra` Edge Function active at version 5. The UI test
+   exercises the conversation against the mock backend; confirm a successful
+   signed-in conversation against production before relying on the model
+   provider configuration with first users.
+6. **The owner confirmed leaked-password protection is enabled** (2026-09-29),
+   closing the previous dashboard-setting blocker. The Security Advisor still
+   flags two intentionally callable `SECURITY DEFINER` RPCs
+   (`apply_referral_code`, `request_account_deletion`) and guest-account RLS
+   policies because anonymous sign-in is enabled. Their migrations document
+   the caller-identity and privilege reasons; review the warnings, but do not
+   remove the functions or guest policies without checking those constraints.
+   See the
+   [Supabase password security guide](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
 
 ## Acceptance criteria that are wrong, rather than unmet
 
@@ -127,15 +148,15 @@ left open. This section stays as the record of *why*.
 
 # PHASE 1 — FOUNDATION
 
-**11 Done · 12 Partial · 0 Not started · 2 Withdrawn.** Substantively complete. Every Partial below is a narrow
-missing criterion, not missing work — but three of them (CI on PRs, SwiftData schema versioning,
-the dead offline queue) will cost real money later if they stay open.
+**15 Done · 10 Partial · 0 Not started.** Substantially complete. The remaining Partial rows
+name bounded gaps: SwiftData migration coverage, outfit-mutation replay, token/previews, and
+on-device acceptance rather than missing core architecture.
 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P1-INFRA-01 | Partial | `ios/project.yml` (XcodeGen, Swift 6, iOS 18); all 11 spec §8 features exist under `Features/`. No per-feature `Tests/` subfolder — tests are centralised in `Tests/{UnitTests,UITests}`. Extra `Features/Slice` is outside spec §8. |
 | P1-INFRA-02 | Partial | `ios/Config/{Base,Debug,Release}.xcconfig` + gitignored `Secrets.xcconfig`; no key material found by grep. **No `Staging.xcconfig`** — ticket requires Debug/Staging/Release. |
-| P1-INFRA-03 | Partial | 4 workflows exist. SwiftLint `--strict` now **passes** (swiftlint 0.65.0, 122 violations found and fixed; see `.swiftlint.yml`'s header for what the original hand-estimated thresholds got wrong), so the build step is reachable and the "Fail on warnings in our own code" grep was exercised for the first time — 0 warnings under `ios/AstraStyle/`. Both criteria have since been validated on real PRs: **#3 and #4 were opened, ran the full `ios.yml` job green, and were merged** (#5 was opened and closed without merging, its content landing directly on `main`). Still Partial for a different reason — no PR has yet been made to *fail* on a warning or a lint violation, so the negative case is still unproven, and the working convention moved to committing directly to `main` on 2026-08-01. |
+| P1-INFRA-03 | Done | 4 workflows exist. SwiftLint `--strict` passes, and the workflow self-test deliberately feeds a trailing-whitespace violation to the same strict mode and asserts a nonzero result. The compiler-warning matcher is tested against first-party, dependency, and test-target paths; CI then applies that same matcher to the actual Xcode build log. Existing real PRs #3 and #4 also ran the full iOS job green. |
 | P1-INFRA-04 | Done | 19 migration files; `rls-tests.yml` applies all of them to a fresh `pgvector/pgvector:pg16` on every push and passes. |
 | P1-INFRA-05 | Done | `20260728100200_profiles_and_identity.sql` + `20260728100900_rls_policies.sql`; `supabase/tests/20_rls_isolation_tests.sql` runs all six isolation checks on all four tables. |
 | P1-INFRA-06 | Done | `20260728101000_storage_buckets.sql`; live bucket `user-content`, `public=false`, 25 MiB cap, four path-scoped policies. Caveat: storage policies are not covered by the RLS CI suite (CI Postgres has no `storage` schema). |
@@ -155,7 +176,7 @@ the dead offline queue) will cost real money later if they stay open.
 | P1-AUTH-01 | Done | `AppleSignInCoordinator` + SHA-256 nonce; `handle_new_user()` trigger deployed; cancellation maps to `AstraError.cancelled`. Live round-trip is a deliberate §22 placeholder. |
 | P1-AUTH-02 | Done | `LiveAuthRepository.requestEmailOTP`/`verifyEmailOTP`; `EmailAuthSheet` is the entry UI; distinct errors for wrong code vs unconfirmed email; `astrastyle` URL scheme registered. |
 | P1-AUTH-03 | Done | `SessionStore.restoreSession()` + `SessionRefreshing`; `SessionRestoreTests` — 6 tests including transparent refresh, refresh rejection, corrupt Keychain item, and guest session surviving relaunch. |
-| P1-AUTH-04 | Done | Anonymous sign-in trial (ADR 0018). Welcome CTA `welcome.tryWithoutAccount`. Guest JWT is a real `user_id`. Closet cap 10 via `GuestLimits` / `FreeTierCappedClosetRepository.isAnonymous`. Photos stay in `GuestLocalImageStore` (`guest-local/…`) until Apple/email `linkIdentity`, then `migrateGuestLocalImages` uploads them to `user-content`. Tests: `GuestAuthTests`. Hosted GoTrue still returned `anonymous_provider_disabled` — Dashboard Auth → Providers for `anutsdzbxycaavmmkewo` (GitHub login required). |
+| P1-AUTH-04 | Done | Anonymous sign-in trial (ADR 0018). Welcome CTA `welcome.tryWithoutAccount`. Guest JWT is a real `user_id`. Closet cap 10 via `GuestLimits` / `FreeTierCappedClosetRepository.isAnonymous`. Photos stay in `GuestLocalImageStore` (`guest-local/…`) until Apple/email `linkIdentity`, then `migrateGuestLocalImages` uploads them to `user-content`. Tests: `GuestAuthTests`. **Hosted provider configuration verified 2026-09-29** through the public Supabase Auth settings endpoint: anonymous users, email, Apple, and new signups are enabled; this supersedes the 2026-08-23 `anonymous_provider_disabled` observation. |
 | P1-AUTH-05 | Done | Link Apple/email keeps the same `user_id` (`MockAuthRepository` / `LiveAuthRepository`). Closet + onboarding profile already live on that uid. After link, `LiveClosetRepository.migrateGuestLocalImages` rewrites `guest-local/` rows onto `user-content`. Profile card `profile.guestAccount` is the in-app link path. |
 | P1-AUTH-06 | Done | Welcome Terms/Privacy are `Link`s to `https://astra-style.com/terms/` and `/privacy/`. `AstraLegal.isPublished` is true. Counsel placeholders remain on the pages. |
 
@@ -163,7 +184,7 @@ the dead offline queue) will cost real money later if they stay open.
 
 # PHASE 2 — IDENTITY
 
-**13 Done · 5 Partial · 0 Not started.** The onboarding flow is complete end to end. §6.3–§6.10 is
+**14 Done · 4 Partial · 0 Not started.** The onboarding flow is complete end to end. §6.3–§6.10 is
 built and hardened at AX5, `profile` and `style-dna` are deployed and were exercised against
 production with a real JWT, the §6.10 result screen renders what they return, and as of 2026-07-31
 the two §5.1-only steps between the quiz and the result exist as well: `P2-ONBOARD-08` (the
@@ -187,13 +208,13 @@ pgvector ordering test.
 | Ticket | Status | Evidence |
 |---|---|---|
 | P2-ONBOARD-01 | Done | `OnboardingIntroView.swift:36-43` renders §6.3 copy; the avatar is `AstraMonogram`, an abstract mark — the header explicitly rules out a face. |
-| P2-ONBOARD-02 | Partial | All 8 goals in `StyleGoal`; persistence across back verified by `OnboardingFlowUITests.testBackPreservesAnswers`. **"At least one selection required" is not enforced** — `canAdvance` gates only `.identity`. |
+| P2-ONBOARD-02 | Done | `OnboardingGoalsView` supports the eight multi-select goals, preserves picks across back navigation, explains the one-goal minimum, and `canAdvance` blocks an empty selection per §6.4. |
 | P2-ONBOARD-03 | Done | 10 identities; exactly-3 enforced (a 4th tap is refused, not absorbed) plus a primary; `OnboardingDraftTests` covers the complete/incomplete states. |
 | P2-ONBOARD-04 | Done | `OnboardingMeasurementsView` (610 lines) covers all §6.6 fields; `MeasurementEntry.State` distinguishes `.declined` from `.unanswered`; unit conversion proven by tests plus `check_column_drift.py`. |
 | P2-ONBOARD-05 | Done | All 6 appearance fields carry a `reason:` string; each individually skippable; `OnboardingDraftTests` — "A skipped appearance step is empty rather than a blob of nulls". |
 | P2-ONBOARD-06 | Done | All 10 in-scope §6.8 fields present and mapped (`typical_week` added by `20260730160000`). Climate/location is deliberately not part of this screen's scope — moved to `P4-HOME-05`'s first-use-of-§6.11 prompt; criterion amended 2026-07-30 — see "Acceptance criteria that are wrong, rather than unmet" and `Features/Onboarding/Views/OnboardingLifestyleView.swift`'s header comment. |
-| P2-ONBOARD-07 | Partial | `StyleQuizEngine`/`StyleQuizCatalog`/`StylePreferenceInference` + 35 tests; pairs content-managed in `Resources/QuizImagery/quiz-pairs.json`, now at `version: 2`. **The shipped catalog holds 15 pairs, inside §6.9's 12–20, and all 8 dimensions produce a reading** — the whole set was regenerated 2026-07-31 from one canonical reference figure, so every frame is the same man and the person is no longer a variable in the instrument. What keeps this Partial is coverage, not quality: **`silhouette` ships with one pair**, and one forced choice gives a direction with no magnitude — `StylePreferenceInference.confidence` cannot exceed `.low` below `moderateObservationFloor = 2.0`, so that axis is `.low` permanently and `PreferenceConfidence.isStatable` will not let Kyra say it back to the user. The other seven axes have two pairs each and reach `.moderate` on agreeing answers. `logo_tolerance` was in the same position until `logo-01` shipped: its first generation returned a real trademark, so the branded frame is now Astra's own monogram **composited onto the plain frame** rather than generated, which makes the pair's backdrop delta 0.0 by construction. `silhouette-2-b` was generated and rejected for varying sleeve length alongside volume; its corrected prompt is committed in `scripts/generate_quiz_imagery.py` and regeneration is blocked on an OpenAI billing hard limit rather than on an unresolved question. Full record in `ios/AstraStyle/Resources/QuizImagery/README.md`. |
-| P2-ONBOARD-08 | Done | `OnboardingStep.reference` (§5.1 step 11, between the quiz and the result) + `Features/Onboarding/Views/OnboardingReferenceView.swift`, `Services/ReferenceImageStore.swift` and `ViewModels/OnboardingViewModel+Reference.swift`. **Both acceptance criteria met.** Skipping does not block completion — the step is skippable like every step except `.identity`, and `OnboardingReferenceTests` asserts a submission with no photo succeeds with `reference_selfie_paths` empty. Consent is shown *before* any picker opens and capture cannot proceed without it: the explanation is a panel on the screen, the acknowledgment is a checkbox, and the picker and camera controls do not exist in the view hierarchy until it is ticked (asserted three ways — `captureRequiresConsent` in unit tests, `testConsentIsRequiredBeforeAnyCaptureControlAppears` and the AX5 variant in `Tests/UITests/OnboardingCaptureStepsUITests.swift`). **The copy stands alone because the legal documents do not exist** — `AstraLegal.isPublished` is false and every URL is nil, so there is no link and the panel says in four plain sections what the photo is for, where it goes, what is never done with it (never used to train a model, nothing measures or identifies the face) and how to remove it, plus one line saying the Privacy Policy is unpublished and that nothing above depends on it. **Nothing is uploaded at capture time.** The image is written to `FileReferenceImageStore` (complete file protection, backup-excluded, user-scoped) and uploaded once during `submit()` to `users/{uid}/references/{uuid}.jpg` in the private `user-content` bucket, lowercased user id — the argument is in `uploadReferenceImageIfNeeded()`'s doc comment; the short version is that ADR 0010's abandoned-upload sweep does not exist, so nothing should be left behind to sweep. A guest uploads nothing at all (ADR 0011) and his copy stays on the device; a failed upload never fails the submission and surfaces a retry on §6.10. 13 unit tests in `Tests/UnitTests/OnboardingReferenceTests.swift`. **Not verified: the camera path.** A simulator has no camera, so `ReferenceCameraPicker` is correctly not offered there and is exercised by nothing. |
+| P2-ONBOARD-07 | Partial | `StyleQuizEngine`/`StyleQuizCatalog`/`StylePreferenceInference` + 35 tests; pairs are content-managed in `Resources/QuizImagery/quiz-pairs.json`, now at `version: 2`. The shipped catalog holds **16 pairs** inside §6.9's 12–20, with two matched pairs for each of the eight dimensions. `silhouette-02` was added on 2026-09-29 after its first candidate was rejected for changing sleeve length as well as fit; the replacement uses the same charcoal outfit, model and crop, and its processed backdrop delta is 0.0. All axes can now reach `.moderate` confidence when a user gives two agreeing answers. The acceptance status remains Partial because ADR 0015 intentionally limits the first-run taste snapshot to three comparisons; a complete 12–20 answer session is deferred. A blinded user review of the new imagery remains open. Full record in `ios/AstraStyle/Resources/QuizImagery/README.md`. |
+| P2-ONBOARD-08 | Done | `OnboardingStep.reference` (§5.1 step 11) is optional; skipping submits `reference_selfie_paths` empty. Consent gates every capture control, with unit and UI coverage. The explanation says the photo is uploaded to private account storage after onboarding and may be sent to the configured image-generation provider only when the user requests a Studio preview. Astra does not create a face identifier or take body measurements. Users can remove it before submission or later from Profile → Privacy & Data → Reference Photos; deleting it also removes saved previews made with it. Legal pages remain reachable but still have counsel placeholders (`P7-PRIVACY-05`, a release blocker). Nothing is uploaded at capture time: the file stays in protected, backup-excluded on-device storage until onboarding is submitted, then uploads to `users/{uid}/references/{uuid}.jpg` in private `user-content`. The simulator cannot verify the device camera path. |
 | P2-ONBOARD-09 | Done | `OnboardingStep.firstItems` (§5.1 step 12) + `Features/Onboarding/Views/OnboardingFirstItemsView.swift` and `ViewModels/OnboardingViewModel+FirstItems.swift`. **Both acceptance criteria met.** Skip proceeds straight to §6.10 and on to Home — nothing on the step can disable the footer's forward button, proven by `skippingDoesNotBlockReachingHome`, by `aBrokenBackendStillLetsHimLeave` (a `ClosetRepository` that fails every write still cannot trap the user), and end to end by `OnboardingFirstItemsUITests.testSkippingFirstItemsStillReachesHome`. The step does not degrade to skip-only: it writes real `closet_items` rows through `ClosetRepository`, so it does not wait on Phase 3 — but the form is deliberately three fields (name, category, colour) because `P3-CLOSET-08` owns the full editor and a second one here would drift. The refusable path is the free-tier cap (§16, `P3-CLOSET-11`): `FreeTierCappedClosetRepository` refuses the 31st write and it surfaces here as a typed `FreeTierClosetError.capReached` that closes the form and explains itself rather than throwing an error dialog — and the step is still skippable at the cap. (It used to be the guest cap; **ADR 0014** removed guest mode and `prepareFirstItemsStep()` is now empty, because a remaining-count for a limit nobody is near in their first minute is a number about nothing.) **The scanner claim in this row was true until 2026-08-06 and is not any more** — the photo path is `P2-ONBOARD-13`, which adds a control to this screen and a `didScanItem(_:)` seam to this view model; both of this ticket's criteria are unaffected and still tested. 11 unit tests in `Tests/UnitTests/OnboardingFirstItemsTests.swift`, plus 4 more for the seam. |
 | P2-ONBOARD-13 | Done | The photo path on §5.1 step 12. **All four criteria met.** `OnboardingFirstItemsView.scanCard` is the first thing on the step and `OnboardingFirstItemsUITests.testFirstItemsOffersThePhotoPathFirst` asserts it is `isHittable` without scrolling at the default text size. **At AX5 the bar is order, not no-scrolling** — a headline and two sentences fill that screen on their own and nothing in this flow fits unscrolled at that size, so `testFirstItemsAtLargestDynamicType` asserts `scan.frame.minY < add.frame.minY` (the step must not silently revert to a form with a camera button after it) plus reachable-by-scrolling, and the criterion in `02-task-breakdown.md` says so rather than claiming a standard no screen in the app meets. `OnboardingFlowView` presents `ScannerDestinationView(route: .singleItem)` as a sheet — `.singleItem` and not `.batchCloset`, which is still an honest placeholder and would put "not built yet" one tap inside onboarding. **Nothing here writes.** The scanner has already been through `ClosetRepository.createItem` by the time onboarding hears about it, so `ScannerReviewViewModel.savedItem` carries the repository's RETURN value (the server's normalisation, not the draft) out through `ScannerDestinationView.onItemSaved`, and `OnboardingViewModel.didScanItem(_:)` only records it — guarded on `id` so a completion delivered twice lists one garment once. All four seam tests run against `FailingClosetRepository`, which throws on every write: if this ever started writing, all four would fail rather than quietly creating two rows per photograph. The typed form stays, and **not** as a no-camera fallback — the scanner degrades to a Photos import itself. It stays for the garment that is at the cleaners or in a suitcase. `canAdvance` is untouched: `scanningDoesNotBlockReachingHome`, `skippingDoesNotBlockReachingHome`, `aBrokenBackendStillLetsHimLeave` and `testSkippingFirstItemsStillReachesHome` all still pass. Tests: `Tests/UnitTests/OnboardingFirstItemsTests.swift` (4), `Tests/UnitTests/ScannerReviewViewModelTests.swift` (`savedItemIsTheRepositorysReturnValue`), `Tests/UITests/OnboardingFirstItemsUITests.swift` (2 of its 4 — the other two are `P2-ONBOARD-09`'s, moved with them out of `OnboardingCaptureStepsUITests` when the class crossed SwiftLint's `type_body_length` limit; the shared walk now lives in `Tests/UITests/OnboardingCaptureUITestCase.swift`). |
 | P2-ONBOARD-10 | Done | `Features/Onboarding/Views/OnboardingResultView.swift` + `Features/Onboarding/Components/StyleDNASections.swift` render all six §6.10 sections from the `style-dna/generate` response, plus the three honesty fields (`known_inputs`, `open_questions`, `measured_dimensions`) the six sections cannot keep the step's own promise without. The palette is drawn as swatches resolved through `Core/DesignSystem/Tokens/AstraGarmentColor.swift`, always beside the colour's name (§19: colour is never the sole carrier of meaning) and name-only when this build has no swatch for a word the server sent. **Edit and regenerate edits the INPUT, not the prose** — the §6.5 identity picks, via `updateStyleProfile` then `generateStyleDNA`, the two-call order `ProfileRepository` documents; the argument is in `OnboardingViewModel.regenerate`'s doc comment. Submission moved to the way IN to §6.10 (`loadStyleDNA()`), because the endpoint reads the profile rows rather than taking a body, so generating first returned a null identity for every new user. Three cases pinned by `Tests/UnitTests/StyleDNAResultTests.swift` (15 tests): rich, sparse, and a null `primary_identity` that is never backfilled. Guests reach `.guestPreview` with zero calls (ADR 0011). UI coverage in `Tests/UITests/OnboardingFlowUITests.swift` — every section reachable by scrolling both directions at AX5, and an edit that changes the headline. |
@@ -282,40 +303,44 @@ deliberately a placeholder scorer, not the real one.
 
 # PHASE 5 — KYRA
 
-**1 Done · 3 Partial · 18 Not started.** Client protocols and the live repository conformance are
-fully wired into DI; there is no UI and no server. `docs/06` and `docs/09` are implementation-ready
-design, not evidence of build.
+**18 Done · 4 Partial · 0 Not started.** The conversation UI, structured cards, orchestration
+endpoint, tools, guardrails, and tier limit are implemented; the hosted `kyra` function is active
+at version 5. On-device voice transcription and a user-visible style-memory inspector are now
+implemented in the working tree. Their real-device permission/transcription flow and deletion
+against an authenticated backend account still need acceptance. A mock-backed chat UI flow exists;
+production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/README.md` and
+`supabase/functions/kyra/README.md` for details.
 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P5-KYRA-01 | Done | `20260728100500_feedback_and_memory.sql` creates `kyra_threads`/`kyra_messages`/`style_memories` with embeddings; cross-user RLS asserted and run in CI. |
-| P5-KYRA-02 | Not started | No `supabase/functions/kyra/`; `EndpointDeploymentMappingTests` pins `requiredNow = ["outfits", "profile", "style-dna"]` (Kyra is not among them). |
-| P5-KYRA-03 | Not started | No server code. Token budget and truncation order are design-only in `docs/06` §1. |
-| P5-KYRA-04 | Not started | No `search_closet` tool; schema exists only as documentation. |
-| P5-KYRA-05 | Not started | No `rank_outfits` tool wiring. |
-| P5-KYRA-06 | Not started | No "Ask Kyra to finish" code; no `create_outfit` tool. |
-| P5-KYRA-07 | Not started | No `get_weather` tool. |
-| P5-KYRA-08 | Not started | No `get_schedule` tool. |
-| P5-KYRA-09 | Not started | No `save_preference` tool server-side; client memory methods exist but nothing writes memories from a conversation. |
-| P5-KYRA-10 | Not started | No `mark_item_worn` tool. |
-| P5-KYRA-11 | Not started | No stub tool interfaces — no server code at all. |
-| P5-KYRA-12 | Not started | No guardrail layer; the system prompt with its "WHAT YOU NEVER DO" section is design-only. |
-| P5-KYRA-13 | Not started | `Features/Kyra/` holds only `README.md`. |
-| P5-KYRA-14 | Not started | `KyraCard` model exists; no renderer view. |
-| P5-KYRA-15 | Not started | No UI. |
-| P5-KYRA-16 | Not started | No microphone or speech code anywhere. |
-| P5-KYRA-17 | Not started | No memory UI; Profile has only the guest stub. |
+| P5-KYRA-02 | Done | `supabase/functions/kyra/` implements `POST /respond`; production function is active at v5 with JWT verification. |
+| P5-KYRA-03 | Done | `handler.ts` enforces context budgets, tool limits, fallbacks, and provider escalation; covered by Kyra handler tests. |
+| P5-KYRA-04 | Done | `tools/searchCloset.ts` implements authenticated closet retrieval and has tool tests. |
+| P5-KYRA-05 | Done | `tools/rankOutfits.ts` ranks owned outfits through the shared compatibility scorer. |
+| P5-KYRA-06 | Done | `tools/createOutfit.ts` creates owned suggested outfits; the composer and structured response flow are implemented. |
+| P5-KYRA-07 | Done | `tools/getWeather.ts` uses an optional weather snapshot and reports unavailable honestly when absent. |
+| P5-KYRA-08 | Done | `tools/getSchedule.ts` reads the caller's upcoming occasions. |
+| P5-KYRA-09 | Done | `tools/savePreference.ts` writes user-visible memories and surfaces the writes in the response. |
+| P5-KYRA-10 | Done | `tools/markItemWorn.ts` records wear through the caller-scoped store. |
+| P5-KYRA-11 | Done | Phase-6 tool stubs return explicit `NOT_BUILT`; packing-list tool is wired to the shared planner. |
+| P5-KYRA-12 | Done | `guardrails.ts` validates unsafe claims, affiliate disclosures, and surfaced card references after generation. |
+| P5-KYRA-13 | Done | `Features/Kyra/Views/KyraConversationView.swift` and its view model implement chat, suggested prompts, attachments, loading, offline, and retry states. |
+| P5-KYRA-14 | Done | Five structured card renderers hydrate owned item/outfit references; unavailable references degrade honestly. |
+| P5-KYRA-15 | Done | Ask Kyra global action and tappable suggested prompts are implemented; mock-backed UI flow renders an outfit card. |
+| P5-KYRA-16 | Partial | `KyraSpeechInputController` requests microphone and Speech access only after a mic tap, records to a temporary local file, requires on-device recognition, caps recording at 45 seconds, and deletes the audio after transcription/cancellation. The composer has recording/transcribing/error states. **Real-device permission, interruption, and recognition acceptance has not run.** |
+| P5-KYRA-17 | Partial | `StyleMemoriesView` + `StyleMemoriesViewModel` display only user-visible notes, confirm deletion, preserve a row and report an error if delete fails; Profile → Privacy & Data and the Kyra memories route reach it. Unit and UI coverage was added. **Authenticated production read/delete acceptance remains open.** |
 | P5-KYRA-18 | Partial | `LiveKyraRepository` fully implements the protocol. `AstraModelContainer` states Kyra threads are "network-first and simply not cached" — **the offline-cache criterion is unmet by design.** |
-| P5-KYRA-19 | Not started | No Kyra rate limiting — no server function to limit. |
-| P5-CORE-01 | Partial | **The defensive-parsing criteria are unmet despite a passing happy-path test.** `KyraStructuredResponse`/`KyraIntent` use plain synthesized `Codable`, so a missing optional field or unknown intent throws rather than degrading to `[]`/`.general`. |
-| P5-TEST-01 | Partial | `ModelCodableRoundTripTests` has one happy-path decode (`daily_outfit` only); no coverage of the other 5 intents, no malformed-payload test. |
-| P5-TEST-02 | Not started | `testAskKyra()` is a deliberate placeholder — reports as an explicit `XCTSkip` naming the assertions it owes. |
+| P5-KYRA-19 | Done | New conversations count the caller's daily threads in Postgres; entitled premium accounts skip the configured free-tier limit. |
+| P5-CORE-01 | Done | `KyraStructuredResponse` custom decoding defaults missing optional arrays and maps unknown intent to `.general`; invalid individual cards/actions are dropped without losing valid siblings. |
+| P5-TEST-01 | Done | `KyraStructuredResponseDecodingTests` covers documented intents, missing and malformed fields, unknown values, and round-trip behavior. |
+| P5-TEST-02 | Partial | `testAskKyra()` validates suggested-prompt send and structured seeded-item card rendering against the mock; the ticket's signed-in staging-server acceptance remains open. |
 
 ---
 
 # PHASE 6 — STUDIO AND COMMERCE
 
-**10 Done · 11 Partial · 4 Not started.** Wave D wired paste → extract → evaluate → decision page. Wave E is Visualize / See this on you after terms-versioned consent (Studio tab still off). Wave F lists his outfits as Discover lookbooks; ADR 0017 adds other men's worn public looks and an Unlocks rail. Wave G is not a ticket here — see `docs/adr/0016-women-is-a-second-graph.md` and `docs/adr/0019-wave-g-may-start.md`. The image vendor remains **OpenAI, called directly with our own key, and nothing else**. Hosted `studio` on `anutsdzbxycaavmmkewo` has `IMAGE_GENERATION_PROVIDER=openai` (2026-08-23); unset still defaults to mock. Wear This stays ungated. P6-SHOP-08 curated ingest is live; Unlocks still ignores unevaluated catalog rows.
+**12 Done · 10 Partial · 3 Not started.** Wave D wired paste → extract → evaluate → decision page. Wave E includes Visualize / See this on you after terms-versioned consent and a Studio gallery; preview deletion now removes its stored image and history. Wave F lists his outfits as Discover lookbooks; ADR 0017 adds other men's worn public looks and an Unlocks rail. Wave G is not a ticket here — see `docs/adr/0016-women-is-a-second-graph.md` and `docs/adr/0019-wave-g-may-start.md`. The hosted image provider is configured separately from the mock default; verify the current provider and legal disclosures before a client launch. Wear This stays ungated. P6-SHOP-08 curated ingest is live; Unlocks still ignores unevaluated catalog rows.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -329,8 +354,8 @@ design, not evidence of build.
 | P6-STUDIO-08 | Done | Studio tab is on dogfood chrome (`AppTab.dogfoodTabs`). Gallery is `StudioHomeView`; generate is the existing Visualize modal. |
 | P6-STUDIO-09 | Partial | Data model complete. Zero preset UI on purpose (Wave E kill: preset mall). |
 | P6-STUDIO-10 | Partial | Queued/generating/complete/failed UI on `StudioGenerationView`. |
-| P6-STUDIO-11 | Partial | Studio tab lists `studio_generations`. Save-to-lookbook / compare still placeholder routes. |
-| P6-STUDIO-12 | Partial | Client polling loop exists against mock or live status. Live integration still `.disabled` in `PendingIntegrationRequirementsTests`. |
+| P6-STUDIO-11 | Partial | Studio gallery fetches visible generations in 20-row server pages, signs each page's result images, and offers retryable pagination errors. Save-to-lookbook / compare remain deferred placeholder routes. |
+| P6-STUDIO-12 | Partial | Generation polling starts at 2s, backs off to 8s, and stops after 3 minutes; failed provider jobs use the existing no-charge retry endpoint, and the detail view resumes active jobs. Live provider integration remains disabled in PendingIntegrationRequirementsTests. |
 | P6-SHOP-01 | Done | `20260728100600_commerce.sql` creates `product_candidates`/`user_product_evaluations`; RLS proves shared-read/service-write and per-user isolation. |
 | P6-SHOP-02 | Done | `ProductExtractionProvider` + html/mock adapters. Default provider is mock. |
 | P6-SHOP-03 | Done | `POST /products/extract`; Home paste sheet calls `extractProduct`. |
@@ -341,7 +366,7 @@ design, not evidence of build.
 | P6-SHOP-08 | Done | `scripts/ingest_product_candidates.py` upserts `supabase/seed/product_candidates.json` with the service role. `POST /products/extract` upserts the same table via service role after JWT auth and omits `sponsored`. RLS still blocks client writes. Unlocks scores catalog + evaluations via `computeUnlockCount` (`handler_unlocks_test.ts`). |
 | P6-SHOP-09 | Done | Server: `sponsored` is a label after scoring, never an `EvaluationInputs` field. iOS decision page has no sponsored sort. |
 | P6-SHOP-10 | Partial | extract/evaluate/fetch candidate/wishlist/purchased are live. Evaluations are not cached. |
-| P6-CORE-01 | Partial | Discover lists **his** lookbooks plus **Worn by other men** (public + worn, ADR 0017) and Unlocks from `POST /products/unlocks` (HIS gap via `computeUnlockCount` over evaluations **and** the Shop catalog, zeros dropped, no sponsored sort). Shop is a **separate** tab over curated `product_candidates`. Home stays private. No editorial CMS table. |
+| P6-CORE-01 | Partial | Discover lists **his** lookbooks plus **Worn by other men** (public + worn, ADR 0017) and Unlocks from `POST /products/unlocks` (HIS gap via `computeUnlockCount` over evaluations **and** the Shop catalog, zeros dropped, no sponsored sort). Peer looks now use sanitized authenticated RPCs plus short-lived signed images; raw peer closet/outfit rows are closed in production. The detail screen is read-only and adds reporting; 150 local RLS assertions cover isolation. Mock-backed Discover/Shop navigation passes (2026-09-29); a live authorized public peer-look detail acceptance remains open. Shop is a **separate** tab over curated `product_candidates`. Home stays private. No editorial CMS table. |
 | P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` still `.disabled` (live provider). Client polling is unit-tested against the mock. |
 | P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` still `.disabled` (live Edge). Client extract→evaluate is unit-tested against the mock. |
 
@@ -349,7 +374,7 @@ design, not evidence of build.
 
 # PHASE 7 — MONETIZATION AND HARDENING
 
-**1 Done · 13 Partial · 22 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. App Store Server Notifications and published legal links are still out.
+**4 Done · 13 Partial · 19 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. App Store Server Notifications and finalized legal terms remain open.
 
 | Ticket | Status | Evidence |
 |---|---|---|
@@ -362,8 +387,8 @@ design, not evidence of build.
 | P7-SUB-07 | Partial | Purchase and restore call `LiveSubscriptionRepository.syncTransaction`. Entitlement is the server row, not local StoreKit. |
 | P7-PRIVACY-01 | Done | `DELETE /account` is `supabase/functions/account/` (`handleDeleteAccount` → `request_account_deletion` → Storage sweep → `finalize_account_deletion` → `auth.admin.deleteUser`). iOS `LiveAuthRepository.deleteAccount` hits `AstraEndpoint.deleteAccount` (slug `account`). Hosted slug `account` is ACTIVE on `anutsdzbxycaavmmkewo`. |
 | P7-PRIVACY-02 | Done | `PrivacyAndDataView` + `AccountDeletionView` / `AccountDeletionViewModel`. Row `privacyAndData.deleteAccountRow` is not a single-tap chevron. Tests: `AccountDeletionViewModelTests`. |
-| P7-PRIVACY-03 | Not started | No export feature. |
-| P7-PRIVACY-04 | Not started | No per-image deletion UI (depends on unbuilt P6-STUDIO-11). |
+| P7-PRIVACY-03 | Partial | GET /profile/export-data and a shareable, file-protected JSON export are implemented locally. The Edge Function scopes every query to the verified caller and RLS, pages user rows, and omits shared catalog/system internals. Hosted deployment and live RLS/completeness acceptance with a disposable account remain open. |
+| P7-PRIVACY-04 | Done | `ProfileRoute.referencePhotos` exposes owner-scoped reference deletion in Privacy & Data. It blocks while previews are queued/generating, deletes every completed/failed Studio preview and its result image, then removes the reference from private Storage and the body profile. `StudioHomeView` also deletes the stored result before clearing its row. |
 | P7-PRIVACY-05 | Partial | Four documents live on astra-style.com; `AstraLegal.isPublished` is true; in-app URLs match. Counsel `[[NEEDS INPUT]]` placeholders remain — do not invent entity names. |
 | P7-PRIVACY-06 | Not started | No training-opt-out column; no ATT code. |
 | P7-PRIVACY-07 | Not started | No `analytics_events` table in any migration; `LiveAnalyticsClient.log()` is a no-op stub. `AnalyticsEvent` is designed to exclude PII by construction. |
@@ -407,7 +432,7 @@ there is one place to look; the roadmap stays a planning document.
 | 4 profile tables with RLS returning zero rows cross-user, not an error | **Yes** | `20_rls_isolation_tests.sql`; RLS workflow green. |
 | Storage buckets private; unsigned URL returns 403 | Partial | Live bucket is private with 4 path-scoped policies. No automated test — CI Postgres has no `storage` schema. |
 | 5 tab items navigate independently and preserve position | **Yes** | `AppRouter` 5 path arrays + `TabNavigationStateTests`. |
-| CI runs on every PR and fails on a warning or lint violation | **Partial** | PRs #3/#4 ran `ios.yml` green (lint + warning gate). Negative case (PR fails on a deliberate warning/lint) still unproven; convention is now direct-to-`main`. |
+| CI runs on every PR and fails on a warning or lint violation | **Done** | `ios.yml` runs a negative self-test before lint/build, then applies strict lint and the verified warning parser to the actual build log. |
 | No service-role or provider key anywhere in the iOS target | **Yes** | Grep of target and config finds none; `Secrets.xcconfig` holds only URL + anon key, gitignored. |
 
 ### Phase 2
@@ -430,10 +455,11 @@ information in it.
 
 ## Bugs found during the audit that no ticket covers
 
-These were latent — the code paths were unreachable — but each would have failed outright the
-moment its feature was wired up. **1–4 were addressed on 2026-07-30**; the resolutions are
-recorded here rather than deleted, because "why does this method throw instead of querying a
-table?" is the question the next reader will ask.
+The first four were latent — the code paths were unreachable — but each would have failed outright
+the moment its feature was wired up. **1–4 were addressed on 2026-07-30.** Items 6 and 7 were found
+and fixed during the 2026-09-29 release-readiness pass. The resolutions are recorded here rather
+than deleted, because "why does this method throw instead of querying a table?" is the question the
+next reader will ask.
 
 1. ~~**`uploadCaptured()` uploads to bucket `"closet"`.**~~ Fixed: uploads to `user-content`, the
    only bucket that exists. The audit under-reported this one — the bucket name was not the only
@@ -457,6 +483,14 @@ table?" is the question the next reader will ask.
    mutations still have no drainer at all**, which remains open under P1-CORE-06.
 5. **`WeatherService.currentSnapshot()` has zero production call sites** — a complete WeatherKit
    adapter that nothing invokes. Still open.
+6. ~~**Count labels showed raw Swift inflection markup.**~~ Several screens used `^[…](inflect: true)`
+   with `String(localized:)`, but the app has no string catalog to interpret that syntax. A shared
+   `AstraQuantityText.count` helper now produces ordinary singular/plural labels; the 836-test Swift
+   suite includes count-copy coverage, and no raw inflection markers remain in view code.
+7. ~~**The floating Ask Kyra orb covered the Closet item's Edit action.**~~ On item detail only, Ask
+   Kyra now sits in the navigation bar while the bottom orb is removed. A simulator walkthrough
+   verifies Kyra opens, Edit remains tappable, Archive scrolls clear of the tab bar, and the orb
+   returns when the user leaves detail.
 
 A new `AstraError.Category.unimplemented` backs 2 and 3. It is deliberately distinct from
 `.server`: retrying a missing table can never succeed, so the UI should degrade rather than offer

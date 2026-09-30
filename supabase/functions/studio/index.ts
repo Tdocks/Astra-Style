@@ -312,7 +312,8 @@ function depsFor(req: Request) {
     generateRateLimiter,
     statusRateLimiter,
     now: () => new Date(),
-    hasActivePremiumSubscription: (nowIso: string) => hasActivePremiumSubscription(supabase, nowIso),
+    hasActivePremiumSubscription: (nowIso: string) =>
+      hasActivePremiumSubscription(supabase, nowIso),
     freeStudioTrialGenerations: 1,
   };
 }

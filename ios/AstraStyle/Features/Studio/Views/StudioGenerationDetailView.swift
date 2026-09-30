@@ -22,10 +22,16 @@ struct StudioGenerationDetailView: View {
                     .tint(AstraColor.accentChampagne)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let error):
-                Text(error.message)
-                    .astraText(.body)
-                    .foregroundStyle(AstraColor.textSecondary)
-                    .padding(AstraSpacing.pagePadding)
+                VStack(alignment: .leading, spacing: AstraSpacing.md) {
+                    Text(error.message)
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textSecondary)
+                    Button(String(localized: "Try again", comment: "Retry loading a Studio estimate")) {
+                        Task { await viewModel.refresh() }
+                    }
+                    .buttonStyle(.astraSecondary)
+                }
+                .padding(AstraSpacing.pagePadding)
             case .loaded(let generation):
                 ScrollView {
                     VStack(alignment: .leading, spacing: AstraSpacing.md) {
@@ -38,6 +44,11 @@ struct StudioGenerationDetailView: View {
                         Text(statusCopy(generation.status))
                             .astraText(.title2)
                             .foregroundStyle(AstraColor.textPrimary)
+                        if let message = generation.errorMessage {
+                            Text(message)
+                                .astraText(.callout)
+                                .foregroundStyle(AstraColor.textSecondary)
+                        }
                         if let url = viewModel.resultImageURL {
                             AsyncImage(url: url) { image in
                                 image
@@ -50,9 +61,17 @@ struct StudioGenerationDetailView: View {
                             .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
                             .accessibilityIdentifier("studio.detail.image")
                         }
+                        if generation.isRetryableWithoutCharge {
+                            Button(String(localized: "Try again", comment: "Retry a provider-failed Studio estimate")) {
+                                Task { await viewModel.retry() }
+                            }
+                            .buttonStyle(.astraSecondary)
+                            .accessibilityIdentifier("studio.detail.retry")
+                        }
                     }
                     .padding(AstraSpacing.pagePadding)
                 }
+                .refreshable { await viewModel.refresh() }
             }
         }
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())

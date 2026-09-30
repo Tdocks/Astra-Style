@@ -59,6 +59,7 @@ public struct OnboardingFlowView: View {
                     onBack: { Task { await model.goBack() } },
                     content: { stepContent }
                 )
+                .id(model.step)
             }
         }
         .task { await model.restore() }

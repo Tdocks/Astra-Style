@@ -10,6 +10,9 @@ import Foundation
 
 public protocol StudioRepository: Sendable {
     func fetchGenerations() async throws -> [StudioGeneration]
+    /// Loads a page of visible generations. Implementations should use stable
+    /// ordering and exclude soft-deleted rows.
+    func fetchGenerations(offset: Int, limit: Int) async throws -> [StudioGeneration]
     func fetchGeneration(id: UUID) async throws -> StudioGeneration
 
     /// Enqueues a generation job. Calls `POST /studio/generate`.
@@ -28,4 +31,14 @@ public protocol StudioRepository: Sendable {
     /// Deletes a generation and its stored images (spec §6.17 "Provide
     /// deletion controls", §29).
     func deleteGeneration(id: UUID) async throws
+}
+
+public extension StudioRepository {
+    /// Compatibility implementation for in-memory repositories. The live
+    /// repository overrides this with a server-side range query.
+    func fetchGenerations(offset: Int, limit: Int) async throws -> [StudioGeneration] {
+        let all = try await fetchGenerations().filter { !$0.isDeleted }
+        guard offset < all.count else { return [] }
+        return Array(all.dropFirst(offset).prefix(limit))
+    }
 }

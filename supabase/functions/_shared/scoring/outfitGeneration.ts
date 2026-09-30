@@ -22,10 +22,7 @@ import { scoreOutfit } from "./compatibility.ts";
 import type { ComponentWeights, ScoreOptions } from "./compatibility.ts";
 import { canonicalSignature } from "./equivalence.ts";
 import type { GarmentRole, ScorableItem, ScoringContext } from "./types.ts";
-import {
-  parseWardrobeGraph,
-  requiredRoleSetsForAnchor,
-} from "./wardrobeGraph.ts";
+import { parseWardrobeGraph, requiredRoleSetsForAnchor } from "./wardrobeGraph.ts";
 
 export interface PrunedGenerationOptions {
   /** §6.4's quality gate, on the same [0,1] scale as every other subscore. */

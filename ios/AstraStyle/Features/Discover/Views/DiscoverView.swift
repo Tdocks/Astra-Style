@@ -117,12 +117,16 @@ struct DiscoverView: View {
             } else {
                 ForEach(looks) { look in
                     Button {
-                        router.push(DiscoverRoute.lookbook(id: look.outfit.id))
+                        if look.isPublicLook {
+                            router.push(DiscoverRoute.publicLook(id: look.id))
+                        } else {
+                            router.push(DiscoverRoute.lookbook(id: look.id))
+                        }
                     } label: {
                         lookbookCard(look)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("\(identifier).\(look.outfit.id.uuidString)")
+                    .accessibilityIdentifier("\(identifier).\(look.id.uuidString)")
                 }
             }
         }
@@ -141,10 +145,10 @@ struct DiscoverView: View {
                     .allowsHitTesting(false)
                 }
 
-                Text(look.outfit.name)
+                Text(look.name)
                     .astraText(.headline)
                     .foregroundStyle(AstraColor.textPrimary)
-                if let description = look.outfit.description, !description.isEmpty {
+                if let description = look.description, !description.isEmpty {
                     Text(description)
                         .astraText(.callout)
                         .foregroundStyle(AstraColor.textSecondary)

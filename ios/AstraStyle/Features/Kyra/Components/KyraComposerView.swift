@@ -2,10 +2,8 @@
 //  KyraComposerView.swift
 //  AstraStyle
 //
-//  The conversation composer: text field, attachment menu (photo, product
-//  link, closet item, outfit — spec §6.20's input kinds minus voice,
-//  which P5-KYRA-16 owns because it is the one that needs a permission),
-//  staged-attachment chips, and send.
+//  The conversation composer: text field, on-device voice dictation,
+//  attachment menu, staged-attachment chips, and send.
 //
 //  PHOTOS ARE STAGED AS BYTES, UPLOADED AT SEND. The chip the user can
 //  still remove must not have already pushed his photo to storage — see
@@ -32,6 +30,7 @@ struct KyraComposerView: View {
     @State private var isPickingClosetItem = false
     @State private var isPickingOutfit = false
     @State private var isEnteringProductLink = false
+    @State private var speechInput = KyraSpeechInputController()
 
     var body: some View {
         VStack(spacing: AstraSpacing.xs) {
@@ -56,6 +55,7 @@ struct KyraComposerView: View {
                 .foregroundStyle(AstraColor.destructive)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            speechStatus
         }
         .padding(.horizontal, AstraSpacing.pagePadding)
         .padding(.vertical, AstraSpacing.sm)
@@ -64,6 +64,11 @@ struct KyraComposerView: View {
         .onChange(of: photoSelection) {
             loadPickedPhoto()
         }
+        .onChange(of: speechInput.transcript) { _, transcript in
+            guard let transcript else { return }
+            viewModel.draftText = transcript
+        }
+        .onDisappear { speechInput.cancel() }
         .sheet(isPresented: $isPickingClosetItem) {
             KyraClosetItemPickerSheet(viewModel: viewModel)
         }
@@ -132,8 +137,9 @@ struct KyraComposerView: View {
                 RoundedRectangle(cornerRadius: AstraSpacing.buttonRadius, style: .continuous)
                     .fill(AstraColor.backgroundPrimary)
             )
-            .disabled(viewModel.isOffline)
+            .disabled(viewModel.isOffline || speechInput.state != .idle)
             .accessibilityIdentifier("kyra.composer.field")
+            voiceButton
             sendButton
         }
     }
@@ -166,7 +172,7 @@ struct KyraComposerView: View {
                 .foregroundStyle(AstraColor.accentChampagneAccessible)
                 .frame(width: AstraSize.minTapTarget, height: AstraSize.minTapTarget)
         }
-        .disabled(viewModel.isOffline || viewModel.isSending)
+        .disabled(viewModel.isOffline || viewModel.isSending || speechInput.state != .idle)
         .accessibilityLabel(Text(String(localized: "Attach", comment: "Opens the attachment menu")))
         .accessibilityIdentifier("kyra.composer.attach")
     }
@@ -184,9 +190,80 @@ struct KyraComposerView: View {
                 )
                 .frame(width: AstraSize.minTapTarget, height: AstraSize.minTapTarget)
         }
-        .disabled(!viewModel.canSendDraft)
+        .disabled(!viewModel.canSendDraft || speechInput.state != .idle)
         .accessibilityLabel(Text(String(localized: "Send", comment: "Sends the composed Kyra message")))
         .accessibilityIdentifier("kyra.composer.send")
+    }
+
+    private var voiceButton: some View {
+        Button {
+            Task { await speechInput.toggle() }
+        } label: {
+            Image(systemName: speechInput.state == .recording ? "stop.circle.fill" : "mic.circle")
+                .astraIcon(.display)
+                .foregroundStyle(
+                    speechInput.state == .recording
+                        ? AstraColor.destructive
+                        : AstraColor.accentChampagneAccessible
+                )
+                .frame(width: AstraSize.minTapTarget, height: AstraSize.minTapTarget)
+        }
+        .disabled(
+            viewModel.isOffline
+                || viewModel.isSending
+                || speechInput.state == .requestingPermission
+                || speechInput.state == .transcribing
+        )
+        .accessibilityLabel(Text(
+            speechInput.state == .recording
+                ? String(localized: "Stop recording", comment: "Stops voice input and transcribes it")
+                : String(localized: "Dictate to Kyra", comment: "Starts voice input")
+        ))
+        .accessibilityHint(Text(String(
+            localized: "Your speech is transcribed on this device and added to the message field.",
+            comment: "Privacy hint for voice input"
+        )))
+        .accessibilityIdentifier("kyra.composer.voice")
+    }
+
+    @ViewBuilder
+    private var speechStatus: some View {
+        switch speechInput.state {
+        case .idle:
+            if let errorMessage = speechInput.errorMessage {
+                HStack(alignment: .top, spacing: AstraSpacing.xs) {
+                    Text(errorMessage)
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.destructive)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(String(localized: "Dismiss", comment: "Dismiss voice input status")) {
+                        speechInput.clearError()
+                    }
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .accessibilityIdentifier("kyra.composer.voice.dismissError")
+                }
+            }
+        case .requestingPermission:
+            Text(String(localized: "Preparing voice input…", comment: "Voice permissions are being requested"))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .recording:
+            Text(String(localized: "Listening. Tap stop when you're done.", comment: "Voice recording state"))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("kyra.composer.voice.recording")
+        case .transcribing:
+            HStack(spacing: AstraSpacing.xs) {
+                ProgressView().tint(AstraColor.accentChampagne)
+                Text(String(localized: "Transcribing on this device…", comment: "Voice transcription state"))
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func loadPickedPhoto() {

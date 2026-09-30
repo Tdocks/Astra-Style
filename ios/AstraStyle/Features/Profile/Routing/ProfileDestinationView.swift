@@ -18,7 +18,11 @@ struct ProfileDestinationView: View {
     var body: some View {
         switch route {
         case .privacyAndData:
-            PrivacyAndDataView()
+            PrivacyAndDataView(
+                exportViewModel: PersonalDataExportViewModel(
+                    profileRepository: container.profileRepository
+                )
+            )
 
         case .accountDeletion:
             AccountDeletionView(
@@ -74,10 +78,19 @@ struct ProfileDestinationView: View {
             )
 
         case .styleMemories:
-            FeaturePlaceholderView(
-                title: String(localized: "Style Memories"),
-                message: String(localized: "What Kyra remembers about your style, and a way to clear it."),
-                systemImage: "brain"
+            StyleMemoriesView(
+                viewModel: StyleMemoriesViewModel(
+                    kyraRepository: container.kyraRepository
+                )
+            )
+
+        case .referencePhotos:
+            ReferencePhotosView(
+                viewModel: ReferencePhotosViewModel(
+                    profileRepository: container.profileRepository,
+                    studioRepository: container.studioRepository,
+                    imageURLResolver: container.closetImageURLResolver
+                )
             )
 
         case .styleJourney:

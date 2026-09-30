@@ -131,22 +131,62 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
         }
     }
 
-    public func exportPersonalData() async throws -> URL {
-        // Spec §29 requires personal-data export but §14's endpoint list
-        // has no dedicated export orchestration call. A batch export is
-        // realistically a background job (not a synchronous Edge Function
-        // response), so the client asks Storage for a signed URL to
-        // whatever the most recent export snapshot is; a real
-        // implementation pairs this with an admin-triggered (spec §28) or
-        // scheduled job that (re)writes that snapshot per user.
+    public func deleteReferenceImage(path: String) async throws {
+        let userID: String
         do {
             let session = try await supabase.auth.session
-            let signedURL = try await supabase.storage
-                .from("exports")
-                .createSignedURL(path: "users/\(session.user.id.uuidString)/export-latest.json", expiresIn: 300)
-            return signedURL
+            userID = session.user.id.uuidString.lowercased()
         } catch {
-            throw AstraError.server("No export is available yet. Please try again shortly.")
+            throw AstraError.auth("Sign in again to remove your reference photo.")
+        }
+
+        let components = path.split(separator: "/").map(String.init)
+        guard components.count == 4,
+              components[0] == "users",
+              components[1] == userID,
+              components[2] == "references",
+              components[3].lowercased().hasSuffix(".jpg"),
+              UUID(uuidString: String(components[3].dropLast(4))) != nil else {
+            throw AstraError.validation("That reference photo doesn't belong to your account.")
+        }
+
+        guard var bodyProfile = try await fetchBodyProfile(),
+              bodyProfile.appearance.referenceSelfiePaths.contains(path) else {
+            throw AstraError.validation("That reference photo is no longer saved to your profile.")
+        }
+
+        let originalProfile = bodyProfile
+        bodyProfile.appearance.referenceSelfiePaths.removeAll { $0 == path }
+        _ = try await updateBodyProfile(bodyProfile)
+
+        do {
+            _ = try await supabase.storage.from("user-content").remove(paths: [path])
+        } catch {
+            do {
+                _ = try await updateBodyProfile(originalProfile)
+            } catch {
+                throw AstraError.server(
+                    "The photo could not be removed from storage, and your profile could not be restored. Refresh Privacy & Data and try again."
+                )
+            }
+            throw AstraError.network("Couldn't remove that photo. Your profile was restored; please try again.")
+        }
+    }
+
+    public func exportPersonalData() async throws -> URL {
+        do {
+            let export = try await apiClient.send(.exportPersonalData, as: PersonalDataExport.self)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(export)
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("astra-personal-data-export.json")
+            try data.write(to: url, options: [.atomic, .completeFileProtection])
+            return url
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.server("Couldn't create your export. Please try again.")
         }
     }
 

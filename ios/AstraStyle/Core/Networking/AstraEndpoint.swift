@@ -12,6 +12,7 @@ import Foundation
 
 public enum AstraEndpoint: Sendable, Equatable {
     case completeOnboarding
+    case exportPersonalData
     case generateStyleDNA
     case analyzeClosetItem
     case batchAnalyzeCloset
@@ -34,11 +35,13 @@ public enum AstraEndpoint: Sendable, Equatable {
     case deleteAccount
     /// Wear This — entitlement lives on the server (ADR 0020).
     case recordWear
+    /// Signs selected peer-look photos only after verifying public worn visibility.
+    case signPublicLookImages
 
     /// HTTP method for the endpoint.
     public var method: HTTPMethod {
         switch self {
-        case .studioStatus, .batchAnalyzeClosetStatus:
+        case .studioStatus, .batchAnalyzeClosetStatus, .exportPersonalData:
             .get
         case .deleteAccount:
             .delete
@@ -52,6 +55,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     public var path: String {
         switch self {
         case .completeOnboarding: "profile/complete-onboarding"
+        case .exportPersonalData: "profile/export-data"
         case .generateStyleDNA: "style-dna/generate"
         case .analyzeClosetItem: "closet/analyze-item"
         case .batchAnalyzeCloset: "closet/batch-analyze"
@@ -70,6 +74,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .appStoreWebhook: "app-store/webhook"
         case .deleteAccount: "account"
         case .recordWear: "outfits/record-wear"
+        case .signPublicLookImages: "lookbook/sign-images"
         }
     }
 

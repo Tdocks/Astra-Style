@@ -29,6 +29,7 @@ struct OnboardingStepScaffold<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var scrollPosition = ScrollPosition(edge: .top)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -50,17 +51,11 @@ struct OnboardingStepScaffold<Content: View>: View {
                     titleBlock
                     content()
                 }
-                .padding(.horizontal, AstraSpacing.pagePadding)
             }
-            // Keyed by step, so each one gets a FRESH scroll view starting at the
-            // top. Without this the scaffold is one long-lived ScrollView whose
-            // content is swapped underneath it, and the offset survives the swap:
-            // scroll to the bottom of the long measurements step, tap Continue,
-            // and the next step opens already scrolled past its own title and
-            // first question. It looks like the app dropped you into the middle
-            // of a form. Caught by an audit of the step screenshots — every
-            // capture was mid-scroll, which is the tell.
-            .id(step)
+            // ScrollPosition makes the reset an explicit scroll command rather
+            // than relying on SwiftUI to discard the previous step's offset.
+            .scrollPosition($scrollPosition)
+            .onChange(of: step) { _, _ in scrollPosition.scrollTo(edge: .top) }
             .scrollDismissesKeyboard(.interactively)
             // `safeAreaInset` rather than a VStack sibling plus a guessed bottom
             // padding. The footer's height is not knowable in advance: at
@@ -75,8 +70,9 @@ struct OnboardingStepScaffold<Content: View>: View {
             // `spacing` is not cosmetic padding — it is added to the inset, so
             // the clearance stays correct. With 0 the last card's rounded border
             // landed exactly on the footer's hairline divider and read as one
-            // doubled line rather than a boundary.
+            // doubled line.
             .safeAreaInset(edge: .bottom, spacing: AstraSpacing.sm) { footer }
+            .id(step)
         }
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
     }

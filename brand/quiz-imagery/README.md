@@ -23,24 +23,26 @@ vendor was deleted; nothing from it survives in this directory or in the shipped
 README drifts from the one that actually runs — at which point the document is worse than nothing,
 because it reads authoritative. Read the constants.
 
-Every one of the 28 shipped frames came out of that edit path, from that one figure. The reason
-that matters, and the measured result, are in
+The shipped catalog now has 32 frames. Generated frames use that edit path from the canonical
+figure; logo marks are composited in post. The new silhouette-2 pair was edited and normalized as
+a matched pair on 2026-09-29. The reason that matters, and the measured result, are in
 `ios/AstraStyle/Resources/QuizImagery/README.md` — the short version is that the person is no
 longer a variable anywhere in the instrument, and backdrop drift inside a pair fell from 20.9 mean
 luma on the old vendor to 1.6.
 
-`--all` covers 16 pairs, two per axis. 14 are shipped; `logo-1` and `silhouette-2` were rejected
-and are blocked on an OpenAI billing hard limit, with fixed prompts already committed. Both
-rejections are documented in full in the shipped directory's README.
+`--all` covers 16 pairs, two per axis. All 16 now have a usable pair in the shipped catalog.
+`logo-1` uses the composited Astra mark described below. `silhouette-2` was rebuilt on
+2026-09-29 after its first candidate varied sleeve length; that rejected first pair is preserved
+under `rejected/`.
 
 ## What is in here
 
 | File(s) | What it is |
 |---|---|
 | `_reference-figure.png` | The canonical figure every other frame is edited from. Do not regenerate it casually — a new figure is a new man, and every existing frame would disagree with the new one. |
-| 28 frames for the 14 shipped pairs | `<axis>-<n>-<a\|b>.png`, 1024×1536. These are the sources for everything in `ios/AstraStyle/Resources/QuizImagery/`. |
-| `logo-1-a.png` | Kept; its partner `logo-1-b.png` was **deleted** for returning a real trademark ("HILFIGER") across the chest. The pair does not ship. |
-| `silhouette-2-a.png`, `silhouette-2-b.png` | Rejected, kept as candidates: the B frame came back short-sleeved against a long-sleeved A, putting sleeve length in a pair meant to isolate volume. Not in the manifest, so nothing can render them. |
+| 32 frames for the 16 shipped pairs | `<axis>-<n>-<a\|b>.png`, 1024×1536. These are the sources for the generated tiles in `ios/AstraStyle/Resources/QuizImagery/`. |
+| `logo-1-a.png`, `logo-1-b.png` | The shipped logo pair uses Astra's own composited monogram, not a third-party brand. See `scripts/composite_quiz_logo.py`. |
+| `silhouette-2-a.png`, `silhouette-2-b.png` | Shipped close-fit / relaxed-fit pair. The earlier short-sleeve mismatch is preserved under `rejected/` and is not in the manifest. |
 | `bakeoff-2026-07-31*.png` | Contact sheets from the vendor bake-off, retained as `docs/16`'s evidence. Not sources and not shipped. |
 
 **`quiz-imagery-review.html` has been removed.** It rendered the first six candidates as quiz

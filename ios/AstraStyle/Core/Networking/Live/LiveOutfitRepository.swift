@@ -34,14 +34,14 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
     let supabase: SupabaseClient
     let offlineQueue: OfflineMutationQueue
     let writer: any OutfitWriting
-    private let cache: OutfitCaching
+    let cache: OutfitCaching
     private let currentUserID: @Sendable () async -> UUID?
     /// Test seams: when non-nil, `fetchOutfits`/`fetchOutfitItems` use
     /// these instead of Postgrest, so cache write-through / offline
     /// fallback can be asserted without a live Supabase project. Mirrors
     /// `LiveClosetRepository.activeItemsFetcher`.
     private let activeOutfitsFetcher: (@Sendable () async throws -> [Outfit])?
-    private let activeOutfitItemsFetcher: (@Sendable (UUID) async throws -> [OutfitItem])?
+    let activeOutfitItemsFetcher: (@Sendable (UUID) async throws -> [OutfitItem])?
 
     /// Guards against two concurrent drains replaying the same mutation
     /// twice. See `LiveClosetRepository.drainLock`'s doc for why a lock is
@@ -264,25 +264,6 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
             await drainPendingMutations()
         } catch {
             throw AstraError.network("Couldn't delete that outfit while offline.")
-        }
-    }
-
-    public func fetchPublicWornLooks() async throws -> [Outfit] {
-        do {
-            var query = supabase.from("outfits")
-                .select()
-                .eq("visibility", value: OutfitVisibility.shared.rawValue)
-                .is("archived_at", value: nil)
-            if let userID = await currentUserID() {
-                query = query.neq("user_id", value: userID)
-            }
-            return try await query
-                .order("updated_at", ascending: false)
-                .limit(40)
-                .execute()
-                .value
-        } catch {
-            throw AstraError.network("Couldn't load looks other men have worn.")
         }
     }
 

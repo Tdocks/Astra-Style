@@ -13,8 +13,8 @@ public actor MockAuthRepository: AuthRepository {
     /// Optional, so this stays usable in isolated unit tests that don't
     /// want a `SessionStore` at all. When present (as it is from
     /// `AppContainer.preview()`), every method also mirrors its result into
-    /// it — matching `LiveAuthRepository`'s behavior of calling
-    /// `sessionStore.adopt(_:)` — so `container.sessionStore.isSignedIn`
+    /// it using the in-memory-only mock-session path so
+    /// `container.sessionStore.isSignedIn`
     /// reflects reality in previews too, rather than only this actor's own
     /// private `session`.
     private let sessionStore: SessionStore?
@@ -29,7 +29,7 @@ public actor MockAuthRepository: AuthRepository {
     public func signInWithApple(identityToken: String, nonce: String) async throws -> AuthSession {
         let newSession = AuthSession(userID: SampleData.userID, accessToken: "preview-token", refreshToken: "preview-refresh", expiresAt: .distantFuture)
         session = newSession
-        try? await sessionStore?.adopt(newSession)
+        await sessionStore?.adoptInMemory(newSession)
         return newSession
     }
 
@@ -38,7 +38,7 @@ public actor MockAuthRepository: AuthRepository {
     public func verifyEmailOTP(email: String, code: String) async throws -> AuthSession {
         let newSession = AuthSession(userID: SampleData.userID, accessToken: "preview-token", refreshToken: "preview-refresh", expiresAt: .distantFuture)
         session = newSession
-        try? await sessionStore?.adopt(newSession)
+        await sessionStore?.adoptInMemory(newSession)
         return newSession
     }
 
@@ -51,7 +51,7 @@ public actor MockAuthRepository: AuthRepository {
             isAnonymous: true
         )
         session = newSession
-        try? await sessionStore?.adopt(newSession)
+        await sessionStore?.adoptInMemory(newSession)
         return newSession
     }
 
@@ -65,7 +65,7 @@ public actor MockAuthRepository: AuthRepository {
             isAnonymous: false
         )
         session = newSession
-        try? await sessionStore?.adopt(newSession)
+        await sessionStore?.adoptInMemory(newSession)
         return newSession
     }
 
@@ -79,12 +79,12 @@ public actor MockAuthRepository: AuthRepository {
 
     public func signOut() async throws {
         session = nil
-        try? await sessionStore?.signOut()
+        await sessionStore?.clearInMemorySession()
     }
 
     public func deleteAccount() async throws -> AccountDeletionStatus {
         session = nil
-        try? await sessionStore?.signOut()
+        await sessionStore?.clearInMemorySession()
         return AccountDeletionStatus(deletionID: UUID(), status: .pending)
     }
 }

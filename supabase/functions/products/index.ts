@@ -29,7 +29,11 @@
 // clear an admin flag (P6-SHOP-09 / `20260817120000_product_sponsored.sql`).
 // ============================================================================
 
-import { createServiceRoleClient, createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import {
+  createServiceRoleClient,
+  createUserScopedClient,
+  readEdgeEnv,
+} from "../_shared/supabaseClient.ts";
 import { hasActivePremiumSubscription } from "../_shared/premium.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
@@ -262,7 +266,7 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
         throw serverError("Couldn't load those products.");
       }
       const byId = new Map(
-        ((candidates ?? []) as ProductCandidateRow[]).map((row) => [row.id, row]),
+        ((candidates ?? []) as unknown as ProductCandidateRow[]).map((row) => [row.id, row]),
       );
       return ids.flatMap((id) => {
         const row = byId.get(id);
@@ -278,7 +282,7 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
       if (error) {
         throw serverError("Couldn't load the catalog to score against your closet.");
       }
-      return (data ?? []) as ProductCandidateRow[];
+      return (data ?? []) as unknown as ProductCandidateRow[];
     },
   };
 }

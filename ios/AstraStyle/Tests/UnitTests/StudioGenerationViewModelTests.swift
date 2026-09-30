@@ -49,6 +49,34 @@ struct StudioGenerationViewModelTests {
         #expect(model.resultImageURL != nil)
     }
 
+    @Test("Provider retry reuses the failed generation instead of consuming a new trial")
+    func providerFailureRetryReusesGeneration() async {
+        let studio = MockStudioRepository(failFirstGeneration: true)
+        let model = makeModel(studio: studio)
+        model.pollInterval = .zero
+        await model.onAppear()
+        model.grantConsent()
+        await model.generate()
+
+        guard case .failed = model.phase else {
+            Issue.record("expected the provider failure to be shown")
+            return
+        }
+        let failedID = model.generation?.id
+        #expect(model.generation?.isRetryableWithoutCharge == true)
+        #expect(await studioJobCount(studio) == 1)
+
+        await model.retry()
+
+        guard case .complete = model.phase else {
+            Issue.record("expected the retry to complete, got \(model.phase)")
+            return
+        }
+        #expect(model.generation?.id == failedID)
+        #expect(await studioJobCount(studio) == 1)
+        #expect(await studio.retryCountValue() == 1)
+    }
+
     @Test("Stale terms are refused before a job is stored")
     func staleTermsRefused() async {
         let studio = MockStudioRepository()

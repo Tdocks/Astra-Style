@@ -217,7 +217,7 @@ Use `NavigationStack` per tab with independent paths. Preserve tab navigation st
 2. Wordmark: ASTRA STYLE.
 3. Tagline: “Your style. Your journey. Your best self.”
 4. Continue.
-5. Sign in with Apple or email. **(Amended 2026-08-06, ADR 0014: an account is required; guest mode is removed.)**
+5. Continue with Apple, email, or Try without an account. The third path creates a Supabase anonymous session. **(ADR 0018 amends ADR 0014; see §6.2.)**
 6. Kyra introduction.
 7. Style identity onboarding. **(Required. ADR 0015 first-run keeps this as the one required answer.)**
 8. Taste-snapshot visual quiz — at most three comparisons. **(Amended 2026-08-22, ADR 0015. Catalog remains 12–20 pairs; the front door asks three. Remaining axes, including silhouette, are deferred until the closet has signal.)**
@@ -303,15 +303,16 @@ Actions:
 
 - Continue with Apple.
 - Continue with email.
+- Try without an account.
 - Terms and Privacy links.
 
-**Amended 2026-08-06 — ADR 0014.** "Explore demo" and the guest-mode
-restrictions that followed it are removed: an account is required before
-onboarding. The trial path they described was never reachable — a guest
-could not scan, could not receive a Style DNA, and could not be given an
-outfit, because all three are server capabilities a guest deliberately had
-no identity for. The free-tier closet cap on a *signed-in* user
-(`FreeTierLimits`) is a separate rule and is unaffected.
+**Current decision (2026-08-23, ADR 0018 amends ADR 0014).** “Try without an
+account” creates a Supabase anonymous session, so guest users still have a
+user-scoped identity for server features. They can scan and receive style
+help within the guest limit of 10 closet items. Guest photo bytes stay on the
+device until the user links Apple or email; linking keeps the same user id and
+uploads the photos. The guest path is not a no-auth demo and does not use the
+old `GuestClosetRepository` design.
 
 ### 6.3 Kyra introduction
 
@@ -794,15 +795,17 @@ Outputs:
 
 - Sign in with Apple.
 - Email magic link or OTP.
+- Anonymous trial session with a 10-item closet limit.
+- Link a guest session to Apple or email without changing its user id; keep
+  guest photos local until linking, then migrate them into private storage.
 - Session restoration.
 - Account deletion inside app.
 
-**Amended 2026-08-06 — ADR 0014.** "Guest migration to account" is removed
-along with guest mode. Note that the migration this line required was never
-fully built even while the feature existed: the shipped service migrated
-closet items and no profile table, so a user who onboarded as a guest and
-then signed in lost his onboarding answers — a data-loss bug ADR 0011's own
-Consequences section had predicted.
+**Current decision (2026-08-23, ADR 0018 amends ADR 0014).** The accountless
+trial uses Supabase anonymous authentication, so server-side closet and
+styling features remain user-scoped. The older guest-repository migration
+path described in ADR 0011 was removed; the current implementation preserves
+the anonymous user id while linking and migrates on-device guest photos.
 
 ### Permissions
 

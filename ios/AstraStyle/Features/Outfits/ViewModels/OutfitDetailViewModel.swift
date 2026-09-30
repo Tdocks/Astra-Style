@@ -59,6 +59,7 @@ public final class OutfitDetailViewModel {
         public var items: [OutfitItem]
         public var closetItemsByID: [UUID: ClosetItem]
         public var imageURLsByClosetItemID: [UUID: URL]
+        public var lookGarmentsByID: [UUID: LookGarment]
         public var units: UnitsPreference
 
         public init(
@@ -66,17 +67,30 @@ public final class OutfitDetailViewModel {
             items: [OutfitItem],
             closetItemsByID: [UUID: ClosetItem],
             imageURLsByClosetItemID: [UUID: URL],
+            lookGarmentsByID: [UUID: LookGarment] = [:],
             units: UnitsPreference
         ) {
             self.outfit = outfit
             self.items = items
             self.closetItemsByID = closetItemsByID
             self.imageURLsByClosetItemID = imageURLsByClosetItemID
+            self.lookGarmentsByID = lookGarmentsByID
             self.units = units
         }
 
         public func closetItem(for item: OutfitItem) -> ClosetItem? {
             item.closetItemID.flatMap { closetItemsByID[$0] }
+        }
+
+        public func lookGarment(for item: OutfitItem) -> LookGarment? {
+            guard let closetItemID = item.closetItemID else { return nil }
+            if let publicGarment = lookGarmentsByID[closetItemID] { return publicGarment }
+            guard let closetItem = closetItemsByID[closetItemID] else { return nil }
+            return LookGarment(
+                item: closetItem,
+                role: item.role,
+                imageURL: imageURLsByClosetItemID[closetItemID]
+            )
         }
 
         /// The owned garments behind `items`, in outfit (`sort_order`)
@@ -158,39 +172,54 @@ public final class OutfitDetailViewModel {
         isOffline = await networkMonitor.isOffline()
         do {
             async let outfitTask = outfitRepository.fetchOutfit(id: outfitID)
-            async let itemsTask = outfitRepository.fetchOutfitItems(outfitID: outfitID)
-            async let unitsTask = resolveUnits()
+            async let profileTask = profileRepository.fetchCurrentProfile()
 
             let outfit = try await outfitTask
-            let items = try await itemsTask
-            let units = await unitsTask
+            let profile = try? await profileTask
+            let units = profile?.units ?? .imperial
+            isOwnedByCurrentUser = profile?.id == outfit.userID
 
-            let closetItemIDs = Set(items.compactMap(\.closetItemID))
-            let closetItemsByID = await resolveClosetItems(ids: closetItemIDs)
-            let imageURLs = await resolveImageURLs(for: Array(closetItemsByID.values))
-            let currentID = try? await profileRepository.fetchCurrentProfile().id
-            isOwnedByCurrentUser = currentID.map { $0 == outfit.userID } ?? (true)
-
-            state = .loaded(OutfitDetail(
-                outfit: outfit,
-                items: items,
-                closetItemsByID: closetItemsByID,
-                imageURLsByClosetItemID: imageURLs,
-                units: units
-            ))
+            if isOwnedByCurrentUser {
+                let items = try await outfitRepository.fetchOutfitItems(outfitID: outfitID)
+                let closetItemIDs = Set(items.compactMap(\.closetItemID))
+                let closetItemsByID = await resolveClosetItems(ids: closetItemIDs)
+                let imageURLs = await resolveImageURLs(for: Array(closetItemsByID.values))
+                state = .loaded(OutfitDetail(
+                    outfit: outfit,
+                    items: items,
+                    closetItemsByID: closetItemsByID,
+                    imageURLsByClosetItemID: imageURLs,
+                    units: units
+                ))
+            } else {
+                let publicRows = (try? await outfitRepository.fetchPublicLookGarments(outfitIDs: [outfitID])) ?? []
+                let hydrated = await LookHydrator(
+                    closetRepository: closetRepository,
+                    imageURLResolver: closetImageURLResolver
+                ).hydrate(publicLookGarments: publicRows)[outfitID] ?? []
+                let publicItems = publicRows.map { row in
+                    OutfitItem(
+                        outfitID: row.outfitID,
+                        closetItemID: row.closetItemID,
+                        role: row.role,
+                        sortOrder: row.sortOrder
+                    )
+                }
+                let publicGarmentsByID = Dictionary(uniqueKeysWithValues: hydrated.map { ($0.id, $0) })
+                state = .loaded(OutfitDetail(
+                    outfit: outfit,
+                    items: publicItems,
+                    closetItemsByID: [:],
+                    imageURLsByClosetItemID: [:],
+                    lookGarmentsByID: publicGarmentsByID,
+                    units: units
+                ))
+            }
         } catch let error as AstraError {
             state = .failed(error)
         } catch {
             state = .failed(AstraError(category: .unknown, message: error.localizedDescription))
         }
-    }
-
-    /// Falls back to `.imperial` on a profile-read failure. The screen's
-    /// job did not change when this fails — the outfit still loads — so a
-    /// units lookup failing degrades the temperature FORMAT, not the
-    /// screen.
-    private func resolveUnits() async -> UnitsPreference {
-        (try? await profileRepository.fetchCurrentProfile())?.units ?? .imperial
     }
 
     /// One `fetchItems()` read rather than N `fetchItem(id:)` calls — the

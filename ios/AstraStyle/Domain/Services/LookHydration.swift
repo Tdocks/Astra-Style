@@ -70,6 +70,40 @@ public struct LookHydrator: Sendable {
         }
     }
 
+    /// Converts the guarded peer-look payload to drawable garments and signs
+    /// only the selected image ids in one request. Paths remain server-side;
+    /// the signer rechecks that every image belongs to a public worn look.
+    public func hydrate(publicLookGarments rows: [PublicLookGarment]) async -> [UUID: [LookGarment]] {
+        let imageReferences = rows.compactMap { row in
+            row.displayImageID.map {
+                PublicLookImageReference(outfitID: row.outfitID, closetItemID: row.closetItemID, imageID: $0)
+            }
+        }
+        let signed = imageReferences.isEmpty
+            ? [:]
+            : ((try? await imageURLResolver.resolve(publicLookImages: imageReferences)) ?? [:])
+        let grouped = Dictionary(grouping: rows, by: \.outfitID)
+
+        return grouped.mapValues { outfitRows in
+            outfitRows
+                .sorted {
+                    if $0.sortOrder != $1.sortOrder { return $0.sortOrder < $1.sortOrder }
+                    return $0.closetItemID.uuidString < $1.closetItemID.uuidString
+                }
+                .map { row in
+                    let item = LookGarmentItem(
+                        id: row.closetItemID,
+                        name: row.name,
+                        brand: row.brand,
+                        category: row.category,
+                        formalityScore: row.formalityScore
+                    )
+                    let imageURL = row.displayImageID.flatMap { signed[$0] }
+                    return LookGarment(item: item, role: row.role, imageURL: imageURL)
+                }
+        }
+    }
+
     private func join(
         _ items: [OutfitItem],
         byID: [UUID: ClosetItem]

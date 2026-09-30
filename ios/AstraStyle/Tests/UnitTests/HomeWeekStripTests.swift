@@ -142,7 +142,7 @@ struct HomeWeekStripTests {
         let day2 = try #require(DateFormatter.astraDay.date(from: "2026-08-25"))
         let days = [
             PackingDayPlan(date: day1, outfitID: outfitID, isRewear: false),
-            PackingDayPlan(date: day2, outfitID: outfitID, isRewear: true),
+            PackingDayPlan(date: day2, outfitID: outfitID, isRewear: true)
         ]
         let keys = days.map(\.dayKey)
         #expect(Set(keys).count == keys.count)

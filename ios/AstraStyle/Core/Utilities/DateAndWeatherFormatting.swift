@@ -28,9 +28,11 @@ public enum AstraDateFormatting {
 
     /// "3 events today" schedule summary chip (spec §6.11).
     public static func scheduleSummary(eventCount: Int) -> String {
-        eventCount == 0
-            ? String(localized: "No events today", comment: "Schedule summary, zero events")
-            : String(localized: "^[\(eventCount) event](inflect: true) today", comment: "Schedule summary with event count")
+        guard eventCount > 0 else {
+            return String(localized: "No events today", comment: "Schedule summary, zero events")
+        }
+        let events = AstraQuantityText.count(eventCount, singular: "event", plural: "events")
+        return String(localized: "\(events) today", comment: "Schedule summary with event count")
     }
 }
 

@@ -59,19 +59,18 @@ struct DiscoverViewModelTests {
             Issue.record("expected .loaded, got \(model.state)")
             return
         }
-        #expect(catalog.mine.map(\.outfit.id) == [live.id])
-        #expect(catalog.mine.allSatisfy { !$0.outfit.isArchived })
+        #expect(catalog.mine.map(\.id) == [live.id])
+        #expect(catalog.mine.map(\.name) == [live.name])
         #expect(catalog.wornByOthers.isEmpty)
     }
 
     @Test("Public worn looks sit on a second rail, not mixed into mine")
     func publicLooksAreSeparate() async throws {
         let mine = Outfit(id: UUID(), userID: SampleData.userID, name: "Mine")
-        let other = Outfit(
+        let other = PublicWornLook(
             id: UUID(),
-            userID: UUID(),
-            name: "His navy",
-            visibility: .shared
+            name: "A navy look",
+            occasionTags: ["work"]
         )
         let model = makeModel(
             outfitRepository: DiscoverOutfitStub(outfits: [mine], publicLooks: [other]),
@@ -82,8 +81,10 @@ struct DiscoverViewModelTests {
             Issue.record("expected .loaded, got \(model.state)")
             return
         }
-        #expect(catalog.mine.map(\.outfit.id) == [mine.id])
-        #expect(catalog.wornByOthers.map(\.outfit.id) == [other.id])
+        #expect(catalog.mine.map(\.id) == [mine.id])
+        #expect(catalog.wornByOthers.map(\.id) == [other.id])
+        #expect(catalog.wornByOthers.map(\.name) == [other.name])
+        #expect(catalog.wornByOthers.allSatisfy { $0.isPublicLook })
     }
 
     @Test("A candidate with more unlocks ranks above one with fewer")
@@ -195,9 +196,9 @@ private func unlock(name: String, outfitsUnlocked: Int, affiliate: Bool = false)
 /// Only `fetchOutfits` / public looks are in scope for Discover's list.
 private final class DiscoverOutfitStub: OutfitRepository, @unchecked Sendable {
     private let outfits: [Outfit]
-    private let publicLooks: [Outfit]
+    private let publicLooks: [PublicWornLook]
 
-    init(outfits: [Outfit], publicLooks: [Outfit] = []) {
+    init(outfits: [Outfit], publicLooks: [PublicWornLook] = []) {
         self.outfits = outfits
         self.publicLooks = publicLooks
     }
@@ -232,7 +233,13 @@ private final class DiscoverOutfitStub: OutfitRepository, @unchecked Sendable {
     ) async throws -> StyleFeedback {
         throw AstraError.unimplemented("unused")
     }
-    func fetchPublicWornLooks() async throws -> [Outfit] { publicLooks }
+    func fetchPublicWornLooks() async throws -> [PublicWornLook] { publicLooks }
+    func fetchPublicWornLook(id: UUID) async throws -> PublicWornLook {
+        guard let look = publicLooks.first(where: { $0.id == id }) else {
+            throw AstraError.server("unused")
+        }
+        return look
+    }
     func reportLookbook(outfitID: UUID) async throws {}
 }
 

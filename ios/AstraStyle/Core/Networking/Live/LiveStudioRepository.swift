@@ -32,6 +32,24 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
         }
     }
 
+    public func fetchGenerations(offset: Int, limit: Int) async throws -> [StudioGeneration] {
+        guard offset >= 0, limit > 0 else {
+            throw AstraError.validation("That Style Studio page is invalid.")
+        }
+        do {
+            return try await supabase.from("studio_generations")
+                .select()
+                .is("deleted_at", value: nil)
+                .order("created_at", ascending: false)
+                .order("id", ascending: false)
+                .range(from: offset, to: offset + limit - 1)
+                .execute()
+                .value
+        } catch {
+            throw AstraError.network("Couldn't load your Style Studio history.")
+        }
+    }
+
     public func fetchGeneration(id: UUID) async throws -> StudioGeneration {
         do {
             return try await supabase.from("studio_generations").select().eq("id", value: id).single().execute().value
@@ -63,10 +81,44 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
     }
 
     public func deleteGeneration(id: UUID) async throws {
+        let generation = try await fetchGeneration(id: id)
+        guard generation.status == .complete || generation.status == .failed else {
+            throw AstraError.validation("Wait for this preview to finish before deleting it.")
+        }
+
+        if let resultPath = generation.resultImagePath {
+            let userID: String
+            do {
+                let session = try await supabase.auth.session
+                userID = session.user.id.uuidString.lowercased()
+            } catch {
+                throw AstraError.auth("Sign in again to delete this preview.")
+            }
+
+            let pathParts = resultPath.split(separator: "/").map(String.init)
+            guard generation.userID.uuidString.lowercased() == userID,
+                  pathParts.count == 5,
+                  pathParts[0] == "users",
+                  pathParts[1] == userID,
+                  pathParts[2] == "studio",
+                  pathParts[3] == id.uuidString.lowercased(),
+                  !pathParts[4].isEmpty,
+                  pathParts[4] != ".",
+                  pathParts[4] != ".." else {
+                throw AstraError.validation("That preview image doesn't belong to this account.")
+            }
+
+            do {
+                _ = try await supabase.storage.from("user-content").remove(paths: [resultPath])
+            } catch {
+                throw AstraError.network("Couldn't remove the preview image. The preview is still saved; please try again.")
+            }
+        }
+
         do {
             try await supabase.from("studio_generations").delete().eq("id", value: id).execute()
         } catch {
-            throw AstraError.network("Couldn't delete that generation while offline.")
+            throw AstraError.network("The image was removed, but its preview history couldn't be cleared. Please try again.")
         }
     }
 }

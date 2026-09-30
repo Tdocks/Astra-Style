@@ -47,8 +47,8 @@ none of which the next request finds.
 
 1. Returns the stored brief for that day unless `regenerate` is true, with one exception: a
    client-supplied forecast refreshes a cached brief that was created without weather exactly once.
-2. Reads wearable `closet_items` and scores them with
-   `_shared/scoring/CompatibilityOutfitScorer`, including measured weather when supplied.
+2. Reads wearable `closet_items` and scores them with `_shared/scoring/CompatibilityOutfitScorer`,
+   including measured weather when supplied.
 3. **Persists the outfits as real `outfits` + `outfit_items` rows**, then writes the brief
    referencing them.
 4. Upserts `daily_briefs` on `(user_id, brief_date)`.

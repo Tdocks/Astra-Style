@@ -68,7 +68,17 @@ export interface SearchClosetArgs {
   readonly limit: number;
 }
 
-const CATEGORIES = ["top", "bottom", "outerwear", "shoes", "accessory", "watch", "fragrance", "dress", "skirt"];
+const CATEGORIES = [
+  "top",
+  "bottom",
+  "outerwear",
+  "shoes",
+  "accessory",
+  "watch",
+  "fragrance",
+  "dress",
+  "skirt",
+];
 const FITS = ["slim", "tailored", "regular", "relaxed", "oversized"];
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 60;

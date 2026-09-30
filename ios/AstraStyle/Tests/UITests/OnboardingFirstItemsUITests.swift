@@ -33,9 +33,11 @@ final class OnboardingFirstItemsUITests: OnboardingCaptureUITestCase {
 
         let scan = app.buttons["onboarding.firstItems.scan"]
         awaitElement(scan, "First items: scan button")
+        scan.waitForStableFrame()
         XCTAssertTrue(
             scan.isHittable,
-            "The photo control needs scrolling to reach, so the typed form is what the step appears to be"
+            "The photo control needs scrolling to reach, so the typed form is what the step appears to be. " +
+                "Photo frame: \(scan.frame); scroll frame: \(app.scrollViews.firstMatch.frame)"
         )
         XCTAssertTrue(scan.isEnabled, "The photo control is present but cannot be used")
         capture("53d-FirstItems-PhotoPath")
@@ -80,14 +82,10 @@ final class OnboardingFirstItemsUITests: OnboardingCaptureUITestCase {
         // the keyboard away — so the next element is tapped against a layout
         // that is not about to move.
         let name = app.textFields["onboarding.firstItems.name"]
-        name.scrollIntoView(in: app)
-        name.tap()
-        name.typeText("Navy merino crewneck\n")
+        typeInto(name, text: "Navy merino crewneck\n", label: "Name")
 
         let color = app.textFields["onboarding.firstItems.color"]
-        color.scrollIntoView(in: app)
-        color.tap()
-        color.typeText("navy\n")
+        typeInto(color, text: "navy\n", label: "Colour")
 
         let add = app.buttons["onboarding.firstItems.add"]
         add.scrollIntoView(in: app)
@@ -216,5 +214,13 @@ final class OnboardingFirstItemsUITests: OnboardingCaptureUITestCase {
             forward.exists && forward.isHittable && forward.isEnabled,
             "Skipping the first-items step is not possible at AX5"
         )
+    }
+
+    private func typeInto(_ field: XCUIElement, text: String, label: String) {
+        field.scrollIntoView(in: app)
+        field.waitForStableFrame()
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "\(label) field did not open the keyboard")
+        field.typeText(text)
     }
 }

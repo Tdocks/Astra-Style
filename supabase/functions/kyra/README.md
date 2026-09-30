@@ -3,22 +3,20 @@
 Serves spec §14's `POST /kyra/respond` — the Kyra stylist orchestration endpoint (§6.20, §11),
 designed in `docs/06-kyra-orchestration.md`. Tickets `P5-KYRA-02..12` and `P5-KYRA-19`.
 
-|            |                                                                                 |
-| ---------- | ------------------------------------------------------------------------------- |
-| Slug       | `kyra`                                                                          |
-| Routes     | `POST /respond`                                                                 |
-| Auth       | `verify_jwt`; the JWT is the only source of identity                            |
-| Rate limit | 10/min per user in-isolate burst + 3 conversations/day free tier (below)        |
-| Deployed   | **Not yet.** Do not add `kyra` to `EndpointDeploymentMappingTests` until it is. |
+|            |                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------ |
+| Slug       | `kyra`                                                                                                 |
+| Routes     | `POST /respond`                                                                                        |
+| Auth       | `verify_jwt`; the JWT is the only source of identity                                                   |
+| Rate limit | 10/min per user in-isolate burst + 3 conversations/day free tier (below)                               |
+| Deployed   | **Active, version 5** in project `anutsdzbxycaavmmkewo` as of 2026-09-29; JWT verification is enabled. |
 
 ```bash
 supabase functions deploy kyra --project-ref <ref>
 ```
 
-> `supabase/functions/deno.json`'s `check`/`test`/`fmt`/`lint` include lists predate this function
-> and do not cover `kyra/` yet — adding `kyra/**` there is a one-line change this directory could
-> not make for itself (it may only touch `kyra/`). Until then: `deno check kyra/**/*.ts` and
-> `deno test --allow-env kyra/`.
+`supabase/functions/deno.json` includes `kyra/` in the shared `check`, `test`, `fmt-check`, and
+`lint` tasks.
 
 ## Environment
 
@@ -107,9 +105,9 @@ information the Swift shape lacks, it rides along as additive keys Codable ignor
   drop-in upgrade.
 - **docs/09 §2.4–§2.6 routing triggers and the Sol tier.** §2.4 needs analytics events the server
   does not receive; §2.6 gates a Phase-6 tool. The ladder is Luna → Terra, one hop.
-- **Phase-6 tools** (`analyze_product`, `search_products`, `generate_studio_preview`):
-  real input schemas, honest `NOT_BUILT` results (P5-KYRA-11). `create_packing_list` is
-  live and calls the same `buildPlan` as `POST /packing/generate`.
+- **Phase-6 tools** (`analyze_product`, `search_products`, `generate_studio_preview`): real input
+  schemas, honest `NOT_BUILT` results (P5-KYRA-11). `create_packing_list` is live and calls the same
+  `buildPlan` as `POST /packing/generate`.
 - **Admin prompt-versions table (§28).** The §2 prompt is hardcoded with a version constant, same
   precedent as `style-dna`.
 

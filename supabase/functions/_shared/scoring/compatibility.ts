@@ -130,9 +130,11 @@ export function scoreOutfit(
   const components: Record<ComponentName, Subscore> = {
     color: colorSubscore(items),
     formality: formalitySubscore(items),
-    silhouette: (context.wardrobeGraph === "womenswear"
-      ? silhouetteSubscoreWomenswear
-      : silhouetteSubscore)(items, options.fitNotes ?? []),
+    silhouette:
+      (context.wardrobeGraph === "womenswear" ? silhouetteSubscoreWomenswear : silhouetteSubscore)(
+        items,
+        options.fitNotes ?? [],
+      ),
     seasonWeather: seasonWeatherSubscore(items, context),
     userPreference: userPreferenceSubscore(items, context, options.colorNameOf),
     coWear: coWearSubscore(items, context),

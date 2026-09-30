@@ -15,12 +15,9 @@
 //
 //  1. THE EXPLANATION IS THE SCREEN, NOT A LINK. Spec §29 is satisfied by
 //     text a man reads before he decides, not by a Privacy Policy link he
-//     doesn't tap. That would be true even if the policy were published —
-//     and it is not: `AstraLegal.isPublished` is `false` and every URL
-//     accessor returns nil, so a link here would be a dead control on the
-//     one screen where trust is the entire product. So the four things that
-//     matter are on the screen in plain words, and they are written to stand
-//     alone: nothing below depends on a document existing.
+//     doesn't tap. The current site has legal pages, but their counsel
+//     placeholders mean this explanation must accurately describe the photo
+//     flow by itself; see docs/03-progress.md's pre-release legal blocker.
 //
 //  2. CONSENT IS A DELIBERATE ACT, AND IT GATES THE CONTROLS THEMSELVES.
 //     The picker and the camera button do not exist until the acknowledgment
@@ -35,10 +32,10 @@
 //     file, not a server object it might fail to reach.
 //
 //  4. SKIPPING IS FREE AND SAID SO. `FrameProfile` is built to degrade
-//     (docs/14 §2) and no recommendation anywhere reads this image, so the
-//     step's rationale line leads with "nothing else in Astra needs it". A
-//     man who skips loses nothing, and the screen should not imply otherwise
-//     by leaning on the ask.
+//     (docs/14 §2). Daily style help and closet management do not depend on
+//     this image; only a Visualize request uses it. A man who skips loses
+//     nothing from those daily features, and the screen should not imply
+//     otherwise by leaning on the ask.
 //
 //  WHAT IS NOT HERE. No face detection, no quality scoring, no "your photo
 //  looks great" affirmation, no retake coaching. Every one of those would be
@@ -266,26 +263,24 @@ struct OnboardingReferenceView: View {
 /// seconds: what it is for, where it goes, what is never done with it, and how
 /// to get rid of it.
 ///
-/// Every claim here is true of the app as it stands today, which is why two of
-/// them are shorter and less reassuring than a normal privacy notice would be:
-/// Style Studio does not exist yet, so this photo is currently stored and
-/// nothing more, and saying anything grander would be describing a product
-/// rather than this one. `legal/README.md`'s second rule — "nothing is promised
-/// that is not built" — applies to interface copy at least as much as to a
-/// policy document, because this is the text the user actually reads.
+/// Keep this copy aligned with the real Studio data path: the photo is saved
+/// in private account storage and, only when the user requests a preview, may
+/// be sent to the configured image-generation provider. The provider's exact
+/// identity and retention terms still need to be finalized in the Privacy
+/// Policy before a broader release.
 private struct ReferenceConsentPanel: View {
 
     /// Split out of the stack only because the sentence is longer than a line
     /// of source will hold. It is one paragraph on screen.
     private var signedInDestination: String {
-        String(localized: "To a private folder that only your account can open, when you finish these questions.",
+        String(localized: "To private storage linked to your Astra account when you finish onboarding.",
                comment: "Reference consent destination, first sentence")
             + " "
-            + String(localized: "Until then it stays on this phone.",
-                     comment: "Reference consent destination, second sentence")
+            + String(localized: "If you request a Style Studio preview, Astra may send the photo to its configured image-generation provider to make that preview.",
+                     comment: "Reference consent destination, provider processing")
             + " "
-            + String(localized: "It is not shown to anyone, and not sent to any other company.",
-                     comment: "Reference consent destination, third sentence")
+            + String(localized: "That provider's own data-handling and retention terms apply to the request.",
+                     comment: "Reference consent destination, provider retention")
     }
 
     var body: some View {
@@ -297,8 +292,13 @@ private struct ReferenceConsentPanel: View {
 
             ConsentRow(
                 title: String(localized: "What it's for", comment: "Reference consent heading"),
-                detail: String(localized: "Later, Style Studio will use it to picture an outfit on you rather than on a model. Style Studio isn't built yet — so for now the photo would simply be kept.",
-                               comment: "Reference consent detail")
+                detail: String(
+                    localized: "If you choose Visualize in Style Studio, this photo is used as the person reference for the outfit preview.",
+                    comment: "Reference consent detail"
+                ) + " " + String(
+                    localized: "This is optional; daily style help and closet management work without it.",
+                    comment: "Reference consent detail"
+                )
             )
 
             ConsentRow(
@@ -307,23 +307,20 @@ private struct ReferenceConsentPanel: View {
             )
 
             ConsentRow(
-                title: String(localized: "What is never done with it", comment: "Reference consent heading"),
-                detail: String(localized: "It is never used to train anyone's model, and nothing here measures or identifies your face. If that were ever going to change, you'd be asked again first.",
+                title: String(localized: "What Astra does not do", comment: "Reference consent heading"),
+                detail: String(localized: "Astra does not create a face identifier or take body measurements from this photo. It is used only as a visual reference for a preview you request.",
                                comment: "Reference consent detail")
             )
 
             ConsentRow(
                 title: String(localized: "Changing your mind", comment: "Reference consent heading"),
-                detail: String(localized: "Remove it from this screen whenever you like. Deleting your account removes it too.",
+                detail: String(localized: "Remove it here before finishing onboarding, or later in Profile under Privacy & Data → Reference Photos. Removing it also deletes saved Style Studio previews made with it.",
                                comment: "Reference consent detail")
             )
 
-            // Said plainly rather than linked, because there is nothing to link
-            // to: `AstraLegal.isPublished` is false and every document URL is
-            // nil. The sentence exists so a reader who expects a policy knows
-            // why he is not being offered one, and it is careful to say that
-            // nothing above is waiting on it.
-            Text("Our full Privacy Policy will be published before Astra Style is released. Everything above describes the app as it works today and doesn't depend on it.")
+            // The site is reachable but the legal content still has counsel
+            // placeholders. Avoid presenting that draft as final disclosure.
+            Text("Astra's Privacy Policy is still being finalized. It must name the image provider and explain its data handling before a broader release.")
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)

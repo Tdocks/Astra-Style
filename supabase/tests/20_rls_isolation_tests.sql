@@ -277,8 +277,11 @@ with ins as (insert into lifestyle_profiles (user_id) values (pg_temp.user_b()) 
 -- closet_items
 with ins as (insert into closet_items (user_id, category) values (pg_temp.user_a(), 'top') returning id)
   insert into fixture_ids select 'closet_items.a', id from ins;
-with ins as (insert into closet_items (user_id, category) values (pg_temp.user_b(), 'top') returning id)
-  insert into fixture_ids select 'closet_items.b', id from ins;
+with ins as (
+  insert into closet_items (user_id, name, category, size, purchase_date, price_paid, retailer, wear_count)
+  values (pg_temp.user_b(), 'Private Test Shirt', 'top', 'M', current_date, 123.45, 'Private Retailer', 9)
+  returning id
+) insert into fixture_ids select 'closet_items.b', id from ins;
 
 -- closet_item_images (user_id is denormalized/trigger-populated from closet_item_id)
 with ins as (
@@ -287,10 +290,21 @@ with ins as (
   returning id
 ) insert into fixture_ids select 'closet_item_images.a', id from ins;
 with ins as (
-  insert into closet_item_images (closet_item_id, storage_path)
-  values (pg_temp.fx('closet_items.b'), 'users/fixture-b/closet/img.jpg')
-  returning id
-) insert into fixture_ids select 'closet_item_images.b', id from ins;
+  insert into closet_item_images (closet_item_id, storage_path, background_removed_path, is_primary)
+  values (
+    pg_temp.fx('closet_items.b'),
+    'users/' || pg_temp.user_b()::text || '/closet/' || pg_temp.fx('closet_items.b')::text || '/original.jpg',
+    'users/' || pg_temp.user_b()::text || '/closet/' || pg_temp.fx('closet_items.b')::text || '/cutout.png',
+    true
+  )
+  returning id, storage_path, background_removed_path
+), saved_image as (
+  insert into fixture_ids select 'closet_item_images.b', id from ins returning id
+)
+insert into storage.objects (bucket_id, name)
+select 'user-content', path
+from ins
+cross join lateral unnest(array[ins.storage_path, ins.background_removed_path]) as path;
 
 -- outfits
 with ins as (insert into outfits (user_id) values (pg_temp.user_a()) returning id)
@@ -849,7 +863,50 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_a(), 'role', 'authenticated')::text, false);
 
   select exists(select 1 from outfits where id = pg_temp.fx('outfits.b')) into v_can_see;
-  perform pg_temp.record_result('outfits_public', 'A can SELECT B''s public worn look', v_can_see, null);
+  perform pg_temp.record_result('outfits_public', 'A cannot SELECT B''s raw outfit row', not v_can_see, null);
+
+  select count(*) = 1
+      and bool_and(id = pg_temp.fx('outfits.b') and name = 'A worn look')
+      and bool_and(not (to_jsonb(o) ? 'user_id'))
+      and bool_and(not (to_jsonb(o) ? 'embedding'))
+      and bool_and(not (to_jsonb(o) ? 'is_favorite'))
+    into v_can_see
+    from public.fetch_public_worn_looks(array[pg_temp.fx('outfits.b')]) o;
+  perform pg_temp.record_result('outfits_public', 'A can read B''s sanitized public look summary', v_can_see, null);
+
+  select count(*) = 0 into v_can_see
+    from public.fetch_public_worn_looks(array[pg_temp.fx('outfits.a')]);
+  perform pg_temp.record_result('outfits_public', 'A cannot read a private look through the summary RPC', v_can_see, null);
+
+  select exists(select 1 from outfit_items where outfit_id = pg_temp.fx('outfits.b')) into v_can_see;
+  perform pg_temp.record_result('outfits_public', 'A cannot SELECT B''s raw outfit-item rows', not v_can_see, null);
+
+  select exists(select 1 from closet_items where id = pg_temp.fx('closet_items.b')) into v_can_see;
+  perform pg_temp.record_result('outfits_public', 'A cannot SELECT B''s private closet fields', not v_can_see, null);
+
+  select exists(select 1 from closet_item_images where closet_item_id = pg_temp.fx('closet_items.b')) into v_can_see;
+  perform pg_temp.record_result('outfits_public', 'A cannot SELECT B''s image analysis metadata', not v_can_see, null);
+
+  select count(*) = 1
+      and bool_and(name = 'Private Test Shirt' and brand is null and category = 'top' and role = 'top')
+      and bool_and(display_image_id = pg_temp.fx('closet_item_images.b'))
+      and bool_and(not (to_jsonb(g) ? 'display_storage_path'))
+      and bool_and(not (to_jsonb(g) ? 'price_paid'))
+    into v_can_see
+    from public.fetch_public_look_garments(array[pg_temp.fx('outfits.b')]) g;
+  perform pg_temp.record_result('outfits_public', 'A can read the sanitized garment payload for B''s public look', v_can_see, null);
+
+  select count(*) = 0 into v_can_see
+    from public.fetch_public_look_garments(array[pg_temp.fx('outfits.a')]);
+  perform pg_temp.record_result('outfits_public', 'A cannot use the public garment RPC for a private look', v_can_see, null);
+
+  select count(*) = 0 into v_can_see
+    from storage.objects
+    where name in (
+      'users/' || pg_temp.user_b()::text || '/closet/' || pg_temp.fx('closet_items.b')::text || '/cutout.png',
+      'users/' || pg_temp.user_b()::text || '/closet/' || pg_temp.fx('closet_items.b')::text || '/original.jpg'
+    );
+  perform pg_temp.record_result('outfits_public', 'A cannot query B''s Storage object names directly', v_can_see, null);
 
   select exists(select 1 from outfits where id = pg_temp.fx('outfits.a') and visibility = 'private') into v_can_see;
   perform pg_temp.record_result('outfits_public', 'A can still SELECT own private look', v_can_see, null);
@@ -874,6 +931,17 @@ begin
     v_detail := sqlerrm;
   end;
   perform pg_temp.record_result('lookbook_reports', 'A can report B''s public look', not v_blocked, v_detail);
+
+  begin
+    insert into lookbook_reports (reporter_id, outfit_id)
+    values (pg_temp.user_a(), pg_temp.fx('outfits.a'));
+    v_blocked := false;
+    v_detail := null;
+  exception when others then
+    v_blocked := true;
+    v_detail := sqlerrm;
+  end;
+  perform pg_temp.record_result('lookbook_reports', 'A cannot report a private look', v_blocked, v_detail);
 
   execute 'reset role';
   perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_b(), 'role', 'authenticated')::text, false);

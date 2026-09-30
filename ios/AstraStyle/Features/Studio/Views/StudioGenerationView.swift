@@ -14,6 +14,7 @@ struct StudioGenerationView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var pickedItem: PhotosPickerItem?
     @State private var isShowingCamera = false
+    @State private var generationTask: Task<Void, Never>?
     @Environment(AppContainer.self) private var container
     @State private var showsPaywall = false
 
@@ -83,6 +84,10 @@ struct StudioGenerationView: View {
             }
         }
         .presentationBackground(AstraColor.backgroundPrimary)
+        .onDisappear {
+            generationTask?.cancel()
+            generationTask = nil
+        }
     }
 
     private var consentCopy: some View {
@@ -196,7 +201,7 @@ struct StudioGenerationView: View {
                 title: String(localized: "Generate", comment: "Starts Studio generation"),
                 isLoading: false
             ) {
-                Task { await viewModel.generate() }
+                startGeneration(retrying: false)
             }
             .disabled(!viewModel.canGenerate)
             .accessibilityIdentifier("studio.generate")
@@ -232,10 +237,21 @@ struct StudioGenerationView: View {
                     .foregroundStyle(AstraColor.textSecondary)
                 if error.isRetryable || viewModel.generation?.isRetryableWithoutCharge == true {
                     Button(String(localized: "Try Again", comment: "Retries Studio generation")) {
-                        Task { await viewModel.retry() }
+                        startGeneration(retrying: true)
                     }
                     .buttonStyle(.astraSecondary)
                 }
+            }
+        }
+    }
+
+    private func startGeneration(retrying: Bool) {
+        generationTask?.cancel()
+        generationTask = Task {
+            if retrying {
+                await viewModel.retry()
+            } else {
+                await viewModel.generate()
             }
         }
     }

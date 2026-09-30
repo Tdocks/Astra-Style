@@ -86,7 +86,12 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
     /// quota credit (spec §21: "Studio failed: ... allow retry without
     /// consuming another credit when failure is provider-side").
     public var isRetryableWithoutCharge: Bool {
-        status == .failed && errorMessage != nil
+        guard status == .failed,
+              case .object(let payload)? = promptPayload,
+              case .bool(true)? = payload["is_retryable_failure"] else {
+            return false
+        }
+        return true
     }
 
     /// `true` when the retention policy has erased this generation. Callers

@@ -40,6 +40,10 @@ extension XCUIApplication {
             return
         }
 
+        selectChromeTabFromMore(title, timeout: timeout)
+    }
+
+    private func selectChromeTabFromMore(_ title: String, timeout: TimeInterval) {
         let more = chromeTabBar.buttons["More"]
         XCTAssertTrue(more.waitForExistence(timeout: timeout), "\(title) tab missing and More is absent")
         more.tap()

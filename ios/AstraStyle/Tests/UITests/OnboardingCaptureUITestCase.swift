@@ -92,37 +92,41 @@ class OnboardingCaptureUITestCase: XCTestCase {
     }
 
     /// Enters onboarding against the in-memory mocks and walks to the reference photo step,
-    /// answering only §6.5 — the one step the flow requires.
+    /// completing only the required graph, goal, and identity choices.
     func walkToReferenceStep(largestTextSize: Bool = false) {
-        if largestTextSize {
-            app.launchArguments += ["-UIPreferredContentSizeCategoryName",
-                                    "UICTContentSizeCategoryAccessibilityXXXL"]
-        }
+        let contentSizeCategory = largestTextSize
+            ? "UICTContentSizeCategoryAccessibilityXXXL"
+            : "UICTContentSizeCategoryLarge"
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSizeCategory]
         // Before `launch()`, obviously — but worth stating, because the
         // guest tap this replaced happened after it and moving the line
         // without moving it far enough would silently launch signed out.
         app.launchArguments += ["-astra-mock-backend"]
         app.launch()
 
-        awaitElement(app.buttons["onboarding.begin"], "Intro")
+        guard awaitElement(app.buttons["onboarding.begin"], "Intro") else { return }
         app.buttons["onboarding.begin"].tap()
 
         let choice = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH[c] %@", "Men's looks")
         ).firstMatch
-        awaitElement(choice, "Wardrobe graph")
+        guard awaitElement(choice, "Wardrobe graph") else { return }
         XCTAssertFalse(
             app.buttons["onboarding.advance"].isEnabled,
             "Wardrobe graph is required but Continue is enabled before a choice"
         )
         choice.tap()
         XCTAssertTrue(choice.waitUntilSelected(), "Wardrobe graph choice never selected")
-        app.buttons["onboarding.advance"].tap()
+        let advance = app.buttons["onboarding.advance"]
+        guard advance.isEnabled else {
+            XCTFail("Selecting the wardrobe graph did not enable Continue")
+            return
+        }
+        advance.tap()
 
-        awaitElement(app.buttons["onboarding.advance"], "Goals")
-        app.buttons["onboarding.advance"].tap()
+        guard selectRequiredStyleGoal() else { return }
 
-        awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity")
+        guard awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity") else { return }
         // Walk to the end of the grid first. At AX5 the grid is one column and
         // several screens tall, so a card whose top edge is visible can have
         // its CENTRE — where XCUITest aims — under the footer; reaching each
@@ -151,6 +155,22 @@ class OnboardingCaptureUITestCase: XCTestCase {
             forward.tap()
             usleep(400_000)
         }
+    }
+
+    private func selectRequiredStyleGoal() -> Bool {
+        let goal = app.buttons["onboarding.goal.shop_more_intelligently"]
+        guard awaitElement(goal, "Goals: shopping goal") else { return false }
+        goal.tap()
+        guard goal.waitUntilSelected() else {
+            XCTFail("Selecting a style goal did not register")
+            return false
+        }
+        guard app.buttons["onboarding.advance"].isEnabled else {
+            XCTFail("Selecting a style goal did not enable Continue")
+            return false
+        }
+        app.buttons["onboarding.advance"].tap()
+        return true
     }
 
     /// Skips the reference step, waiting for its forward button to settle

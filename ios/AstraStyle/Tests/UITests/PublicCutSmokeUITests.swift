@@ -21,7 +21,7 @@ final class PublicCutSmokeUITests: XCTestCase {
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
             "-astra-reset-state",
-            "-astra-skip-onboarding",
+            "-astra-skip-onboarding"
         ]
         addUIInterruptionMonitor(withDescription: "System permission") { alert in
             for title in ["Allow", "Allow While Using App", "Allow Once", "OK", "Continue"] {
@@ -35,7 +35,18 @@ final class PublicCutSmokeUITests: XCTestCase {
         }
     }
 
-    func testGuestStrangerPath() throws {
+    func testGuestStrangerPath() {
+        launchGuestAndReachHome()
+        addThreeRoleGarments()
+        assertWearThisDoesNotPaywall()
+        assertScannerOpensAndDismisses()
+        assertShopLoads()
+        assertDiscoverLoads()
+        assertStudioLoads()
+        assertAccountDeletionIsReachable()
+    }
+
+    private func launchGuestAndReachHome() {
         app.launch()
         XCTAssertTrue(
             app.buttons["welcome.tryWithoutAccount"].waitForExistence(timeout: timeout),
@@ -57,9 +68,7 @@ final class PublicCutSmokeUITests: XCTestCase {
                 web.waitForExistence(timeout: 8) || app.buttons["welcome.tryWithoutAccount"].exists,
                 "Privacy tap should open a browser or leave Welcome intact"
             )
-            if web.exists {
-                app.swipeDown()
-            }
+            if web.exists { app.swipeDown() }
         }
 
         XCTAssertTrue(
@@ -67,15 +76,13 @@ final class PublicCutSmokeUITests: XCTestCase {
             "Welcome should be back so guest can start"
         )
         app.buttons["welcome.tryWithoutAccount"].tap()
-
         XCTAssertTrue(
             app.chromeTabBar.waitForExistence(timeout: 45),
             "Guest + skip-onboarding should land on the tab shell"
         )
+    }
 
-        tapTab("Home")
-        addThreeRoleGarments()
-
+    private func assertWearThisDoesNotPaywall() {
         tapTab("Home")
         let wearThis = app.descendants(matching: .any)["home.wearThis"]
         if wearThis.waitForExistence(timeout: 20) {
@@ -92,15 +99,15 @@ final class PublicCutSmokeUITests: XCTestCase {
                 "Home should show Wear This or an empty/outfit state, not a crash"
             )
         }
+    }
 
+    private func assertScannerOpensAndDismisses() {
         tapTab("Closet")
         let scan = app.descendants(matching: .any)["closet.header.scan"]
         XCTAssertTrue(scan.waitForExistence(timeout: timeout), "Closet scan door missing")
         scan.tap()
         let scanOne = app.buttons["Scan One Piece"].firstMatch
-        if scanOne.waitForExistence(timeout: 5) {
-            scanOne.tap()
-        }
+        if scanOne.waitForExistence(timeout: 5) { scanOne.tap() }
         app.tap() // dismiss permission interruption if it appeared
         let importButton = app.descendants(matching: .any)["scanner.capture.import"]
         let shutter = app.descendants(matching: .any)["scanner.capture.shutter"]
@@ -114,18 +121,19 @@ final class PublicCutSmokeUITests: XCTestCase {
         } else {
             app.swipeDown()
         }
-        XCTAssertTrue(
-            scan.waitForExistence(timeout: 10),
-            "Scan should dismiss back to Closet"
-        )
+        XCTAssertTrue(scan.waitForExistence(timeout: 10), "Scan should dismiss back to Closet")
+    }
 
+    private func assertShopLoads() {
         tapTab("Shop")
         XCTAssertTrue(
             app.descendants(matching: .any)["shop.catalog"].waitForExistence(timeout: 20)
                 || app.descendants(matching: .any)["shop.empty"].waitForExistence(timeout: 2),
             "Shop should load catalog or empty, not hang"
         )
+    }
 
+    private func assertDiscoverLoads() {
         tapTab("Discover")
         let unlocksEmpty = app.descendants(matching: .any)["discover.unlocks.empty"]
         let unlocksAny = app.descendants(matching: .any).matching(
@@ -135,7 +143,9 @@ final class PublicCutSmokeUITests: XCTestCase {
             unlocksEmpty.waitForExistence(timeout: 20) || unlocksAny.waitForExistence(timeout: 2),
             "Unlocks rail should render (items or empty), not a dead tab"
         )
+    }
 
+    private func assertStudioLoads() {
         tapTab("Studio")
         XCTAssertTrue(
             app.descendants(matching: .any)["studio.start"].waitForExistence(timeout: 15)
@@ -143,11 +153,12 @@ final class PublicCutSmokeUITests: XCTestCase {
                 || app.descendants(matching: .any)["studio.gallery"].waitForExistence(timeout: 2),
             "Studio tab should be live"
         )
+    }
 
+    private func assertAccountDeletionIsReachable() {
         tapTab("Profile")
         let version = app.descendants(matching: .any)["profile.about.version"]
         XCTAssertTrue(version.waitForExistence(timeout: timeout), "App version missing from Profile")
-
         let privacyRow = app.descendants(matching: .any)["profile.privacyAndDataRow"]
         XCTAssertTrue(privacyRow.waitForExistence(timeout: timeout), "Privacy & Data row missing")
         privacyRow.tap()

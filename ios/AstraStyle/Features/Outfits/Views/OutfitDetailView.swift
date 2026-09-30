@@ -157,6 +157,7 @@ public struct OutfitDetailView: View {
 
 private struct OutfitDetailContent: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var isConfirmingPublicLook = false
 
     let detail: OutfitDetailViewModel.OutfitDetail
     let isMarkingWorn: Bool
@@ -193,6 +194,16 @@ private struct OutfitDetailContent: View {
             colorStorySection
 
             actionRow
+        }
+        .confirmationDialog(
+            LookbookSharingCopy.confirmationTitle,
+            isPresented: $isConfirmingPublicLook,
+            titleVisibility: .visible
+        ) {
+            Button(LookbookSharingCopy.confirmTitle, action: onTogglePublic)
+            Button(LookbookSharingCopy.cancelTitle, role: .cancel) {}
+        } message: {
+            Text(LookbookSharingCopy.confirmationMessage)
         }
     }
 
@@ -315,7 +326,7 @@ private struct OutfitDetailContent: View {
                 )
             }
 
-            Button(action: onTogglePublic) {
+            Button(action: requestVisibilityChange) {
                 Text(publicToggleTitle)
                     .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
             }
@@ -430,10 +441,18 @@ private struct OutfitDetailContent: View {
         String(localized: "Share", comment: "Opens the system share sheet for this outfit")
     }
 
+    private func requestVisibilityChange() {
+        if outfit.visibility == .shared {
+            onTogglePublic()
+        } else {
+            isConfirmingPublicLook = true
+        }
+    }
+
     private var publicToggleTitle: String {
         outfit.visibility == .shared
             ? String(localized: "Make this look private", comment: "Removes a look from Discover")
-            : String(localized: "Show this look to other men", comment: "Opts a worn look into Discover")
+            : LookbookSharingCopy.actionTitle
     }
 
     private var reportTitle: String {
@@ -491,8 +510,8 @@ private struct OutfitItemStripSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AstraSpacing.sm) {
                     ForEach(detail.items) { item in
-                        if let closetItem = detail.closetItem(for: item) {
-                            OutfitItemStripTile(item: closetItem, imageURL: detail.imageURLsByClosetItemID[closetItem.id])
+                        if let garment = detail.lookGarment(for: item) {
+                            OutfitItemStripTile(garment: garment)
                         } else if item.isMissingItem, let candidateID = item.productCandidateID {
                             CompleteThisLookTile(role: item.role) { onCompleteLook(candidateID) }
                         }
@@ -514,28 +533,27 @@ private struct OutfitItemStripTile: View {
     // for this exact square.
     private static let tileSize = AstraSpacing.unit * 20
 
-    let item: ClosetItem
-    let imageURL: URL?
+    let garment: LookGarment
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
             AstraRemoteImage(
-                url: imageURL,
+                url: garment.imageURL,
                 aspectRatio: 1,
                 thumbnail: .outfitItemStripTile,
                 cornerRadius: AstraRadius.small,
-                accessibilityDescription: item.name
+                accessibilityDescription: garment.item.name
             )
             .frame(width: Self.tileSize, height: Self.tileSize)
 
-            Text(item.name)
+            Text(garment.item.name)
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textPrimary)
                 .lineLimit(1)
         }
         .frame(width: Self.tileSize, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(item.name))
+        .accessibilityLabel(Text(garment.item.name))
     }
 }
 

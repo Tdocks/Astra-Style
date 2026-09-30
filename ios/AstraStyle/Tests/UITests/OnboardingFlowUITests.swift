@@ -25,7 +25,7 @@ final class OnboardingFlowUITests: XCTestCase {
     // behaviour with no optionality at all, and defers construction to first
     // use — which happens from a @MainActor context, matching XCUIApplication's
     // own isolation in the iOS 26 SDK.
-    private lazy var app = XCUIApplication()
+    lazy var app = XCUIApplication()
     /// How long to wait for a screen to appear.
     ///
     /// Longer on CI, and the difference is not padding. A GitHub runner is a
@@ -63,37 +63,14 @@ final class OnboardingFlowUITests: XCTestCase {
         add(shot)
     }
 
-    /// Captures the current screen, then swipes down through the rest of the
-    /// page capturing each screenful, stopping early once the view stops moving.
-    ///
-    /// Exists because a screenshot audit can only report on what it can see. The
-    /// first review of these steps flagged seven required questions as "not found
-    /// in any screenshot" — they were all present, just below the fold of the one
-    /// capture taken. An audit that cannot see the screen produces findings about
-    /// the capture rather than about the app.
     private func captureWholePage(prefix: String, screens: Int, includeFirst: Bool = true) {
-        if includeFirst { capture(prefix) }
-
-        var previous = app.screenshot().pngRepresentation
-        for index in 1..<max(1, screens) {
-            app.swipeUp(velocity: .slow)
-            usleep(500_000)
-            let current = app.screenshot().pngRepresentation
-            // Identical frames mean the page has bottomed out and every further
-            // shot would be a duplicate of the last one.
-            if current == previous {
-                capture("\(prefix)-END")
-                return
-            }
-            previous = current
-            capture("\(prefix)-\(index)")
-        }
-        // Hit the cap with the page still moving. Named so it is impossible to
-        // mistake the last shot for the bottom of the page: three separate
-        // review rounds reported content as "unreachable" when the truth was
-        // that the capture stopped early, and each time the claim was only
-        // plausible because nothing in the filenames said otherwise.
-        capture("\(prefix)-TRUNCATED-more-below")
+        captureOnboardingPage(
+            app: app,
+            prefix: prefix,
+            screens: screens,
+            includeFirst: includeFirst,
+            capture: capture
+        )
     }
 
     @discardableResult
@@ -116,6 +93,11 @@ final class OnboardingFlowUITests: XCTestCase {
     /// graph for `Core/Mocks`, and still runs on a clean simulator with no
     /// network and no fixtures.
     private func enterOnboarding() {
+        if !app.launchArguments.contains("-UIPreferredContentSizeCategoryName") {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
+            ]
+        }
         app.launchArguments += ["-astra-mock-backend"]
         app.launch()
         awaitElement(app.buttons["onboarding.begin"], "Intro")
@@ -140,7 +122,7 @@ final class OnboardingFlowUITests: XCTestCase {
     /// sequence the spec describes rather than one 90-line script.
     func testWalkTheWholeFlow() {
         enterOnboarding()
-        walkIntro()
+        guard walkIntro(capture: capture) else { return }
         walkWardrobeGraph()
         walkIdentity()
         walkPreferenceQuiz()
@@ -151,7 +133,7 @@ final class OnboardingFlowUITests: XCTestCase {
     /// Women's graph first-run: picker → dress + shoes → Home (honest brief or empty).
     func testWomenswearWalkReachesHomeWithDressAndShoes() {
         enterOnboarding()
-        walkIntro()
+        guard walkIntro(capture: capture) else { return }
         walkWardrobeGraph(captureName: "20c-Onboarding-WardrobeGraph-Women", graph: "womenswear")
         walkIdentity()
         walkPreferenceQuiz()
@@ -175,9 +157,13 @@ final class OnboardingFlowUITests: XCTestCase {
     func testWalkTheFullDeferredFlow() {
         app.launchArguments += ["-astra-full-onboarding"]
         enterOnboarding()
-        walkIntro()
+        guard walkIntro(capture: capture) else { return }
         walkWardrobeGraph()
-        walkGoals()
+        guard advancePastRequiredGoals(
+            capture: capture,
+            beforeCapture: "21-Onboarding-Goals",
+            afterCapture: "22-Onboarding-Goals-Selected"
+        ) else { return }
         walkIdentity()
         walkMeasurements()
         walkAppearance()
@@ -231,8 +217,13 @@ final class OnboardingFlowUITests: XCTestCase {
         walkWardrobeGraph(captureName: "33a-Onboarding-WardrobeGraph-AX5")
 
         awaitElement(app.buttons["onboarding.advance"], "Goals at AX5")
-        capture("33-Onboarding-Goals-AX5")
-        app.buttons["onboarding.advance"].tap()
+        guard advancePastRequiredGoals(
+            capture: capture,
+            beforeCapture: "33-Onboarding-Goals-AX5",
+            afterCapture: "33b-Onboarding-Goals-Selected-AX5",
+            context: " at AX5"
+        ) else { return }
+        guard awaitElement(app.buttons["onboarding.identity.quiet_luxury"], "Identity at AX5") else { return }
 
         // At AX5 each card is several times taller, so most of the grid starts
         // below the fold. XCUITest cannot tap a non-visible element, so each one
@@ -284,6 +275,10 @@ final class OnboardingFlowUITests: XCTestCase {
         awaitElement(app.textFields["onboarding.measurement.chest"], "Measurements at AX5")
         capture("34-Onboarding-Measurements-AX5")
 
+        captureRemainingStepsAtAX5()
+    }
+
+    private func captureRemainingStepsAtAX5() {
         // Carry on to the end at AX5, capturing each step. Every screen after
         // this one is skippable, so the walk needs no input — and the largest
         // text size is where these screens break first, so a shot of each one is
@@ -517,75 +512,7 @@ final class OnboardingFlowUITests: XCTestCase {
 // `OnboardingCaptureStepsUITests` needs the same three, and a second copy
 // there would be a second place for that knowledge to rot.
 extension XCUIElement {
-    /// Swipes until this element both exists and can be tapped — searching
-    /// downward first, then back upward.
-    ///
-    /// Checks `exists` as well as `isHittable` because lazy containers do not
-    /// instantiate off-screen children at all — a `LazyVGrid` card outside the
-    /// viewport is missing from the tree rather than present-but-hidden, so a
-    /// helper that only polled `isHittable` would spin against an element that
-    /// never materialised.
-    ///
-    /// Searches BOTH directions because "missing from the tree" gives no hint of
-    /// where the element is. The first version only swiped up (scrolling down),
-    /// and failed the moment a test tapped a card, scrolled on, and then needed a
-    /// card above the viewport again: at AX5 the identity grid is one column and
-    /// several screens tall, so after reaching the 9th card the 4th is far above
-    /// the fold, torn down by the `LazyVGrid`, and unreachable by scrolling
-    /// further down. The failure-time hierarchy dump showed the scroll bar at
-    /// 100% with the sought card absent — ten swipes spent rubber-banding at the
-    /// bottom while the target sat one screen up.
-    ///
-    /// Swipes at `.slow` velocity rather than the default flick. A fast swipe
-    /// leaves the scroll view decelerating for well over a second after
-    /// XCUITest considers the app idle, and iOS spends the next tap on stopping
-    /// that deceleration instead of on the button underneath it.
-    func scrollIntoView(in app: XCUIApplication, maxSwipes: Int = 10) {
-        var swipes = 0
-        while !(exists && isHittable) && swipes < maxSwipes {
-            app.swipeUp(velocity: .slow)
-            swipes += 1
-        }
-        swipes = 0
-        while !(exists && isHittable) && swipes < maxSwipes {
-            app.swipeDown(velocity: .slow)
-            swipes += 1
-        }
-    }
 
-    /// Blocks until this element's frame stops changing between samples, so a tap
-    /// is aimed at where the element will still be when the event lands.
-    ///
-    /// Returns as soon as two consecutive reads agree; gives up quietly at the
-    /// timeout and lets the caller's own assertion report the problem, because a
-    /// "frame never settled" failure would be less informative than the
-    /// selection check that follows it.
-    /// Polls until this element reports the `isSelected` trait.
-    ///
-    /// Necessary because `tap()` returns as soon as the event is synthesised,
-    /// while the trait only appears once SwiftUI has re-rendered and the
-    /// accessibility tree has been rebuilt. Reading the trait once, straight
-    /// after the tap, reads the state from before it.
-    func waitUntilSelected(timeout: TimeInterval = 3) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if isSelected { return true }
-            usleep(150_000)
-        }
-        return false
-    }
-
-    func waitForStableFrame(timeout: TimeInterval = 3) {
-        var previous = CGRect.null
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            guard exists else { return }
-            let current = frame
-            if current == previous { return }
-            previous = current
-            usleep(150_000)
-        }
-    }
 }
 
 // MARK: - The walk, step by step
@@ -711,14 +638,6 @@ private extension OnboardingFlowUITests {
         }
     }
 
-    private func walkIntro() {
-        // §6.3 — Kyra introduction.
-        awaitElement(app.buttons["onboarding.begin"], "Intro: begin button")
-        XCTAssertTrue(app.staticTexts["I'm Kyra."].exists, "Kyra's introduction is missing")
-        capture("20-Onboarding-Intro")
-        app.buttons["onboarding.begin"].tap()
-    }
-
     private func walkWardrobeGraph(
         captureName: String = "20b-Onboarding-WardrobeGraph",
         graph: String = "menswear_3_role"
@@ -747,19 +666,6 @@ private extension OnboardingFlowUITests {
         app.buttons["onboarding.advance"].tap()
     }
 
-    private func walkGoals() {
-        // §6.4 — Goals. Skippable, so Continue must already be enabled.
-        awaitElement(app.buttons["onboarding.advance"], "Goals: advance button")
-        XCTAssertTrue(
-            app.buttons["onboarding.advance"].isEnabled,
-            "Goals is skippable, so the forward button must be enabled with nothing selected"
-        )
-        capture("21-Onboarding-Goals")
-        app.buttons["onboarding.goal.shop_more_intelligently"].tap()
-        capture("22-Onboarding-Goals-Selected")
-        app.buttons["onboarding.advance"].tap()
-    }
-
     private func walkIdentity() {
         // §6.5 — Identity. Required after the wardrobe-graph product choice:
         // three picks plus a primary.
@@ -770,14 +676,14 @@ private extension OnboardingFlowUITests {
         )
         capture("23-Onboarding-Identity-Empty")
 
-        app.buttons["onboarding.identity.quiet_luxury"].tap()
-        app.buttons["onboarding.identity.modern_heritage"].tap()
+        selectIdentityCard("quiet_luxury")
+        selectIdentityCard("modern_heritage")
         XCTAssertFalse(
             app.buttons["onboarding.advance"].isEnabled,
             "Two selections is not three — Continue must still be disabled"
         )
 
-        app.buttons["onboarding.identity.minimalist"].tap()
+        selectIdentityCard("minimalist")
         capture("24-Onboarding-Identity-Three")
         XCTAssertTrue(
             app.buttons["onboarding.advance"].isEnabled,

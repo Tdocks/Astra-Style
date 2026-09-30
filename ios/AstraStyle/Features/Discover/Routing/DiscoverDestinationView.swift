@@ -25,6 +25,14 @@ struct DiscoverDestinationView: View {
                     analyticsClient: container.analyticsClient
                 )
             )
+        case .publicLook(let id):
+            PublicLookDetailView(
+                viewModel: PublicLookDetailViewModel(
+                    outfitID: id,
+                    outfitRepository: container.outfitRepository,
+                    imageURLResolver: container.closetImageURLResolver
+                )
+            )
         case .productDecision(let candidateID):
             ProductDecisionView(
                 viewModel: ProductDecisionViewModel(

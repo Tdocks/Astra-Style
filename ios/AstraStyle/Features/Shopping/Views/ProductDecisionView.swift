@@ -215,8 +215,9 @@ struct ProductDecisionView: View {
     }
 
     private func costPerWearLine(_ cost: Decimal) -> String {
-        String(
-            localized: "About \(cost) a wear, if you wear it like the rest of this category.",
+        let formattedCost = cost.formatted(.number.precision(.fractionLength(0...2)))
+        return String(
+            localized: "About \(formattedCost) a wear, if you wear it like the rest of this category.",
             comment: "Decision page cost per wear"
         )
     }

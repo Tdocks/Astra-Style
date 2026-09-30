@@ -41,10 +41,7 @@ struct RootView: View {
                         model: OnboardingViewModel(
                             // Scoped per user so one person's draft is never
                             // handed to another account on a shared device.
-                            store: FileOnboardingDraftStore(
-                                userScope: container.sessionStore.currentSession?.userID.uuidString
-                                    ?? "anonymous"
-                            ),
+                            store: onboardingDraftStore,
                             profileRepository: container.profileRepository,
                             closetRepository: container.closetRepository,
                             // Scoped exactly like the draft store above, and for
@@ -63,6 +60,18 @@ struct RootView: View {
             }
         }
         .astraAnimation(AstraMotion.standard, value: router.routeState)
+    }
+
+    /// UI reset launches must not resume a draft left by an earlier simulator
+    /// run. Normal users keep the durable, user-scoped draft so interrupted
+    /// onboarding can resume where they left off.
+    private var onboardingDraftStore: any OnboardingDraftStoring {
+        guard !AstraFeatureFlags.resetsStateOnLaunch else {
+            return InMemoryOnboardingDraftStore()
+        }
+        return FileOnboardingDraftStore(
+            userScope: container.sessionStore.currentSession?.userID.uuidString ?? "anonymous"
+        )
     }
 }
 

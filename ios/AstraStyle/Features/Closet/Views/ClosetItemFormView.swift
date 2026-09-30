@@ -158,11 +158,11 @@ private extension ClosetItemFormView {
                 placeholder: String(localized: "Navy merino crewneck", comment: "Closet form name placeholder"),
                 footnote: String(localized: "However you'd describe it to someone.", comment: "Closet form name footnote"),
                 isRequired: true,
-                submitLabel: .next
+                submitLabel: .next,
+                accessibilityIdentifier: "closet.form.name"
             )
             .focused($focused, equals: .name)
             .onSubmit { focus(.brand) }
-            .accessibilityIdentifier("closet.form.name")
 
             ClosetSingleChoiceChips(
                 label: String(localized: "Category", comment: "Closet form field label"),
@@ -178,22 +178,22 @@ private extension ClosetItemFormView {
                 text: $viewModel.brand,
                 placeholder: String(localized: "Uniqlo", comment: "Closet form brand placeholder"),
                 submitLabel: .next,
-                autocapitalization: .words
+                autocapitalization: .words,
+                accessibilityIdentifier: "closet.form.brand"
             )
             .focused($focused, equals: .brand)
             .onSubmit { focus(.subcategory) }
-            .accessibilityIdentifier("closet.form.brand")
 
             AstraTextField(
                 String(localized: "Type", comment: "Closet form field label for subcategory"),
                 text: $viewModel.subcategory,
                 placeholder: String(localized: "Crewneck", comment: "Closet form subcategory placeholder"),
                 footnote: String(localized: "The narrower word for it — chinos, derbies, field jacket.", comment: "Closet form subcategory footnote"),
-                submitLabel: .next
+                submitLabel: .next,
+                accessibilityIdentifier: "closet.form.subcategory"
             )
             .focused($focused, equals: .subcategory)
             .onSubmit { focus(.primaryColor) }
-            .accessibilityIdentifier("closet.form.subcategory")
 
             primaryColorField
 
@@ -205,11 +205,11 @@ private extension ClosetItemFormView {
                 // the man wearing it — docs/14 §4: the garment is the subject.
                 footnote: String(localized: "Whatever's printed on the label — M, 32R, 10½.", comment: "Closet form size footnote"),
                 submitLabel: .done,
-                autocapitalization: .characters
+                autocapitalization: .characters,
+                accessibilityIdentifier: "closet.form.size"
             )
             .focused($focused, equals: .size)
             .onSubmit { focus(nil) }
-            .accessibilityIdentifier("closet.form.size")
 
             ClosetSingleChoiceChips(
                 label: String(localized: "Fit", comment: "Closet form field label"),
@@ -240,11 +240,11 @@ private extension ClosetItemFormView {
                 placeholder: String(localized: "Navy", comment: "Closet form colour placeholder"),
                 footnote: String(localized: "Tap one below, or write your own.", comment: "Closet form colour footnote"),
                 submitLabel: .next,
-                autocapitalization: .never
+                autocapitalization: .never,
+                accessibilityIdentifier: "closet.form.primaryColor"
             )
             .focused($focused, equals: .primaryColor)
             .onSubmit { focus(.size) }
-            .accessibilityIdentifier("closet.form.primaryColor")
 
             ClosetColorReading(name: viewModel.primaryColor)
 
@@ -434,11 +434,11 @@ private extension ClosetItemFormView {
                 text: $viewModel.retailer,
                 placeholder: String(localized: "Uniqlo, Regent Street", comment: "Closet form retailer placeholder"),
                 submitLabel: .next,
-                autocapitalization: .words
+                autocapitalization: .words,
+                accessibilityIdentifier: "closet.form.retailer"
             )
             .focused($focused, equals: .retailer)
             .onSubmit { focus(.productURL) }
-            .accessibilityIdentifier("closet.form.retailer")
 
             AstraTextField(
                 String(localized: "Product link", comment: "Closet form field label"),
@@ -449,11 +449,11 @@ private extension ClosetItemFormView {
                 keyboardType: .URL,
                 textContentType: .URL,
                 submitLabel: .done,
-                autocapitalization: .never
+                autocapitalization: .never,
+                accessibilityIdentifier: "closet.form.productURL"
             )
             .focused($focused, equals: .productURL)
             .onSubmit { focus(nil) }
-            .accessibilityIdentifier("closet.form.productURL")
         }
     }
 
@@ -630,10 +630,16 @@ private struct ClosetAddToListField: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: AstraSpacing.xs) {
-            AstraTextField(label, text: $text, placeholder: placeholder, submitLabel: .done, autocapitalization: .never)
+            AstraTextField(
+                label,
+                text: $text,
+                placeholder: placeholder,
+                submitLabel: .done,
+                autocapitalization: .never,
+                accessibilityIdentifier: identifier
+            )
                 .focused(focus, equals: focusValue)
                 .onSubmit(submit)
-                .accessibilityIdentifier(identifier)
             Button(String(localized: "Add", comment: "Adds the typed value to a list on the closet form"), action: submit)
                 .buttonStyle(.astraSecondary)
                 .frame(maxWidth: AstraSize.minTapTarget * 2)

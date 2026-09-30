@@ -14,7 +14,7 @@ import Testing
 
 struct AppearanceOptionsTests {
     @Test("Skin tone choices run light through deepest, not a fair-skin cluster")
-    func skinToneScaleCoversDeepComplexions() {
+    func skinToneScaleCoversDeepComplexions() throws {
         let tones = AppearanceOptions.skinTones
         #expect(tones.count == 6)
         #expect(tones.first?.label == "Light")
@@ -22,7 +22,7 @@ struct AppearanceOptionsTests {
         #expect(tones.map(\.section) == [
             "Fair to light", "Fair to light",
             "Medium", "Medium",
-            "Deep", "Deep",
+            "Deep", "Deep"
         ])
         let luminances = tones.map { choice -> Double in
             let hex = choice.hexes[0]
@@ -37,10 +37,9 @@ struct AppearanceOptionsTests {
                 "\(tones[index].label) should be darker than \(tones[index - 1].label)"
             )
         }
-        #expect(
-            luminances.last! < luminances.first! / 3,
-            "Deepest must be substantially darker than Light"
-        )
+        let deepest = try #require(luminances.last)
+        let lightest = try #require(luminances.first)
+        #expect(deepest < lightest / 3, "Deepest must be substantially darker than Light")
     }
 
     @Test("Undertone chips show the same temperature on light and deep skin")

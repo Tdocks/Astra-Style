@@ -194,7 +194,11 @@ public actor MockOutfitRepository: OutfitRepository {
         return occasion
     }
 
-    public func fetchPublicWornLooks() async throws -> [Outfit] { [] }
+    public func fetchPublicWornLooks() async throws -> [PublicWornLook] { [] }
+
+    public func fetchPublicWornLook(id: UUID) async throws -> PublicWornLook {
+        throw AstraError.unimplemented("Public looks aren't available here.")
+    }
 
     public func reportLookbook(outfitID: UUID) async throws {}
 }

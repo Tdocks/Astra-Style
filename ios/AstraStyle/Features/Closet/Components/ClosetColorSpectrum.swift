@@ -181,8 +181,9 @@ private struct ClosetColorSpectrumHeader: View {
     }
 
     private var accessibilityLabel: String {
+        let pieceCount = AstraQuantityText.count(segment.items.count, singular: "piece", plural: "pieces")
         let heading = String(
-            localized: "\(segment.band.displayName), ^[\(segment.items.count) piece](inflect: true)",
+            localized: "\(segment.band.displayName), \(pieceCount)",
             comment: "VoiceOver label for a closet colour spectrum group: the group's name, then how many garments are in it"
         )
         guard let explanation = segment.band.explanation else { return heading }

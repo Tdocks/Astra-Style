@@ -152,7 +152,7 @@ public enum AppearanceOptions {
         AppearanceSwatchChoice(label: "Medium", hexes: [0xC68A5A], section: "Medium"),
         AppearanceSwatchChoice(label: "Medium deep", hexes: [0x8D5A36], section: "Medium"),
         AppearanceSwatchChoice(label: "Deep", hexes: [0x5A3318], section: "Deep"),
-        AppearanceSwatchChoice(label: "Deepest", hexes: [0x271610], section: "Deep"),
+        AppearanceSwatchChoice(label: "Deepest", hexes: [0x271610], section: "Deep")
     ]
 
     /// Warm → olive. Each triple is the same undertone on a lighter, mid,
@@ -162,7 +162,7 @@ public enum AppearanceOptions {
         AppearanceSwatchChoice(label: "Warm", hexes: [0xE8C4A0, 0xC68654, 0x7A4A28]),
         AppearanceSwatchChoice(label: "Neutral", hexes: [0xD7C2B0, 0xA0806C, 0x614A3C]),
         AppearanceSwatchChoice(label: "Cool", hexes: [0xE0B8B4, 0xA07070, 0x5A3D3A]),
-        AppearanceSwatchChoice(label: "Olive", hexes: [0xC4B88A, 0x8A8458, 0x4F4630]),
+        AppearanceSwatchChoice(label: "Olive", hexes: [0xC4B88A, 0x8A8458, 0x4F4630])
     ]
 
     /// Ordered warm → olive, which is how the palette rules read them.

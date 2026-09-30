@@ -113,8 +113,20 @@ public actor MockProfileRepository: ProfileRepository {
         "users/\(UUID().uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg"
     }
 
+    public func deleteReferenceImage(path: String) async throws {
+        guard var bodyProfile,
+              bodyProfile.appearance.referenceSelfiePaths.contains(path) else {
+            throw AstraError.validation("That reference photo is no longer saved to your profile.")
+        }
+        bodyProfile.appearance.referenceSelfiePaths.removeAll { $0 == path }
+        self.bodyProfile = bodyProfile
+    }
+
     public func exportPersonalData() async throws -> URL {
-        URL(string: "https://example.com/preview-export.json") ?? URL(fileURLWithPath: "/preview-export.json")
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("astra-preview-export-\(UUID().uuidString).json")
+        try Data("{\"schema_version\":1,\"tables\":{}}".utf8).write(to: url, options: .atomic)
+        return url
     }
 
     public func applyReferralCode(_ code: String) async throws {

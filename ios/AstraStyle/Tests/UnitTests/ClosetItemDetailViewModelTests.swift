@@ -378,6 +378,14 @@ struct ClosetItemDetailCopyTests {
         )
     }
 
+    @Test("Wear and detail counts read as words instead of exposing pluralization markup")
+    func quantityCopyUsesSingularAndPluralNouns() {
+        #expect(ClosetItemDetailCopy.wearCount(1) == "1 wear")
+        #expect(ClosetItemDetailCopy.wearCount(5) == "5 wears")
+        #expect(ClosetItemDetailCopy.unfilledDetailPrompt(count: 1) == "1 detail still blank")
+        #expect(ClosetItemDetailCopy.unfilledDetailPrompt(count: 2) == "2 details still blank")
+    }
+
     // MARK: - Cost per wear
 
     @Test("The two reasons cost per wear is undefined produce different copy — 'not yet worn' is a fact, 'add a price' is something the user can act on")

@@ -102,6 +102,26 @@
       }
     },
     {
+      "id": "silhouette-02",
+      "priority": 21,
+      "option_a": {
+        "id": "close",
+        "image": "quiz-silhouette-2-a",
+        "accessibility_description": "A close-cut charcoal long-sleeve button-up with matching tapered trousers and black leather shoes.",
+        "loadings": {
+          "silhouette": -1.0
+        }
+      },
+      "option_b": {
+        "id": "loose",
+        "image": "quiz-silhouette-2-b",
+        "accessibility_description": "A relaxed-fit charcoal long-sleeve button-up with matching straight-relaxed trousers and black leather shoes.",
+        "loadings": {
+          "silhouette": 1.0
+        }
+      }
+    },
+    {
       "id": "texture-01",
       "priority": 30,
       "option_a": {

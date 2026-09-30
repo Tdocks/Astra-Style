@@ -39,10 +39,7 @@ import {
   CompatibilityOutfitScorer,
   type CompatibilityScorerRow,
 } from "../_shared/scoring/compatibilityScorer.ts";
-import {
-  parseWardrobeGraph,
-  type WardrobeGraphId,
-} from "../_shared/scoring/wardrobeGraph.ts";
+import { parseWardrobeGraph, type WardrobeGraphId } from "../_shared/scoring/wardrobeGraph.ts";
 
 const env = readEdgeEnv();
 

@@ -66,7 +66,13 @@ import {
   type RankedRecommendation,
   type StyleDnaDocument,
 } from "./schema.ts";
-import { DRESS_CODE_SIGNATURES, IDENTITY_PLAYBOOK, WOMENSWEAR_PRIORITIES, WOMENSWEAR_SIGNATURES, WOMENSWEAR_SILHOUETTE_FRAMING } from "./identityPlaybook.ts";
+import {
+  DRESS_CODE_SIGNATURES,
+  IDENTITY_PLAYBOOK,
+  WOMENSWEAR_PRIORITIES,
+  WOMENSWEAR_SIGNATURES,
+  WOMENSWEAR_SILHOUETTE_FRAMING,
+} from "./identityPlaybook.ts";
 
 /**
  * The version string this provider reports as `modelIdentifier`.

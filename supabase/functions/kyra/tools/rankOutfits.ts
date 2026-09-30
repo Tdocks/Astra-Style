@@ -24,10 +24,7 @@ import {
 import { scoreOutfit } from "../../_shared/scoring/compatibility.ts";
 import { breakdownToWire } from "../../_shared/scoring/wire.ts";
 import type { ScorableItem, ScoringContext } from "../../_shared/scoring/types.ts";
-import {
-  parseWardrobeGraph,
-  type WardrobeGraphId,
-} from "../../_shared/scoring/wardrobeGraph.ts";
+import { parseWardrobeGraph, type WardrobeGraphId } from "../../_shared/scoring/wardrobeGraph.ts";
 import { isUUID } from "../../_shared/validation.ts";
 
 export interface RankOutfitsDeps {

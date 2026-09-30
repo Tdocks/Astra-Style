@@ -19,6 +19,11 @@ public protocol OutfitRepository: Sendable {
     func fetchOutfit(id: UUID) async throws -> Outfit
     func fetchOutfits(ids: [UUID]) async throws -> [Outfit]
     func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem]
+    func fetchOutfitItems(outfitIDs: [UUID]) async throws -> [OutfitItem]
+
+    /// Display-only garments for peer looks. The backend returns only a
+    /// sanitized payload for currently public, worn outfits.
+    func fetchPublicLookGarments(outfitIDs: [UUID]) async throws -> [PublicLookGarment]
 
     /// Calls `POST /outfits/generate` (spec §5.4, §14).
     func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation]
@@ -99,8 +104,11 @@ public protocol OutfitRepository: Sendable {
     func fetchOccasions(from: Date, to: Date) async throws -> [Occasion]
     func saveOccasion(_ occasion: Occasion) async throws -> Occasion
 
-    /// Other men's public worn looks for Discover. Home must never call this.
-    func fetchPublicWornLooks() async throws -> [Outfit]
+    /// Sanitized summaries of other users' public worn looks for Discover.
+    /// Home must never call this, and the return type intentionally has no
+    /// owner id or private outfit columns.
+    func fetchPublicWornLooks() async throws -> [PublicWornLook]
+    func fetchPublicWornLook(id: UUID) async throws -> PublicWornLook
 
     /// Stub report of a public lookbook. Idempotent per reporter.
     func reportLookbook(outfitID: UUID) async throws
@@ -125,7 +133,27 @@ public extension OutfitRepository {
         try await recordFeedback(targetType: targetType, targetID: targetID, signal: signal, reasonTags: [], freeText: nil)
     }
 
-    func fetchPublicWornLooks() async throws -> [Outfit] { [] }
+    func fetchOutfitItems(outfitIDs: [UUID]) async throws -> [OutfitItem] {
+        guard !outfitIDs.isEmpty else { return [] }
+        return try await withThrowingTaskGroup(of: [OutfitItem].self) { group in
+            for outfitID in outfitIDs {
+                group.addTask { try await self.fetchOutfitItems(outfitID: outfitID) }
+            }
+            var rows: [OutfitItem] = []
+            for try await result in group { rows.append(contentsOf: result) }
+            return rows.sorted {
+                if $0.outfitID != $1.outfitID { return $0.outfitID.uuidString < $1.outfitID.uuidString }
+                return $0.sortOrder < $1.sortOrder
+            }
+        }
+    }
+
+    func fetchPublicLookGarments(outfitIDs: [UUID]) async throws -> [PublicLookGarment] { [] }
+
+    func fetchPublicWornLooks() async throws -> [PublicWornLook] { [] }
+    func fetchPublicWornLook(id: UUID) async throws -> PublicWornLook {
+        throw AstraError.unimplemented("Public looks aren't available here.")
+    }
 
     func reportLookbook(outfitID: UUID) async throws {}
 

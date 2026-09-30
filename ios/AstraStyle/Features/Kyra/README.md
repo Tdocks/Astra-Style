@@ -4,7 +4,7 @@ Owns the Kyra conversation UI: chat, structured response cards, and style-memory
 
 ## What this module owns
 
-- Conversation UI supporting text, voice (transcribed on-device before sending), photo, product link, closet item, and outfit inputs.
+- Conversation UI supporting text, on-device voice transcription, photo, product link, closet item, and outfit inputs.
 - Suggested prompts and structured response rendering: outfit cards, product cards, closet items, comparison tables, and actions — Kyra never returns unparsed prose for these (spec §11's response schema).
 - Style memory inspector: view and delete durable memories Kyra has saved, and confirm/reject memory proposals Kyra surfaces mid-conversation.
 - The "Ask Kyra" global action's modal presentation (spec §4).
@@ -26,11 +26,11 @@ Owns the Kyra conversation UI: chat, structured response cards, and style-memory
 - `ViewModels/KyraConversationViewModel.swift` — send/retry/offline/action state. Offline is a stated "Kyra needs a connection" condition, never a silent queue — the client half of the P5-KYRA-18 decision recorded in `Core/Persistence/AstraModelContainer.swift`.
 - `Services/KyraCardHydrator.swift` + `Models/KyraRenderedCard.swift` — id-reference cards joined to drawable rows; a failed fetch degrades to an honest `.unavailable` card, never a fabricated one.
 - `Components/KyraCardView.swift` — the five card renderers (outfit reuses `LookSilhouetteView`/`AstraScoreMeter`, per P5-KYRA-14's component-reuse criterion). No `default:` branch: unknown card types are dropped at decode.
-- `Components/KyraComposerView.swift` + `KyraAttachmentPickers.swift` — text, photo, product link, closet item, outfit inputs. **Voice is P5-KYRA-16 and not yet present** (needs the mic permission).
+- `Components/KyraComposerView.swift` + `KyraAttachmentPickers.swift` — text, on-device voice transcription, photo, product link, closet item, and outfit inputs. Microphone and speech permissions are requested only after the user taps the mic.
 - `Components/KyraAskButton.swift` — the spec §4 global action, floated above the tab bar by `App/MainTabView.swift`.
-- Memory proposals render as visible notes (the server has already persisted them); the inspect/delete surface is **P5-KYRA-17, still open**, as is `.memories`' placeholder in `Routing/KyraDestinationView.swift`.
+- Memory proposals render as visible notes (the server has already persisted them); user-visible memories can be reviewed and deleted from Profile → Privacy & Data or the Kyra memories route.
 
 ## Tickets
 
 Filled in by the **P5-KYRA** tickets in `docs/02-task-breakdown.md`.
-Open here: **P5-KYRA-16** (voice input), **P5-KYRA-17** (memory inspector).
+Remaining acceptance: test on-device transcription on supported hardware and exercise memory deletion with an authenticated backend account.

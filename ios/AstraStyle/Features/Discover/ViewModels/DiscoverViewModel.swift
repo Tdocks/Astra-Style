@@ -15,12 +15,25 @@ import Observation
 public final class DiscoverViewModel {
     /// One outfit joined to drawable garments for the Discover rails.
     public struct DiscoverLook: Identifiable, Sendable {
-        public var outfit: Outfit
+        public let id: UUID
+        public let name: String
+        public let description: String?
+        public let isPublicLook: Bool
         public var garments: [LookGarment]
-        public var id: UUID { outfit.id }
 
         public init(outfit: Outfit, garments: [LookGarment]) {
-            self.outfit = outfit
+            id = outfit.id
+            name = outfit.name
+            description = outfit.description
+            isPublicLook = false
+            self.garments = garments
+        }
+
+        public init(publicLook: PublicWornLook, garments: [LookGarment]) {
+            id = publicLook.id
+            name = publicLook.name
+            description = publicLook.description
+            isPublicLook = true
             self.garments = garments
         }
     }
@@ -86,19 +99,23 @@ public final class DiscoverViewModel {
             async let closetTask = closetRepository.fetchItems()
 
             let mineOutfits = try await mineTask.filter { !$0.isArchived }
-            let wornByOthersOutfits = (try? await publicTask) ?? []
+            let wornByOthersLooks = (try? await publicTask) ?? []
             let unlocks = rankedGapUnlocks((try? await unlocksTask) ?? [])
             let closet = try await closetTask
 
-            let allOutfits = mineOutfits + wornByOthersOutfits
-            let itemsPerOutfit = await outfitItems(for: allOutfits)
-            let allGarments = await hydrator.hydrate(outfits: itemsPerOutfit, closet: closet)
+            async let myItemsTask = outfitItems(for: mineOutfits)
+            async let publicGarmentsTask = publicGarments(for: wornByOthersLooks)
 
-            let mineLooks = zip(mineOutfits, allGarments.prefix(mineOutfits.count))
+            let myItems = await myItemsTask
+            let myGarments = await hydrator.hydrate(outfits: myItems, closet: closet)
+            let publicRows = await publicGarmentsTask
+            let publicByOutfitID = await hydrator.hydrate(publicLookGarments: publicRows)
+
+            let mineLooks = zip(mineOutfits, myGarments)
                 .map { DiscoverLook(outfit: $0.0, garments: $0.1) }
-            let othersGarments = Array(allGarments.dropFirst(mineOutfits.count))
-            let othersLooks = zip(wornByOthersOutfits, othersGarments)
-                .map { DiscoverLook(outfit: $0.0, garments: $0.1) }
+            let othersLooks = wornByOthersLooks.map { publicLook in
+                DiscoverLook(publicLook: publicLook, garments: publicByOutfitID[publicLook.id] ?? [])
+            }
 
             let catalog = Catalog(
                 mine: mineLooks,
@@ -123,20 +140,19 @@ public final class DiscoverViewModel {
     }
 
     private func outfitItems(for outfits: [Outfit]) async -> [[OutfitItem]] {
-        let repository = outfitRepository
-        return await withTaskGroup(of: (Int, [OutfitItem]).self) { group in
-            for (index, outfit) in outfits.enumerated() {
-                group.addTask {
-                    let items = (try? await repository.fetchOutfitItems(outfitID: outfit.id)) ?? []
-                    return (index, items)
-                }
-            }
-            var collected = Array(repeating: [OutfitItem](), count: outfits.count)
-            for await (index, items) in group {
-                collected[index] = items
-            }
-            return collected
+        let ids = outfits.map(\.id)
+        guard !ids.isEmpty else { return [] }
+        guard let rows = try? await outfitRepository.fetchOutfitItems(outfitIDs: ids) else {
+            return Array(repeating: [], count: ids.count)
         }
+        let itemsByOutfitID = Dictionary(grouping: rows, by: \.outfitID)
+        return ids.map { itemsByOutfitID[$0] ?? [] }
+    }
+
+    private func publicGarments(for looks: [PublicWornLook]) async -> [PublicLookGarment] {
+        let ids = looks.map(\.id)
+        guard !ids.isEmpty else { return [] }
+        return (try? await outfitRepository.fetchPublicLookGarments(outfitIDs: ids)) ?? []
     }
 
     /// Gap > 0 only. Sort by unlock count descending. Ties keep input order.

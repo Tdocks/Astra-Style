@@ -8,9 +8,8 @@
 //  composition root for the Ask Kyra modal, so the view model is built
 //  here where the full dependency graph is known.
 //
-//  `.memories` and `.productCard` remain honest placeholders: the memory
-//  inspector is P5-KYRA-17 and the product decision page is P6-SHOP, and
-//  neither is served by a confident screen with nothing behind it.
+//  `.memories` uses the shared privacy screen. `.productCard` remains an
+//  honest placeholder until its route carries the product decision model.
 //
 
 import SwiftUI
@@ -37,11 +36,13 @@ struct KyraDestinationView: View {
                 )
             }
         case .memories:
-            FeaturePlaceholderView(
-                title: String(localized: "Style Memories"),
-                message: String(localized: "Everything Kyra remembers about your taste, yours to review and delete."),
-                systemImage: "bookmark"
-            )
+            NavigationStack {
+                StyleMemoriesView(
+                    viewModel: StyleMemoriesViewModel(
+                        kyraRepository: container.kyraRepository
+                    )
+                )
+            }
         case .productCard:
             FeaturePlaceholderView(
                 title: String(localized: "Product Decision"),

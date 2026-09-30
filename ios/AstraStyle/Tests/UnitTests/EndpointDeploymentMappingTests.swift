@@ -50,7 +50,8 @@ struct EndpointDeploymentMappingTests {
         "packing",
         "subscriptions",
         "app-store",
-        "account"
+        "account",
+        "lookbook"
     ]
 
     /// Every `AstraEndpoint` case. `assertCovered(_:)` below is an
@@ -58,6 +59,7 @@ struct EndpointDeploymentMappingTests {
     /// extending this list is a compile error, not a silent coverage gap.
     private static let allEndpoints: [AstraEndpoint] = [
         .completeOnboarding,
+        .exportPersonalData,
         .generateStyleDNA,
         .analyzeClosetItem,
         .batchAnalyzeCloset,
@@ -75,7 +77,8 @@ struct EndpointDeploymentMappingTests {
         .syncSubscriptions,
         .appStoreWebhook,
         .deleteAccount,
-        .recordWear
+        .recordWear,
+        .signPublicLookImages
     ]
 
     /// Never called at runtime; exists purely so the compiler enforces that
@@ -83,12 +86,12 @@ struct EndpointDeploymentMappingTests {
     /// gains a case (the new case makes this switch non-exhaustive).
     private static func assertCovered(_ endpoint: AstraEndpoint) {
         switch endpoint {
-        case .completeOnboarding, .generateStyleDNA, .analyzeClosetItem,
+        case .completeOnboarding, .exportPersonalData, .generateStyleDNA, .analyzeClosetItem,
              .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
              .evaluateProduct, .listProductUnlocks, .generateStudio, .studioStatus,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,
-             .deleteAccount, .recordWear:
+             .deleteAccount, .recordWear, .signPublicLookImages:
             break
         }
     }

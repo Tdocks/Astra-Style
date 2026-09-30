@@ -180,6 +180,11 @@ final class ScreenQAUITests: XCTestCase {
     /// against `Core/Mocks`. This used to tap "Explore in guest mode" — the
     /// only account-free entry there was — which ADR 0014 removed.
     private func enterMainShell(extraArguments: [String] = []) {
+        if !extraArguments.contains("-UIPreferredContentSizeCategoryName") {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
+            ]
+        }
         app.launchArguments += ["-astra-mock-backend", "-astra-skip-onboarding"]
         app.launchArguments += extraArguments
         app.launch()

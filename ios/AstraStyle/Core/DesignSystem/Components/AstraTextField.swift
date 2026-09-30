@@ -66,6 +66,7 @@ public struct AstraTextField: View {
     private let submitLabel: SubmitLabel
     private let autocapitalization: TextInputAutocapitalization
     private let axis: Axis
+    private let accessibilityIdentifier: String?
 
     @FocusState private var isFocused: Bool
 
@@ -101,7 +102,8 @@ public struct AstraTextField: View {
         textContentType: UITextContentType? = nil,
         submitLabel: SubmitLabel = .return,
         autocapitalization: TextInputAutocapitalization = .sentences,
-        axis: Axis = .horizontal
+        axis: Axis = .horizontal,
+        accessibilityIdentifier: String? = nil
     ) {
         self.label = label
         self._text = text
@@ -114,6 +116,7 @@ public struct AstraTextField: View {
         self.submitLabel = submitLabel
         self.autocapitalization = autocapitalization
         self.axis = axis
+        self.accessibilityIdentifier = accessibilityIdentifier
     }
 
     public var body: some View {
@@ -137,6 +140,24 @@ public struct AstraTextField: View {
                 .focused($isFocused)
                 .accessibilityLabel(Text(AstraFieldAccessibility.label(label, isRequired: isRequired, errorText: errorText)))
                 .accessibilityHint(Text(AstraFieldAccessibility.hint(footnote: footnote, errorText: errorText)))
+                .modifier(AstraOptionalAccessibilityIdentifier(identifier: accessibilityIdentifier))
+        }
+    }
+}
+
+/// Applies identifiers to the actual input control, not the full label / field /
+/// helper-text stack. At accessibility text sizes this keeps XCTest and
+/// assistive technology targeting the editable surface rather than the centre
+/// of the taller surrounding stack.
+private struct AstraOptionalAccessibilityIdentifier: ViewModifier {
+    let identifier: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let identifier {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
         }
     }
 }

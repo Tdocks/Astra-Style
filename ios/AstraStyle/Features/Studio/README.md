@@ -5,8 +5,10 @@ Owns Style Studio: visual try-on / outfit visualization (spec §6.17, §13).
 ## Status
 
 **Style Studio is on the tab bar.** Visualize / See this on you is still
-the generate door (Home, outfit detail, and the Studio tab CTA). Default
-image provider is mock unless the hosted secret is set.
+the generate door (Home, outfit detail, and the Studio tab CTA). The gallery
+can remove a completed or failed preview, deleting the private result image
+before its database row. Deletion waits until queued/generating jobs finish.
+The default image provider is mock unless a provider is configured server-side.
 
 ## What this module owns
 
@@ -14,7 +16,8 @@ image provider is mock unless the hosted secret is set.
 - Reference image selection/capture with explicit ownership/permission consent (§6.17 Safety).
 - Outfit/item/theme selection controls, prompt presets, and the advanced controls (preserve face/body/hair, background, pose, formality, season, color palette).
 - The generation viewport: before/after compare, generated-image labeling (never implying exact fit/body outcome — §6.17 Safety, §11 guardrails), and the queued/generating/complete/failed states with retry.
-- The results gallery / lookbook and per-generation deletion controls.
+- The results gallery and per-generation deletion controls. Pagination and
+  save-to-lookbook/compare actions remain open.
 
 ## Governing spec sections
 

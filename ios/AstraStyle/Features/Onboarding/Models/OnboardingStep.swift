@@ -149,13 +149,13 @@ public enum OnboardingStep: String, Codable, CaseIterable, Sendable, Identifiabl
 
     /// Whether this step may be passed without answering.
     ///
-    /// Wardrobe graph and identity are required. The first chooses the product
-    /// model; §6.5 then requires three directions and one primary. Everything
-    /// else, including all of §6.6 and §6.7, tolerates being skipped entirely:
-    /// `FrameProfile` is built to degrade (docs/14 §2) and Style DNA is built
-    /// to work from less.
+    /// Wardrobe graph, goals and identity are required. The graph chooses the
+    /// product model, §6.4 requires at least one goal, and §6.5 requires three
+    /// directions with one primary. Measurements, appearance and lifestyle can
+    /// be skipped: `FrameProfile` degrades (docs/14 §2) and Style DNA works
+    /// from less.
     public var isSkippable: Bool {
-        self != .identity && self != .wardrobeGraph
+        self != .goals && self != .identity && self != .wardrobeGraph
     }
 
     public var next: OnboardingStep? {

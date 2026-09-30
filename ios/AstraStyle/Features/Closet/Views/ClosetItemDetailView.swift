@@ -32,6 +32,7 @@ public struct ClosetItemDetailView: View {
     @State private var viewModel: ClosetItemDetailViewModel
     @State private var editingItem: ClosetItem?
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppRouter.self) private var router
 
     public init(viewModel: ClosetItemDetailViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -53,6 +54,13 @@ public struct ClosetItemDetailView: View {
         .refreshable { await viewModel.refresh() }
         .navigationTitle(viewModel.state.detail?.item.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                KyraAskToolbarButton {
+                    router.startAskKyra()
+                }
+            }
+        }
         .task { await viewModel.onAppear() }
         // The item is gone from every default closet view the moment the
         // archive succeeds, so staying on its detail screen would leave the

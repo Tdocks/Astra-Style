@@ -186,7 +186,7 @@ extension AppContainer {
             authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
             profileRepository: LiveProfileRepository(apiClient: apiClient),
             closetRepository: closetRepository,
-            closetImageURLResolver: LiveClosetImageURLResolver(),
+            closetImageURLResolver: LiveClosetImageURLResolver(apiClient: apiClient),
             outfitRepository: LiveOutfitRepository(
                 apiClient: apiClient,
                 offlineQueue: offlineMutationQueue,

@@ -463,7 +463,8 @@ public enum ClosetItemDetailCopy {
     }
 
     public static func wearCount(_ count: Int) -> String {
-        String(localized: "^[\(count) wear](inflect: true)", comment: "How many times a garment has been worn")
+        let wears = AstraQuantityText.count(count, singular: "wear", plural: "wears")
+        return String(localized: "\(wears)", comment: "How many times a garment has been worn")
     }
 
     /// How many of the optional §6.15 fields are still blank.
@@ -495,6 +496,7 @@ public enum ClosetItemDetailCopy {
     }
 
     public static func unfilledDetailPrompt(count: Int) -> String {
-        String(localized: "^[\(count) detail](inflect: true) still blank", comment: "How many optional garment fields have no value yet")
+        let details = AstraQuantityText.count(count, singular: "detail", plural: "details")
+        return String(localized: "\(details) still blank", comment: "How many optional garment fields have no value yet")
     }
 }

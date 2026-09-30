@@ -58,6 +58,9 @@ jobs:
       - name: Install SwiftLint
         run: brew install swiftlint
 
+      - name: Prove CI rejects a known lint violation
+        run: python3 scripts/check_ci_warning_gate.py --self-test
+
       - name: SwiftLint (strict — every warning fails the build)
         run: |
           swiftlint lint --config .swiftlint.yml --strict --reporter github-actions-logging
@@ -231,16 +234,7 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-build.log"
 
       - name: Fail on warnings in our own code
-        run: |
-          # Scoped to ios/AstraStyle so a warning inside a SwiftPM checkout —
-          # which we cannot fix and should not be blocked by — does not fail
-          # the build. Anything under our own source tree does.
-          if grep -E '^/.*ios/AstraStyle/.*warning:' "$RUNNER_TEMP/xcodebuild-build.log" > "$RUNNER_TEMP/our-warnings.txt"; then
-            echo "::error::Compiler warnings in first-party code (Phase 1 requires zero):"
-            sed 's|.*/ios/AstraStyle/|AstraStyle/|' "$RUNNER_TEMP/our-warnings.txt" | sort -u
-            exit 1
-          fi
-          echo "No warnings in first-party code."
+        run: python3 scripts/check_ci_warning_gate.py --build-log "$RUNNER_TEMP/xcodebuild-build.log"
 
       - name: Upload build log
         if: always()

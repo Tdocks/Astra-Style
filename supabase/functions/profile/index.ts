@@ -35,6 +35,7 @@ import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.t
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { serverError } from "../_shared/errors.ts";
+import { handlePersonalDataExport } from "./exportHandler.ts";
 import { requireIso8601Seconds, toIso8601Seconds } from "../_shared/time.ts";
 import { handleCompleteOnboarding, type OnboardingRepository } from "./handler.ts";
 import type { ProfileDTO } from "./schema.ts";
@@ -51,6 +52,7 @@ const env = readEdgeEnv();
 // Same honest caveat as everywhere else: this limiter is per-isolate and
 // in-memory, not a security boundary — see `_shared/rateLimit.ts`.
 const rateLimiter = createRateLimiter({ limit: 6, windowMs: 60_000 });
+const exportRateLimiter = createRateLimiter({ limit: 2, windowMs: 60 * 60_000 });
 
 /**
  * Maps the `profiles` row the RPC returns onto the wire shape
@@ -144,6 +146,81 @@ function completeOnboardingRoute(req: Request): Promise<Response> {
   });
 }
 
+/**
+ * Exports user-owned app data. Every table is read through the incoming
+ * caller JWT, then explicitly filtered to the user ID verified by Auth.
+ * Page by stable keys so a large wardrobe or conversation history is not
+ * silently cut off at PostgREST's row limit. Shared catalog rows are omitted:
+ * they are not the user's data and can be fetched again by reference.
+ */
+function personalDataExportRoute(req: Request): Promise<Response> {
+  const authorizationHeader = req.headers.get("Authorization") ??
+    req.headers.get("authorization") ?? "";
+  const supabase = createUserScopedClient(env, authorizationHeader);
+
+  const tables = [
+    { name: "profiles", ownerColumn: "id", orderColumn: "id" },
+    { name: "style_profiles", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "body_profiles", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "lifestyle_profiles", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "closet_items", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "closet_item_images", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "outfits", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "outfit_items", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "outfit_wears", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "kyra_threads", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "kyra_messages", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "style_feedback", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "style_memories", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "user_product_evaluations", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "occasions", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "daily_briefs", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "studio_generations", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "subscriptions", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "closet_analysis_jobs", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "analytics_events", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "lookbook_reports", ownerColumn: "reporter_id", orderColumn: "id" },
+    { name: "wear_days", ownerColumn: "user_id", orderColumn: "worn_on" },
+    { name: "wishlist_items", ownerColumn: "user_id", orderColumn: "id" },
+  ] as const;
+
+  return handlePersonalDataExport(req, {
+    authClient: supabase,
+    rateLimiter: exportRateLimiter,
+    now: () => new Date(),
+    repository: {
+      async fetchForUser(userId) {
+        const result: Record<string, unknown[]> = {};
+        const pageSize = 500;
+
+        for (const table of tables) {
+          const rows: unknown[] = [];
+          let offset = 0;
+          while (true) {
+            const { data, error } = await supabase
+              .from(table.name)
+              .select("*")
+              .eq(table.ownerColumn, userId)
+              .order(table.orderColumn, { ascending: true })
+              .range(offset, offset + pageSize - 1);
+            if (error) {
+              throw serverError("Couldn't prepare your data export.");
+            }
+
+            const page = data ?? [];
+            rows.push(...page);
+            if (page.length < pageSize) break;
+            offset += page.length;
+          }
+          result[table.name] = rows;
+        }
+        return result;
+      },
+    },
+  });
+}
+
 Deno.serve(createRouter("profile", [
   { method: "POST", pattern: "/complete-onboarding", handler: completeOnboardingRoute },
+  { method: "GET", pattern: "/export-data", handler: personalDataExportRoute },
 ]));

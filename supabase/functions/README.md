@@ -63,6 +63,11 @@ supabase/functions/
                               service-role) and the recursive Storage sweep
     handler.ts               Orchestrates the migration's documented deletion sequence
     schema.ts                Why this endpoint's request body has nothing to validate
+  lookbook/               POST /lookbook/sign-images — signed display images for public worn looks
+    index.ts                 Caller-scoped public-look RPC + service-role image lookup/signing
+    handler.ts               JWT, rate limit, exact outfit/item/image authorization, 10-minute URLs
+    schema.ts                Bounded request envelope for opaque image references
+    handler_test.ts          Public/private IDs, authentication, and cut-out selection
 ```
 
 ## Why `POST /profile/complete-onboarding` writes through a Postgres function
@@ -111,6 +116,22 @@ mapping test in
 `ios/AstraStyle/Tests/UnitTests/EndpointDeploymentMappingTests.swift` will
 fail the build if a directory appears here whose name isn't a first
 segment the client actually uses.
+
+## Public look image access
+
+Public look summaries and garments come from the authenticated
+`fetch_public_worn_looks` and `fetch_public_look_garments` RPCs. They omit owner
+ids and private outfit/closet fields; peer reads on raw outfit, outfit-item,
+closet, and image rows stay closed. `lookbook/sign-images` is the only path by
+which another signed-in user can load an image from a public look. The Data API
+returns an opaque image-row id, not a Storage path. The function rechecks that
+each requested outfit/item/image tuple appears in the caller-scoped public-worn
+garment RPC response,
+then signs only that image for ten minutes. If a background-removed cut-out is
+available, it signs the cut-out instead of the original photograph. This keeps
+private closet metadata and original-photo paths out of the public client
+response. RLS assertions live in `supabase/tests/20_rls_isolation_tests.sql`;
+function authorization cases live in `lookbook/handler_test.ts`.
 
 ## Why no service-role key in `outfits`
 

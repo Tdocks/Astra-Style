@@ -11,24 +11,24 @@ import Testing
 struct WearStreakCalculatorTests {
     private var utc: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = .gmt
         return calendar
     }
 
-    private func day(_ ymd: String) -> Date {
+    private func day(_ ymd: String) throws -> Date {
         let formatter = DateFormatter()
         formatter.calendar = utc
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.timeZone = .gmt
         formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: ymd)!
+        return try #require(formatter.date(from: ymd))
     }
 
     @Test("Worn today continues a run ending today")
-    func currentIncludesToday() {
+    func currentIncludesToday() throws {
         let stats = WearStreakCalculator.stats(
-            days: [day("2026-08-21"), day("2026-08-22"), day("2026-08-23")],
-            today: day("2026-08-23"),
+            days: [try day("2026-08-21"), try day("2026-08-22"), try day("2026-08-23")],
+            today: try day("2026-08-23"),
             calendar: utc
         )
         #expect(stats.current == 3)
@@ -36,10 +36,10 @@ struct WearStreakCalculatorTests {
     }
 
     @Test("A gap yesterday zeros current even if a long run exists")
-    func gapZerosCurrent() {
+    func gapZerosCurrent() throws {
         let stats = WearStreakCalculator.stats(
-            days: [day("2026-08-01"), day("2026-08-02"), day("2026-08-20")],
-            today: day("2026-08-23"),
+            days: [try day("2026-08-01"), try day("2026-08-02"), try day("2026-08-20")],
+            today: try day("2026-08-23"),
             calendar: utc
         )
         #expect(stats.current == 0)
@@ -47,10 +47,10 @@ struct WearStreakCalculatorTests {
     }
 
     @Test("Worn yesterday still counts while today is unfinished")
-    func yesterdayKeepsStreak() {
+    func yesterdayKeepsStreak() throws {
         let stats = WearStreakCalculator.stats(
-            days: [day("2026-08-21"), day("2026-08-22")],
-            today: day("2026-08-23"),
+            days: [try day("2026-08-21"), try day("2026-08-22")],
+            today: try day("2026-08-23"),
             calendar: utc
         )
         #expect(stats.current == 2)
@@ -58,8 +58,8 @@ struct WearStreakCalculatorTests {
     }
 
     @Test("Empty history is a zero streak, not a wear_count fallback")
-    func emptyIsZero() {
-        let stats = WearStreakCalculator.stats(days: [], today: day("2026-08-23"), calendar: utc)
+    func emptyIsZero() throws {
+        let stats = WearStreakCalculator.stats(days: [], today: try day("2026-08-23"), calendar: utc)
         #expect(stats == WearStreak(current: 0, best: 0))
     }
 }

@@ -2,39 +2,19 @@
 //  PrivacyAndDataView.swift
 //  AstraStyle
 //
-//  `ProfileRoute.privacyAndData` (spec §29 "Privacy and data controls").
-//  One row, not several — see below for why.
-//
-//  WHY THERE IS NO "EXPORT MY DATA" ROW. `ProfileRepository
-//  .exportPersonalData()` is real Swift and a real protocol requirement
-//  (spec §29, ticket P7-PRIVACY-03), but `LiveProfileRepository
-//  .exportPersonalData()`'s own header says what it actually does: sign a
-//  URL for `exports/users/{uid}/export-latest.json`, an object NOTHING in
-//  this codebase ever writes. There is no Edge Function, scheduled job,
-//  or migration that produces it — `supabase/functions/` has no export
-//  endpoint and no `exports` bucket is created anywhere. Every real tap
-//  would sign a URL for an object that has never existed and 404. Spec
-//  §22 rules out exactly this: a control whose tap cannot succeed. So the
-//  row is absent rather than present-and-broken, matching this codebase's
-//  own rule for an unbuilt path (`ClosetDestinationView`'s `.editItem`
-//  case) — except this one has no honest placeholder to show either,
-//  because "not built yet" is a screen and this would need to be a
-//  WORKING download. P7-PRIVACY-03 is not satisfied by this file; see the
-//  note in `Features/Profile/README.md`.
-//
-//  WHY THERE IS NO "DELETE INDIVIDUAL PHOTOS" OR "STYLE MEMORIES" ROW
-//  EITHER, despite the old README listing both here. Those are
-//  `P7-PRIVACY-04` and part of `P5-KYRA-17` — different tickets, with
-//  their own repository methods (`ClosetRepository`'s per-image delete,
-//  `KyraRepository.deleteMemory(id:)`) this pass does not touch. A row
-//  for either here would be reaching into another ticket's scope to fill
-//  space. They belong on this same screen once built.
+//  Privacy controls for style memories, reference photos, personal data export,
+//  and account deletion (spec section 29).
 //
 
 import SwiftUI
 
 struct PrivacyAndDataView: View {
     @Environment(AppRouter.self) private var router
+    @State private var exportViewModel: PersonalDataExportViewModel
+
+    init(exportViewModel: PersonalDataExportViewModel) {
+        _exportViewModel = State(wrappedValue: exportViewModel)
+    }
 
     var body: some View {
         ScrollView {
@@ -43,6 +23,9 @@ struct PrivacyAndDataView: View {
                     title: String(localized: "Privacy & Data", comment: "Privacy and data controls screen title")
                 )
 
+                styleMemoriesRow
+                referencePhotosRow
+                exportRow
                 deleteAccountRow
             }
             .padding(.horizontal, AstraSpacing.pagePadding)
@@ -52,6 +35,107 @@ struct PrivacyAndDataView: View {
         .scrollIndicators(.hidden)
         .navigationTitle(String(localized: "Privacy & Data", comment: "Privacy and data controls navigation bar title"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var exportRow: some View {
+        AstraCard {
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                Text(String(localized: "Your personal data", comment: "Title for personal data export"))
+                    .astraText(.headline)
+                    .foregroundStyle(AstraColor.textPrimary)
+                Text(String(
+                    localized: "Create a JSON copy of your profile, closet, outfits, activity, and Kyra conversations. Save or share the file somewhere private.",
+                    comment: "Description of the personal data export contents"
+                ))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+                switch exportViewModel.state {
+                case .ready:
+                    exportButton
+                case .exporting:
+                    HStack(spacing: AstraSpacing.sm) {
+                        ProgressView()
+                            .tint(AstraColor.accentChampagne)
+                        Text(String(localized: "Preparing your export…", comment: "Personal data export progress"))
+                            .astraText(.caption)
+                            .foregroundStyle(AstraColor.textSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                case .available(let url):
+                    HStack(spacing: AstraSpacing.sm) {
+                        ShareLink(item: url) {
+                            Label(
+                                String(localized: "Save or share file", comment: "Open iOS share sheet for personal data export"),
+                                systemImage: "square.and.arrow.up"
+                            )
+                            .astraText(.callout)
+                            .foregroundStyle(AstraColor.accentChampagneAccessible)
+                        }
+                        .accessibilityIdentifier("privacyAndData.export.share")
+
+                        Button(String(localized: "Create again", comment: "Create a refreshed personal data export")) {
+                            Task { await exportViewModel.createExport() }
+                        }
+                        .buttonStyle(.astraSecondary)
+                        .accessibilityIdentifier("privacyAndData.export.retry")
+                    }
+                case .failed(let message):
+                    VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                        Text(message)
+                            .astraText(.caption)
+                            .foregroundStyle(AstraColor.destructive)
+                        exportButton
+                    }
+                    .accessibilityElement(children: .contain)
+                }
+            }
+        }
+    }
+
+    private var exportButton: some View {
+        Button {
+            Task { await exportViewModel.createExport() }
+        } label: {
+            Label(
+                String(localized: "Create data export", comment: "Start building a personal data export"),
+                systemImage: "arrow.down.doc"
+            )
+            .astraText(.callout)
+            .foregroundStyle(AstraColor.accentChampagneAccessible)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("privacyAndData.export.create")
+    }
+
+    private var styleMemoriesRow: some View {
+        Button {
+            router.push(ProfileRoute.styleMemories)
+        } label: {
+            AstraCard {
+                HStack(spacing: AstraSpacing.md) {
+                    VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                        Text(String(localized: "Style Memories", comment: "Row opening Kyra's saved style memories"))
+                            .astraText(.headline)
+                            .foregroundStyle(AstraColor.textPrimary)
+                        Text(String(
+                            localized: "Review or remove notes Kyra uses for personal advice.",
+                            comment: "Subtitle under Style Memories"
+                        ))
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textSecondary)
+                    }
+                    Spacer(minLength: AstraSpacing.sm)
+                    Image(systemName: "chevron.right")
+                        .astraIcon(.disclosure)
+                        .foregroundStyle(AstraColor.textMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("privacyAndData.styleMemoriesRow")
+        .accessibilityHint(Text(String(localized: "Opens the notes Kyra has saved about your style", comment: "VoiceOver hint for Style Memories row")))
     }
 
     private var deleteAccountRow: some View {
@@ -85,11 +169,42 @@ struct PrivacyAndDataView: View {
             comment: "VoiceOver hint for delete-account row"
         )))
     }
+
+    private var referencePhotosRow: some View {
+        Button {
+            router.push(ProfileRoute.referencePhotos)
+        } label: {
+            AstraCard {
+                HStack(spacing: AstraSpacing.md) {
+                    VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                        Text(String(localized: "Reference Photos", comment: "Row opening saved personal reference photos"))
+                            .astraText(.headline)
+                            .foregroundStyle(AstraColor.textPrimary)
+                        Text(String(
+                            localized: "Review or remove photos and Studio previews made with them.",
+                            comment: "Subtitle under Reference Photos"
+                        ))
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textSecondary)
+                    }
+                    Spacer(minLength: AstraSpacing.sm)
+                    Image(systemName: "chevron.right")
+                        .astraIcon(.disclosure)
+                        .foregroundStyle(AstraColor.textMuted)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("privacyAndData.referencePhotosRow")
+        .accessibilityHint(Text(String(localized: "Opens saved personal reference photos", comment: "VoiceOver hint for Reference Photos row")))
+    }
 }
 
 #Preview {
     NavigationStack {
-        PrivacyAndDataView()
+        PrivacyAndDataView(
+            exportViewModel: PersonalDataExportViewModel(profileRepository: MockProfileRepository())
+        )
     }
     .environment(AppRouter())
     .preferredColorScheme(.dark)

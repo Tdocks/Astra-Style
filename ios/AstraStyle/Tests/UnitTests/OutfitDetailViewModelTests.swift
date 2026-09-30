@@ -39,16 +39,19 @@ struct OutfitDetailViewModelTests {
         outfitRepository: StubOutfitRepository? = nil,
         closetRepository: StubOutfitDetailClosetRepository = StubOutfitDetailClosetRepository(),
         imageResolver: StubOutfitDetailImageResolver = StubOutfitDetailImageResolver(),
-        profileRepository: StubOutfitDetailProfileRepository = StubOutfitDetailProfileRepository(),
+        profileRepository: StubOutfitDetailProfileRepository? = nil,
         analyticsClient: RecordingAnalyticsClient = RecordingAnalyticsClient()
     ) -> (viewModel: OutfitDetailViewModel, outfitRepository: StubOutfitRepository) {
         let repository = outfitRepository ?? StubOutfitRepository(outfit: outfit, items: items)
+        let currentProfile = profileRepository ?? StubOutfitDetailProfileRepository(
+            profile: Profile(id: outfit.userID, units: .imperial)
+        )
         let viewModel = OutfitDetailViewModel(
             outfitID: outfit.id,
             outfitRepository: repository,
             closetRepository: closetRepository,
             closetImageURLResolver: imageResolver,
-            profileRepository: profileRepository,
+            profileRepository: currentProfile,
             analyticsClient: analyticsClient,
             networkMonitor: StaticNetworkReachabilityMonitor(offline: false)
         )

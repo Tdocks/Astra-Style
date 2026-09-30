@@ -53,4 +53,33 @@ public protocol ClosetImageURLResolving: Sendable {
     ///   none. A caller that needs the distinction should use
     ///   `resolve(storagePath:)`.
     func resolve(storagePaths: [String]) async throws -> [String: URL]
+
+    /// Signs only selected display images attached to public, worn looks.
+    /// The opaque image ids are checked against the public-look RPC before
+    /// Storage issues a short-lived URL; raw paths never reach the client.
+    func resolve(publicLookImages: [PublicLookImageReference]) async throws -> [UUID: URL]
+}
+
+public struct PublicLookImageReference: Codable, Hashable, Sendable {
+    public let outfitID: UUID
+    public let closetItemID: UUID
+    public let imageID: UUID
+
+    public init(outfitID: UUID, closetItemID: UUID, imageID: UUID) {
+        self.outfitID = outfitID
+        self.closetItemID = closetItemID
+        self.imageID = imageID
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case outfitID = "outfit_id"
+        case closetItemID = "closet_item_id"
+        case imageID = "image_id"
+    }
+}
+
+public extension ClosetImageURLResolving {
+    func resolve(publicLookImages: [PublicLookImageReference]) async throws -> [UUID: URL] {
+        [:]
+    }
 }

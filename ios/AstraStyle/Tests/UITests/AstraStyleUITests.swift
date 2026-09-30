@@ -37,7 +37,8 @@ final class AstraStyleUITests: XCTestCase {
         app.launchArguments += [
             "-UITestMode", "1",
             "-AppleLanguages", "(en)",
-            "-AppleLocale", "en_US"
+            "-AppleLocale", "en_US",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
         ]
     }
 
@@ -73,6 +74,7 @@ final class AstraStyleUITests: XCTestCase {
         for identity in ["quiet_luxury", "modern_heritage", "minimalist"] {
             let card = app.buttons["onboarding.identity.\(identity)"]
             card.scrollIntoView(in: app)
+            card.waitForStableFrame()
             card.tap()
             XCTAssertTrue(card.waitUntilSelected(), "Identity did not select: \(identity)")
         }
@@ -163,7 +165,10 @@ final class AstraStyleUITests: XCTestCase {
 
         let nameField = app.descendants(matching: .any)["closet.form.name"]
         awaitElement(nameField, "Name field")
+        nameField.scrollIntoView(in: app)
+        nameField.waitForStableFrame()
         nameField.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "Name field did not open the keyboard")
         // Trailing newline resigns focus so the submit control is not
         // obscured by the keyboard when we tap it.
         nameField.typeText(itemName + "\n")
@@ -328,11 +333,39 @@ final class AstraStyleUITests: XCTestCase {
         awaitElement(app.buttons["Continue with Apple"], "Welcome after account deletion")
     }
 
+    /// P5-KYRA-17: review and delete a saved note from the Privacy & Data screen.
+    func testStyleMemoriesCanBeReviewedAndDeleted() throws {
+        launchMockMain()
+        app.tapChromeTab("Profile")
+
+        let privacy = app.descendants(matching: .any)["profile.privacyAndDataRow"]
+        privacy.scrollIntoView(in: app)
+        privacy.tap()
+
+        let memoriesRow = app.descendants(matching: .any)["privacyAndData.styleMemoriesRow"]
+        awaitElement(memoriesRow, "Style Memories privacy row")
+        memoriesRow.tap()
+
+        let note = app.staticTexts["Prefers tapered trousers over slim-straight."]
+        awaitElement(note, "A user-visible Kyra memory")
+        let deleteButton = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "profile.styleMemories.delete.")
+        ).firstMatch
+        awaitElement(deleteButton, "Delete memory control")
+        deleteButton.tap()
+
+        let confirmDelete = app.buttons["Delete memory"]
+        awaitElement(confirmDelete, "Delete memory confirmation")
+        confirmDelete.tap()
+
+        XCTAssertTrue(note.waitForNonExistence(timeout: timeout), "Deleted memory remained visible")
+    }
+
     private func launchMockMain(extraArguments: [String] = []) {
         app.launchArguments += [
             "-astra-reset-state",
             "-astra-mock-backend",
-            "-astra-skip-onboarding",
+            "-astra-skip-onboarding"
         ] + extraArguments
         app.launch()
         awaitElement(app.chromeTabBar, "Main tab bar under mock backend")

@@ -138,6 +138,27 @@ public final class SessionStore: AstraAuthTokenProviding {
         try persist(session)
     }
 
+    /// Installs a preview/test session without writing it to Keychain.
+    /// Mock identities must disappear with their process so they cannot
+    /// replace a real account session or leave a stale user id behind.
+    func adoptInMemory(_ session: AuthSession) {
+        currentSession = session
+    }
+
+    /// Clears only the current in-memory session. Preview auth must not make
+    /// a request to the configured Supabase client when signing out.
+    func clearInMemorySession() {
+        currentSession = nil
+    }
+
+    /// Establishes a clean UI-test launch without calling Supabase Auth.
+    /// The test flag may run before the mock backend is selected, so remove
+    /// only this app's saved token and leave all other local data alone.
+    func resetForUITest() {
+        try? keychain.clear()
+        currentSession = nil
+    }
+
     public func signOut() async throws {
         try? await supabase.auth.signOut()
         try keychain.clear()

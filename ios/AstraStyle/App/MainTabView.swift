@@ -57,13 +57,9 @@ struct MainTabView: View {
         }
     }
 
-    /// Every tab root carries the floating Ask Kyra orb — spec §4 lists
-    /// "Ask Kyra" as a GLOBAL action, and an entry point that exists on
-    /// some tabs is a navigation model the user has to memorize. It is
-    /// inserted here, on the tab's content INSIDE the tab bar's safe area.
-    /// A prior overlay covered the bottom CTA on Product Decision and Home;
-    /// `safeAreaInset` reserves the orb's real height so every scroll view can
-    /// still bring its final control fully above it without guessed padding.
+    /// Every tab carries the floating Ask Kyra orb. Closet item detail is the
+    /// exception: that screen places Kyra in its navigation bar so its own
+    /// bottom action row stays unobstructed.
     @ViewBuilder
     private func tabRoot(for tab: AppTab) -> some View {
         Group {
@@ -77,11 +73,26 @@ struct MainTabView: View {
             }
         }
         .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: AstraSpacing.xxs) {
-            KyraAskButton {
-                router.startAskKyra()
+            if showsFloatingAskKyra(for: tab) {
+                KyraAskButton {
+                    router.startAskKyra()
+                }
+                .padding(.trailing, AstraSpacing.pagePadding)
+                .padding(.top, AstraSpacing.xxs)
             }
-            .padding(.trailing, AstraSpacing.pagePadding)
-            .padding(.top, AstraSpacing.xxs)
+        }
+    }
+
+    /// Most screens keep the global floating action. Closet item detail has
+    /// a dense action row, so that one screen uses its toolbar counterpart.
+    private func showsFloatingAskKyra(for tab: AppTab) -> Bool {
+        switch tab {
+        case .home, .studio, .discover, .shop, .profile:
+            return true
+        case .closet:
+            guard let lastRoute = router.closetPath.last else { return true }
+            if case .itemDetail = lastRoute { return false }
+            return true
         }
     }
 
