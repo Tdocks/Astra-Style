@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-09-30 (readiness batch: added Monthly Review, opt-in reminders, App Store notification verification, richer Studio controls, and weather/calendar/season context; deployed three schema migrations and ten Edge Functions to `anutsdzbxycaavmmkewo`; configured Apple's public root certificates, app ID, and App Store Server Notifications Production and Sandbox URLs; and verified the webhook rejects an invalid unsigned request. TestFlight 1.0.0 (10) is VALID, attached to Internal and External groups, and submitted for Beta App Review; external review is waiting for Apple. Signed notification acceptance, live user-data acceptance, device checks, and counsel inputs remain open).
+**Last audited:** 2026-09-30 (readiness batch: added Monthly Review, opt-in reminders, App Store notification verification, richer Studio controls, and weather/calendar/season context; deployed three schema migrations and ten Edge Functions to `anutsdzbxycaavmmkewo`; configured Apple's public root certificates, app ID, and App Store Server Notifications Production and Sandbox URLs; and verified the webhook rejects an invalid unsigned request. TestFlight 1.0.0 (10) is VALID, attached to Internal and External groups, and approved for external testing; the public join link is available. Signed notification acceptance, live user-data acceptance, device checks, and counsel inputs remain open).
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -378,7 +378,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 
 # PHASE 7 — MONETIZATION AND HARDENING
 
-**4 Done · 20 Partial · 12 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. The App Store Server Notifications V2 endpoint and reconciliation schema are deployed, and Supabase has the Apple verification roots, app ID, bundle ID, and Production/Sandbox notification URLs. TestFlight build 10 is waiting for external Beta App Review. Signed notification and sandbox purchase acceptance remain open; counsel inputs remain open.
+**4 Done · 20 Partial · 12 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. The App Store Server Notifications V2 endpoint and reconciliation schema are deployed, and Supabase has the Apple verification roots, app ID, bundle ID, and Production/Sandbox notification URLs. TestFlight build 10 is approved for external testing and the public join link is available. Signed notification and sandbox purchase acceptance remain open; counsel inputs remain open.
 
 | Ticket | Status | Evidence |
 |---|---|---|
