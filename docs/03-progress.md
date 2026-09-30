@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-09-30 (readiness batch: added Monthly Review, opt-in reminders, App Store notification verification, richer Studio controls, and weather/calendar/season context; deployed the three schema migrations and ten affected Edge Functions to `anutsdzbxycaavmmkewo`, configured Apple's public root certificates and app ID, and verified the webhook rejects an invalid unsigned request; Apple notification acceptance, live user-data acceptance, device checks, and counsel inputs remain open).
+**Last audited:** 2026-09-30 (readiness batch: added Monthly Review, opt-in reminders, App Store notification verification, richer Studio controls, and weather/calendar/season context; deployed three schema migrations and ten Edge Functions to `anutsdzbxycaavmmkewo`; configured Apple's public root certificates and app ID; and verified the webhook rejects an invalid unsigned request. TestFlight 1.0.0 (10) is VALID, attached to Internal and External groups, and submitted for Beta App Review; external review is waiting for Apple. App Store Server Notifications URLs still need configuration in App Store Connect. Live user-data acceptance, device checks, and counsel inputs remain open).
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -378,13 +378,13 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 
 # PHASE 7 — MONETIZATION AND HARDENING
 
-**4 Done · 20 Partial · 12 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. The App Store Server Notifications V2 endpoint and reconciliation schema are deployed, and Supabase has the Apple verification roots, app ID, and bundle ID. App Store Connect endpoint setup and signed notification/sandbox purchase acceptance remain open; counsel inputs remain open.
+**4 Done · 20 Partial · 12 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. The App Store Server Notifications V2 endpoint and reconciliation schema are deployed, and Supabase has the Apple verification roots, app ID, and bundle ID. TestFlight build 10 is waiting for external Beta App Review. App Store Connect notification URL setup and signed notification/sandbox purchase acceptance remain open; counsel inputs remain open.
 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P7-SUB-01 | Partial | Migration + RLS done; `AstraProductID` defines both product IDs client-side. App Store Connect configuration is not demonstrable in-repo — that component is Unverifiable. |
 | P7-SUB-02 | Partial | `LiveStoreKitPurchasing` (`Features/Subscription/StoreKitPurchasing.swift`) purchases via StoreKit 2 and rejects unverified transactions. Sandbox purchase on a device is Unverifiable here. |
-| P7-SUB-03 | Partial | `subscriptions/sync` verifies StoreKit JWS and the deployed `app-store/webhook` verifies Apple V2 notifications, checks account-token binding, and orders state by signed date. Reconciliation migrations and Apple verification configuration are deployed. App Store Connect endpoint setup, signed notification acceptance, and sandbox purchase/renewal/cancellation checks remain open. |
+| P7-SUB-03 | Partial | `subscriptions/sync` verifies StoreKit JWS and the deployed `app-store/webhook` verifies Apple V2 notifications, checks account-token binding, and orders state by signed date. Reconciliation migrations and Apple verification configuration are deployed. Configure the Production and Sandbox V2 URLs in App Store Connect, then verify a signed test notification and sandbox purchase/renewal/cancellation. |
 | P7-SUB-04 | Partial | Closet 30-item cap is `FreeTierCappedClosetRepository` (guest 10). Kyra 3/day and Studio one Visualize trial present `PaywallView`. Daily Brief generate (3) and paste extract+evaluate (1) use `morningLoopQuotaError`; `PaywallContext.dailyBrief` / `.pasteEvaluate`. **Wear This is ungated**: `POST /outfits/record-wear` has no entitlement/count branch, and client tests assert a transport 429 never becomes a paywall. |
 | P7-SUB-05 | Partial | `PaywallView` from `PaywallContext`. Localized StoreKit prices when offerings load. Legal links shown; `AstraLegal.isPublished` is true. |
 | P7-SUB-06 | Partial | `ios/Config/AstraStyle.storekit` checked in and wired on the AstraStyle scheme. Restore calls `AppStore.sync` then `syncTransaction`. |

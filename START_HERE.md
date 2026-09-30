@@ -19,11 +19,21 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **26.6** exactly |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `9`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `10`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
+
+## Current release — 2026-09-30
+
+Version **1.0.0 (10)** is processed as **VALID** and is attached to both the
+owner's Internal group and the public External group. Beta App Review was
+submitted and is **Waiting for Review**. The owner can install build 10 through
+Internal TestFlight now; external testers can install it after Apple approves
+the review. The App Store Server Notifications V2 URLs are still not configured
+in App Store Connect; set both Production and Sandbox to
+`https://anutsdzbxycaavmmkewo.supabase.co/functions/v1/app-store/webhook`.
 
 ---
 
@@ -101,7 +111,7 @@ Never put provider keys in the iOS target.
 
 ## 7. Done when
 
-- [ ] Build is VALID, on the External group, and submitted for Beta App Review
+- [x] Build is VALID, on the External group, and submitted for Beta App Review
 - [ ] Owner (or a stranger) launched it from the public join link
 - [ ] Smoke results reported (and any Organizer errors pasted verbatim)
 
