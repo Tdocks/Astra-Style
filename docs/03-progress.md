@@ -99,12 +99,16 @@ Ranked by what stops the next user-visible thing from working.
    signed-in conversation against production before relying on the model
    provider configuration with first users.
 6. **The owner confirmed leaked-password protection is enabled** (2026-09-29),
-   closing the previous dashboard-setting blocker. The Security Advisor still
-   flags two intentionally callable `SECURITY DEFINER` RPCs
-   (`apply_referral_code`, `request_account_deletion`) and guest-account RLS
-   policies because anonymous sign-in is enabled. Their migrations document
-   the caller-identity and privilege reasons; review the warnings, but do not
-   remove the functions or guest policies without checking those constraints.
+   closing the previous dashboard-setting blocker. The two user-callable RPCs
+   (`apply_referral_code`, `request_account_deletion`) now expose only
+   `SECURITY INVOKER` wrappers; narrowly scoped, `auth.uid()`-guarded bodies
+   live in the non-exposed `private` schema. Migration
+   `20260930103413_harden_callable_definer_rpcs.sql` was applied to the hosted
+   project on 2026-09-30. The live security advisor no longer reports either
+   authenticated-callable SECURITY DEFINER RPC; the authenticated entry points
+   and service-role call paths remain granted. Guest-account RLS notices remain
+   while anonymous sign-in is enabled; their policies still require per-user
+   ownership checks.
    See the
    [Supabase password security guide](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
 

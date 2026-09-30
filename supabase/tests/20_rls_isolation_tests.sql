@@ -608,9 +608,10 @@ $$;
 -- SECTION 6 — account_deletions: select-own status polling, service-role write.
 -- ============================================================================
 -- Intended policy: select-own only, per 20260728101300_account_deletion.sql.
--- Rows are only ever written by request_account_deletion() (SECURITY
--- DEFINER, using auth.uid() internally — never a client-supplied user id)
--- and the service-role-only finalize/complete/failed functions. Same
+-- Rows are only ever written by the public SECURITY INVOKER wrapper for
+-- request_account_deletion(), whose private SECURITY DEFINER helper uses
+-- auth.uid() internally — never a client-supplied user id — and by the
+-- service-role-only finalize/complete/failed functions. Same
 -- extra-assertion rationale as subscriptions above: no direct client write
 -- path should exist at all, self-owned or not.
 call pg_temp.check_owned_table('account_deletions', 'id', pg_temp.fx('account_deletions.a'), pg_temp.fx('account_deletions.b'), pg_temp.user_a(),
@@ -758,8 +759,8 @@ end
 $$;
 
 -- ============================================================================
--- SECTION 8 — request_account_deletion() RPC (deliberately still SECURITY
--- DEFINER — see 20260730170000_narrow_security_definer_scope.sql).
+-- SECTION 8 — request_account_deletion() RPC (public SECURITY INVOKER
+-- wrapper; narrowly guarded private SECURITY DEFINER helper).
 -- ============================================================================
 -- SECTION 6 above already proves account_deletions has no direct client
 -- INSERT path. This section proves the other half: the one sanctioned write
@@ -840,6 +841,90 @@ begin
   end;
   perform pg_temp.record_result('request_account_deletion', 'anonymous role cannot call request_account_deletion at all', v_blocked, v_detail);
   execute 'reset role';
+end
+$$;
+
+-- ============================================================================
+-- SECTION 8a — callable SECURITY DEFINER RPC boundary.
+-- ============================================================================
+-- The two exposed functions remain callable for their product flows, but
+-- only as SECURITY INVOKER wrappers. Their privileged implementations are
+-- in the non-exposed private schema, use auth.uid(), and are not callable by
+-- anon. This prevents a broad privilege grant from leaking into public RPC.
+do $$
+declare
+  v_public_referral_definer boolean;
+  v_public_deletion_definer boolean;
+  v_private_referral_definer boolean;
+  v_private_deletion_definer boolean;
+begin
+  select prosecdef into v_public_referral_definer
+    from pg_proc where oid = 'public.apply_referral_code(text)'::regprocedure;
+  select prosecdef into v_public_deletion_definer
+    from pg_proc where oid = 'public.request_account_deletion()'::regprocedure;
+  select prosecdef into v_private_referral_definer
+    from pg_proc where oid = 'private.apply_referral_code(text)'::regprocedure;
+  select prosecdef into v_private_deletion_definer
+    from pg_proc where oid = 'private.request_account_deletion()'::regprocedure;
+
+  perform pg_temp.record_result(
+    'rpc_privileges', 'public referral and deletion RPCs are SECURITY INVOKER',
+    v_public_referral_definer = false and v_public_deletion_definer = false,
+    format('apply_referral_code=%s request_account_deletion=%s', v_public_referral_definer, v_public_deletion_definer)
+  );
+  perform pg_temp.record_result(
+    'rpc_privileges', 'private referral and deletion helpers remain SECURITY DEFINER',
+    v_private_referral_definer = true and v_private_deletion_definer = true,
+    format('apply_referral_code=%s request_account_deletion=%s', v_private_referral_definer, v_private_deletion_definer)
+  );
+  perform pg_temp.record_result(
+    'rpc_privileges', 'anonymous role cannot execute either public RPC or private helper',
+    not has_function_privilege('anon', 'public.apply_referral_code(text)', 'EXECUTE')
+      and not has_function_privilege('anon', 'public.request_account_deletion()', 'EXECUTE')
+      and not has_function_privilege('anon', 'private.apply_referral_code(text)', 'EXECUTE')
+      and not has_function_privilege('anon', 'private.request_account_deletion()', 'EXECUTE')
+      and not has_schema_privilege('anon', 'private', 'USAGE')
+  );
+  perform pg_temp.record_result(
+    'rpc_privileges', 'authenticated and service_role retain the intended RPC call paths',
+    has_function_privilege('authenticated', 'public.apply_referral_code(text)', 'EXECUTE')
+      and has_function_privilege('authenticated', 'public.request_account_deletion()', 'EXECUTE')
+      and has_function_privilege('authenticated', 'private.apply_referral_code(text)', 'EXECUTE')
+      and has_function_privilege('authenticated', 'private.request_account_deletion()', 'EXECUTE')
+      and has_function_privilege('service_role', 'public.apply_referral_code(text)', 'EXECUTE')
+      and has_function_privilege('service_role', 'public.request_account_deletion()', 'EXECUTE')
+      and has_function_privilege('service_role', 'private.apply_referral_code(text)', 'EXECUTE')
+      and has_function_privilege('service_role', 'private.request_account_deletion()', 'EXECUTE')
+      and has_schema_privilege('authenticated', 'private', 'USAGE')
+      and has_schema_privilege('service_role', 'private', 'USAGE')
+  );
+end
+$$;
+
+-- Referral behavior still accepts a code case-insensitively, attributes the
+-- relationship to the caller, and remains idempotent for the same referrer.
+do $$
+declare
+  v_referred_by uuid;
+begin
+  update public.profiles
+     set referral_code = 'RLSFIXB'
+   where id = pg_temp.user_b();
+
+  execute 'set role authenticated';
+  perform set_config('request.jwt.claims', json_build_object('sub', pg_temp.user_c(), 'role', 'authenticated')::text, false);
+  perform public.apply_referral_code(' rlsfixb ');
+  perform public.apply_referral_code('RLSFIXB');
+  execute 'reset role';
+
+  select referred_by into v_referred_by
+    from public.profiles
+   where id = pg_temp.user_c();
+  perform pg_temp.record_result(
+    'apply_referral_code', 'C can apply B referral code through the invoker wrapper exactly once',
+    v_referred_by = pg_temp.user_b(),
+    format('referred_by=%s', v_referred_by)
+  );
 end
 $$;
 
