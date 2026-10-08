@@ -16,7 +16,7 @@ read both.
 | Apple Developer Team ID | `Q9ZH8AA9NY` (Tyler Dockswell's membership) |
 | App Store Connect App ID | `6797115649` |
 | Owner's Apple ID / ASC login | `tdoxwell@icloud.com` |
-| Xcode version | 26.6 exactly (per `START_HERE.md`) |
+| Xcode version | 27.0 on the owner's Mac for build 12 (per `START_HERE.md`) |
 | Marketing version / build number | `ios/project.yml` → `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` |
 
 ## 0. Two footguns baked into this repo — read before touching anything

@@ -17,15 +17,28 @@ current brief.
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
-| Xcode | **26.6** exactly |
+| Xcode | **27.0** on the owner's Mac for build 12 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `11`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `12`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current release — 2026-09-30
+## Current internal release — 2026-10-08
+
+Version **1.0.0 (12)** is processed **VALID** and **IN_BETA_TESTING**, with
+membership confirmed in the Internal group. It adds contextual Home image
+inspiration, closet-only renders with a garment picker, rerolls, prior-image
+edits, and a Kyra handoff. Studio backend is ACTIVE v8. External beta review
+for build 12 has not been submitted; use Internal TestFlight for the owner's
+new device checks. See `docs/home-inspiration-device-checks.md`.
+
+Simulator build, three new Swift unit tests, two Home UI flows and 48 Studio/provider
+backend tests passed. The simulator uses mock images; production image quality,
+edit consistency, closet fidelity and signed-in Kyra acceptance still need device checks.
+
+## Previous public release — 2026-09-30
 
 Version **1.0.0 (11)** is processed as **VALID** and available to the owner's
 Internal group and the public External group. Beta App Review is **APPROVED**.
