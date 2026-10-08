@@ -51,10 +51,12 @@ struct StudioGenerationDetailView: View {
                                 .foregroundStyle(AstraColor.textSecondary)
                         }
                         if let url = viewModel.resultImageURL {
-                            AstraRemoteImage(url: url, aspectRatio: 2.0 / 3.0, contentMode: .fit,
-                                             accessibilityDescription: "Generated visual estimate")
+                            GeneratedImageContainer(accessibilityDescription: "Generated visual estimate. Fit, colors and garment details may differ.") {
+                                AstraRemoteImage(url: url, aspectRatio: 2.0 / 3.0, contentMode: .fit,
+                                                 accessibilityDescription: "Generated visual estimate")
+                                    .accessibilityIdentifier("studio.detail.image")
+                            }
                             .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
-                            .accessibilityIdentifier("studio.detail.image")
                         }
                         if generation.status == .complete && !generation.referenceImagePath.isEmpty {
                             Button("Compare with original") {

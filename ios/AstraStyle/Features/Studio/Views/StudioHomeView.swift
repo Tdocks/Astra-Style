@@ -11,6 +11,7 @@ import SwiftUI
 struct StudioHomeView: View {
     @State private var viewModel: StudioHomeViewModel
     @Environment(AppRouter.self) private var router
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var generationPendingDeletion: UUID?
     @State private var showsDeleteConfirmation = false
     @State private var isSelectingComparison = false
@@ -198,8 +199,10 @@ struct StudioHomeView: View {
                         .foregroundStyle(AstraColor.accentChampagneAccessible)
                         .accessibilityLabel(comparisonIDs.contains(generation.id) ? "Selected for comparison" : "Not selected")
                 }
-                if generation.status == .complete && !isSelectingComparison {
-                    AstraRemoteImage(
+                if generation.status == .complete && !isSelectingComparison && !dynamicTypeSize.isAccessibilitySize {
+                    GeneratedImageContainer(accessibilityDescription: "Visual estimate from Style Studio",
+                                            disclosurePlacement: .below) {
+                        AstraRemoteImage(
                         url: viewModel.imageURLs[generation.id],
                         aspectRatio: 4.0 / 5.0,
                         thumbnail: .listRowThumbnail,
@@ -207,8 +210,9 @@ struct StudioHomeView: View {
                             localized: "Visual estimate from Style Studio",
                             comment: "Studio gallery image accessibility description"
                         )
-                    )
-                    .frame(width: 88)
+                        )
+                    }
+                    .frame(width: 112)
                 }
                 VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
                     Text(statusLabel(generation.status))

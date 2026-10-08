@@ -40,3 +40,24 @@ The post-migration advisor scan found anonymous-identity access warnings on owne
 - Studio save-to-lookbook and higher-resolution export remain open.
 - Real camera, voice, purchases, weather/location and calendar permission checks remain device work.
 - No claim of outside-user readiness follows from this batch.
+
+## Generated-image disclosure follow-up
+
+The detail, comparison and gallery surfaces now use `GeneratedImageContainer`.
+Real reference photos remain unbadged; inspiration reroll sources are labeled as
+previous visual estimates. Small gallery images place the disclosure below the
+thumbnail, and accessibility text sizes omit thumbnails to leave room for the
+text. Home's styling entry cards also give accessibility text the full card width.
+
+Serial simulator comparison checks passed in standard and light Accessibility
+XXXL layouts, now asserting that both previews expose their disclosures. The
+detail assertion initially found identifier propagation from the container to
+the badge. Moving the image identifier onto the image corrected that issue; the
+sharing/detail recheck exited with `TEST SUCCEEDED` and verified the separate
+disclosure plus the enabled Share action. Image fidelity remains outside these
+mock-backed UI checks.
+
+Build 14 was independently verified VALID / IN_BETA_TESTING in the Internal
+group on 2026-10-08. It includes comparison and image-file sharing. The disclosure
+and Home accessibility adjustments above follow that archive and are not in
+build 14.

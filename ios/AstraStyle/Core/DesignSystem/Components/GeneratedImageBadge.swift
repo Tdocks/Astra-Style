@@ -39,6 +39,7 @@ public struct GeneratedImageBadge: View {
                 .strokeBorder(AstraColor.divider, lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("studio.visualEstimateDisclosure")
     }
 }
 
@@ -56,7 +57,14 @@ public struct GeneratedImageBadge: View {
 /// directly and applying `astraGeneratedImageBadge()` by hand — that path exists only for
 /// retrofitting an existing view hierarchy, and is easy to accidentally skip in a future edit.
 public struct GeneratedImageContainer<Content: View>: View {
+    public enum DisclosurePlacement {
+        case overlay
+        /// Small gallery thumbnails need room for the complete disclosure at larger text sizes.
+        case below
+    }
+
     private let accessibilityDescription: String
+    private let disclosurePlacement: DisclosurePlacement
     private let content: Content
 
     /// - Parameters:
@@ -64,18 +72,28 @@ public struct GeneratedImageContainer<Content: View>: View {
     ///     image (spec §19). Do not pass an empty string — surface the editing UI to the user
     ///     instead of shipping a generated image with no description.
     ///   - content: The generated image content (e.g. an `AsyncImage` or cached `Image`).
-    public init(accessibilityDescription: String, @ViewBuilder content: () -> Content) {
+    public init(accessibilityDescription: String, disclosurePlacement: DisclosurePlacement = .overlay,
+                @ViewBuilder content: () -> Content) {
         self.accessibilityDescription = accessibilityDescription
+        self.disclosurePlacement = disclosurePlacement
         self.content = content()
     }
 
     public var body: some View {
-        content
-            .accessibilityLabel(Text(accessibilityDescription))
-            .overlay(alignment: .bottomLeading) {
+        switch disclosurePlacement {
+        case .overlay:
+            content
+                .accessibilityLabel(Text(accessibilityDescription))
+                .overlay(alignment: .bottomLeading) {
+                    GeneratedImageBadge()
+                        .padding(AstraSpacing.sm)
+                }
+        case .below:
+            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                content.accessibilityLabel(Text(accessibilityDescription))
                 GeneratedImageBadge()
-                    .padding(AstraSpacing.sm)
             }
+        }
     }
 }
 

@@ -8,6 +8,7 @@ import SwiftUI
 /// The two primary ways to ask Kyra for help: a fresh style idea, or a
 /// recommendation constrained to garments the user already owns.
 struct HomeStyleEntryPointsView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let onInspiration: () -> Void
     let onClosetOutfit: () -> Void
 
@@ -46,27 +47,27 @@ struct HomeStyleEntryPointsView: View {
     ) -> some View {
         Button(action: action) {
             AstraCard {
-                HStack(spacing: AstraSpacing.md) {
-                    Image(systemName: symbol)
-                        .astraIcon(.emphasis)
-                        .foregroundStyle(AstraColor.accentChampagneAccessible)
-                        .frame(width: AstraSpacing.xl, height: AstraSpacing.xl)
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        // Give large text the full card width rather than squeezing it
+                        // between decorative icons and a disclosure chevron.
+                        entryText(title: title, detail: detail)
+                    } else {
+                        HStack(spacing: AstraSpacing.md) {
+                            Image(systemName: symbol)
+                                .astraIcon(.emphasis)
+                                .foregroundStyle(AstraColor.accentChampagneAccessible)
+                                .frame(width: AstraSpacing.xl, height: AstraSpacing.xl)
 
-                    VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                        Text(title)
-                            .astraText(.headline)
-                            .foregroundStyle(AstraColor.textPrimary)
-                        Text(detail)
-                            .astraText(.caption)
-                            .foregroundStyle(AstraColor.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            entryText(title: title, detail: detail)
+
+                            Spacer(minLength: AstraSpacing.xs)
+
+                            Image(systemName: "chevron.right")
+                                .astraIcon(.disclosure)
+                                .foregroundStyle(AstraColor.textMuted)
+                        }
                     }
-
-                    Spacer(minLength: AstraSpacing.xs)
-
-                    Image(systemName: "chevron.right")
-                        .astraIcon(.disclosure)
-                        .foregroundStyle(AstraColor.textMuted)
                 }
                 .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget, alignment: .leading)
                 .contentShape(Rectangle())
@@ -75,6 +76,20 @@ struct HomeStyleEntryPointsView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
+    }
+
+    private func entryText(title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+            Text(title)
+                .astraText(.headline)
+                .foregroundStyle(AstraColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(detail)
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

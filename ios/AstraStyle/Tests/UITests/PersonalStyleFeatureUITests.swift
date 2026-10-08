@@ -192,6 +192,7 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")).firstMatch
         awaitElement(card, "Completed Studio estimate")
         card.tap()
+        awaitElement(app.descendants(matching: .any)["studio.visualEstimateDisclosure"], "Visible estimate disclosure")
         let export = app.buttons["studio.detail.export"]
         awaitElement(export, "Prepare private image for sharing")
         export.scrollIntoView(in: app)
@@ -249,6 +250,7 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         awaitElement(app.staticTexts["Look 1"], "First estimate")
         app.staticTexts["Look 2"].scrollIntoView(in: app)
         awaitElement(app.staticTexts["Look 2"], "Second estimate")
+        XCTAssertGreaterThanOrEqual(app.descendants(matching: .any).matching(identifier: "studio.visualEstimateDisclosure").count, 2)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Studio comparison"
         screenshot.lifetime = .keepAlways

@@ -55,18 +55,30 @@ struct StudioComparisonView: View {
                     .astraText(.caption).foregroundStyle(AstraColor.textSecondary)
                 if showsSourceImages && !generation.referenceImagePath.isEmpty {
                     Text(sourceLabel(generation)).astraText(.caption)
-                    image(path: generation.referenceImagePath, label: sourceLabel(generation))
+                    image(path: generation.referenceImagePath, label: sourceLabel(generation),
+                          isGenerated: isGeneratedSource(generation))
                 }
                 Text("Generated visual estimate").astraText(.caption)
                 if let path = generation.resultImagePath {
-                    image(path: path, label: "Look \(index + 1), generated visual estimate")
+                    image(path: path, label: "Look \(index + 1), generated visual estimate", isGenerated: true)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
-    private func image(path: String, label: String) -> some View {
+    @ViewBuilder
+    private func image(path: String, label: String, isGenerated: Bool) -> some View {
+        if isGenerated {
+            GeneratedImageContainer(accessibilityDescription: label) {
+                remoteImage(path: path, label: label)
+            }
+        } else {
+            remoteImage(path: path, label: label)
+        }
+    }
+
+    private func remoteImage(path: String, label: String) -> some View {
         AstraRemoteImage(
             url: viewModel.imageURLs[path],
             aspectRatio: 2.0 / 3.0,
@@ -77,10 +89,15 @@ struct StudioComparisonView: View {
     }
 
     private func sourceLabel(_ generation: StudioGeneration) -> String {
+        isGeneratedSource(generation) ? "Previous visual estimate" : "Original reference photo"
+    }
+
+    private func isGeneratedSource(_ generation: StudioGeneration) -> Bool {
         if case .object(let payload)? = generation.promptPayload,
-           case .string(let mode)? = payload["mode"], mode != "reference" {
-            return "Previous visual estimate"
+           case .string(let mode)? = payload["mode"],
+           mode == "inspiration" || mode == "closet_inspiration" {
+            return true
         }
-        return "Original reference photo"
+        return false
     }
 }
