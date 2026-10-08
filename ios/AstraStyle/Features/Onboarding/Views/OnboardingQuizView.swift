@@ -62,7 +62,7 @@ struct OnboardingQuizView: View {
                 undoButton
             }
         }
-        .animation(AstraMotion.standard, value: answeredCount)
+        .astraAnimation(AstraMotion.standard, value: answeredCount)
     }
 
     // MARK: - One comparison

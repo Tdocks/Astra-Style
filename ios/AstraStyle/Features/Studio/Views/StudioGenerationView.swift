@@ -278,10 +278,7 @@ private extension StudioGenerationView {
             .accessibilityIdentifier("studio.generating")
         case .complete:
             GeneratedImageContainer(
-                accessibilityDescription: String(
-                    localized: "Visual estimate of this outfit on you. Not a fitting.",
-                    comment: "Studio result alt text"
-                )
+                accessibilityDescription: viewModel.generation?.imageDescription ?? "AI-generated visual estimate of this outfit on you. Not a fitting."
             ) {
                 AstraRemoteImage(
                     url: viewModel.resultImageURL,

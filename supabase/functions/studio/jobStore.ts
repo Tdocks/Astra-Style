@@ -13,6 +13,7 @@ function mapRow(data: Record<string, unknown>): StudioGenerationRow {
     resultImagePath: (data["result_image_path"] as string | null) ?? null,
     provider: (data["provider"] as string | null) ?? null,
     errorMessage: (data["error_message"] as string | null) ?? null,
+    altDescription: (data["alt_description"] as string | null) ?? null,
     deletedAt: (data["deleted_at"] as string | null) ?? null,
     retentionExpiresAt: (data["retention_expires_at"] as string | null) ?? null,
     createdAt: data["created_at"] as string,

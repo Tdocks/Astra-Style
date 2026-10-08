@@ -22,6 +22,7 @@ struct InspirationView: View {
                         .astraText(.caption)
                         .foregroundStyle(AstraColor.textMuted)
                     if let url = viewModel.imageURL {
+                        GeneratedImageContainer(accessibilityDescription: viewModel.job?.imageDescription ?? "AI-generated outfit inspiration, a visual estimate") {
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .success(let image): image.resizable().scaledToFit()
@@ -36,8 +37,9 @@ struct InspirationView: View {
                             }
                         }
                         .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card))
-                        .accessibilityLabel("Generated outfit inspiration, a visual estimate")
+                        .accessibilityLabel(viewModel.job?.imageDescription ?? "AI-generated outfit inspiration, a visual estimate")
                         .accessibilityIdentifier("home.inspiration.image")
+                        }
                     }
                     if !viewModel.renderedItems.isEmpty {
                         Text("Image based on: " + viewModel.renderedItems.map(\.name).joined(separator: ", "))

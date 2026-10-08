@@ -279,6 +279,7 @@ export function parseGenerateBody(rawBody: unknown): GenerateRequestBody | Retry
  * fractional seconds — hence `toWireTimestamp` below.
  */
 export interface StudioGenerationDTO {
+  readonly alt_description: string | null;
   readonly id: string;
   readonly user_id: string;
   readonly reference_image_path: string;

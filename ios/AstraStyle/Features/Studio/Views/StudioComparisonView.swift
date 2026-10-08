@@ -60,7 +60,7 @@ struct StudioComparisonView: View {
                 }
                 Text("Generated visual estimate").astraText(.caption)
                 if let path = generation.resultImagePath {
-                    image(path: path, label: "Look \(index + 1), generated visual estimate", isGenerated: true)
+                    image(path: path, label: "Look \(index + 1). " + generation.imageDescription, isGenerated: true)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)

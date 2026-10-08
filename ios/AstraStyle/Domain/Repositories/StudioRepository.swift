@@ -14,6 +14,7 @@ public protocol StudioRepository: Sendable {
     /// ordering and exclude soft-deleted rows.
     func fetchGenerations(offset: Int, limit: Int) async throws -> [StudioGeneration]
     func fetchGeneration(id: UUID) async throws -> StudioGeneration
+    func updateImageDescription(id: UUID, description: String) async throws -> StudioGeneration
 
     /// Enqueues a generation job. Calls `POST /studio/generate`.
     func startGeneration(_ request: StudioGenerationRequest) async throws -> StudioGeneration
@@ -45,6 +46,9 @@ public protocol StudioRepository: Sendable {
 }
 
 public extension StudioRepository {
+    func updateImageDescription(id: UUID, description: String) async throws -> StudioGeneration {
+        throw AstraError.server("Image descriptions are unavailable.")
+    }
     func fetchPendingImageDeletionCount() async throws -> Int { 0 }
     // Existing narrow test doubles need only implement their tested operations.
     // Live and offline repositories implement the complete collection contract.

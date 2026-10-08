@@ -91,6 +91,7 @@ export interface StudioGenerationRow {
   resultImagePath: string | null;
   provider: string | null;
   errorMessage: string | null;
+  altDescription?: string | null;
   deletedAt: string | null;
   retentionExpiresAt?: string | null;
   createdAt: string;
@@ -179,6 +180,7 @@ function rowToDTO(row: StudioGenerationRow): StudioGenerationDTO {
     result_image_path: row.resultImagePath,
     provider: row.provider,
     error_message: row.errorMessage,
+    alt_description: row.altDescription ?? null,
     deleted_at: row.deletedAt === null ? null : toWireTimestamp(row.deletedAt),
     created_at: toWireTimestamp(row.createdAt),
     updated_at: toWireTimestamp(row.updatedAt),

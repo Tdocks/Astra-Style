@@ -20,6 +20,9 @@ public final class StudioGenerationDetailViewModel {
     public private(set) var exportURL: URL?
     public private(set) var exportError: String?
     public private(set) var isExporting = false
+    public var descriptionDraft = ""
+    public private(set) var isSavingDescription = false
+    public private(set) var descriptionError: String?
     public var pollInterval: Duration = .seconds(2)
     public var maximumPollInterval: Duration = .seconds(8)
     public var maximumPollingDuration: Duration = .seconds(180)
@@ -59,6 +62,22 @@ public final class StudioGenerationDetailViewModel {
             exportURL = try await exporter.export(imageURL: signedURL)
         } catch is CancellationError { return }
         catch { exportError = (error as? AstraError)?.message ?? "Couldn't prepare this image. Try again." }
+    }
+
+    public func saveImageDescription() async -> Bool {
+        guard !isSavingDescription, case .loaded(let generation) = state,
+              generation.status == .complete, !generation.isDeleted else { return false }
+        isSavingDescription = true
+        descriptionError = nil
+        defer { isSavingDescription = false }
+        do {
+            let updated = try await studioRepository.updateImageDescription(id: generation.id, description: descriptionDraft)
+            state = .loaded(updated)
+            return true
+        } catch {
+            descriptionError = (error as? AstraError)?.message ?? "Couldn't save the image description. Try again."
+            return false
+        }
     }
 
     public func onAppear() async {

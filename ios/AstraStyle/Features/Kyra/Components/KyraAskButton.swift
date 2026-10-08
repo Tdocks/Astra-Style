@@ -36,16 +36,13 @@ struct KyraAskButton: View {
                 AstraMonogram(size: AstraSpacing.xl + AstraSpacing.xxs)
             }
             .frame(width: Self.diameter, height: Self.diameter)
-            .scaleEffect(isBreathing ? 1.04 : 1.0)
+            .scaleEffect(!reduceMotion && isBreathing ? 1.04 : 1.0)
             .shadow(color: AstraColor.accentChampagne.opacity(0.18), radius: AstraSpacing.sm)
         }
         .buttonStyle(.plain)
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(AstraMotion.breathing.repeatForever(autoreverses: true)) {
-                isBreathing = true
-            }
-        }
+        .astraAnimation(AstraMotion.breathing.repeatForever(autoreverses: true), value: !reduceMotion && isBreathing)
+        .onAppear { isBreathing = true }
+        .onDisappear { isBreathing = false }
         .accessibilityLabel(Text(String(localized: "Ask Kyra", comment: "Opens the Kyra conversation")))
         .accessibilityIdentifier("kyra.ask")
     }

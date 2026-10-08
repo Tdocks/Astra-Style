@@ -63,8 +63,8 @@ lands data layers, protocols, and models long before the screens that use them.
 | 4 — Outfit intelligence | 26 | 17 | 7 | 2 |
 | 5 — Kyra | 22 | 18 | 4 | 0 |
 | 6 — Studio and commerce | 25 | 12 | 10 | 3 |
-| 7 — Monetization and hardening | 36 | 4 | 22 | 10 |
-| **Total** | **179** | **95** | **66** | **18** |
+| 7 — Monetization and hardening | 36 | 4 | 23 | 9 |
+| **Total** | **179** | **95** | **67** | **17** |
 
 Read that table carefully before drawing a conclusion from it. 95 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -419,7 +419,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P7-DS-01 | Not started | No audit artifact. Paywall exists (`PaywallView`); Kyra conversation is the remaining missing screen of the five. |
 | P7-DS-02 | Not started | No Phase 7 VoiceOver pass; scattered `accessibilityLabel` usage exists from earlier phases. |
 | P7-DS-03 | Partial | `accentChampagneAccessible` ships as the **default**, unconditionally, rather than behind a toggle — criterion amended 2026-07-30 to match, since applying it unconditionally is strictly better than gating it behind a setting a user has to find. `AstraScoreMeter` already pairs colour with numeral and text for confidence/score, but verdict and laundry-state UI don't exist yet to audit — that half of the ticket stays open. |
-| P7-DS-04 | Not started | `AstraMotion.aware(_:reduceMotion:)` exists, but the Kyra orb and Studio alt-text UI it would audit do not. |
+| P7-DS-04 | Partial | Editable Studio image descriptions persist through owner-only column grants, retain automatic garment-based defaults, support resetting, and are read by VoiceOver in detail/gallery/collections/comparison. Studio status and safe data export preserve edits. Nine Swift description/export tests, 111 Studio/Profile Deno tests, SQL ownership/length/job-write restrictions and two dark/light Accessibility XXXL editor flows passed. Live owner save/reset, peer denial, status/export round trips and QA erasure passed. Source audit fixed scanner/quiz animations and dynamic Kyra breathing behavior; remaining explicit animation sites already use Reduce Motion helpers. Physical-device motion/VoiceOver acceptance remains open. |
 | P7-HOME-01 | Partial | Local opt-in reminders schedule daily outfit, upcoming calendar, laundry, monthly review, and packing notifications. Packing has a separate preference and schedules one day before a generated trip; calendar reminders use 24-hour notice or one-hour notice for nearer events. Permission is requested only after the user enables reminders. `HomeWeekStripTests` verifies opted-in trip scheduling, and `PersonalStyleFeatureUITests.testPackingReminderOptIn` verifies the settings interaction on iPhone 17 Pro Simulator. Physical notification delivery and timing acceptance remain open. |
 | P7-HOME-02 | Partial | Home calendar/location access stays contextual; notification access is opt-in. A complete fresh-install permission audit including camera, speech, and photos remains open. |
 | P7-HOME-03 | Partial | Monthly Review reads closet items, wear events, product evaluations, and purchased items; the deployed RLS-protected monthly score snapshot captures the baseline and later versatility change. Home links to it, and Kyra can review those facts in a contextual conversation. `PersonalStyleFeatureUITests.testMonthlyReviewAndKyraReflection` verifies the screen, score comparison, and chat handoff on iPhone 17 Pro Simulator. Signed-in live-data acceptance on a device remains open. |

@@ -36,10 +36,11 @@ grant select, insert, update, delete on all tables in schema public to anon, aut
 revoke all on public.studio_allowances from anon, authenticated;
 grant select on public.studio_allowances to authenticated;
 revoke insert, update, delete on public.studio_generations from anon, authenticated;
+grant update(alt_description) on public.studio_generations to authenticated;
 revoke all on public.studio_lookbooks,public.studio_lookbook_entries from anon;
 revoke update on public.studio_lookbook_entries from authenticated;
 revoke all on public.studio_retention_config,public.studio_retention_jobs from anon,authenticated;
-grant select(id,user_id,generation_id,status,attempts,error_message,created_at,completed_at)
+grant select(id,user_id,generation_id,kind,status,attempts,error_message,created_at,completed_at)
   on public.studio_retention_jobs to authenticated;
 
 -- No sequences to grant: every table in this schema uses

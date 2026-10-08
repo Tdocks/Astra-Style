@@ -25,6 +25,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
     public var resultImagePath: String?
     public var provider: String?
     public var errorMessage: String?
+    public var altDescription: String?
 
     /// Soft-delete timestamp from the retention policy in
     /// `adr/0010-image-storage-and-retention.md`. `nil` means live.
@@ -51,6 +52,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         resultImagePath: String? = nil,
         provider: String? = nil,
         errorMessage: String? = nil,
+        altDescription: String? = nil,
         deletedAt: Date? = nil,
         retentionExpiresAt: Date? = nil,
         createdAt: Date = .now,
@@ -65,6 +67,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         self.resultImagePath = resultImagePath
         self.provider = provider
         self.errorMessage = errorMessage
+        self.altDescription = altDescription
         self.deletedAt = deletedAt
         self.retentionExpiresAt = retentionExpiresAt
         self.createdAt = createdAt
@@ -81,6 +84,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         case resultImagePath = "result_image_path"
         case provider
         case errorMessage = "error_message"
+        case altDescription = "alt_description"
         case deletedAt = "deleted_at"
         case retentionExpiresAt = "retention_expires_at"
         case createdAt = "created_at"
@@ -102,4 +106,26 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
     /// `true` when the retention policy has erased this generation. Callers
     /// must filter on this before displaying or re-downloading a result.
     public var isDeleted: Bool { deletedAt != nil }
+
+    public var imageDescription: String {
+        if let altDescription, !altDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return altDescription
+        }
+        let disclaimer = String(localized: "AI-generated outfit visual estimate. Fit, colors and garment details may differ.")
+        guard case .object(let payload)? = promptPayload,
+              case .array(let garments)? = payload["garments"] else { return disclaimer }
+        let descriptions = garments.prefix(12).compactMap { garment -> String? in
+            guard case .object(let fields) = garment, case .string(let category)? = fields["normalizedTitle"] else { return nil }
+            let color: String
+            if case .string(let value)? = fields["colorDescription"] { color = value } else { color = "" }
+            return [color, category.replacingOccurrences(of: "_", with: " ")].filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        return descriptions.isEmpty ? disclaimer : descriptions.joined(separator: ", ") + ". " + disclaimer
+    }
+
+    public static func validatedDescription(_ value: String) throws -> String? {
+        let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count <= 1000 else { throw AstraError.validation("Keep the image description to 1,000 characters or fewer.") }
+        return text.isEmpty ? nil : text
+    }
 }

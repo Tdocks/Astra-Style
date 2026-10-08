@@ -68,6 +68,19 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
         return try await apiClient.send(.generateStudio, body: StudioGenerateBody(request), as: StudioGeneration.self)
     }
 
+    public func updateImageDescription(id: UUID, description: String) async throws -> StudioGeneration {
+        // Explicit null resets the override; synthesized Optional encoding omits nil.
+        let description = try StudioGeneration.validatedDescription(description)
+        let owner = try await collectionUserID()
+        do {
+            let body: [String: AstraJSONValue] = ["alt_description": description.map(AstraJSONValue.string) ?? .null]
+            return try await supabase.from("studio_generations").update(body)
+                .eq("id", value: id).eq("user_id", value: owner)
+                .eq("status", value: "complete").is("deleted_at", value: nil)
+                .select().single().execute().value
+        } catch { throw AstraError.network("Couldn't save the image description. Try again.") }
+    }
+
     public func fetchStatus(generationID: UUID) async throws -> StudioGeneration {
         try await apiClient.send(.studioStatus(id: generationID), as: StudioGeneration.self)
     }

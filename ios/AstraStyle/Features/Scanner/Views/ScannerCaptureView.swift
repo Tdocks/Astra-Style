@@ -125,7 +125,7 @@ struct ScannerCaptureView: View {
                     .padding(.bottom, AstraSpacing.xl)
             }
         }
-        .animation(AstraMotion.standard, value: viewModel.guidanceText)
+        .astraAnimation(AstraMotion.standard, value: viewModel.guidanceText)
     }
 
     /// Sized by the space it is given rather than by the screen — see the

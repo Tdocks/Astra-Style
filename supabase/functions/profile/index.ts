@@ -212,7 +212,7 @@ function personalDataExportRoute(req: Request): Promise<Response> {
               .from(table.name)
               .select(
                 table.name === "studio_generations"
-                  ? "id,user_id,reference_image_path,outfit_id,prompt_payload,status,result_image_path,provider,error_message,deleted_at,created_at,updated_at,allowance_id,retry_of,retention_expires_at"
+                  ? "id,user_id,reference_image_path,outfit_id,prompt_payload,status,result_image_path,provider,error_message,deleted_at,created_at,updated_at,allowance_id,retry_of,retention_expires_at,alt_description"
                   : table.name === "studio_retention_jobs"
                   ? "id,user_id,generation_id,kind,status,attempts,error_message,created_at,completed_at"
                   : "*",

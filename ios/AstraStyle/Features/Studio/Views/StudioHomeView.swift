@@ -224,7 +224,7 @@ struct StudioHomeView: View {
                         .accessibilityLabel(comparisonIDs.contains(generation.id) ? "Selected for comparison" : "Not selected")
                 }
                 if generation.status == .complete && !isSelectingComparison && !dynamicTypeSize.isAccessibilitySize {
-                    GeneratedImageContainer(accessibilityDescription: "Visual estimate from Style Studio",
+                    GeneratedImageContainer(accessibilityDescription: generation.imageDescription,
                                             disclosurePlacement: .below) {
                         AstraRemoteImage(
                         url: viewModel.imageURLs[generation.id],

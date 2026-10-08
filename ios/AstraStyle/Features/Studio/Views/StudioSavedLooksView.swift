@@ -24,7 +24,7 @@ struct StudioSavedLooksView: View {
                 ForEach(viewModel.generations) { generation in
                     AstraCard {
                         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-                            GeneratedImageContainer(accessibilityDescription: "Saved visual estimate in \(name)") {
+                            GeneratedImageContainer(accessibilityDescription: generation.imageDescription) {
                                 AstraRemoteImage(url: viewModel.imageURLs[generation.id], aspectRatio: 2.0 / 3.0,
                                                  contentMode: .fit, accessibilityDescription: "Saved visual estimate")
                             }

@@ -11,6 +11,7 @@ struct StudioGenerationDetailView: View {
     @Environment(AppRouter.self) private var router
     @Environment(AppContainer.self) private var container
     @State private var showsCollections = false
+    @State private var showsDescriptionEditor = false
     @State private var viewModel: StudioGenerationDetailViewModel
 
     init(viewModel: StudioGenerationDetailViewModel) {
@@ -53,9 +54,9 @@ struct StudioGenerationDetailView: View {
                                 .foregroundStyle(AstraColor.textSecondary)
                         }
                         if let url = viewModel.resultImageURL {
-                            GeneratedImageContainer(accessibilityDescription: "Generated visual estimate. Fit, colors and garment details may differ.") {
+                            GeneratedImageContainer(accessibilityDescription: generation.imageDescription) {
                                 AstraRemoteImage(url: url, aspectRatio: 2.0 / 3.0, contentMode: .fit,
-                                                 accessibilityDescription: "Generated visual estimate")
+                                                 accessibilityDescription: generation.imageDescription)
                                     .accessibilityIdentifier("studio.detail.image")
                             }
                             .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
@@ -68,6 +69,13 @@ struct StudioGenerationDetailView: View {
                             .accessibilityIdentifier("studio.detail.compare")
                         }
                         if generation.status == .complete {
+                            Button("Edit image description") {
+                                viewModel.descriptionDraft = generation.altDescription ?? generation.imageDescription
+                                showsDescriptionEditor = true
+                            }
+                            .buttonStyle(.astraSecondary)
+                            .accessibilityIdentifier("studio.detail.editDescription")
+                            .sheet(isPresented: $showsDescriptionEditor) { descriptionEditor }
                             Button("Save to collection") { showsCollections = true }
                                 .buttonStyle(.astraSecondary)
                                 .accessibilityIdentifier("studio.detail.save")
@@ -122,6 +130,36 @@ struct StudioGenerationDetailView: View {
         case .generating: String(localized: "Generating", comment: "Studio generation status")
         case .complete: String(localized: "This is a visual estimate, not a photograph.", comment: "Studio result disclaimer")
         case .failed: String(localized: "Didn't finish", comment: "Studio generation status")
+        }
+    }
+
+    private var descriptionEditor: some View {
+        NavigationStack {
+            Form {
+                Section("Image description") {
+                    TextField("Describe the outfit", text: $viewModel.descriptionDraft, axis: .vertical)
+                        .lineLimit(3...10)
+                        .accessibilityIdentifier("studio.description.text")
+                    Text("VoiceOver reads this description. Clear the field to restore the automatic description.")
+                        .foregroundStyle(AstraColor.textSecondary)
+                    Button("Restore automatic description") { viewModel.descriptionDraft = "" }
+                        .accessibilityIdentifier("studio.description.reset")
+                    if let error = viewModel.descriptionError { Text(error).foregroundStyle(AstraColor.textSecondary) }
+                }
+            }
+            .navigationTitle("Image description")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showsDescriptionEditor = false }.disabled(viewModel.isSavingDescription)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(viewModel.isSavingDescription ? "Saving…" : "Save") {
+                        Task { if await viewModel.saveImageDescription() { showsDescriptionEditor = false } }
+                    }
+                    .disabled(viewModel.isSavingDescription)
+                    .accessibilityIdentifier("studio.description.save")
+                }
+            }
         }
     }
 }

@@ -330,6 +330,34 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         XCTAssertTrue(share.isEnabled)
     }
 
+    func testStudioEditImageDescription() throws { try editImageDescription() }
+
+    func testStudioEditImageDescriptionLightAccessibility() throws {
+        app.launchArguments += ["-astra-test-accessibility-size", "-astra-test-light-theme"]
+        try editImageDescription()
+    }
+
+    private func editImageDescription() throws {
+        app.launchArguments += ["-astra-test-reference-photo"]
+        launchMockMain()
+        app.tapChromeTab("Studio")
+        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")).firstMatch
+        awaitElement(card, "Completed Studio estimate"); card.tap()
+        let edit = app.buttons["studio.detail.editDescription"]
+        awaitElement(edit, "Edit image description"); edit.scrollIntoView(in: app); edit.tap()
+        let field = app.textViews["studio.description.text"].exists ? app.textViews["studio.description.text"] : app.textFields["studio.description.text"]
+        awaitElement(field, "Editable description")
+        app.buttons["studio.description.reset"].tap()
+        field.tap(); field.typeText("Navy trousers and a white linen shirt.")
+        app.buttons["studio.description.save"].tap()
+        awaitElement(edit, "Description saved"); edit.scrollIntoView(in: app); edit.tap()
+        awaitElement(field, "Saved description editor")
+        XCTAssertEqual(field.value as? String, "Navy trousers and a white linen shirt.")
+        app.buttons["studio.description.reset"].tap()
+        app.buttons["studio.description.save"].tap()
+        awaitElement(edit, "Automatic description restored")
+    }
+
     func testStudioCompareLightAccessibility() throws {
         app.launchArguments += ["-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         try compareGeneratedLooks()

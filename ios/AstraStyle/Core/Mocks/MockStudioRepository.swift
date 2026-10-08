@@ -42,6 +42,16 @@ public actor MockStudioRepository: StudioRepository {
         generations[generation.id] = generation
     }
 
+    public func updateImageDescription(id: UUID, description: String) async throws -> StudioGeneration {
+        guard var generation = generations[id], generation.userID == SampleData.userID,
+              generation.status == .complete, !generation.isDeleted else {
+            throw AstraError.validation("That estimate is no longer available.")
+        }
+        generation.altDescription = try StudioGeneration.validatedDescription(description)
+        generations[id] = generation
+        return generation
+    }
+
     public func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook] {
         guard offset >= 0, (1...100).contains(limit) else { throw AstraError.validation("That collection page is invalid.") }
         return Array(lookbooks.values.sorted {

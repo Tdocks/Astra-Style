@@ -20,18 +20,15 @@ struct KyraThinkingIndicatorView: View {
     var body: some View {
         HStack(spacing: AstraSpacing.sm) {
             AstraMonogram(size: AstraSpacing.xl)
-                .scaleEffect(isBreathing ? 1.08 : 1.0)
+                .scaleEffect(!reduceMotion && isBreathing ? 1.08 : 1.0)
                 .accessibilityHidden(true)
             Text(String(localized: "Kyra is thinking…", comment: "Shown while a Kyra reply is in flight"))
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
         }
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(AstraMotion.breathing.repeatForever(autoreverses: true)) {
-                isBreathing = true
-            }
-        }
+        .astraAnimation(AstraMotion.breathing.repeatForever(autoreverses: true), value: !reduceMotion && isBreathing)
+        .onAppear { isBreathing = true }
+        .onDisappear { isBreathing = false }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("kyra.thinking")
     }
