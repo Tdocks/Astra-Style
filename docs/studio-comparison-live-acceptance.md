@@ -25,6 +25,14 @@ Completed estimates can prepare a protected local PNG and share it through the s
 
 Comparison now retains the user's selection order. Detail images use the shared image component so an image download failure displays a fallback rather than an endless spinner.
 
+The final combined run reported six export unit tests and both comparison/sharing UI tests passed, but Xcode stalled in teardown. After stopping only the stalled test processes, a serial `test-without-building` sharing run finished with `TEST EXECUTE SUCCEEDED` (2026-10-08 16:53 EDT). Prefer `-parallel-testing-enabled NO` for this owner's Xcode 27 simulator acceptance runs when teardown stalls recur. This is not a complete application walkthrough.
+
+## Next server work
+
+Code review found that Studio's free allowance is currently a count of visible generation rows and is checked separately from insertion. Client deletion can reduce the count, and concurrent requests can both pass it. Studio rows also retain authenticated insert/update policies, allowing callers to bypass the generation endpoint's validation. Status submission needs an atomic claim so concurrent polls cannot start duplicate provider work. These need server-authoritative writes, durable allowance accounting, concurrency tests, and an ADR before outside-user readiness.
+
+The post-migration advisor scan found anonymous-identity access warnings on owner-scoped policies, rather than a missing ownership predicate. Review that access alongside provider quotas; see [Supabase's anonymous access advisory](https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins). The pending App Store notification table intentionally has RLS with no client policy and is service-only. Performance notices were unused indexes and Auth connection allocation; no indexes were removed based on this low-traffic sample.
+
 ## Remaining acceptance
 
 - Private reference-photo comparison and closet image fidelity need device acceptance.
