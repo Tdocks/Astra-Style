@@ -128,3 +128,26 @@ Deno.test("wire timestamps carry no fractional seconds (Swift .iso8601 rejects t
   assertEquals(toWireTimestamp(new Date("2026-08-17T12:34:56.123Z")), "2026-08-17T12:34:56Z");
   assertThrows(() => toWireTimestamp("not a date"), AppError);
 });
+
+Deno.test("inspiration needs neither selfie nor closet and ignores supplied reference paths", () => {
+  const body = parseGenerateBody({
+    mode: "inspiration",
+    reference_image_path: "users/other/references/photo.jpg",
+    context: "Rain today",
+    instructions: "More casual",
+  });
+  assertEquals(body.kind, "generate");
+  if (body.kind === "generate") {
+    assertEquals(body.referenceImagePath, "");
+    assertEquals(body.mode, "inspiration");
+    assertEquals(body.instructions, "More casual");
+  }
+});
+Deno.test("closet inspiration requires pieces and bounds context", () => {
+  assertThrows(() => parseGenerateBody({ mode: "closet_inspiration" }));
+  assertThrows(() => parseGenerateBody({ mode: "inspiration", context: "x".repeat(6001) }));
+  assertThrows(() => parseGenerateBody({ mode: "inspiration", instructions: "x".repeat(1501) }));
+  assertThrows(() =>
+    parseGenerateBody({ mode: "inspiration", source_generation_id: "not-a-uuid" })
+  );
+});

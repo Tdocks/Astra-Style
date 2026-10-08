@@ -461,6 +461,14 @@ Empty state:
 
 - Prompt to add 5 closet items.
 
+Home image entry points (owner refinement, 2026-10-08):
+
+- See today's inspiration: a generated flat lay informed by Style DNA/quiz preferences, current authorized weather and today's calendar dress codes/timing. Available without a closet or selfie.
+- Style an outfit from my closet: select a recommended set of owned, wearable garments, then choose or swap actual closet pieces before rendering. Never imply unowned garments are owned.
+- Both support rerolls, written edits and casual/dressier/date-night adjustments. Edits use the previous owned inspiration image as the visual starting point.
+- Show missing context honestly, an image-estimate disclaimer, image allowance and progress/retry states. Keep results in private Studio history.
+- A contextual Kyra conversation can continue refinement. Calendar titles, descriptions and locations are not sent for this flow.
+
 ### 6.12 Outfit detail
 
 - Full-height hero.

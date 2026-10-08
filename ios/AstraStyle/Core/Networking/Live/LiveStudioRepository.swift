@@ -59,10 +59,10 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
     }
 
     public func startGeneration(_ request: StudioGenerationRequest) async throws -> StudioGeneration {
-        guard request.hasUserConsent else {
+        guard request.inspirationMode != nil || request.hasUserConsent else {
             throw AstraError.validation("Please confirm you have permission to use this photo before generating a preview.")
         }
-        guard request.consentTermsVersion == StudioConsentTerms.currentVersion else {
+        guard request.inspirationMode != nil || request.consentTermsVersion == StudioConsentTerms.currentVersion else {
             throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
         }
         return try await apiClient.send(.generateStudio, body: StudioGenerateBody(request), as: StudioGeneration.self)
@@ -124,6 +124,10 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
 }
 
 private struct StudioGenerateBody: Encodable, Sendable {
+    let sourceGenerationID: UUID?
+    let mode: String?
+    let context: String?
+    let instructions: String?
     let referenceImagePath: String
     let outfitID: UUID?
     let adHocItemIDs: [UUID]
@@ -139,6 +143,10 @@ private struct StudioGenerateBody: Encodable, Sendable {
     let consent: StudioConsentAttestation
 
     init(_ request: StudioGenerationRequest) {
+        sourceGenerationID = request.sourceGenerationID
+        mode = request.inspirationMode
+        context = request.inspirationContext
+        instructions = request.inspirationInstructions
         referenceImagePath = request.referenceImagePath
         outfitID = request.outfitID
         adHocItemIDs = request.adHocItemIDs
@@ -158,6 +166,8 @@ private struct StudioGenerateBody: Encodable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case sourceGenerationID = "source_generation_id"
+        case mode, context, instructions
         case referenceImagePath = "reference_image_path"
         case outfitID = "outfit_id"
         case adHocItemIDs = "ad_hoc_item_ids"

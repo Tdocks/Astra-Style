@@ -7,6 +7,15 @@ actually done?* Nothing else in the repo answers it. Before this file existed, t
 out was to read the git log, count files, run the tests, and probe the live backend — about an hour
 of archaeology at the start of every session, repeated because the result was never written down.
 
+
+## 2026-10-08 — Home contextual image flow
+
+Added `InspirationView` / `InspirationViewModel` for the two Home entry points. Inspiration generates a flat lay without a selfie/closet; closet mode proposes owned pieces, exposes a collapsible picker, and renders only the selected garments. Weather/quiz/calendar context, rerolls, previous-image edits, casual/dressier/date-night adjustments, estimate labels, allowance copy, loading/retry states, private Studio history and contextual Kyra handoff are implemented. ADR 0021 records the new data flow.
+
+Verification: iOS simulator build passed on this Mac's newly installed Xcode 27.0; three Swift unit tests and both Home image UI flows passed against mocks on iOS 26.5. Studio/provider tests: 48 passed; Deno type check/lint and enum/column/progress checks passed. Studio backend deployed ACTIVE v8 with JWT verification; an unauthenticated production generation request returned 401. Simulator tests use mock images and do not prove production image quality. Authenticated live generation/edit fidelity, camera/voice/purchases, counsel inputs and signed App Store notification acceptance remain open. Build 12 is being prepared for TestFlight; build 11 remains the current released beta until processing/distribution is confirmed.
+
+The schema checker now explicitly exempts the two server-owned App Store notification ordering/deduplication columns; they are intentionally not client-written subscription fields.
+
 ## How this file is kept honest
 
 A hand-maintained status file is accurate the day it is written and quietly wrong a week later,

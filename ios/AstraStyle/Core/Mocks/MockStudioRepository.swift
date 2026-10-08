@@ -34,10 +34,10 @@ public actor MockStudioRepository: StudioRepository {
     }
 
     public func startGeneration(_ request: StudioGenerationRequest) async throws -> StudioGeneration {
-        guard request.hasUserConsent else {
+        guard request.inspirationMode != nil || request.hasUserConsent else {
             throw AstraError.validation("Please confirm you have permission to use this photo before generating a preview.")
         }
-        guard request.consentTermsVersion == StudioConsentTerms.currentVersion else {
+        guard request.inspirationMode != nil || request.consentTermsVersion == StudioConsentTerms.currentVersion else {
             throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
         }
         if quotaExhausted {

@@ -67,6 +67,10 @@ export interface StudioConsentBlock {
 
 export interface GenerateRequestBody {
   readonly kind: "generate";
+  readonly mode?: "inspiration" | "closet_inspiration";
+  readonly context?: string;
+  readonly instructions?: string;
+  readonly sourceGenerationId?: string;
   readonly referenceImagePath: string;
   readonly outfitId?: string;
   readonly adHocItemIds: string[];
@@ -223,8 +227,13 @@ export function parseGenerateBody(rawBody: unknown): GenerateRequestBody | Retry
     return { kind: "retry", retryOf };
   }
 
-  const referenceImagePath = record["reference_image_path"];
-  if (typeof referenceImagePath !== "string" || referenceImagePath.length === 0) {
+  const mode = optionalEnum(
+    record["mode"],
+    "body.mode",
+    new Set(["inspiration", "closet_inspiration"]),
+  );
+  const referenceImagePath = mode ? "" : record["reference_image_path"];
+  if (typeof referenceImagePath !== "string" || (!mode && referenceImagePath.length === 0)) {
     throw badRequest("body.reference_image_path must be a non-empty string.");
   }
 
@@ -234,12 +243,16 @@ export function parseGenerateBody(rawBody: unknown): GenerateRequestBody | Retry
     "body.ad_hoc_item_ids",
     MAX_AD_HOC_ITEMS,
   );
-  if (outfitId === undefined && adHocItemIds.length === 0) {
+  if (mode !== "inspiration" && outfitId === undefined && adHocItemIds.length === 0) {
     throw badRequest("Select an outfit or at least one closet item to visualize.");
   }
 
   return {
     kind: "generate",
+    mode: mode as GenerateRequestBody["mode"],
+    sourceGenerationId: optionalUUID(record["source_generation_id"], "body.source_generation_id"),
+    context: optionalString(record["context"], "body.context", 6000),
+    instructions: optionalString(record["instructions"], "body.instructions", 1500),
     referenceImagePath,
     outfitId,
     adHocItemIds,

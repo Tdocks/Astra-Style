@@ -551,3 +551,95 @@ Deno.test("retry of a failed trial job is not a second trial", async () => {
   assertEquals(response.status, 202);
   await response.body?.cancel();
 });
+
+Deno.test("inspiration enqueues without selfie and carries weather and edit context", async () => {
+  const deps = buildDeps();
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, {
+      mode: "inspiration",
+      context: "Rain; calendar: formal; quiz: relaxed fit",
+      instructions: "Date night",
+    }),
+    deps,
+  );
+  assertEquals(response.status, 202);
+  const row = [...deps.jobStore.rows.values()][0];
+  assert(row);
+  assertEquals(row.referenceImagePath, "");
+  assertEquals(row.promptPayload["mode"], "inspiration");
+  assertStringIncludes(row.promptPayload["prompt"] as string, "Date night");
+  assertStringIncludes(row.promptPayload["prompt"] as string, "Rain");
+});
+Deno.test("closet inspiration rejects partly unresolved selection", async () => {
+  const deps = buildDeps();
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, {
+      mode: "closet_inspiration",
+      ad_hoc_item_ids: [OUTFIT_ID, USER_B_ID],
+    }),
+    deps,
+  );
+  assertEquals(response.status, 400);
+  assertEquals(deps.jobStore.rows.size, 0);
+});
+Deno.test("inspiration edit refuses someone else's source", async () => {
+  const deps = buildDeps();
+  const id = await enqueueOne(deps);
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_B, { mode: "inspiration", source_generation_id: id }),
+    deps,
+  );
+  assertEquals(response.status, 400);
+  assertEquals(deps.jobStore.rows.size, 1);
+});
+
+Deno.test("inspiration edit resolves owned image server-side and retry does not require selfie consent", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { mode: "inspiration" }),
+    deps,
+  );
+  assertEquals(response.status, 202);
+  const original = [...deps.jobStore.rows.values()][0];
+  assert(original);
+  await deps.jobStore.update(USER_A_ID, original.id, {
+    status: "complete",
+    resultImagePath: `users/${USER_A_ID}/studio/${original.id}/result.png`,
+  });
+  const edited = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, {
+      mode: "inspiration",
+      source_generation_id: original.id,
+      instructions: "More casual",
+    }),
+    deps,
+  );
+  assertEquals(edited.status, 202);
+  const rows = [...deps.jobStore.rows.values()];
+  const edit = rows[1];
+  assert(edit);
+  assertEquals(edit.referenceImagePath, `users/${USER_A_ID}/studio/${original.id}/result.png`);
+  await deps.jobStore.update(USER_A_ID, edit.id, { status: "failed" });
+  const retry = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { retry_of: edit.id }),
+    deps,
+  );
+  assertEquals(retry.status, 202);
+});
+
+Deno.test("inspiration cannot edit a personal reference Studio result", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  const id = await enqueueOne(deps);
+  await deps.jobStore.update(USER_A_ID, id, {
+    status: "complete",
+    resultImagePath: `users/${USER_A_ID}/studio/${id}/result.png`,
+  });
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { mode: "inspiration", source_generation_id: id }),
+    deps,
+  );
+  assertEquals(response.status, 400);
+  assertEquals(deps.jobStore.rows.size, 1);
+});

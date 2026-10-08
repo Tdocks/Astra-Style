@@ -29,54 +29,56 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         return found
     }
 
-    /// Home's inspiration action opens a contextual Kyra conversation.
+    /// Home opens the image flow without requiring a selfie or closet.
     func testHomeStyleInspiration() throws {
         launchMockMain()
-
         let inspiration = app.buttons["home.style.inspiration"]
         inspiration.scrollIntoView(in: app)
-        awaitElement(inspiration, "Home style inspiration action")
+        awaitElement(inspiration, "Home inspiration action")
         inspiration.tap()
-
-        let userMessage = app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier == %@ AND label CONTAINS %@",
-                "kyra.message.user",
-                "Create a style inspiration"
-            )
-        ).firstMatch
-        awaitElement(userMessage, "Today's inspiration request in the conversation")
-        awaitElement(
-            app.descendants(matching: .any)["kyra.message.assistant"].firstMatch,
-            "Kyra's inspiration response"
-        )
-        awaitElement(
-            app.descendants(matching: .any)["kyra.card.outfit"].firstMatch,
-            "Structured outfit recommendation"
-        )
+        if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
+        awaitElement(app.navigationBars["Inspiration"], "Inspiration screen")
+        let generate = app.buttons["home.inspiration.generate"]
+        awaitElement(generate, "Generate image action")
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generate.scrollIntoView(in: app)
+        generate.tap()
+        awaitElement(app.descendants(matching: .any)["home.inspiration.image"].firstMatch, "Completed estimate container")
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generate.scrollIntoView(in: app)
+        XCTAssertEqual(generate.label, "Try another look")
+        let adjustment = app.textFields["home.inspiration.adjustment"]
+        adjustment.scrollIntoView(in: app)
+        adjustment.tap()
+        adjustment.typeText("More casual")
+        XCTAssertEqual(generate.label, "Apply my changes")
+        generate.scrollIntoView(in: app)
+        generate.tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        XCTAssertEqual(generate.label, "Try another look")
+        generate.tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
     }
 
-    /// The second Home path explicitly tells Kyra to use only owned pieces.
+    /// Closet mode exposes the actual selected garments before rendering.
     func testHomeClosetBasedOutfit() throws {
         launchMockMain()
-
         let closetOutfit = app.buttons["home.style.fromCloset"]
         closetOutfit.scrollIntoView(in: app)
         awaitElement(closetOutfit, "Home closet outfit action")
         closetOutfit.tap()
-
-        let userMessage = app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier == %@ AND label CONTAINS %@",
-                "kyra.message.user",
-                "using only pieces in my closet"
-            )
-        ).firstMatch
-        awaitElement(userMessage, "Closet-only outfit request in the conversation")
-        awaitElement(
-            app.descendants(matching: .any)["kyra.card.outfit"].firstMatch,
-            "Outfit card built from closet pieces"
-        )
+        if !app.navigationBars["My closet look"].waitForExistence(timeout: 3) { closetOutfit.tap() }
+        awaitElement(app.navigationBars["My closet look"], "Closet image screen")
+        let picker = app.buttons["Choose or swap pieces"]
+        awaitElement(picker, "Closet garment picker")
+        picker.tap()
+        awaitElement(app.switches.firstMatch, "Owned garment selection")
+        picker.tap()
+        let generate = app.buttons["home.inspiration.generate"]
+        generate.scrollIntoView(in: app)
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generate.tap()
+        awaitElement(app.descendants(matching: .any)["home.inspiration.image"].firstMatch, "Closet estimate")
     }
 
     /// Monthly Review reads real mock repository records and sends those facts

@@ -158,3 +158,24 @@ Deno.test("poll for a lost render fails retryably instead of reporting progress"
   assertEquals(result.status, "failed");
   assertEquals(result.isRetryableFailure, true);
 });
+
+Deno.test("inspiration uses text-to-image without selfie upload and privately stores result", async () => {
+  let called = false;
+  const { provider, storage } = buildProvider((url, init) => {
+    called = true;
+    assertEquals(url, "https://api.openai.com/v1/images/generations");
+    assertEquals(new Headers(init?.headers).get("Content-Type"), "application/json");
+    const body = JSON.parse(init?.body as string);
+    assertEquals(body.model, "gpt-image-1.5");
+    assertEquals(body.prompt, "A rainy-day flat lay");
+    assertEquals(body.quality, "medium");
+    assertEquals(body.image, undefined);
+    return Promise.resolve(jsonResponse(200, { data: [{ b64_json: btoa("image") }] }));
+  });
+  await provider.submitGeneration(
+    request({ referenceImageStoragePath: "", prompt: "A rainy-day flat lay" }),
+    CTX,
+  );
+  assert(called);
+  assert(storage.objects.has(studioResultPath(USER_ID, GENERATION_ID)));
+});

@@ -17,6 +17,7 @@ public struct HomeView: View {
     @Environment(AppRouter.self) var router
     @Environment(AppContainer.self) var container
     let shoppingRepository: ShoppingRepository
+    @State var inspirationViewModel: InspirationViewModel?
     @State var isPastingLink = false
     @State var isConfirmingPublicLook = false
     @State var wearFeedbackViewModel: WearFeedbackViewModel?
@@ -75,6 +76,9 @@ public struct HomeView: View {
             Button(LookbookSharingCopy.cancelTitle, role: .cancel) {}
         } message: {
             Text(LookbookSharingCopy.confirmationMessage)
+        }
+        .sheet(item: $inspirationViewModel) { model in
+            InspirationView(viewModel: model)
         }
         .sheet(isPresented: $isPastingLink) {
             ProductLinkPasteSheet(shoppingRepository: shoppingRepository) { candidateID in

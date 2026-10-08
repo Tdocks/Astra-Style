@@ -13,6 +13,7 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import type { StudioGarment } from "../_shared/providers/imageGeneration.ts";
 import {
+  buildInspirationPrompt,
   buildStudioPrompt,
   STUDIO_DISCLAIMER,
   type StudioPromptControls,
@@ -134,4 +135,13 @@ Deno.test("non-solid pattern is described; solid is not restated", () => {
   assertStringIncludes(prompt, "top: slim blue oxford shirt, stripe, cotton");
   const solid = buildStudioPrompt(GARMENTS, controls());
   assert(!solid.includes(", solid"));
+});
+
+Deno.test("closet inspiration makes the owned list authoritative and carries estimate disclaimer", () => {
+  const prompt = buildInspirationPrompt(GARMENTS, "Rain, 8°C; formal meeting", "Date night", true);
+  assertStringIncludes(prompt, "ONLY these owned garments");
+  assertStringIncludes(prompt, "navy");
+  assertStringIncludes(prompt, "Date night");
+  assertStringIncludes(prompt, "No people");
+  assertStringIncludes(prompt, STUDIO_DISCLAIMER);
 });

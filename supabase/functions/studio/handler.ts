@@ -55,7 +55,7 @@ import type {
   ImageGenerationRequest,
   StudioGarment,
 } from "../_shared/providers/imageGeneration.ts";
-import { buildStudioPrompt, STUDIO_DISCLAIMER } from "./promptBuilder.ts";
+import { buildInspirationPrompt, buildStudioPrompt, STUDIO_DISCLAIMER } from "./promptBuilder.ts";
 import {
   assertConsentCurrent,
   assertOwnedReferencePath,
@@ -336,18 +336,42 @@ async function enqueueGeneration(
   userId: string,
   deps: StudioHandlerDeps,
 ): Promise<StudioGenerationRow> {
-  assertConsentCurrent(body.consent);
-  assertOwnedReferencePath(body.referenceImagePath, userId);
+  if (!body.mode) {
+    assertConsentCurrent(body.consent);
+    assertOwnedReferencePath(body.referenceImagePath, userId);
+  }
 
+  let referenceImagePath = body.referenceImagePath;
+  if (body.mode && body.sourceGenerationId) {
+    const source = await deps.jobStore.get(userId, body.sourceGenerationId);
+    if (
+      !source || source.deletedAt !== null || source.status !== "complete" ||
+      source.promptPayload["mode"] !== body.mode || !source.resultImagePath ||
+      source.resultImagePath !==
+        `users/${userId.toLowerCase()}/studio/${source.id.toLowerCase()}/result.png`
+    ) {
+      throw badRequest("Choose a completed inspiration from your own account to edit.");
+    }
+    referenceImagePath = source.resultImagePath;
+  }
   const garments: StudioGarment[] = [];
-  if (body.outfitId !== undefined) {
+  if (body.mode !== "inspiration" && body.outfitId !== undefined) {
     garments.push(...await deps.garmentSource.outfitGarments(userId, body.outfitId));
   }
-  if (body.adHocItemIds.length > 0) {
+  if (body.mode !== "inspiration" && body.adHocItemIds.length > 0) {
     garments.push(...await deps.garmentSource.itemGarments(userId, body.adHocItemIds));
   }
-  if (garments.length === 0) {
+  if (body.mode !== "inspiration" && garments.length === 0) {
     throw badRequest("None of the selected items could be found in your closet.");
+  }
+
+  if (
+    body.mode === "closet_inspiration" && body.adHocItemIds.length > 0 &&
+    garments.length !== new Set(body.adHocItemIds).size
+  ) {
+    throw badRequest(
+      "Some selected pieces are no longer available in your closet. Choose them again.",
+    );
   }
 
   const controls = {
@@ -361,24 +385,36 @@ async function enqueueGeneration(
     preserve_body_proportions: body.preserveBodyProportions,
     preserve_hair: body.preserveHair,
   };
-  const prompt = buildStudioPrompt(garments, {
-    pose: body.pose,
-    background: body.background,
-    preset: body.preset,
-    formality: body.formality,
-    season: body.season,
-    colorPalette: body.colorPalette,
-    preserveFace: body.preserveFace,
-    preserveBodyProportions: body.preserveBodyProportions,
-    preserveHair: body.preserveHair,
-  });
+  const prompt = body.mode
+    ? buildInspirationPrompt(
+      garments,
+      body.context ?? "",
+      body.instructions ?? "",
+      body.mode === "closet_inspiration",
+    )
+    : buildStudioPrompt(garments, {
+      pose: body.pose,
+      background: body.background,
+      preset: body.preset,
+      formality: body.formality,
+      season: body.season,
+      colorPalette: body.colorPalette,
+      preserveFace: body.preserveFace,
+      preserveBodyProportions: body.preserveBodyProportions,
+      preserveHair: body.preserveHair,
+    });
 
   return await deps.jobStore.insert({
     userId,
-    referenceImagePath: body.referenceImagePath,
+    referenceImagePath,
     outfitId: body.outfitId ?? null,
     promptPayload: {
       prompt,
+      mode: body.mode ?? "reference",
+      source_generation_id: body.sourceGenerationId,
+      context: body.context,
+      instructions: body.instructions,
+      item_ids: body.adHocItemIds,
       // §11's label, attached at row creation rather than at completion
       // (stronger than docs/10 §2.6's flip-time attachment): there is no
       // window in which a generation exists without its disclaimer.
@@ -390,7 +426,7 @@ async function enqueueGeneration(
       // scope), not a second flag on this request.
       resolution: "draft",
       consent: {
-        acknowledged: true,
+        acknowledged: !body.mode && body.consent.acknowledged,
         terms_version: body.consent.termsVersion,
         // Receipt time. The client's consent store holds the original
         // attestation moment; this records when the server accepted it.
@@ -418,7 +454,11 @@ async function enqueueRetry(
   // "no path reaches the provider without it" property — a cached job
   // resubmission does not grandfather old consent.
   const consent = original.promptPayload["consent"] as Record<string, unknown> | undefined;
-  if (consent?.["terms_version"] !== CURRENT_STUDIO_CONSENT_TERMS_VERSION) {
+  if (
+    original.promptPayload["mode"] !== "inspiration" &&
+    original.promptPayload["mode"] !== "closet_inspiration" &&
+    consent?.["terms_version"] !== CURRENT_STUDIO_CONSENT_TERMS_VERSION
+  ) {
     throw badRequest(
       "The consent terms have changed since you confirmed this photo. Please confirm the updated terms and try again.",
     );

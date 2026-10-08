@@ -10,6 +10,10 @@
 import Foundation
 
 public struct StudioGenerationRequest: Sendable {
+    public var sourceGenerationID: UUID?
+    public var inspirationMode: String?
+    public var inspirationContext: String?
+    public var inspirationInstructions: String?
     public var referenceImagePath: String
     public var outfitID: UUID?
     public var adHocItemIDs: [UUID]
@@ -35,6 +39,10 @@ public struct StudioGenerationRequest: Sendable {
 
     public init(
         referenceImagePath: String,
+        sourceGenerationID: UUID? = nil,
+        inspirationMode: String? = nil,
+        inspirationContext: String? = nil,
+        inspirationInstructions: String? = nil,
         outfitID: UUID? = nil,
         adHocItemIDs: [UUID] = [],
         preset: StudioPromptPreset? = nil,
@@ -49,6 +57,10 @@ public struct StudioGenerationRequest: Sendable {
         hasUserConsent: Bool,
         consentTermsVersion: String = StudioConsentTerms.currentVersion
     ) {
+        self.sourceGenerationID = sourceGenerationID
+        self.inspirationMode = inspirationMode
+        self.inspirationContext = inspirationContext
+        self.inspirationInstructions = inspirationInstructions
         self.referenceImagePath = referenceImagePath
         self.outfitID = outfitID
         self.adHocItemIDs = adHocItemIDs

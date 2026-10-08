@@ -81,6 +81,8 @@ MODEL_TABLES: dict[str, str] = {
 BOILERPLATE_COLUMNS = {"id", "created_at", "updated_at"}
 
 ALLOWED_UNMAPPED_COLUMNS: dict[tuple[str, str], str] = {
+    ("subscriptions", "app_store_last_notification_uuid"): "Server-only App Store notification deduplication; never client-written.",
+    ("subscriptions", "app_store_last_signed_at"): "Server-only App Store notification ordering; never client-written.",
     # Denormalised owner columns. These exist so RLS can filter without a join
     # (see 20260728100900_rls_policies) and are written by the server, never by
     # the client — the parent row already carries ownership. Registered rather

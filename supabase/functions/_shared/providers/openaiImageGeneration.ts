@@ -164,10 +164,14 @@ export class OpenAIImageGenerationProvider implements ImageGenerationProvider {
     // A fresh ArrayBuffer copy rather than the Uint8Array's own buffer:
     // the array may be a view into a larger buffer, and Blob would happily
     // upload the whole thing.
+    const isPNG = referenceBytes[0] === 0x89 && referenceBytes[1] === 0x50 &&
+      referenceBytes[2] === 0x4e && referenceBytes[3] === 0x47;
     form.set(
       "image",
-      new Blob([new Uint8Array(referenceBytes).buffer], { type: "image/jpeg" }),
-      "reference.jpg",
+      new Blob([new Uint8Array(referenceBytes).buffer], {
+        type: isPNG ? "image/png" : "image/jpeg",
+      }),
+      isPNG ? "reference.png" : "reference.jpg",
     );
     return form;
   }
@@ -177,17 +181,31 @@ export class OpenAIImageGenerationProvider implements ImageGenerationProvider {
     ctx: ProviderRequestContext,
   ): Promise<{ providerJobId: string }> {
     const fetchImpl = this.deps.fetchImpl ?? fetch;
-    const referenceBytes = await this.deps.loadImageBytes(request.referenceImageStoragePath);
-    const form = this.buildForm(request, referenceBytes);
+    const usesReference = request.referenceImageStoragePath.length > 0;
+    const body = usesReference
+      ? this.buildForm(request, await this.deps.loadImageBytes(request.referenceImageStoragePath))
+      : JSON.stringify({
+        model: this.deps.model,
+        prompt: request.prompt,
+        size: PORTRAIT_SIZE,
+        quality: qualityFor(request.resolution),
+        n: 1,
+      });
 
     let response: Response;
     try {
-      response = await fetchImpl(OPENAI_IMAGES_EDITS_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${this.deps.apiKey}` },
-        body: form,
-        signal: AbortSignal.timeout(ctx.timeoutMs),
-      });
+      response = await fetchImpl(
+        usesReference ? OPENAI_IMAGES_EDITS_URL : "https://api.openai.com/v1/images/generations",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.deps.apiKey}`,
+            ...(usesReference ? {} : { "Content-Type": "application/json" }),
+          },
+          body,
+          signal: AbortSignal.timeout(ctx.timeoutMs),
+        },
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === "TimeoutError") {
         throw new ProviderError("TIMEOUT", true, "Provider request timed out.", undefined);

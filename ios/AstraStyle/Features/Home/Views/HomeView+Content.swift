@@ -169,16 +169,10 @@ extension HomeView {
     private var styleEntryPoints: some View {
         HomeStyleEntryPointsView(
             onInspiration: {
-                router.startAskKyra(
-                    initialPrompt: "Create a style inspiration for today using my style preferences, today's weather, and my upcoming plans. You may suggest pieces beyond my closet, but clearly distinguish inspiration from items I own.",
-                    autoSend: true
-                )
+                inspirationViewModel = InspirationViewModel(closetOnly: false, container: container)
             },
             onClosetOutfit: {
-                router.startAskKyra(
-                    initialPrompt: "Build me an outfit for today using only pieces in my closet. Consider today's weather and my upcoming plans. Show the actual closet items, and make it easy for me to swap a piece or ask for a more casual or dressy version.",
-                    autoSend: true
-                )
+                inspirationViewModel = InspirationViewModel(closetOnly: true, container: container)
             }
         )
         .padding(.horizontal, AstraSpacing.pagePadding)
