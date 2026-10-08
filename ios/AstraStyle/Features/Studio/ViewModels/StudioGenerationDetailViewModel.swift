@@ -17,6 +17,9 @@ public final class StudioGenerationDetailViewModel {
 
     public private(set) var state: ViewState = .loading
     public private(set) var resultImageURL: URL?
+    public private(set) var exportURL: URL?
+    public private(set) var exportError: String?
+    public private(set) var isExporting = false
     public var pollInterval: Duration = .seconds(2)
     public var maximumPollInterval: Duration = .seconds(8)
     public var maximumPollingDuration: Duration = .seconds(180)
@@ -24,15 +27,38 @@ public final class StudioGenerationDetailViewModel {
     private let generationID: UUID
     private let studioRepository: StudioRepository
     private let imageURLResolver: ClosetImageURLResolving
+    private let exporter: StudioEstimateExporting
 
     public init(
         generationID: UUID,
         studioRepository: StudioRepository,
-        imageURLResolver: ClosetImageURLResolving
+        imageURLResolver: ClosetImageURLResolving,
+        exporter: StudioEstimateExporting
     ) {
         self.generationID = generationID
         self.studioRepository = studioRepository
         self.imageURLResolver = imageURLResolver
+        self.exporter = exporter
+    }
+
+    public func prepareExport() async {
+        guard !isExporting, case .loaded(let generation) = state,
+              generation.status == .complete, !generation.isDeleted,
+              let path = generation.resultImagePath else { return }
+        isExporting = true
+        exportError = nil
+        exportURL = nil
+        defer { isExporting = false }
+        do {
+            // Recheck deletion before downloading, and renew the private URL.
+            let current = try await studioRepository.fetchGeneration(id: generation.id)
+            guard !current.isDeleted, current.status == .complete, current.resultImagePath == path else {
+                throw AstraError.validation("This estimate is no longer available.")
+            }
+            let signedURL = try await imageURLResolver.resolve(storagePath: path)
+            exportURL = try await exporter.export(imageURL: signedURL)
+        } catch is CancellationError { return }
+        catch { exportError = (error as? AstraError)?.message ?? "Couldn't prepare this image. Try again." }
     }
 
     public func onAppear() async {

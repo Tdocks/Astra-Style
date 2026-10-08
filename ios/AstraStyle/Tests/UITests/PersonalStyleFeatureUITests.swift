@@ -176,6 +176,31 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         try compareGeneratedLooks()
     }
 
+    func testStudioPrepareShareableEstimate() throws {
+        launchMockMain()
+        let inspiration = app.buttons["home.style.inspiration"]
+        inspiration.scrollIntoView(in: app)
+        inspiration.tap()
+        if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
+        let generate = app.buttons["home.inspiration.generate"]
+        awaitElement(generate, "Image generation")
+        generate.scrollIntoView(in: app)
+        generate.tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        app.buttons["Close"].tap()
+        app.tapChromeTab("Studio")
+        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")).firstMatch
+        awaitElement(card, "Completed Studio estimate")
+        card.tap()
+        let export = app.buttons["studio.detail.export"]
+        awaitElement(export, "Prepare private image for sharing")
+        export.scrollIntoView(in: app)
+        export.tap()
+        let share = app.buttons["studio.detail.share"]
+        awaitElement(share, "Share prepared estimate")
+        XCTAssertTrue(share.isEnabled)
+    }
+
     func testStudioCompareLightAccessibility() throws {
         app.launchArguments += ["-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         try compareGeneratedLooks()

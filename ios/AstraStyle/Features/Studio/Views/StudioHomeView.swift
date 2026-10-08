@@ -14,7 +14,7 @@ struct StudioHomeView: View {
     @State private var generationPendingDeletion: UUID?
     @State private var showsDeleteConfirmation = false
     @State private var isSelectingComparison = false
-    @State private var comparisonIDs: Set<UUID> = []
+    @State private var comparisonIDs: [UUID] = []
 
     init(viewModel: StudioHomeViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -42,7 +42,7 @@ struct StudioHomeView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 if isSelectingComparison {
                     Button("Compare \(comparisonIDs.count)") {
-                        router.push(StudioRoute.compare(generationIDs: comparisonIDs.sorted { $0.uuidString < $1.uuidString }))
+                        router.push(StudioRoute.compare(generationIDs: comparisonIDs))
                     }
                     .disabled(comparisonIDs.count != 2)
                     .accessibilityIdentifier("studio.compare.open")
@@ -68,7 +68,7 @@ struct StudioHomeView: View {
         .onChange(of: router.presentedModal?.id) { previous, current in
             if previous != nil && current == nil { Task { await viewModel.refresh() } }
         }
-        .onChange(of: availableComparisonIDs) { _, ids in comparisonIDs.formIntersection(ids) }
+        .onChange(of: availableComparisonIDs) { _, ids in comparisonIDs.removeAll { !ids.contains($0) } }
         .refreshable { await viewModel.refresh() }
         .confirmationDialog(
             String(localized: "Delete this preview?", comment: "Confirmation before deleting a Studio preview"),
@@ -186,8 +186,8 @@ struct StudioHomeView: View {
         Button {
             if isSelectingComparison {
                 guard generation.status == .complete else { return }
-                if comparisonIDs.contains(generation.id) { comparisonIDs.remove(generation.id) }
-                else if comparisonIDs.count < 2 { comparisonIDs.insert(generation.id) }
+                if comparisonIDs.contains(generation.id) { comparisonIDs.removeAll { $0 == generation.id } }
+                else if comparisonIDs.count < 2 { comparisonIDs.append(generation.id) }
             } else {
                 router.push(StudioRoute.generation(generationID: generation.id))
             }

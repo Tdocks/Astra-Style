@@ -17,7 +17,7 @@ current brief.
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
-| Xcode | **27.0** on the owner's Mac for build 12 (previous release used 26.6) |
+| Xcode | **27.0** on the owner's Mac for builds 12–13 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
 | Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `12`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
@@ -27,16 +27,19 @@ current brief.
 
 ## Current internal release — 2026-10-08
 
-Version **1.0.0 (12)** is processed **VALID** and **IN_BETA_TESTING**, with
-membership confirmed in the Internal group. It adds contextual Home image
-inspiration, closet-only renders with a garment picker, rerolls, prior-image
-edits, and a Kyra handoff. Studio backend is ACTIVE v8. External beta review
-for build 12 has not been submitted; use Internal TestFlight for the owner's
-new device checks. See `docs/home-inspiration-device-checks.md`.
+Version **1.0.0 (13)** is processed **VALID** and **IN_BETA_TESTING**, with
+membership confirmed in the Internal group (build ID `d87d1e7d-f3f3-49b4-b749-96568a410e6a`).
+It adds private estimate comparison, original/reference comparison and gallery refresh fixes
+on top of build 12's contextual Home inspiration, closet-only renders, rerolls, edits and Kyra handoff.
+Studio backend is ACTIVE v8. External beta review for builds 12–13 has not been submitted;
+the public link still serves build 11. Use Internal TestFlight for the owner's checks.
+See `docs/home-inspiration-device-checks.md` and `docs/studio-comparison-live-acceptance.md`.
 
 Simulator build, three new Swift unit tests, two Home UI flows and 48 Studio/provider
-backend tests passed. The simulator uses mock images; production image quality,
-edit consistency, closet fidelity and signed-in Kyra acceptance still need device checks.
+backend tests passed. Comparison unit and UI tests also passed, including light theme at Accessibility XXXL.
+Disposable-account live checks passed image generation, Kyra, scoped export and account deletion after schema repairs.
+The simulator uses mock images; personal-reference quality, edit consistency and closet fidelity still need device checks.
+Image-file sharing work follows build 13 and is not included in that upload.
 
 ## Previous public release — 2026-09-30
 

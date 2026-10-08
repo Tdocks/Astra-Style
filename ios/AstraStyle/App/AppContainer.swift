@@ -76,6 +76,7 @@ public final class AppContainer {
     public let outfitRepository: OutfitRepository
     public let kyraRepository: KyraRepository
     public let studioRepository: StudioRepository
+    public let studioEstimateExporter: StudioEstimateExporting
     public let shoppingRepository: ShoppingRepository
     public let streakRepository: StreakRepository
     public let subscriptionRepository: SubscriptionRepository
@@ -114,6 +115,7 @@ public final class AppContainer {
         outfitRepository: OutfitRepository,
         kyraRepository: KyraRepository,
         studioRepository: StudioRepository,
+        studioEstimateExporter: StudioEstimateExporting = LiveStudioEstimateExporter(),
         shoppingRepository: ShoppingRepository,
         streakRepository: StreakRepository,
         subscriptionRepository: SubscriptionRepository,
@@ -137,6 +139,7 @@ public final class AppContainer {
         self.outfitRepository = outfitRepository
         self.kyraRepository = kyraRepository
         self.studioRepository = studioRepository
+        self.studioEstimateExporter = studioEstimateExporter
         self.shoppingRepository = shoppingRepository
         self.streakRepository = streakRepository
         self.subscriptionRepository = subscriptionRepository
@@ -285,6 +288,7 @@ extension AppContainer {
             outfitRepository: MockOutfitRepository(),
             kyraRepository: MockKyraRepository(),
             studioRepository: MockStudioRepository(),
+            studioEstimateExporter: MockStudioEstimateExporter(),
             shoppingRepository: MockShoppingRepository(),
             streakRepository: MockStreakRepository(),
             subscriptionRepository: subscriptionRepository,

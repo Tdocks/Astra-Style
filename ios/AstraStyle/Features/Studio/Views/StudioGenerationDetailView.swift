@@ -51,14 +51,8 @@ struct StudioGenerationDetailView: View {
                                 .foregroundStyle(AstraColor.textSecondary)
                         }
                         if let url = viewModel.resultImageURL {
-                            AsyncImage(url: url) { image in
-                                image
-                                    .resizable()
-                                    .scaledToFit()
-                            } placeholder: {
-                                ProgressView()
-                                    .tint(AstraColor.accentChampagne)
-                            }
+                            AstraRemoteImage(url: url, aspectRatio: 2.0 / 3.0, contentMode: .fit,
+                                             accessibilityDescription: "Generated visual estimate")
                             .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
                             .accessibilityIdentifier("studio.detail.image")
                         }
@@ -68,6 +62,26 @@ struct StudioGenerationDetailView: View {
                             }
                             .buttonStyle(.astraSecondary)
                             .accessibilityIdentifier("studio.detail.compare")
+                        }
+                        if generation.status == .complete {
+                            if let exportURL = viewModel.exportURL {
+                                ShareLink(item: exportURL, subject: Text("Astra Style visual estimate"),
+                                          message: Text("AI visual estimate. Fit, colors and garment details may differ.")) {
+                                    Label("Share estimate", systemImage: "square.and.arrow.up")
+                                }
+                                .buttonStyle(.astraSecondary)
+                                .accessibilityIdentifier("studio.detail.share")
+                            } else {
+                                Button(viewModel.isExporting ? "Preparing image…" : "Prepare image to share") {
+                                    Task { await viewModel.prepareExport() }
+                                }
+                                .buttonStyle(.astraSecondary)
+                                .disabled(viewModel.isExporting)
+                                .accessibilityIdentifier("studio.detail.export")
+                            }
+                            if let error = viewModel.exportError {
+                                Text(error).astraText(.callout).foregroundStyle(AstraColor.textSecondary)
+                            }
                         }
                         if generation.isRetryableWithoutCharge {
                             Button(String(localized: "Try again", comment: "Retry a provider-failed Studio estimate")) {

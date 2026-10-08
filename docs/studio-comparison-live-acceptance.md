@@ -19,6 +19,12 @@ The deployed backend was exercised through authenticated requests using disposab
 - Cleanup exposed a second production failure: `finalize_account_deletion` directly deleted `storage.objects`, now rejected by Supabase. The append-only `20261008203918_account_deletion_storage_api_only.sql` replaces that deletion with verification that the Storage API removed all files, retaining service-role-only execution.
 - Both original image-test accounts were cleaned after the repair. Two subsequent account-deletion requests completed through the deployed handler. All four deletion records were verified completed.
 
+## Image sharing after build 13
+
+Completed estimates can prepare a protected local PNG and share it through the system share sheet. The exporter renews the private URL and rechecks that the generation remains completed and undeleted before downloading. It retains the full image and adds an AI visual-estimate footer; it does not request a new high-resolution render. Old temporary export files expire on a subsequent export after 24 hours. Tests cover rendering a valid PNG/footer, invalid downloads, deletion after loading, recoverable export errors, and the simulator path to an enabled Share button. The simulator path uses an explicitly labeled offline preview fixture. Real-device share destinations remain acceptance work.
+
+Comparison now retains the user's selection order. Detail images use the shared image component so an image download failure displays a fallback rather than an endless spinner.
+
 ## Remaining acceptance
 
 - Private reference-photo comparison and closet image fidelity need device acceptance.

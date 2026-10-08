@@ -18,7 +18,8 @@ struct StudioDestinationView: View {
                 viewModel: StudioGenerationDetailViewModel(
                     generationID: generationID,
                     studioRepository: container.studioRepository,
-                    imageURLResolver: container.closetImageURLResolver
+                    imageURLResolver: container.closetImageURLResolver,
+                    exporter: container.studioEstimateExporter
                 )
             )
         case .compare(let generationIDs):
