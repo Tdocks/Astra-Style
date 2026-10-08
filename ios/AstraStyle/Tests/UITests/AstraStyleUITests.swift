@@ -228,11 +228,10 @@ final class AstraStyleUITests: XCTestCase {
     /// Spec §22 "Ask Kyra" / P5-TEST-02.
     ///
     /// Runs against `-astra-mock-backend` (`MockKyraRepository`, whose reply
-    /// carries an outfit card citing `SampleData.heroOutfit`) — the live
-    /// `kyra` Edge Function is not deployed yet (kyra/README.md), so the
-    /// ticket's "against a test/staging deployment" clause cannot be
-    /// satisfied by any client-side change; the flow, rendering, and
-    /// seeded-item assertions run unchanged against staging once it exists.
+    /// carries an outfit card citing `SampleData.heroOutfit`). This checks
+    /// the native conversation UI deterministically; it does not establish
+    /// live provider or staging acceptance, which requires separate signed-in
+    /// requests against the deployed Kyra function.
     ///
     /// Asserts the two things the skip owed: a STRUCTURED response (an
     /// outfit card whose garments are the seeded closet's rows, not raw

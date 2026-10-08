@@ -256,6 +256,8 @@ jobs:
             -scheme AstraStyle \
             -destination "id=$ASTRA_SIM_ID" \
             -skipMacroValidation \
+            -parallel-testing-enabled NO \
+            -collect-test-diagnostics never \
             -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
 

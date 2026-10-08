@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-09-30 (readiness batch: added Monthly Review, opt-in reminders, App Store notification verification, richer Studio controls, and weather/calendar/season context; deployed three schema migrations and ten Edge Functions to `anutsdzbxycaavmmkewo`; configured Apple's public root certificates, app ID, and App Store Server Notifications Production and Sandbox URLs; and verified the webhook rejects an invalid unsigned request. TestFlight 1.0.0 (10) is VALID, attached to Internal and External groups, and approved for external testing; the public join link is available. Signed notification acceptance, live user-data acceptance, device checks, and counsel inputs remain open).
+**Last audited:** 2026-10-08. TestFlight 1.0.0 (17) is VALID and IN_BETA_TESTING in Internal. Studio v13, Profile v13 and the scheduled output-retention worker are deployed. Individual Studio deletion passed SQL/concurrency, live ownership/Storage/export, unit and simulator checks (ADR 0025). All eight `AstraStyleUITests` core flows passed on iPhone 17 Pro Simulator using the mock backend; this does not establish live-provider, physical-device or sandbox-purchase acceptance. Reference-photo cascading/abandoned-source cleanup, other Partial/Not started tickets, signed App Store notifications and counsel inputs remain open. Build 17 has not been submitted for external beta review; the public group remains on build 11.
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find
@@ -17,6 +17,15 @@ Verification: iOS simulator build passed on this Mac's newly installed Xcode 27.
 The schema checker now explicitly exempts the two server-owned App Store notification ordering/deduplication columns; they are intentionally not client-written subscription fields.
 
 ## How this file is kept honest
+
+The build-17 core-flow run completed successfully on 2026-10-08: eight tests,
+zero failures, 149 seconds including runner setup. Coverage includes onboarding,
+manual garment entry, generated outfit explanation, marking worn, structured
+Kyra replies, local restore purchases, deletion returning to Welcome, and style
+memory removal. UI automation uses the mock backend. CI now runs simulator tests
+serially and disables the additional simulator diagnostic collection that spent
+ten minutes timing out after the Studio tests had already passed; test logs,
+assertions, screenshots and the result bundle remain enabled.
 
 A hand-maintained status file is accurate the day it is written and quietly wrong a week later,
 which is worse than having none because people trust it. So this one is checked:
@@ -54,10 +63,10 @@ lands data layers, protocols, and models long before the screens that use them.
 | 4 — Outfit intelligence | 26 | 17 | 7 | 2 |
 | 5 — Kyra | 22 | 18 | 4 | 0 |
 | 6 — Studio and commerce | 25 | 12 | 10 | 3 |
-| 7 — Monetization and hardening | 36 | 4 | 20 | 12 |
-| **Total** | **179** | **95** | **64** | **20** |
+| 7 — Monetization and hardening | 36 | 3 | 23 | 10 |
+| **Total** | **179** | **94** | **67** | **18** |
 
-Read that table carefully before drawing a conclusion from it. 95 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 94 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -403,7 +412,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P7-PRIVACY-01 | Done | `DELETE /account` is `supabase/functions/account/` (`handleDeleteAccount` → `request_account_deletion` → Storage sweep → `finalize_account_deletion` → `auth.admin.deleteUser`). iOS `LiveAuthRepository.deleteAccount` hits `AstraEndpoint.deleteAccount` (slug `account`). Hosted slug `account` is ACTIVE on `anutsdzbxycaavmmkewo`. |
 | P7-PRIVACY-02 | Done | `PrivacyAndDataView` + `AccountDeletionView` / `AccountDeletionViewModel`. Row `privacyAndData.deleteAccountRow` is not a single-tap chevron. Tests: `AccountDeletionViewModelTests`. |
 | P7-PRIVACY-03 | Partial | GET /profile/export-data and a shareable, file-protected JSON export are deployed. The Edge Function scopes every query to the verified caller and RLS, pages user rows, and omits shared catalog/system internals. On 2026-10-08, live acceptance exposed the missing analytics table; deploying its existing migration restored export. Two disposable users verified a 24-table response, own activity included, peer activity absent, and cross-user inserts rejected. Full populated-wardrobe, attachment-file, and over-500-row completeness acceptance remains open. |
-| P7-PRIVACY-04 | Done | `ProfileRoute.referencePhotos` exposes owner-scoped reference deletion in Privacy & Data. It blocks while previews are queued/generating, deletes every completed/failed Studio preview and its result image, then removes the reference from private Storage and the body profile. `StudioHomeView` also deletes the stored result before clearing its row. |
+| P7-PRIVACY-04 | Partial | Privacy & Data exposes reference-photo removal and Studio exposes per-estimate removal. Generated-output deletion is now server-owned, dependency-protected and tracked/retried (ADR 0025). Reference removal still coordinates direct-source previews in the client, then changes the profile and removes Storage; it does not yet traverse every derived variation or serialize against a new generation. A server-owned reference cascade and abandoned-source cleanup remain required. |
 | P7-PRIVACY-05 | Partial | Four documents live on astra-style.com; `AstraLegal.isPublished` is true; in-app URLs match. Counsel `[[NEEDS INPUT]]` placeholders remain — do not invent entity names. |
 | P7-PRIVACY-06 | Not started | No training-opt-out column; no ATT code. |
 | P7-PRIVACY-07 | Partial | `analytics_events` migration, RLS, and the queued `LiveAnalyticsClient` implementation are present locally. Confirm the hosted migration and signed-in event delivery before marking this accepted. |
@@ -424,9 +433,9 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P7-TEST-01 | Partial | `SubscriptionEntitlementTests` covers active/grace/trialing/non-entitled by status. Free-tier-at-limit, guest-cap and expired-mid-session cases are absent because that gating logic doesn't exist (P7-SUB-04). |
 | P7-TEST-02 | Not started | `authLifecycle()` is a deliberate placeholder, `.disabled()` with the reason stated. |
 | P7-TEST-03 | Not started | `storeKitSandboxPurchase()` is a deliberate placeholder, `.disabled()` with the reason stated. |
-| P7-TEST-04 | Not started | `testCompleteOnboarding()` is a deliberate placeholder — reports as an explicit `XCTSkip` naming the assertions it owes. |
+| P7-TEST-04 | Partial | `AstraStyleUITests.testCompleteOnboarding` now walks the mock-backed introduction, wardrobe graph, identity selection, optional-step skips and Style DNA through to Home; it passed on iPhone 17 Pro Simulator with build 17 on 2026-10-08. It is not an `XCTSkip`. The ticket's persisted `onboarding_completed_at` assertion and a confirmed CI pass remain open. |
 | P7-TEST-05 | Partial | `testOpenPaywallAndRestorePurchases()` now opens the paywall and completes the local StoreKit restore path on iPhone 17 Pro Simulator. A real sandbox purchase and entitlement reconciliation still need App Store Connect/device acceptance. |
-| P7-TEST-06 | Not started | `testDeleteAccount()` is a deliberate placeholder — reports as an explicit `XCTSkip` naming the assertions it owes. |
+| P7-TEST-06 | Partial | `AstraStyleUITests.testDeleteAccount` implements the mock-backed Privacy & Data, acknowledgment, permanent-deletion confirmation and return-to-Welcome flow. It is not an `XCTSkip`. Separate live synthetic-account checks establish backend erasure, but this UI test does not yet tie those checks to its own account or verify that reusing the credential creates an empty account. |
 | P7-TEST-07 | Not started | No snapshot-testing library is wired in at all. |
 | P7-TEST-08 | Not started | Cannot be attempted — most of the §30 definition-of-done sequence has no built UI to exercise. |
 

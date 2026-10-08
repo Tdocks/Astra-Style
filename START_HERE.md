@@ -17,9 +17,9 @@ current brief.
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
-| Xcode | **27.0** on the owner's Mac for builds 12–16 (previous release used 26.6) |
+| Xcode | **27.0** on the owner's Mac for builds 12–17 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `16`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `17`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
@@ -27,18 +27,17 @@ current brief.
 
 ## Current internal release — 2026-10-08
 
-Version **1.0.0 (16)** is processed **VALID** and **IN_BETA_TESTING**, with
-membership confirmed in the Internal group (build ID `fc44d5f0-66b1-4fae-8da0-038533971abd`).
-It adds private saved-look collections to generated-image disclosures, large-text Home cards, labeled image-file sharing, private comparison and gallery refresh fixes
+Version **1.0.0 (17)** is processed **VALID** and **IN_BETA_TESTING**, with
+membership confirmed in the Internal group (build ID `5978293e-2f63-402d-853c-ecb81ecf1229`).
+It adds server-owned, dependency-protected image deletion, tracked cleanup, and a scrollable large-text Studio empty state to private saved-look collections, generated-image disclosures, large-text Home cards, labeled image-file sharing, private comparison and gallery refresh fixes
 on top of build 12's contextual Home inspiration, closet-only renders, rerolls, edits and Kyra handoff.
 Studio backend is ACTIVE v13 and Profile v13, with server-owned jobs, durable trial accounting,
-private collections and owned export support. Studio-retention v1 is active with a verified five-minute Cron schedule. Saved and dependent outputs are protected; server-owned individual deletion is deployed (ADR 0025). Builds through 16 can no longer use their old direct Studio deletion path; the next native build uses the new endpoint. Abandoned reference cleanup remains work.
-External beta review for builds 12–16 has not been submitted;
+private collections and owned export support. Studio-retention v1 is active with a verified five-minute Cron schedule. Saved and dependent outputs are protected; server-owned individual deletion is deployed (ADR 0025). Builds through 16 can no longer use their old direct Studio deletion path; build 17 uses the new endpoint. Abandoned reference cleanup remains work.
+External beta review for builds 12–17 has not been submitted;
 the public link still serves build 11. Use Internal TestFlight for the owner's checks.
 See `docs/home-inspiration-device-checks.md` and `docs/studio-comparison-live-acceptance.md`.
 
-Simulator build, three new Swift unit tests, two Home UI flows and 48 Studio/provider
-backend tests passed. Comparison unit and UI tests also passed, including light theme at Accessibility XXXL.
+Build 17 passed the simulator build, 34 Studio/endpoint Swift tests, 77 Studio/retention/export/provider backend tests, the SQL isolation suite and two concurrent PostgreSQL deletion orderings. Both simulator image-removal flows passed, including light theme at Accessibility XXXL. Earlier Home, comparison, sharing and collection checks are documented in their acceptance reports; this is not a full-app end-to-end pass.
 Disposable-account live checks passed image generation, Kyra, scoped export and account deletion after schema repairs.
 The simulator uses mock images; personal-reference quality, edit consistency and closet fidelity still need device checks.
 Image-file sharing unit tests and a serial simulator sharing flow passed; sharing is included in build 14.
