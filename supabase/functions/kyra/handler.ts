@@ -187,7 +187,10 @@ export interface KyraConfig {
   readonly memoryMinimumConfidence: number;
 }
 
+import type { AnalyzeProductDeps } from "./tools/analyzeProduct.ts";
+
 export interface HandlerDeps {
+  readonly analyzeProduct?: AnalyzeProductDeps;
   readonly authClient: AuthClient;
   readonly store: KyraStore;
   readonly provider: StylistReasoningProvider;
@@ -925,6 +928,7 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
 
     // Tool registry, bound to this request's caller and this turn's message.
     const registry = buildToolRegistry({
+      analyzeProduct: deps.analyzeProduct,
       searchCloset: { listClosetItems: () => deps.store.listClosetItems() },
       rankOutfits: {
         listItemsByIds: (ids) => deps.store.listItemsByIds(ids),

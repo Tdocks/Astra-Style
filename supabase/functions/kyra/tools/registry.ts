@@ -55,9 +55,15 @@ import {
   executeCreatePackingList,
   parseCreatePackingListArgs,
 } from "./createPackingList.ts";
+import {
+  analyzeProductDefinition,
+  type AnalyzeProductDeps,
+  executeAnalyzeProduct,
+} from "./analyzeProduct.ts";
 import { executePhase6Stub, PHASE6_STUB_DEFINITIONS } from "./phase6Stubs.ts";
 
 export interface ToolRegistryDeps {
+  readonly analyzeProduct?: AnalyzeProductDeps;
   readonly searchCloset: SearchClosetDeps;
   readonly rankOutfits: RankOutfitsDeps;
   readonly createOutfit: CreateOutfitDeps;
@@ -89,7 +95,11 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
     savePreferenceDefinition,
     markItemWornDefinition,
     createPackingListDefinition,
-    ...PHASE6_STUB_DEFINITIONS,
+    ...PHASE6_STUB_DEFINITIONS.map((definition) =>
+      definition.name === "analyze_product" && deps.analyzeProduct
+        ? analyzeProductDefinition
+        : definition
+    ),
   ];
 
   const stubNames = new Set(PHASE6_STUB_DEFINITIONS.map((definition) => definition.name));
@@ -98,6 +108,10 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
     definitions,
     async execute(name, args) {
       switch (name) {
+        case "analyze_product":
+          return deps.analyzeProduct
+            ? await executeAnalyzeProduct(args, deps.analyzeProduct)
+            : executePhase6Stub(name);
         case "search_closet":
           return await executeSearchCloset(parseSearchClosetArgs(args), deps.searchCloset);
         case "rank_outfits":

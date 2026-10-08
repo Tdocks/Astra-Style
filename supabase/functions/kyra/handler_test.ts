@@ -604,3 +604,44 @@ Deno.test("a failing tool degrades the turn honestly instead of failing it", asy
   const toolMessage = secondCall.messages[secondCall.messages.length - 1]!;
   assert(toolMessage.content.includes("TOOL_EXECUTION_FAILED"));
 });
+
+Deno.test("live product tool registration replaces the stub and relays a missing catalog result", async () => {
+  const recording = emptyRecording();
+  let lookups = 0;
+  const provider = scriptedProvider([
+    {
+      kind: "result",
+      result: {
+        finishReason: "tool_calls",
+        toolCalls: [{
+          id: "product_call",
+          name: "analyze_product",
+          arguments: { product_candidate_id: PACKET_ITEM },
+        }],
+      },
+    },
+    { kind: "result", result: { message: goodJson() } },
+  ]);
+  const response = await handleKyraRespond(request({ text: "Is this catalog item useful?" }), {
+    ...deps(provider, fakeStore(recording)),
+    analyzeProduct: {
+      find: () => {
+        lookups++;
+        return Promise.resolve(null);
+      },
+      extract: () => {
+        throw new Error("Unexpected extraction");
+      },
+      evaluate: () => {
+        throw new Error("Unexpected evaluation");
+      },
+    },
+  });
+  assertEquals(response.status, 200);
+  assertEquals(lookups, 1);
+  const definition = provider.requests[0]?.tools.find((tool) => tool.name === "analyze_product");
+  assert(definition && !definition.description.includes("NOT YET AVAILABLE"));
+  const toolMessage = provider.requests[1]?.messages.find((message) => message.role === "tool");
+  assert(toolMessage?.content?.includes("PRODUCT_NOT_FOUND"));
+  assert(!toolMessage?.content?.includes("NOT_BUILT"));
+});

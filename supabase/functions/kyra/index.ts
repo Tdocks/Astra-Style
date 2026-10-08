@@ -39,6 +39,7 @@ import type {
 } from "../_shared/providers/stylistReasoning.ts";
 import type { ProviderRequestContext } from "../_shared/providers/types.ts";
 import { handleKyraRespond, type KyraConfig } from "./handler.ts";
+import { buildProductServices } from "./productServices.ts";
 import { buildKyraStore } from "./store.ts";
 import { LiveStylistProvider } from "./liveStylistProvider.ts";
 
@@ -156,6 +157,7 @@ function kyraRespondRoute(req: Request): Promise<Response> {
   return handleKyraRespond(req, {
     authClient: supabase,
     store: buildKyraStore(supabase),
+    analyzeProduct: buildProductServices(env, authorizationHeader, supabase),
     provider,
     rateLimiter,
     config,
