@@ -365,7 +365,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P6-STUDIO-04 | Done | `supabase/functions/studio/` generate + status; consent `terms_version` = `2026-08-17`. |
 | P6-STUDIO-05 | Partial | `supabase/functions/studio/promptBuilder.ts` assembles the prompt and iOS now exposes the generation controls it accepts. The eight-preset mall and live-provider acceptance remain open. |
 | P6-STUDIO-06 | Done | `GET /studio/status/:id`; client `StudioGenerationViewModel` polls queued → generating → complete. |
-| P6-STUDIO-07 | Partial | One free Visualize then 429 → `.studioQuota` paywall. Hosted studio spend is live (`IMAGE_GENERATION_PROVIDER=openai`). Cost/retention docs remain; `P6-TEST-01` still `.disabled`. Wear This stays ungated. |
+| P6-STUDIO-07 | Partial | One free visual estimate now uses atomic, durable server reservations, consumed only on success; deletion cannot refund a successful trial. Provider-side retries reuse the same reservation and duplicate retries return the same job. Direct client inserts/updates are closed; job leases fence concurrent status polls. Deployed Studio v9 passed authenticated live concurrency/deletion/export acceptance (ADR 0022). Configurable Premium monthly quantity and high-resolution allowance remain open; the owner has been asked for the monthly quantity. |
 | P6-STUDIO-08 | Done | Studio tab is on dogfood chrome (`AppTab.dogfoodTabs`). Gallery is `StudioHomeView`; generate is the existing Visualize modal. |
 | P6-STUDIO-09 | Partial | Data model and core generation controls exist; the preset mall and gallery curation remain deferred. |
 | P6-STUDIO-10 | Partial | Queued/generating/complete/failed UI on `StudioGenerationView`. |

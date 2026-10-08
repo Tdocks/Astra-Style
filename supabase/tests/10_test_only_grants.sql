@@ -31,6 +31,11 @@ grant usage on schema public to anon, authenticated;
 -- 20260728101300_account_deletion.sql) is what actually restricts row
 -- visibility/mutation from here — see that migration's own header comment.
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
+-- Preserve the intentional server-only Studio grant boundary after emulating
+-- the platform baseline. Tests below exercise both grants and RLS.
+revoke all on public.studio_allowances from anon, authenticated;
+grant select on public.studio_allowances to authenticated;
+revoke insert, update on public.studio_generations from anon, authenticated;
 
 -- No sequences to grant: every table in this schema uses
 -- `gen_random_uuid()` defaults, not serial/identity columns.

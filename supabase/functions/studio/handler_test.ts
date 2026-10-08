@@ -35,6 +35,86 @@ import {
   type StudioJobStore,
 } from "./handler.ts";
 import { CURRENT_STUDIO_CONSENT_TERMS_VERSION } from "./schema.ts";
+import { createLogger } from "../_shared/logger.ts";
+
+Deno.test("concurrent status polls submit a queued job once", async () => {
+  const deps = buildDeps();
+  const id = await enqueueOne(deps);
+  const row = deps.jobStore.rows.get(id);
+  assert(row);
+  let submitted = 0;
+  let unblock: (() => void) | undefined;
+  let signalStarted: (() => void) | undefined;
+  const blocked = new Promise<void>((resolve) => {
+    unblock = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    signalStarted = resolve;
+  });
+  const originalProvider = deps.provider;
+  deps.provider = {
+    async submitGeneration() {
+      submitted += 1;
+      signalStarted?.();
+      await blocked;
+      return { providerJobId: "one-provider-job" };
+    },
+    pollStatus: (id, ctx) => originalProvider.pollStatus(id, ctx),
+  };
+  const first = advanceGeneration(
+    row,
+    deps,
+    "concurrency-first",
+    createLogger("concurrency-first"),
+  );
+  await started;
+  const second = await advanceGeneration(
+    row,
+    deps,
+    "concurrency-second",
+    createLogger("concurrency-second"),
+  );
+  assertEquals(second.status, "queued");
+  assertEquals(submitted, 1);
+  unblock?.();
+  assertEquals((await first).status, "generating");
+  assertEquals(submitted, 1);
+});
+
+Deno.test("duplicate retry requests return the same queued job", async () => {
+  const deps = buildDeps();
+  const id = await enqueueOne(deps);
+  const row = deps.jobStore.rows.get(id);
+  assert(row);
+  row.status = "failed";
+  row.promptPayload["is_retryable_failure"] = true;
+  deps.jobStore.rows.set(id, row);
+  const responses = await Promise.all(
+    [0, 1].map(() => handleGenerate(generateRequest(VALID_LOOKING_JWT_A, { retry_of: id }), deps)),
+  );
+  assertEquals(responses.map((response) => response.status), [202, 202]);
+  const envelopes = await Promise.all(responses.map(envelopeOf));
+  assert(envelopes[0] && envelopes[1]);
+  assertEquals(envelopes[0].data?.["id"], envelopes[1].data?.["id"]);
+  assertEquals(deps.jobStore.rows.size, 2);
+});
+
+Deno.test("non-retryable provider failures cannot bypass quota via retry", async () => {
+  const deps = buildDeps();
+  const id = await enqueueOne(deps);
+  const row = deps.jobStore.rows.get(id);
+  assert(row);
+  row.status = "failed";
+  row.promptPayload["is_retryable_failure"] = false;
+  deps.jobStore.rows.set(id, row);
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { retry_of: id }),
+    deps,
+  );
+  assertEquals(response.status, 400);
+  assertEquals(deps.jobStore.rows.size, 1);
+  await response.body?.cancel();
+});
 
 const VALID_LOOKING_JWT_A =
   "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyLWEifQ.dGhpc19pc19ub3RfYV9yZWFsX3NpZ25hdHVyZQ";
@@ -63,10 +143,17 @@ function tokenMappedAuthClient(): AuthClient {
 
 function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGenerationRow> } {
   const rows = new Map<string, StudioGenerationRow>();
+  const claims = new Map<string, string>();
+  const retries = new Map<string, string>();
   const nowIso = () => new Date("2026-08-17T09:00:00Z").toISOString();
   return {
     rows,
     insert(row) {
+      if (row.retryOf) {
+        const existingID = retries.get(row.retryOf);
+        const existing = existingID ? rows.get(existingID) : undefined;
+        if (existing) return Promise.resolve(structuredClone(existing));
+      }
       const stored: StudioGenerationRow = {
         id: crypto.randomUUID(),
         userId: row.userId,
@@ -82,6 +169,7 @@ function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGeneration
         updatedAt: nowIso(),
       };
       rows.set(stored.id, structuredClone(stored));
+      if (row.retryOf) retries.set(row.retryOf, stored.id);
       return Promise.resolve(structuredClone(stored));
     },
     get(userId, id) {
@@ -113,6 +201,20 @@ function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGeneration
         if (row.userId === userId && row.deletedAt === null) n += 1;
       }
       return Promise.resolve(n);
+    },
+    claim(userId, id) {
+      const row = rows.get(id);
+      if (
+        !row || row.userId !== userId || claims.has(id) || row.deletedAt !== null ||
+        !["queued", "generating"].includes(row.status)
+      ) return Promise.resolve(null);
+      const token = crypto.randomUUID();
+      claims.set(id, token);
+      return Promise.resolve({ row: structuredClone(row), token });
+    },
+    release(_userId, id, token) {
+      if (claims.get(id) === token) claims.delete(id);
+      return Promise.resolve();
     },
   };
 }
@@ -473,6 +575,7 @@ Deno.test("retry re-runs the consent-staleness check against the stored attestat
   const id = await enqueueOne(deps);
   const failed = deps.jobStore.rows.get(id)!;
   failed.status = "failed";
+  failed.promptPayload["is_retryable_failure"] = true;
   (failed.promptPayload["consent"] as Record<string, unknown>)["terms_version"] = "2020-01-01";
   deps.jobStore.rows.set(id, failed);
 
@@ -543,6 +646,7 @@ Deno.test("retry of a failed trial job is not a second trial", async () => {
   const id = await enqueueOne(deps);
   const failed = deps.jobStore.rows.get(id)!;
   failed.status = "failed";
+  failed.promptPayload["is_retryable_failure"] = true;
   deps.jobStore.rows.set(id, failed);
   const response = await handleGenerate(
     generateRequest(VALID_LOOKING_JWT_A, { retry_of: id }),
@@ -620,7 +724,10 @@ Deno.test("inspiration edit resolves owned image server-side and retry does not 
   const edit = rows[1];
   assert(edit);
   assertEquals(edit.referenceImagePath, `users/${USER_A_ID}/studio/${original.id}/result.png`);
-  await deps.jobStore.update(USER_A_ID, edit.id, { status: "failed" });
+  await deps.jobStore.update(USER_A_ID, edit.id, {
+    status: "failed",
+    promptPayload: { ...edit.promptPayload, is_retryable_failure: true },
+  });
   const retry = await handleGenerate(
     generateRequest(VALID_LOOKING_JWT_A, { retry_of: edit.id }),
     deps,

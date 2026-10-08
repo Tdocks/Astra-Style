@@ -102,6 +102,7 @@ export interface StudioJobInsert {
   outfitId: string | null;
   promptPayload: Record<string, unknown>;
   provider: string;
+  retryOf?: string;
 }
 
 export interface StudioJobPatch {
@@ -116,7 +117,14 @@ export interface StudioJobStore {
   insert(row: StudioJobInsert): Promise<StudioGenerationRow>;
   /** Returns null for missing AND for unowned (RLS) — same 404 either way. */
   get(userId: string, id: string): Promise<StudioGenerationRow | null>;
-  update(userId: string, id: string, patch: StudioJobPatch): Promise<StudioGenerationRow>;
+  update(
+    userId: string,
+    id: string,
+    patch: StudioJobPatch,
+    claimToken?: string,
+  ): Promise<StudioGenerationRow>;
+  claim(userId: string, id: string): Promise<{ row: StudioGenerationRow; token: string } | null>;
+  release(userId: string, id: string, token: string): Promise<void>;
   /** Own rows only — used to enforce the one free Visualize trial. */
   countForUser(userId: string): Promise<number>;
 }
@@ -241,6 +249,42 @@ function providerRequestFromRow(row: StudioGenerationRow): ImageGenerationReques
  * 3. Nothing here debits quota — see the header.
  */
 export async function advanceGeneration(
+  row: StudioGenerationRow,
+  deps: StudioHandlerDeps,
+  requestId: string,
+  logger: RequestLogger,
+): Promise<StudioGenerationRow> {
+  if (row.status === "complete" || row.status === "failed") return row;
+  const claim = await deps.jobStore.claim(row.userId, row.id);
+  if (!claim) {
+    const current = await deps.jobStore.get(row.userId, row.id);
+    if (!current || current.deletedAt !== null) throw notFound("No generation with that id.");
+    return current;
+  }
+  const store = deps.jobStore;
+  try {
+    return await advanceClaimedGeneration(
+      claim.row,
+      {
+        ...deps,
+        jobStore: {
+          ...store,
+          update: (userId, id, patch) => store.update(userId, id, patch, claim.token),
+        },
+      },
+      requestId,
+      logger,
+    );
+  } finally {
+    try {
+      await store.release(row.userId, row.id, claim.token);
+    } catch {
+      logger.warn("studio_status.claim_release_failed", { generation_id: row.id });
+    }
+  }
+}
+
+async function advanceClaimedGeneration(
   row: StudioGenerationRow,
   deps: StudioHandlerDeps,
   requestId: string,
@@ -449,6 +493,11 @@ async function enqueueRetry(
   if (original.status !== "failed") {
     throw badRequest("Only a failed generation can be retried.");
   }
+  if (original.promptPayload["is_retryable_failure"] !== true) {
+    throw badRequest(
+      "This failure can't be retried without a new estimate. Try a different image or request.",
+    );
+  }
   // The consent gate runs on retries too (docs/08 §8.3 step 4): the stored
   // attestation must still be against the CURRENT terms. This is the
   // "no path reaches the provider without it" property — a cached job
@@ -474,6 +523,7 @@ async function enqueueRetry(
     outfitId: original.outfitId,
     promptPayload: payload,
     provider: deps.providerName,
+    retryOf,
   });
 }
 

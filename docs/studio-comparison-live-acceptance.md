@@ -27,9 +27,9 @@ Comparison now retains the user's selection order. Detail images use the shared 
 
 The final combined run reported six export unit tests and both comparison/sharing UI tests passed, but Xcode stalled in teardown. After stopping only the stalled test processes, a serial `test-without-building` sharing run finished with `TEST EXECUTE SUCCEEDED` (2026-10-08 16:53 EDT). Prefer `-parallel-testing-enabled NO` for this owner's Xcode 27 simulator acceptance runs when teardown stalls recur. This is not a complete application walkthrough.
 
-## Next server work
+## Server job safety follow-up — deployed
 
-Code review found that Studio's free allowance is currently a count of visible generation rows and is checked separately from insertion. Client deletion can reduce the count, and concurrent requests can both pass it. Studio rows also retain authenticated insert/update policies, allowing callers to bypass the generation endpoint's validation. Status submission needs an atomic claim so concurrent polls cannot start duplicate provider work. These need server-authoritative writes, durable allowance accounting, concurrency tests, and an ADR before outside-user readiness.
+The subsequent batch closed the free-trial counting, direct-write and concurrent-submission gaps using server-only job writes, durable success-based allowances, idempotent retries, and fenced claims. Studio v9 and Profile v11 are deployed. See [ADR 0022](adr/0022-studio-server-jobs-and-allowances.md) for rollout, tests, live acceptance and limits. Configurable Premium monthly limits, high-resolution generation and saved-look collections remain work.
 
 The post-migration advisor scan found anonymous-identity access warnings on owner-scoped policies, rather than a missing ownership predicate. Review that access alongside provider quotas; see [Supabase's anonymous access advisory](https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins). The pending App Store notification table intentionally has RLS with no client policy and is service-only. Performance notices were unused indexes and Auth connection allocation; no indexes were removed based on this low-traffic sample.
 

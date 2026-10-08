@@ -225,8 +225,11 @@ begin
   perform pg_temp.record_result(p_table, 'A cannot INSERT a row for another user', v_blocked, v_detail);
 
   -- 4. A cannot UPDATE B's row (zero rows affected).
-  execute format('update %I set updated_at = now() where %I = %L', p_table, p_pk, p_row_b);
-  get diagnostics v_rowcount = row_count;
+  begin
+    execute format('update %I set updated_at = now() where %I = %L', p_table, p_pk, p_row_b);
+    get diagnostics v_rowcount = row_count;
+  exception when insufficient_privilege then v_rowcount := 0;
+  end;
   perform pg_temp.record_result(
     p_table, 'A cannot UPDATE B''s row', v_rowcount = 0, format('%s row(s) affected', v_rowcount)
   );
@@ -402,9 +405,13 @@ with ins as (
 ) insert into fixture_ids select 'daily_briefs.b', id from ins;
 
 -- studio_generations
-with ins as (insert into studio_generations (user_id) values (pg_temp.user_a()) returning id)
+with ins as (insert into studio_allowances (user_id) values (pg_temp.user_a()) returning id)
+  insert into fixture_ids select 'studio_allowances.a', id from ins;
+with ins as (insert into studio_allowances (user_id) values (pg_temp.user_b()) returning id)
+  insert into fixture_ids select 'studio_allowances.b', id from ins;
+with ins as (insert into studio_generations (user_id,allowance_id) values (pg_temp.user_a(),pg_temp.fx('studio_allowances.a')) returning id)
   insert into fixture_ids select 'studio_generations.a', id from ins;
-with ins as (insert into studio_generations (user_id) values (pg_temp.user_b()) returning id)
+with ins as (insert into studio_generations (user_id,allowance_id) values (pg_temp.user_b(),pg_temp.fx('studio_allowances.b')) returning id)
   insert into fixture_ids select 'studio_generations.b', id from ins;
 
 -- user_product_evaluations
@@ -504,7 +511,7 @@ call pg_temp.check_owned_table('daily_briefs', 'id', pg_temp.fx('daily_briefs.a'
   format('insert into daily_briefs (user_id, brief_date) values (%L, %L)', pg_temp.user_c(), current_date));
 
 call pg_temp.check_owned_table('studio_generations', 'id', pg_temp.fx('studio_generations.a'), pg_temp.fx('studio_generations.b'), pg_temp.user_a(),
-  format('insert into studio_generations (user_id) values (%L)', pg_temp.user_c()));
+  format('insert into studio_generations (user_id,allowance_id) values (%L,%L)', pg_temp.user_c(),pg_temp.fx('studio_allowances.b')));
 
 call pg_temp.check_owned_table('user_product_evaluations', 'id', pg_temp.fx('user_product_evaluations.a'), pg_temp.fx('user_product_evaluations.b'), pg_temp.user_a(),
   format('insert into user_product_evaluations (user_id, product_candidate_id, verdict) values (%L, %L, %L)',

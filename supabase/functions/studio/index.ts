@@ -22,12 +22,11 @@
 // half-configuration policy is copied here so a misconfigured deploy says
 // which variable is missing instead of quietly serving grey squares.
 //
-// NOTE ON SERVICE-ROLE: this function never constructs a service-role
-// client. Generation rows, closet reads, and storage objects are all the
-// caller's own; RLS with the caller's JWT is the security boundary.
+// Server-only job writes/allowances use a privileged client (ADR 0022).
+// Authentication, closet reads, and storage remain caller-scoped under RLS.
 // ============================================================================
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
@@ -38,16 +37,16 @@ import type {
 } from "../_shared/providers/imageGeneration.ts";
 import { MockImageGenerationProvider } from "../_shared/providers/mockImageGeneration.ts";
 import { OpenAIImageGenerationProvider } from "../_shared/providers/openaiImageGeneration.ts";
-import {
-  handleGenerate,
-  handleStatus,
-  type StudioGarmentSource,
-  type StudioGenerationRow,
-  type StudioJobStore,
-  type StudioStatus,
-} from "./handler.ts";
+import { handleGenerate, handleStatus, type StudioGarmentSource } from "./handler.ts";
+
+import { supabaseJobStore } from "./jobStore.ts";
 
 const env = readEdgeEnv();
+const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+if (!serviceKey) throw new Error("Studio server writes require SUPABASE_SERVICE_ROLE_KEY.");
+const jobClient = createClient(env.supabaseUrl, serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 // Generate is a paid-provider action and the row insert is cheap — 6/min
 // absorbs a double-tap without letting a runaway loop enqueue a backlog.
@@ -142,95 +141,6 @@ function buildProvider(
   };
 }
 
-function mapStoredRow(data: Record<string, unknown>): StudioGenerationRow {
-  return {
-    id: data["id"] as string,
-    userId: data["user_id"] as string,
-    referenceImagePath: (data["reference_image_path"] as string | null) ?? "",
-    outfitId: (data["outfit_id"] as string | null) ?? null,
-    promptPayload: (data["prompt_payload"] as Record<string, unknown> | null) ?? {},
-    status: data["status"] as StudioStatus,
-    resultImagePath: (data["result_image_path"] as string | null) ?? null,
-    provider: (data["provider"] as string | null) ?? null,
-    errorMessage: (data["error_message"] as string | null) ?? null,
-    deletedAt: (data["deleted_at"] as string | null) ?? null,
-    createdAt: data["created_at"] as string,
-    updatedAt: data["updated_at"] as string,
-  };
-}
-
-function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
-  return {
-    async insert(row) {
-      const { data, error } = await supabase
-        .from("studio_generations")
-        .insert({
-          user_id: row.userId,
-          reference_image_path: row.referenceImagePath,
-          outfit_id: row.outfitId,
-          prompt_payload: row.promptPayload,
-          status: "queued",
-          provider: row.provider,
-        })
-        .select("*")
-        .single();
-      if (error || !data) {
-        throw serverError("Couldn't enqueue the generation job.");
-      }
-      return mapStoredRow(data as Record<string, unknown>);
-    },
-    async get(userId, id) {
-      void userId; // RLS on the caller-scoped client is the ownership filter.
-      const { data, error } = await supabase
-        .from("studio_generations")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) {
-        throw serverError("Couldn't load the generation job.");
-      }
-      return data ? mapStoredRow(data as Record<string, unknown>) : null;
-    },
-    async update(userId, id, patch) {
-      void userId;
-      const updates: Record<string, unknown> = {};
-      if (patch.status !== undefined) {
-        updates["status"] = patch.status;
-      }
-      if (patch.resultImagePath !== undefined) {
-        updates["result_image_path"] = patch.resultImagePath;
-      }
-      if (patch.errorMessage !== undefined) {
-        updates["error_message"] = patch.errorMessage;
-      }
-      if (patch.promptPayload !== undefined) {
-        updates["prompt_payload"] = patch.promptPayload;
-      }
-      const { data, error } = await supabase
-        .from("studio_generations")
-        .update(updates)
-        .eq("id", id)
-        .select("*")
-        .single();
-      if (error || !data) {
-        throw serverError("Couldn't update the generation job.");
-      }
-      return mapStoredRow(data as Record<string, unknown>);
-    },
-    async countForUser(userId) {
-      void userId;
-      const { count, error } = await supabase
-        .from("studio_generations")
-        .select("id", { count: "exact", head: true })
-        .is("deleted_at", null);
-      if (error) {
-        throw serverError("Couldn't check your visual estimate allowance.");
-      }
-      return count ?? 0;
-    },
-  };
-}
-
 interface ClosetItemGarmentRow {
   name: string | null;
   subcategory: string | null;
@@ -307,7 +217,7 @@ function depsFor(req: Request) {
     authClient: supabase,
     provider,
     providerName,
-    jobStore: supabaseJobStore(supabase),
+    jobStore: supabaseJobStore(jobClient),
     garmentSource: supabaseGarmentSource(supabase),
     generateRateLimiter,
     statusRateLimiter,

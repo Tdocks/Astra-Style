@@ -154,6 +154,10 @@ echo
 set +e
 test_psql -f "$assertions_file"
 test_exit=$?
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/30_studio_job_safety.sql"
+  test_exit=$?
+fi
 set -e
 echo
 
