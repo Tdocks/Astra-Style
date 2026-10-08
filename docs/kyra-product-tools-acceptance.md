@@ -36,3 +36,17 @@ checking and new module linting passed. These are offline fixture tests.
 
 Product/Kyra combined regression: 163 tests passed
 (`/tmp/astra-product-gaps-tests.log`); gap-result propagation fixture also passed.
+
+## Catalog search groundwork
+
+`tools/searchProducts.ts` now validates query/filter bounds, sorts supplied
+organic relevance without consulting sponsorship, deduplicates candidates,
+labels affiliate links and returns an explicit empty result. Four fixture tests
+and lint passed. Strict filters reject unknown prices/colors/formality and inferred
+category defaults. This module is not registered in production yet: the catalog
+query, semantic relevance provider/index, filter enforcement and hosted checks
+remain to be implemented. It is not a completed search feature.
+
+Embedding-provider credential reuse confirmation is pending under the OpenAI
+API-key skill. Continue non-provider work while awaiting that answer. Budget
+filter currency context also needs explicit handling before hosted search acceptance.
