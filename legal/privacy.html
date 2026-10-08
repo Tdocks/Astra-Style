@@ -84,7 +84,7 @@ footer { margin-top:2.5rem; padding-top:1rem; border-top:2px solid #111; font-si
 <main>
 
 <h1>Astra Style — Privacy Policy</h1>
-<p class="updated">Last updated: 31 July 2026</p>
+<p class="updated">Last updated: 8 October 2026</p>
 
 <div class="banner">
 <p><strong>Draft for legal review.</strong></p>
@@ -130,27 +130,20 @@ advisers.</p>
 server functions (hosted with Supabase), and the third-party model providers listed in section 8.
 It does not cover retailer websites you open from the app, which have their own policies.</p>
 
-<h2>3. Guest mode collects nothing on our servers</h2>
-<p>You can use Astra Style without creating an account. Guest mode is designed to be entirely
-local to your device:</p>
+<h2>3. Guest mode uses an anonymous account</h2>
+<p>You can try Astra Style before linking Sign in with Apple or an email identity. The app creates
+an anonymous Supabase account so that your profile, wardrobe records, styling requests and generated
+inspiration can be scoped to your own identity on our servers.</p>
 <ul>
-<li>No account is created, and no server-side identity of any kind exists for a guest — not even
-an anonymous one.</li>
-<li>Guest data (up to 10 closet items, their photographs, and one Style Studio sample) is stored
-only in the app's on-device storage. It is not uploaded to our database or our file storage.</li>
-<li>There is no cloud sync and no shopping history in guest mode.</li>
-<li>Because nothing is on our servers, guest data is not recoverable by us. If you delete the app
-or lose the device, that data is gone.</li>
-<li>If you later create an account, the app asks you to migrate your guest data. Migration is an
-explicit, user-initiated upload — it does not happen silently — and everything uploaded is written
-under your new account's identity.</li>
-<li>To delete guest data, delete the app from your device.</li>
+<li>Guest garment photographs remain on your device until you link an identity. Guest uploads and
+replacements of personal photographs are blocked by our file-storage access rules.</li>
+<li>Personal reference-photo uploads require a linked account. Guest inspiration can be generated
+on our servers and stored privately under the anonymous identity without uploading a selfie.</li>
+<li>Linking an identity retains your existing account and starts migration of local garment photos
+to its private storage. Photos that have not migrated remain on the device.</li>
+<li>Deleting the app removes local files but does not delete the anonymous account or its server
+records. Use the in-app account deletion control before uninstalling to request server erasure.</li>
 </ul>
-<p><span class="needs-input">[[NEEDS INPUT: confirm with engineering whether the single Style
-Studio sample offered in guest mode transmits a reference image to our server functions and to
-OpenAI. Generation cannot happen on-device, so it almost certainly does. If so, that is a transfer
-of a face image by a user who has no account, and this section and section 8 must say so
-plainly — and the biometric-consent question above arises before any account exists]]</span></p>
 
 <h2>4. What personal data we hold</h2>
 <p>The tables below are taken from the database schema, so they list what the system is built to
@@ -345,12 +338,11 @@ limited to fixed category values, counts, booleans, and record identifiers. Imag
 your messages to Kyra, your written feedback and pasted product URLs are excluded by the way the
 event type is defined, not by a filter that could be forgotten. The analytics identity is the opaque
 user identifier only — never your name, email or images — and it is cleared when you sign out.</p>
-<p>Being precise about the current state: no analytics provider is connected, there is no analytics
-table in the database, and the production analytics client does nothing but print in debug builds.
-Nothing is transmitted to any analytics service today.
-<span class="needs-input">[[NEEDS INPUT: which analytics provider, if any, will be used at launch;
-this section must be rewritten to name it and describe its own data handling before that
-happens]]</span></p>
+<p>The app queues first-party product events and sends them to our Supabase database under your
+account identifier. Its event schema excludes raw messages, photographs, image paths and pasted
+product URLs. This is first-party analytics rather than a connected third-party analytics SDK.
+<span class="needs-input">[[NEEDS INPUT: confirm launch analytics configuration and any additional
+analytics provider before publication]]</span></p>
 
 <h2>7. Permissions we ask for</h2>
 <ul>
@@ -429,19 +421,20 @@ not claim to offer you a control that does not exist.</li>
 <li><strong>Garment photographs</strong> are kept for as long as you keep the item, since they are
 the item's record.</li>
 <li><strong>Reference selfies and body images</strong> are kept for as long as you keep them saved
-as a reference. An upload that is never used to complete a generation is treated as abandoned and
-deleted automatically after a short window — 24 hours by default.</li>
+as a reference. A reference upload that is neither saved nor used by a visible Studio generation is eligible for
+automatic cleanup after 24 hours by default.</li>
 <li><strong>Generated Style Studio images</strong> expire after a set window — 30 days by
-default — unless you explicitly save one, which makes it permanent until you delete it.</li>
+default — unless you explicitly save one in a collection, or another visible generation depends on it.
+Saved collection images remain until you remove the save or delete the image.</li>
 <li><strong>Everything else</strong> is kept while your account exists, and is removed when the
 account is deleted (section 11).</li>
 </ul>
-<p>Stated plainly, because it matters: <strong>the scheduled job that enforces these expiry windows
-is not built yet.</strong> The windows above are the designed policy; until the automated sweep is
-implemented and monitored, abandoned reference images and expired generations will not delete
-themselves. This must be built, or this section must be rewritten, before publication.
-<span class="needs-input">[[NEEDS INPUT: confirm final retention windows, and confirm the retention
-sweep is live before publishing this section as written]]</span></p>
+<p>A scheduled worker checks eligible images every five minutes. File removal uses the private
+Storage API, is verified, and can be retried if it fails. Saved references, saved collection images
+and images needed by visible generation chains are protected from the expiry sweep. An accepted
+removal can therefore show pending cleanup rather than finish instantly. Copies already downloaded
+or shared outside the app cannot be recalled by deleting their private origin.
+<span class="needs-input">[[NEEDS INPUT: approve final retention windows before publication]]</span></p>
 
 <h2>11. Deleting your data</h2>
 <p>What deletion is built to do, and what happens today, are not the same thing, and the difference
@@ -460,12 +453,9 @@ operations.</li>
 <li>A deletion record survives, holding a one-way hash of your identifier rather than the identifier
 itself.</li>
 </ul>
-<p><strong>The gap, stated rather than hidden:</strong> the database side of deletion — the request
-function, the cascade, the audit record, the finalisation function — is implemented. The server
-function that would orchestrate the whole sequence, including the deletion of the stored image files
-and of the authentication identity, <strong>does not exist yet</strong>, and there is no in-app
-delete-my-account screen. Until both are built, deletion must be requested by email and carried out
-manually. Do not publish a claim that deletion is available in the app until it is.</p>
+<p>The app provides confirmed account deletion in Profile → Privacy &amp; Data. Its authenticated
+server routine removes owned files, deletes the authentication identity and verifies the owned-data
+cascade. The app reports deletion status; a failed request must not be treated as completed.</p>
 
 <h2>12. Your choices and requests</h2>
 <p>Depending on where you live, you may have rights to access, correct, delete, restrict or object
@@ -476,17 +466,14 @@ authority. To make any request, contact us at
 <ul>
 <li>You can edit and correct your profile, measurement, appearance and lifestyle answers.</li>
 <li>You can archive and edit closet items and outfits.</li>
-<li>An in-app account deletion screen is <strong>not yet available</strong> — requests go by
-email.</li>
-<li>Data export is <strong>not yet available</strong> — requests go by email and are fulfilled
-manually.</li>
-<li>Per-image deletion of individual reference and generated images is <strong>not yet
-available</strong> in the app.</li>
-<li>An in-app control to inspect and delete individual style memories is <strong>not yet
-available</strong>.</li>
+<li>You can request account deletion in Profile → Privacy &amp; Data.</li>
+<li>You can prepare and share a JSON export of account records and Storage metadata in the app.
+Image-file attachments are not included in that structured export.</li>
+<li>You can remove individual reference and generated images. Removing a reference also removes
+its derived variations; active generation work must finish before that reference can be removed.</li>
+<li>You can inspect and delete individual style memories in Privacy &amp; Data.</li>
 </ul>
-<p>These controls are designed and specified, and this policy will be updated as each ships. We
-would rather list them as missing than promise a button that is not there.
+<p>For additional access, export or deletion requests, use the privacy contact above.
 <span class="needs-input">[[NEEDS INPUT: response time commitment for access, export and deletion
 requests — e.g. 30 days — and whether identity verification is required before we act on
 one]]</span></p>

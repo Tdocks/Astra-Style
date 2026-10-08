@@ -215,24 +215,29 @@ be reconciled before release; the historical table below is not current truth.
 Each of these is stated in the documents themselves rather than glossed. Check them against
 reality again before publishing, because several are one ticket away from changing.
 
-| Thing | Reality at 2026-07-31 | Ticket |
+| Thing | Reality at 2026-10-08 | Ticket |
 |---|---|---|
-| Account deletion | SQL half is built and hardened (`account_deletions`, `request_account_deletion()`, `finalize_account_deletion()`, the `auth.users` cascade). **The Edge Function that orchestrates it — storage blob deletion, then `auth.admin.deleteUser` — does not exist.** No deletion can currently complete end to end. | `P7-PRIVACY-01` |
-| In-app deletion UI | Does not exist. Documents say deletion is by email. | `P7-PRIVACY-02` |
-| Data export | Does not exist. Documents say so. | `P7-PRIVACY-03` |
-| Per-image deletion (reference / generated) | Does not exist. | `P7-PRIVACY-04` |
-| Model-training opt-out toggle | Does not exist; no column, no UI. The privacy policy states the intended default and explicitly does *not* offer a control. | `P7-PRIVACY-06` |
-| ATT / tracking | Not implemented, and no tracking exists to justify it. The policy says the prompt is absent for that reason. | `P7-PRIVACY-06` |
-| Analytics | No `analytics_events` table, no SDK, `LiveAnalyticsClient.log()` is a debug-print stub. `AnalyticsEvent` excludes PII by construction — verified in `Core/Analytics/AnalyticsEvent.swift`. | `P7-PRIVACY-07` |
-| Retention sweeps (abandoned reference images at 24h, Studio outputs at 30d) | ADR 0010 policy; **no scheduled job exists**. Nothing expires on its own today. | — |
-| Style-memory inspect/delete UI | Not built. | — |
-| Shopping / affiliate features | No affiliate network integrated, catalogue empty, `Features/Shopping/` has no Swift files. | — |
-| Feature UI maturity (for counsel / reviewers) | **Built and shipping in-app:** Onboarding → Style DNA, Home, Closet (overview/metrics/filters/detail/manual form), guest Profile. **Groundwork only:** Scanner (`Services/` — no camera/review UI). **README-only (zero Swift):** Outfits, Studio, Kyra, Shopping, Discover, Subscription. The documents describe the service as designed; a reviewer should know how much of it is not yet shipping. | — |
+| Account deletion | Deployed authenticated `account` Edge Function removes owned Storage files and the Auth identity, then verifies/cascades owned records. Disposable-account live deletion and cleanup verification passed. | `P7-PRIVACY-01` |
+| In-app deletion UI | Profile → Privacy & Data provides confirmed deletion; the core mock UI flow returns to Welcome. | `P7-PRIVACY-02` |
+| Data export | Deployed Profile endpoint produces owner-scoped JSON records and safe Storage metadata; the app shares the export. Live acceptance passed. Full image-file attachment and large-dataset acceptance remains open. | `P7-PRIVACY-03` |
+| Per-image deletion (reference / generated) | Studio and Privacy & Data expose server-owned deletion. Reference removal atomically hides all derived variations and tracks file cleanup. Live/SQL/concurrency and simulator checks passed (ADRs 0025–0026). | `P7-PRIVACY-04` |
+| Model-training opt-out toggle | Still absent. Do not claim a setting exists. Default app training use remains disabled; provider contract/retention arrangements need owner confirmation. | `P7-PRIVACY-06` |
+| ATT / tracking | No cross-app tracking integration has been established to justify ATT. The prompt is absent. | `P7-PRIVACY-06` |
+| Analytics | `analytics_events` exists. The first-party client queues fixed-schema events, excludes raw text/images/URLs and writes through a caller-scoped sender. Verify the enabled provider/configuration before final publication. | `P7-PRIVACY-07` |
+| Retention sweeps | Deployed five-minute worker applies configurable 24-hour unused-reference and 30-day generated-output defaults. Saved or dependent images are protected; Storage API removal is verified and failed jobs are retryable (ADRs 0024–0026). | — |
+| Guest mode | Supabase anonymous Auth identity and server-owned profile/wardrobe/styling records exist. Guest photo bytes stay on-device until linking; server Storage INSERT/UPDATE fences are verified (ADRs 0018, 0027). Guest generated inspiration can be server-hosted. Uninstalling does not erase server data. | — |
+| Style-memory inspect/delete UI | Implemented in Privacy & Data and covered by the core simulator flow. | — |
+| Shopping / affiliate features | Product evaluation and Discover Unlocks screens/backend exist. Catalog/feed/affiliate-account readiness requires actual integration acceptance; Kyra product tools still return unavailable. | — |
+| Feature UI maturity (for counsel / reviewers) | Native onboarding, Home, Closet, Scanner capture/review, outfit recommendations, Kyra, Studio, Shopping/Discover, monthly review, notifications and subscription UI exist. Build 19 is VALID and confirmed available in Internal TestFlight. Camera, voice, purchases, real-provider image fidelity and linked-photo migration need physical-device acceptance. See `docs/03-progress.md` for remaining criteria. | — |
+
+The privacy and deletion HTML drafts were reconciled to these engineering facts
+on 2026-10-08. Counsel inputs remain unresolved. This table establishes current
+implementation facts, not legal approval or a public-launch readiness claim.
 
 ## Source of every factual claim
 
 `supabase/migrations/` (schema — the authority on what data exists), `docs/adr/0010` (image
-retention), `docs/adr/0011` (guest mode is local-only),
+retention), `docs/adr/0018` (anonymous guest trial), `docs/adr/0027` (guest photo Storage locality),
 `supabase/migrations/20260728101300_account_deletion.sql` (deletion cascade and its documented
 orchestration), `docs/00-master-spec.md` §§6.2, 6.6–6.9, 6.17, 6.22, 7, 12, 13, 15, 16, 17, 18,
 25, 29, `docs/08-provider-abstraction.md` §§1.5, 2.5, 3.5, 4, 5 (OpenAI is the only model

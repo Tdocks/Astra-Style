@@ -51,7 +51,7 @@ footer { margin-top:2.5rem; padding-top:1rem; border-top:2px solid #111; font-si
 <main>
 
 <h1>Deleting your Astra Style account and your data</h1>
-<p class="updated">Last updated: 31 July 2026</p>
+<p class="updated">Last updated: 8 October 2026</p>
 
 <div class="banner">
 <p><strong>Draft for legal review.</strong></p>
@@ -60,19 +60,18 @@ does. It has not been reviewed by a lawyer and must not be published in this sta
 <span class="needs-input">[[NEEDS INPUT: …]]</span> marker is an unresolved question.</p>
 </div>
 
-<h2>1. If you never made an account</h2>
-<p>Guest mode stores everything on your device and nothing on our servers — no account, no
-server-side identity, no uploaded files. To delete guest data, delete the app from your iPhone.
-There is nothing for us to delete and nothing for you to ask us for.</p>
+<h2>1. If you are using the guest trial</h2>
+<p>The trial uses an anonymous Supabase account for server-side profile, wardrobe and styling
+records. Personal garment photographs remain on your device until identity linking; generated
+inspiration may be stored privately on our servers. Deleting the app removes local files but does
+not delete server data. Use the in-app account deletion control before uninstalling.</p>
 
 <h2>2. How to request deletion</h2>
 
-<div class="notice">
-<p><strong>Current status, stated plainly.</strong> The in-app "delete my account" screen is not
-built yet, and neither is the automated server routine that would carry the deletion out end to end.
-Until both ship, deletion is requested by email and performed by us. We would rather tell you that
-than show you a button that does not exist.</p>
-</div>
+<p>Open Profile → Privacy &amp; Data → Delete account, review the confirmation and submit the
+request. The server verifies your current identity and removes owned files and account data. The
+app shows the returned status; a pending or failed request is not a completed deletion.</p>
+<p>If you cannot use the app, contact us using the email process below.</p>
 
 <p>Email <span class="needs-input">[[NEEDS INPUT: deletion request email address]]</span> from the
 email address on your account, with the subject "Delete my account".</p>
@@ -126,16 +125,10 @@ designed to remove everything stored under your account's own storage path — t
 the background-removed versions, the reference selfies and body images, and the Style Studio
 outputs — and then, as a second line of defence, to sweep any storage record left behind under that
 path.</p>
-<div class="notice">
-<p><strong>The part that is not built yet.</strong> The database side of this is implemented: the
-request function, the audit record, the cascade, and the finalisation step that clears leftover
-storage records. What does not exist yet is the server function that runs the sequence end to
-end — including the call that deletes the image files themselves from storage and the call that
-deletes the authentication identity. Until it is built, those two steps are performed manually
-against your account when you email us. We are describing the process we operate, and flagging what
-is automated and what is not, rather than claiming a guarantee the software does not yet
-enforce.</p>
-</div>
+<p>The deployed account-deletion server routine removes the owned files through the private
+Storage API before deleting the authentication identity, then verifies cleanup. Individual image
+removal also uses server-owned jobs with tracked, retryable file cleanup. Copies you already
+exported or shared outside the app are not recalled by removing the private origin.</p>
 
 <h2>4. What survives, and why</h2>
 <ul>
@@ -155,25 +148,26 @@ whether and how deletions propagate into backups]]</span></li>
 retaining an anonymised billing record after deletion. The schema currently deletes subscription
 records outright with everything else; the migration notes flag this as a question for legal and
 finance before launch, and no anonymised-retention table exists]]</span></li>
-<li><strong>Data already sent to our model provider.</strong> Requests are made with the strictest
-available no-retention setting, but any residual copy held by a provider under its own terms is
-outside our direct control.
+<li><strong>Data already sent to our model provider.</strong> Provider-side retention depends on the API and the settings and contractual terms of the
+account we use. Copies held by a provider are outside our direct deletion control; this draft
+does not assert that zero retention has been approved for the account.
 <span class="needs-input">[[NEEDS INPUT: OpenAI's retention window for API requests under the
 account this app uses, and whether a zero-retention arrangement is in place]]</span></li>
 </ul>
 
 <h2>5. Deleting less than everything</h2>
-<p>Today, in the app, you can edit or correct your profile answers, and archive or edit closet items
-and outfits. Deleting individual reference images or individual generated images, and inspecting and
-deleting individual style memories, are designed but <strong>not yet available in the app</strong>.
-Until they ship, ask us by email and we will do it for you.</p>
+<p>You can edit your profile and closet, remove individual reference or generated images, and
+inspect and delete individual style memories. Removing a reference also removes its derived
+variations and saved memberships. The app refuses the reference-removal request while a related
+generation is active, so an active job is not partially erased.</p>
 
 <h2>6. Getting a copy of your data first</h2>
-<p>Data export is <strong>not yet available</strong> as a self-service feature. If you want a copy of
-your data before deleting, ask before you send the deletion request — once deletion completes there
-is nothing left to export.
-<span class="needs-input">[[NEEDS INPUT: export format and the turnaround time we
-commit to]]</span></p>
+<p>Profile → Privacy &amp; Data provides a shareable JSON export of your account records and safe
+Storage metadata. Image-file attachments are not included in that structured export. Prepare your
+copy before requesting account deletion; completed deletion removes the server records used for
+export. Contact us if you need further assistance.
+<span class="needs-input">[[NEEDS INPUT: the turnaround time for assisted access and export
+requests]]</span></p>
 
 <h2>7. Contact</h2>
 <p>Deletion requests: <span class="needs-input">[[NEEDS INPUT: deletion request email

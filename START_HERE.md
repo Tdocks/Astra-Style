@@ -17,9 +17,9 @@ current brief.
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
-| Xcode | **27.0** on the owner's Mac for builds 12–18 (previous release used 26.6) |
+| Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `18`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `19`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
@@ -27,15 +27,25 @@ current brief.
 
 ## Current internal release — 2026-10-08
 
-Version **1.0.0 (18)** is processed **VALID** and **IN_BETA_TESTING**, with
-membership confirmed in the Internal group (build ID `d076af22-040d-4ea7-baad-e840dc5a5009`).
-It adds server-owned, dependency-protected image deletion, tracked cleanup, and a scrollable large-text Studio empty state to private saved-look collections, generated-image disclosures, large-text Home cards, labeled image-file sharing, private comparison and gallery refresh fixes
-on top of build 12's contextual Home inspiration, closet-only renders, rerolls, edits and Kyra handoff.
-Studio backend is ACTIVE v14 and Profile v15, with server-owned jobs, durable trial accounting,
+Version **1.0.0 (19)** is processed **VALID** and **IN_BETA_TESTING**, with
+membership confirmed in the Internal group (build ID `2eced5aa-8742-4521-b790-cfab94d067b6`).
+Build 19 adds editable Studio image descriptions with garment-based defaults,
+VoiceOver labels, generated-image disclosure on Home inspiration, and Reduce
+Motion fixes. It includes the earlier Home contextual generation, private
+collections, comparison, labeled image sharing and server-owned image erasure.
+Studio backend is ACTIVE v15 and Profile v16, with server-owned jobs, durable trial accounting,
 private collections and owned export support. Studio-retention v2 is active with a verified five-minute Cron schedule. Saved and dependent outputs are protected; server-owned individual deletion is deployed (ADR 0025). Builds through 16 can no longer use their old direct Studio deletion path; build 17 uses the new endpoint. Build 18 adds atomic reference-photo cascading and tracked cleanup (ADR 0026). The configurable 24-hour abandoned-reference sweep is deployed and enabled. Guest Storage uploads and replacements are blocked using the signed anonymous JWT claim (ADR 0027).
-External beta review for builds 12–18 has not been submitted;
+External beta review for builds 12–19 has not been submitted;
 the public link still serves build 11. Use Internal TestFlight for the owner's checks.
 See `docs/home-inspiration-device-checks.md` and `docs/studio-comparison-live-acceptance.md`.
+
+Build 19 passed the simulator build and first-party warning gate, nine Swift
+description/export tests and eleven mock UI flows: eight core flows, Home
+inspiration and both description-editor layouts (standard dark and light
+Accessibility XXXL). Studio/Profile backend tests: 111 passed. SQL restrictions
+and live owner save/reset, peer denial, status/export persistence and QA erasure
+passed. TestFlight notes are saved in en-US. This is selected acceptance coverage,
+not a complete physical-device or live-provider UI pass.
 
 Build 18 passed the simulator build and warning gate, 18 reference/Studio/endpoint Swift tests, 89 backend tests, the SQL isolation suite including guest Storage restrictions, four reference concurrency orderings and both generated-source deletion orderings. All eight core simulator flows and both reference-removal flows passed (10 UI tests, zero failures), including light theme at Accessibility XXXL. Live checks passed atomic recursive reference deletion, preserved unrelated photos, safe export, consumed-credit preservation, abandoned cleanup and guest upload denial even after editable metadata spoofing. Earlier Home, comparison, sharing and collection checks are documented in their acceptance reports; this is not a full-app end-to-end pass.
 Disposable-account live checks passed image generation, Kyra, scoped export and account deletion after schema repairs.

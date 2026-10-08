@@ -2,6 +2,7 @@
 # This file exists so a Pages project with Root directory = `web` also works.
 
 name = "astra-style"
+account_id = "e86d6335d4a3f2c801e6e173e2113d45"
 compatibility_date = "2026-08-01"
 workers_dev = true
 
