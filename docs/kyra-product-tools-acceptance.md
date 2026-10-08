@@ -23,10 +23,16 @@ checking and new module linting passed. These are offline fixture tests.
 
 ## Still required before deployment/completion
 
-- Compute `fills_gap` from actual wardrobe coverage; currently returned null.
+- Product service now returns the existing engine’s `fills_gap` and before/after
+  bucket details; Kyra preserves them. This engine currently measures the caller’s
+  single occasion (default `unconstrained`), not a full occasion sweep. Broader
+  occasion coverage and hosted deployment remain open.
 - Confirm safe behavior for extraction uncertainty and available card fields.
 - Hosted ownership, allowance and real provider acceptance, with disposable QA
   identities and catalog cleanup.
 - `search_products` and confirmed `generate_studio_preview` remain stubs.
 - Audit mutation retries/duplicate evaluations and quota concurrency alongside
   the shared product service.
+
+Product/Kyra combined regression: 163 tests passed
+(`/tmp/astra-product-gaps-tests.log`); gap-result propagation fixture also passed.

@@ -107,6 +107,14 @@ export interface EvaluationResult {
   /** 0–100. HIGH means "you already own this", which pushes toward skip. */
   readonly redundancyScore: number;
   readonly outfitsUnlocked: number;
+  readonly fillsGap: boolean;
+  readonly gapsFilled: readonly {
+    occasion: string;
+    formalityBucket: number;
+    qualifyingBefore: number;
+    qualifyingAfter: number;
+    fillsGap: boolean;
+  }[];
   readonly expectedCostPerWear: number | null;
   readonly verdict: KyraVerdict;
   readonly reasoning: string;
@@ -384,6 +392,8 @@ export function evaluateProductCandidate(inputs: EvaluationInputs): EvaluationRe
     compatibilityScore: Math.round(compatibility * 100),
     redundancyScore: Math.round(redundancy * 100),
     outfitsUnlocked: unlock.unlockCount,
+    fillsGap: unlock.gapsFilled.some((gap) => gap.fillsGap),
+    gapsFilled: unlock.gapsFilled,
     expectedCostPerWear: costPerWear.value,
     colorFit,
     lifestyleFit,

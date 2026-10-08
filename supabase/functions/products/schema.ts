@@ -142,6 +142,14 @@ export interface AlternativeProductDTO {
  * extra — see this file's header.
  */
 export interface ProductEvaluationDTO {
+  readonly fills_gap?: boolean;
+  readonly gap_details?: readonly {
+    occasion: string;
+    formality_bucket: number;
+    qualifying_before: number;
+    qualifying_after: number;
+    fills_gap: boolean;
+  }[];
   readonly user_id: string;
   readonly product_candidate_id: string;
   readonly compatibility_score: number;

@@ -212,6 +212,14 @@ export async function handleEvaluateProduct(
   });
 
   return {
+    fills_gap: evaluation.fillsGap,
+    gap_details: evaluation.gapsFilled.map((gap) => ({
+      occasion: gap.occasion,
+      formality_bucket: gap.formalityBucket,
+      qualifying_before: gap.qualifyingBefore,
+      qualifying_after: gap.qualifyingAfter,
+      fills_gap: gap.fillsGap,
+    })),
     user_id: userID,
     product_candidate_id: row.id,
     compatibility_score: evaluation.compatibilityScore,

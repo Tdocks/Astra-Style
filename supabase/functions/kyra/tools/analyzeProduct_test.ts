@@ -53,6 +53,14 @@ Deno.test("existing product evaluation preserves scores and affiliate disclosure
       Promise.resolve({
         user_id: id,
         product_candidate_id: id,
+        fills_gap: true,
+        gap_details: [{
+          occasion: "unconstrained",
+          formality_bucket: 2,
+          qualifying_before: 1,
+          qualifying_after: 2,
+          fills_gap: true,
+        }],
         compatibility_score: 82,
         redundancy_score: 25,
         outfits_unlocked: 4,
@@ -68,6 +76,14 @@ Deno.test("existing product evaluation preserves scores and affiliate disclosure
         alternatives: [],
       }),
   });
+  assertEquals(result.fills_gap, true);
+  assertEquals(result.gap_details, [{
+    occasion: "unconstrained",
+    formality_bucket: 2,
+    qualifying_before: 1,
+    qualifying_after: 2,
+    fills_gap: true,
+  }]);
   assertEquals(result.redundancy_risk, 0.25);
   assertEquals(result.compatibility_score, 82);
   assertEquals(result.expected_cost_per_wear, null);

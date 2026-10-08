@@ -84,8 +84,9 @@ export async function executeAnalyzeProduct(
       ...scores,
       reasoning: evaluation.reasoning,
       unmeasured: evaluation.unmeasured,
-      // A separate gap measurement is needed before claiming fills_gap.
-      fills_gap: null,
+      // Older product-service deployments may omit the measurement.
+      fills_gap: evaluation.fills_gap ?? null,
+      gap_details: evaluation.gap_details ?? [],
     };
   } catch (error) {
     if (error instanceof AppError && error.status < 500) {
