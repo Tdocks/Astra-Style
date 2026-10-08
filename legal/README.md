@@ -234,6 +234,19 @@ The privacy and deletion HTML drafts were reconciled to these engineering facts
 on 2026-10-08. Counsel inputs remain unresolved. This table establishes current
 implementation facts, not legal approval or a public-launch readiness claim.
 
+### 2026-10-08 draft deployment verification
+
+Privacy and data-deletion source HTML passed balanced-tag checks. The site build
+preserved the injected draft banner and unresolved counsel markers. Wrangler
+4.149.0 is pinned with a lockfile; both configs select the existing Astra account
+so a Mac with multiple Cloudflare logins deploys deterministically. Deployment
+version `ed500096-9420-433c-a6f3-3e6ccced8a30` serves astra-style.com and www.
+Chrome verified the live `/privacy/` and `/privacy/delete/` pages, their October 8
+update dates, anonymous guest explanations, actual deletion/export controls and
+remaining draft banners. Automated HTTP checks were rejected with Cloudflare
+1010 and the in-app browser stalled; those attempts are not counted as passes.
+No counsel approval or final-policy publication is asserted.
+
 ## Source of every factual claim
 
 `supabase/migrations/` (schema — the authority on what data exists), `docs/adr/0010` (image
