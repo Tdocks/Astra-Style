@@ -31,3 +31,12 @@ Keychain credentials when offline.
 
 No server deployment is required for this client fix. TestFlight build 19 does
 not contain it; the next native release must include it.
+
+## Build 20 upload
+
+Version 1.0.0 (20) archived at
+`/Users/tylerdockswell/Library/Developer/Xcode/Archives/2026-10-08/AstraStyle 2026-10-08 19.46.52.xcarchive`.
+The archive's bundle/version were verified. Fastlane confirmed upload success at
+19:49:44 on 8 October 2026 (`/tmp/astra-testflight20.log`). Apple processing and
+Internal group membership are not yet verified. Build 19 remains the confirmed
+Internal release until those checks pass.
