@@ -13,17 +13,20 @@ public actor MockProfileRepository: ProfileRepository {
     private var styleProfile: StyleProfile?
     private var bodyProfile: BodyProfile?
     private var lifestyleProfile: LifestyleProfile?
+    private let studioRepository: StudioRepository?
 
     public init(
         profile: Profile = SampleData.profile,
         styleProfile: StyleProfile? = SampleData.styleProfile,
         bodyProfile: BodyProfile? = SampleData.bodyProfile,
-        lifestyleProfile: LifestyleProfile? = SampleData.lifestyleProfile
+        lifestyleProfile: LifestyleProfile? = SampleData.lifestyleProfile,
+        studioRepository: StudioRepository? = nil
     ) {
         self.profile = profile
         self.styleProfile = styleProfile
         self.bodyProfile = bodyProfile
         self.lifestyleProfile = lifestyleProfile
+        self.studioRepository = studioRepository
     }
 
     public func fetchCurrentProfile() async throws -> Profile { profile }
@@ -117,6 +120,14 @@ public actor MockProfileRepository: ProfileRepository {
         guard var bodyProfile,
               bodyProfile.appearance.referenceSelfiePaths.contains(path) else {
             throw AstraError.validation("That reference photo is no longer saved to your profile.")
+        }
+        if let studioRepository {
+            let generations = try await studioRepository.fetchGenerations()
+            let descendants = try ReferencePhotoPreviewGraph.deletionOrder(sourcePath: path, generations: generations)
+            guard !descendants.contains(where: { $0.status == .queued || $0.status == .generating }) else {
+                throw AstraError.validation("A preview is in progress. Try again when it finishes.")
+            }
+            for generation in descendants { try await studioRepository.deleteGeneration(id: generation.id) }
         }
         bodyProfile.appearance.referenceSelfiePaths.removeAll { $0 == path }
         self.bodyProfile = bodyProfile

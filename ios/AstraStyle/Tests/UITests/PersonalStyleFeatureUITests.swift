@@ -185,6 +185,45 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         try deleteStudioEstimate()
     }
 
+    func testReferencePhotoTrackedCascade() throws {
+        try referencePhotoCascade()
+    }
+
+    func testReferencePhotoTrackedCascadeLightAccessibility() throws {
+        app.launchArguments += ["-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        try referencePhotoCascade()
+    }
+
+    private func referencePhotoCascade() throws {
+        app.launchArguments += ["-astra-test-reference-photo", "-astra-test-pending-image-removal"]
+        launchMockMain()
+        app.tapChromeTab("Profile")
+        let privacy = app.descendants(matching: .any)["profile.privacyAndDataRow"]
+        privacy.scrollIntoView(in: app); privacy.tap()
+        let references = app.buttons["privacyAndData.referencePhotosRow"]
+        awaitElement(references, "Reference photos privacy row")
+        references.scrollIntoView(in: app); references.tap()
+        let count = app.staticTexts["Removing this also deletes 3 saved Studio previews."]
+        count.scrollIntoView(in: app)
+        awaitElement(count, "Transitive variation count")
+        let remove = app.buttons["profile.referencePhotos.delete.1"]
+        remove.scrollIntoView(in: app); remove.tap()
+        let confirm = app.buttons.matching(identifier: "profile.referencePhotos.confirmDelete").firstMatch
+        awaitElement(confirm, "Reference cascade confirmation"); confirm.tap()
+        let empty = app.staticTexts["No reference photos saved"]
+        empty.scrollIntoView(in: app); awaitElement(empty, "Reference removed after accepted cascade")
+        let check = app.buttons["profile.referencePhotos.checkRemoval"]
+        check.scrollIntoView(in: app); awaitElement(check, "Pending file cleanup remains reachable")
+        check.tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: check)], timeout: timeout) == .completed)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Reference photo pending removal"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        app.tapChromeTab("Studio")
+        awaitElement(app.buttons["studio.empty.start"], "Every derived variation removed from Studio")
+    }
+
     func testStudioTrackedRemovalLightAccessibility() throws {
         app.launchArguments += ["-astra-test-pending-image-removal", "-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         try deleteStudioEstimate()

@@ -60,6 +60,7 @@ struct EndpointDeploymentMappingTests {
     private static let allEndpoints: [AstraEndpoint] = [
         .completeOnboarding,
         .exportPersonalData,
+        .deleteReferencePhoto,
         .generateStyleDNA,
         .analyzeClosetItem,
         .fetchWardrobeScore,
@@ -88,7 +89,7 @@ struct EndpointDeploymentMappingTests {
     /// gains a case (the new case makes this switch non-exhaustive).
     private static func assertCovered(_ endpoint: AstraEndpoint) {
         switch endpoint {
-        case .completeOnboarding, .exportPersonalData, .generateStyleDNA, .analyzeClosetItem, .fetchWardrobeScore,
+        case .completeOnboarding, .exportPersonalData, .deleteReferencePhoto, .generateStyleDNA, .analyzeClosetItem, .fetchWardrobeScore,
              .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
              .evaluateProduct, .listProductUnlocks, .generateStudio, .studioStatus, .deleteStudioGeneration,

@@ -11,6 +11,13 @@ Deno.test("handleCorsPreflight returns a 204 for OPTIONS requests", () => {
   );
 });
 
+Deno.test("preflight permits the deployed read and deletion routes", () => {
+  const response = handleCorsPreflight(
+    new Request("https://example.com/profile/reference-photos", { method: "OPTIONS" }),
+  );
+  assertEquals(response?.headers.get("Access-Control-Allow-Methods"), "GET, POST, DELETE, OPTIONS");
+});
+
 Deno.test("handleCorsPreflight returns null for non-OPTIONS requests", () => {
   const req = new Request("https://example.com/outfits/generate", { method: "POST" });
   assertStrictEquals(handleCorsPreflight(req), null);

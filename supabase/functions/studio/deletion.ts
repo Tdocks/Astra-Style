@@ -28,6 +28,34 @@ export interface StudioDeletionDeps {
   token(): string;
 }
 
+/** Shared fenced cleanup for an already accepted, owner-scoped deletion job. */
+export async function processPreparedDeletion(
+  prepared: DeletionJob,
+  userID: string,
+  deps: StudioDeletionDeps,
+): Promise<"pending" | "complete"> {
+  if (prepared.user_id !== userID) throw serverError();
+  if (prepared.status === "complete") return "complete";
+  const token = deps.token();
+  let claimed: DeletionJob | null;
+  try {
+    claimed = await deps.claim(userID, prepared.id, token);
+  } catch {
+    return "pending";
+  }
+  if (!claimed) return "pending";
+  try {
+    if (claimed.user_id !== userID || !validResultPath(claimed)) throw serverError();
+    if (claimed.result_image_path !== null) await deps.removeImage(claimed.result_image_path);
+    return await deps.finish(claimed.id, token, true) ? "complete" : "pending";
+  } catch {
+    try {
+      await deps.finish(claimed.id, token, false);
+    } catch { /* Expiring the claim also recovers this accepted job. */ }
+    return "pending";
+  }
+}
+
 /** The client never sees a privileged path, lease token or Storage response. */
 export async function handleDelete(
   req: Request,
@@ -52,27 +80,7 @@ export async function handleDelete(
     }
     const prepared = await deps.prepare(userID, generationID);
     createLogger(requestID).info("studio_delete.accepted", { status: prepared.status });
-    if (prepared.status === "complete") return reply(prepared.id, "complete");
-    const token = deps.token();
-    let claimed: DeletionJob | null;
-    try {
-      claimed = await deps.claim(userID, prepared.id, token);
-    } catch {
-      return reply(prepared.id, "pending");
-    }
-    if (!claimed) return reply(prepared.id, "pending");
-    try {
-      if (claimed.user_id !== userID || !validResultPath(claimed)) throw serverError();
-      if (claimed.result_image_path !== null) await deps.removeImage(claimed.result_image_path);
-      const complete = await deps.finish(claimed.id, token, true);
-      return reply(claimed.id, complete ? "complete" : "pending");
-    } catch {
-      // Deletion was accepted and hidden. Persist retry state for the scheduler.
-      try {
-        await deps.finish(claimed.id, token, false);
-      } catch { /* Lease expiry also recovers this job. */ }
-      return reply(claimed.id, "pending");
-    }
+    return reply(prepared.id, await processPreparedDeletion(prepared, userID, deps));
   } catch (error) {
     return errorResponse(
       error instanceof AppError ? error : serverError("Couldn't remove that estimate. Try again."),

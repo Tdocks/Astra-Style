@@ -37,6 +37,9 @@ public final class ReferencePhotosViewModel {
     public private(set) var imageURLs: [String: URL] = [:]
     public private(set) var deletingPaths: Set<String> = []
     public var deletionError: String?
+    public private(set) var pendingImageDeletionCount = 0
+    public private(set) var removalStatusError: String?
+    public private(set) var isCheckingRemoval = false
 
     private let profileRepository: ProfileRepository
     private let studioRepository: StudioRepository
@@ -60,6 +63,7 @@ public final class ReferencePhotosViewModel {
     }
 
     public func refresh() async {
+        await refreshRemovalStatus()
         do {
             let bodyProfile = try await profileRepository.fetchBodyProfile()
             var seenPaths: Set<String> = []
@@ -98,11 +102,11 @@ public final class ReferencePhotosViewModel {
         defer { deletingPaths.remove(path) }
 
         do {
-            try await deletePreviewsUsing(path: path)
             try await profileRepository.deleteReferenceImage(path: path)
             imageURLs[path] = nil
             let remaining = photos.filter { $0.path != path }
             state = remaining.isEmpty ? .empty : .loaded(remaining)
+            await refreshRemovalStatus()
         } catch let error as AstraError {
             deletionError = error.message
         } catch {
@@ -114,15 +118,15 @@ public final class ReferencePhotosViewModel {
         deletionError = nil
     }
 
-    private func deletePreviewsUsing(path: String) async throws {
-        let matches = try ReferencePhotoPreviewGraph.deletionOrder(
-            sourcePath: path, generations: await fetchVisibleGenerations()
-        )
-        guard !matches.contains(where: Self.isActive) else {
-            throw AstraError.validation("A preview is in progress. Try again when it finishes.")
-        }
-        for generation in matches {
-            try await studioRepository.deleteGeneration(id: generation.id)
+    public func refreshRemovalStatus() async {
+        guard !isCheckingRemoval else { return }
+        isCheckingRemoval = true
+        defer { isCheckingRemoval = false }
+        do {
+            pendingImageDeletionCount = try await studioRepository.fetchPendingImageDeletionCount()
+            removalStatusError = nil
+        } catch {
+            removalStatusError = "Couldn't check image removal. Please try again."
         }
     }
 
@@ -149,7 +153,7 @@ public final class ReferencePhotosViewModel {
 /// The server still validates each deletion; this graph is not an authorization
 /// boundary or a replacement for an atomic server-owned reference cascade.
 enum ReferencePhotoPreviewGraph {
-    static func deletionOrder(sourcePath: String, generations: [StudioGeneration]) throws -> [StudioGeneration] {
+    nonisolated static func deletionOrder(sourcePath: String, generations: [StudioGeneration]) throws -> [StudioGeneration] {
         let visible = generations.filter { !$0.isDeleted }
         let bySource = Dictionary(grouping: visible, by: \.referenceImagePath)
         var visited: Set<UUID> = []

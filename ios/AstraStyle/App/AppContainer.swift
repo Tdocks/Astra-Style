@@ -267,6 +267,14 @@ extension AppContainer {
         let sessionStore = SessionStore(apiClient: .previewClient, supabase: AstraSupabaseClientFactory.previewClient)
 
         let mockClosetRepository = MockClosetRepository()
+        var referenceBody = SampleData.bodyProfile
+        let referencePath = ProcessInfo.processInfo.arguments.contains("-astra-test-reference-photo")
+            ? "users/\(SampleData.userID.uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg" : nil
+        if let referencePath { referenceBody.appearance.referenceSelfiePaths = [referencePath] }
+        let mockStudioRepository = MockStudioRepository(
+            pendingImageDeletionCount: ProcessInfo.processInfo.arguments.contains("-astra-test-pending-image-removal") ? 1 : 0,
+            referencePhotoPath: referencePath
+        )
         // Preview / `-astra-mock-backend` seeds an active Premium
         // subscription so closet UI tests are not blocked by the free
         // 30-item cap while exercising add flows against SampleData's
@@ -282,12 +290,12 @@ extension AppContainer {
         return AppContainer(
             sessionStore: sessionStore,
             authRepository: MockAuthRepository(sessionStore: sessionStore),
-            profileRepository: MockProfileRepository(),
+            profileRepository: MockProfileRepository(bodyProfile: referenceBody, studioRepository: mockStudioRepository),
             closetRepository: freeTierCappedClosetRepository,
             closetImageURLResolver: MockClosetImageURLResolver(),
             outfitRepository: MockOutfitRepository(),
             kyraRepository: MockKyraRepository(),
-            studioRepository: MockStudioRepository(pendingImageDeletionCount: ProcessInfo.processInfo.arguments.contains("-astra-test-pending-image-removal") ? 1 : 0),
+            studioRepository: mockStudioRepository,
             studioEstimateExporter: MockStudioEstimateExporter(),
             shoppingRepository: MockShoppingRepository(),
             streakRepository: MockStreakRepository(),

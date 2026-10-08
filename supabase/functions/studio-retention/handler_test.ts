@@ -7,6 +7,29 @@ import {
 } from "./handler.ts";
 
 const SECRET = "a".repeat(64);
+
+Deno.test("reference cleanup only accepts its immutable owner/key JPEG path", () => {
+  const user = crypto.randomUUID(), key = crypto.randomUUID();
+  const reference: RetentionJob = {
+    id: crypto.randomUUID(),
+    user_id: user,
+    generation_id: null,
+    generation_key: key,
+    kind: "reference",
+    result_image_path: `users/${user}/references/${key}.jpg`,
+  };
+  assertEquals(validResultPath(reference), true);
+  for (
+    const invalid of [
+      { ...reference, generation_id: key },
+      { ...reference, result_image_path: `users/${crypto.randomUUID()}/references/${key}.jpg` },
+      { ...reference, result_image_path: `users/${user}/references/${crypto.randomUUID()}.jpg` },
+      { ...reference, result_image_path: `users/${user}/references/${key}.png` },
+      { ...reference, result_image_path: `users/${user}/closet/${key}.jpg` },
+      { ...reference, kind: "studio" as const },
+    ]
+  ) assertEquals(validResultPath(invalid), false);
+});
 const job: RetentionJob = {
   id: "job",
   user_id: "owner",

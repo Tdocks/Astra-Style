@@ -13,6 +13,7 @@ import Foundation
 public enum AstraEndpoint: Sendable, Equatable {
     case completeOnboarding
     case exportPersonalData
+    case deleteReferencePhoto
     case generateStyleDNA
     case analyzeClosetItem
     case fetchWardrobeScore
@@ -45,7 +46,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         switch self {
         case .studioStatus, .batchAnalyzeClosetStatus, .exportPersonalData, .fetchWardrobeScore:
             .get
-        case .deleteAccount, .deleteStudioGeneration:
+        case .deleteAccount, .deleteStudioGeneration, .deleteReferencePhoto:
             .delete
         default:
             .post
@@ -58,6 +59,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         switch self {
         case .completeOnboarding: "profile/complete-onboarding"
         case .exportPersonalData: "profile/export-data"
+        case .deleteReferencePhoto: "profile/reference-photos"
         case .generateStyleDNA: "style-dna/generate"
         case .analyzeClosetItem: "closet/analyze-item"
         case .fetchWardrobeScore: "closet/wardrobe-score"

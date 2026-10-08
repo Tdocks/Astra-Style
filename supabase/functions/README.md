@@ -51,6 +51,8 @@ supabase/functions/
     index.ts                 Wiring; calls the complete_onboarding() RPC
     handler.ts               Auth, rate limit, validation, logging
     schema.ts                The §6.9 preference vector's absent-vs-zero round trip
+    referenceDeletion.ts     DELETE /profile/reference-photos: authenticated atomic
+                              owned cascade and durable Storage API cleanup (ADR 0026)
   style-dna/              POST /style-dna/generate (P2-CORE-02)
     index.ts                 Wiring — AND THE ONE LINE THAT PICKS THE PROVIDER
     handler.ts               Builds the StylistCompletionRequest; validates the output

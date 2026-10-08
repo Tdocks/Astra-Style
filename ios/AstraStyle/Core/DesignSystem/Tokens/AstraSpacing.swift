@@ -63,6 +63,8 @@ public enum AstraRadius {
 
 /// Control sizing constants, per spec §3 and §19 (Accessibility).
 public enum AstraSize {
+    public static let referencePhotoWidth: CGFloat = 88
+    public static let referencePhotoHeight: CGFloat = 110
     /// Minimum tap target: 44 × 44 pt.
     public static let minTapTarget: CGFloat = 44
 

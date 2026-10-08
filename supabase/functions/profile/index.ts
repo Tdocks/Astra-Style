@@ -18,20 +18,21 @@
 // and because a future `GET /profile` or `PATCH /profile` is a route in this
 // table rather than a new deploy target.
 //
-// NOTE ON SERVICE-ROLE: this function never constructs a service-role
-// client. Every write it performs is one `authenticated` may already make on
-// its own rows (`style_profiles_insert_own`/`_update_own` and siblings,
-// `profiles_update_own`), so the caller's own JWT is sufficient and Row
-// Level Security stays the boundary. See `_shared/supabaseClient.ts` and
-// the `SECURITY INVOKER` rationale in
-// supabase/migrations/20260730190000_complete_onboarding_rpc.sql.
+// Onboarding/export use caller-scoped RLS. Reference-photo erasure is the
+// documented service exception: authenticate first, then atomically hide the
+// owned photo's entire derivation graph and queue Storage removal (ADR 0026).
 //
 // NOTE ON GUESTS (ADR 0018): anonymous JWTs are `authenticated`, so this
 // endpoint is reachable. Photos still must not hit `user-content` until
 // Apple/email link. The old ADR 0011 guest-with-no-JWT path is gone.
 // ============================================================================
 
-import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import {
+  createServiceRoleClient,
+  createUserScopedClient,
+  readEdgeEnv,
+} from "../_shared/supabaseClient.ts";
+import { handleReferenceDelete, referenceDeletionDeps } from "./referenceDeletion.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { serverError } from "../_shared/errors.ts";
@@ -213,7 +214,7 @@ function personalDataExportRoute(req: Request): Promise<Response> {
                 table.name === "studio_generations"
                   ? "id,user_id,reference_image_path,outfit_id,prompt_payload,status,result_image_path,provider,error_message,deleted_at,created_at,updated_at,allowance_id,retry_of,retention_expires_at"
                   : table.name === "studio_retention_jobs"
-                  ? "id,user_id,generation_id,status,attempts,error_message,created_at,completed_at"
+                  ? "id,user_id,generation_id,kind,status,attempts,error_message,created_at,completed_at"
                   : "*",
               )
               .eq(table.ownerColumn, userId)
@@ -239,4 +240,12 @@ function personalDataExportRoute(req: Request): Promise<Response> {
 Deno.serve(createRouter("profile", [
   { method: "POST", pattern: "/complete-onboarding", handler: completeOnboardingRoute },
   { method: "GET", pattern: "/export-data", handler: personalDataExportRoute },
+  {
+    method: "DELETE",
+    pattern: "/reference-photos",
+    handler: (req) => {
+      const user = createUserScopedClient(env, req.headers.get("authorization") ?? "");
+      return handleReferenceDelete(req, referenceDeletionDeps(user, createServiceRoleClient(env)));
+    },
+  },
 ]));

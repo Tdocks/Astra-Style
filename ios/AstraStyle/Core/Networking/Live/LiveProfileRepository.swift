@@ -184,7 +184,7 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
             let path = "users/\(userID)/references/\(UUID().uuidString.lowercased()).jpg"
             _ = try await supabase.storage
                 .from("user-content")
-                .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
+                .upload(path, data: imageData, options: FileOptions(cacheControl: "60", contentType: "image/jpeg"))
             return path
         } catch {
             throw AstraError.network("Couldn't upload your photo. Check your connection and try again.")
@@ -192,45 +192,11 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
     }
 
     public func deleteReferenceImage(path: String) async throws {
-        let userID: String
-        do {
-            let session = try await supabase.auth.session
-            userID = session.user.id.uuidString.lowercased()
-        } catch {
-            throw AstraError.auth("Sign in again to remove your reference photo.")
-        }
-
-        let components = path.split(separator: "/").map(String.init)
-        guard components.count == 4,
-              components[0] == "users",
-              components[1] == userID,
-              components[2] == "references",
-              components[3].lowercased().hasSuffix(".jpg"),
-              UUID(uuidString: String(components[3].dropLast(4))) != nil else {
-            throw AstraError.validation("That reference photo doesn't belong to your account.")
-        }
-
-        guard var bodyProfile = try await fetchBodyProfile(),
-              bodyProfile.appearance.referenceSelfiePaths.contains(path) else {
-            throw AstraError.validation("That reference photo is no longer saved to your profile.")
-        }
-
-        let originalProfile = bodyProfile
-        bodyProfile.appearance.referenceSelfiePaths.removeAll { $0 == path }
-        _ = try await updateBodyProfile(bodyProfile)
-
-        do {
-            _ = try await supabase.storage.from("user-content").remove(paths: [path])
-        } catch {
-            do {
-                _ = try await updateBodyProfile(originalProfile)
-            } catch {
-                throw AstraError.server(
-                    "The photo could not be removed from storage, and your profile could not be restored. Refresh Privacy & Data and try again."
-                )
-            }
-            throw AstraError.network("Couldn't remove that photo. Your profile was restored; please try again.")
-        }
+        struct Payload: Encodable, Sendable { let path: String }
+        struct Result: Decodable, Sendable { let id: UUID; let status: String }
+        // The server validates ownership and atomically hides the reference and
+        // every derived variation. Storage failures become durable retry jobs.
+        _ = try await apiClient.send(.deleteReferencePhoto, body: Payload(path: path), as: Result.self)
     }
 
     public func exportPersonalData() async throws -> URL {

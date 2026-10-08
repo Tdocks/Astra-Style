@@ -24,6 +24,7 @@ struct ReferencePhotosView: View {
                     title: String(localized: "Reference Photos", comment: "Reference photo privacy screen title")
                 )
                 explanation
+                removalStatus
                 content
             }
             .padding(AstraSpacing.pagePadding)
@@ -44,12 +45,13 @@ struct ReferencePhotosView: View {
                 Task { await viewModel.deleteReferencePhoto(path: photoPendingDeletion.path) }
                 self.photoPendingDeletion = nil
             }
+            .accessibilityIdentifier("profile.referencePhotos.confirmDelete")
             Button(String(localized: "Cancel", comment: "Cancel reference photo deletion"), role: .cancel) {
                 photoPendingDeletion = nil
             }
         } message: {
             Text(String(
-                localized: "The photo and any saved Style Studio previews made with it will be removed.",
+                localized: "The photo and every preview or variation made from it will be removed from your profile and saved looks. File removal may finish in the background.",
                 comment: "Effect of deleting a reference photo"
             ))
         }
@@ -76,6 +78,26 @@ struct ReferencePhotosView: View {
     }
 
     @ViewBuilder
+    private var removalStatus: some View {
+        if viewModel.pendingImageDeletionCount > 0 || viewModel.removalStatusError != nil {
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                Text(viewModel.removalStatusError ?? String(localized: "Photo or preview removal is in progress. We'll retry automatically.", comment: "Pending private image removal"))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(String(localized: "Check image removal", comment: "Refresh tracked image removal status")) {
+                    Task { await viewModel.refreshRemovalStatus() }
+                }
+                .buttonStyle(.astraSecondary)
+                .disabled(viewModel.isCheckingRemoval)
+                .accessibilityIdentifier("profile.referencePhotos.checkRemoval")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("profile.referencePhotos.pendingRemoval")
+        }
+    }
+
+    @ViewBuilder
     private var content: some View {
         switch viewModel.state {
         case .loading:
@@ -89,6 +111,7 @@ struct ReferencePhotosView: View {
                     photoCard(entry.element, number: entry.offset + 1)
                 }
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("profile.referencePhotos.list")
         case .empty:
             emptyState
@@ -135,7 +158,7 @@ struct ReferencePhotosView: View {
     private func photoHeader(_ photo: SavedReferencePhoto, number: Int) -> some View {
         HStack(alignment: .top, spacing: AstraSpacing.md) {
             photoImage(for: photo)
-                .frame(width: 88, height: 110)
+                .frame(width: AstraSize.referencePhotoWidth, height: AstraSize.referencePhotoHeight)
                 .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card))
 
             VStack(alignment: .leading, spacing: AstraSpacing.xs) {
@@ -203,6 +226,7 @@ struct ReferencePhotosView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(AstraSpacing.lg)
         .background(AstraColor.surfaceElevated, in: RoundedRectangle(cornerRadius: AstraRadius.card))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profile.referencePhotos.empty")
     }
 

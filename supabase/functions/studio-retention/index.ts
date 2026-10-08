@@ -24,7 +24,9 @@ Deno.serve((req) =>
       async prepare() {
         const { data, error } = await client.rpc("prepare_studio_retention", { p_limit: 25 });
         if (error) throw new Error("Cleanup preparation failed");
-        return data as number;
+        const references = await client.rpc("prepare_reference_retention", { p_limit: 25 });
+        if (references.error) throw new Error("Reference cleanup preparation failed");
+        return (data as number) + (references.data as number);
       },
       async claim(token) {
         const { data, error } = await client.rpc("claim_studio_retention", {

@@ -4,6 +4,7 @@ export interface RetentionJob {
   generation_id: string | null;
   generation_key: string;
   result_image_path: string | null;
+  kind?: "studio" | "reference";
 }
 
 export interface RetentionRepository {
@@ -23,6 +24,13 @@ export interface RetentionDeps {
 export function validResultPath(job: RetentionJob): boolean {
   if (job.result_image_path === null) return true;
   const parts = job.result_image_path.split("/");
+  if (job.kind === "reference") {
+    return job.generation_id === null && parts.length === 4 && parts[0] === "users" &&
+      parts[1] === job.user_id.toLowerCase() && parts[2] === "references" &&
+      parts[3] === `${job.generation_key.toLowerCase()}.jpg` &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(job.generation_key);
+  }
+  if (job.kind !== undefined && job.kind !== "studio") return false;
   return parts.length === 5 && parts[0] === "users" &&
     parts[1] === job.user_id.toLowerCase() && parts[2] === "studio" &&
     parts[3] === job.generation_key.toLowerCase() &&

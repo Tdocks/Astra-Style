@@ -22,10 +22,20 @@ public actor MockStudioRepository: StudioRepository {
     public func setPendingImageDeletionCount(_ count: Int) { pendingDeletionCount = max(0, count) }
     public func fetchPendingImageDeletionCount() async throws -> Int { pendingDeletionCount }
 
-    public init(quotaExhausted: Bool = false, failFirstGeneration: Bool = false, pendingImageDeletionCount: Int = 0) {
+    public init(quotaExhausted: Bool = false, failFirstGeneration: Bool = false, pendingImageDeletionCount: Int = 0, referencePhotoPath: String? = nil) {
         self.quotaExhausted = quotaExhausted
         self.failFirstGeneration = failFirstGeneration
         self.pendingDeletionCount = max(0, pendingImageDeletionCount)
+        if let referencePhotoPath {
+            var source = referencePhotoPath
+            for _ in 0..<3 {
+                let id = UUID()
+                let result = "users/\(SampleData.userID.uuidString.lowercased())/studio/\(id.uuidString.lowercased())/result.png"
+                generations[id] = StudioGeneration(id: id, userID: SampleData.userID, referenceImagePath: source,
+                    status: .complete, resultImagePath: result)
+                source = result
+            }
+        }
     }
 
     public func seed(_ generation: StudioGeneration) {

@@ -15,8 +15,8 @@ struct ReferencePhotosViewModelTests {
         let path = referencePath
         var bodyProfile = SampleData.bodyProfile
         bodyProfile.appearance.referenceSelfiePaths = [path]
-        let profile = MockProfileRepository(bodyProfile: bodyProfile)
         let studio = MockStudioRepository()
+        let profile = MockProfileRepository(bodyProfile: bodyProfile, studioRepository: studio)
         let generation = StudioGeneration(
             id: UUID(),
             userID: SampleData.userID,
@@ -46,8 +46,8 @@ struct ReferencePhotosViewModelTests {
         let path = referencePath
         var bodyProfile = SampleData.bodyProfile
         bodyProfile.appearance.referenceSelfiePaths = [path]
-        let profile = MockProfileRepository(bodyProfile: bodyProfile)
         let studio = MockStudioRepository()
+        let profile = MockProfileRepository(bodyProfile: bodyProfile, studioRepository: studio)
         let generation = StudioGeneration(
             id: UUID(),
             userID: SampleData.userID,
@@ -77,13 +77,28 @@ struct ReferencePhotosViewModelTests {
         "users/\(SampleData.userID.uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg"
     }
 
+    @Test("Pending server cleanup remains visible after all reference photos are gone")
+    func pendingRemovalInEmptyProfile() async throws {
+        var body = SampleData.bodyProfile
+        body.appearance.referenceSelfiePaths = []
+        let studio = MockStudioRepository(pendingImageDeletionCount: 2)
+        let model = makeViewModel(profile: MockProfileRepository(bodyProfile: body), studio: studio)
+        await model.load()
+        guard case .empty = model.state else { Issue.record("expected empty profile"); return }
+        #expect(model.pendingImageDeletionCount == 2)
+        await studio.setPendingImageDeletionCount(0)
+        await model.refreshRemovalStatus()
+        #expect(model.pendingImageDeletionCount == 0)
+        #expect(model.removalStatusError == nil)
+    }
+
     @Test("Removing a reference traverses variations and deletes leaves before sources")
     func deletionRemovesTransitiveVariations() async throws {
         let path = referencePath
         var body = SampleData.bodyProfile
         body.appearance.referenceSelfiePaths = [path]
-        let profile = MockProfileRepository(bodyProfile: body)
         let studio = MockStudioRepository()
+        let profile = MockProfileRepository(bodyProfile: body, studioRepository: studio)
         let root = preview(source: path, result: "root.png")
         let child = preview(source: "root.png", result: "child.png")
         let grandchild = preview(source: "child.png", result: "grandchild.png")
@@ -104,8 +119,8 @@ struct ReferencePhotosViewModelTests {
         let path = referencePath
         var body = SampleData.bodyProfile
         body.appearance.referenceSelfiePaths = [path]
-        let profile = MockProfileRepository(bodyProfile: body)
         let studio = MockStudioRepository()
+        let profile = MockProfileRepository(bodyProfile: body, studioRepository: studio)
         let root = preview(source: path, result: "root.png")
         let child = preview(source: "root.png", result: nil, status: .generating)
         await studio.seed(root)
@@ -125,8 +140,8 @@ struct ReferencePhotosViewModelTests {
         let path = referencePath
         var body = SampleData.bodyProfile
         body.appearance.referenceSelfiePaths = [path]
-        let profile = MockProfileRepository(bodyProfile: body)
         let studio = MockStudioRepository()
+        let profile = MockProfileRepository(bodyProfile: body, studioRepository: studio)
         for index in 0..<105 {
             await studio.seed(preview(source: path, result: "result-\(index).png"))
         }

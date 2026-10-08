@@ -170,6 +170,14 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/33_studio_deletion.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/34_reference_photo_cleanup.sql"
+  test_exit=$?
+fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/35_guest_photo_storage.sql"
+  test_exit=$?
+fi
 set -e
 echo
 
