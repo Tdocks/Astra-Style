@@ -2,3 +2,7 @@ project_id = "anutsdzbxycaavmmkewo"
 
 [functions.app-store]
 verify_jwt = false
+
+[functions.studio-retention]
+# Dedicated Vault scheduler secret is validated before privileged cleanup.
+verify_jwt = false

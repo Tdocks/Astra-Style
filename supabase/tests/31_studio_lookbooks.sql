@@ -52,7 +52,8 @@ begin
   update public.studio_lookbooks set name='Daily' where id=own_book;
   blocked:=false;
   begin insert into public.studio_lookbook_entries(user_id,lookbook_id,generation_id) values(u,own_book,peer_gen);
-  exception when insufficient_privilege then blocked:=true; end;
+  exception when insufficient_privilege then blocked:=true;
+    when raise_exception then if sqlerrm<>'studio_save_unavailable' then raise; end if; blocked:=true; end;
   if not blocked then raise exception 'Peer generation linked'; end if;
   blocked:=false;
   begin insert into public.studio_lookbook_entries(user_id,lookbook_id,generation_id) values(u,peer_book,own_gen);
@@ -60,7 +61,8 @@ begin
   if not blocked then raise exception 'Peer collection linked'; end if;
   blocked:=false;
   begin insert into public.studio_lookbook_entries(user_id,lookbook_id,generation_id) values(u,own_book,queued_gen);
-  exception when insufficient_privilege then blocked:=true; end;
+  exception when insufficient_privilege then blocked:=true;
+    when raise_exception then if sqlerrm<>'studio_save_unavailable' then raise; end if; blocked:=true; end;
   if not blocked then raise exception 'Unfinished generation saved'; end if;
   insert into public.studio_lookbook_entries(user_id,lookbook_id,generation_id) values(u,own_book,own_gen);
   insert into public.studio_lookbook_entries(user_id,lookbook_id,generation_id) values(u,own_book,own_gen)

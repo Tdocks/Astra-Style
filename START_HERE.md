@@ -17,9 +17,9 @@ current brief.
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
-| Xcode | **27.0** on the owner's Mac for builds 12–15 (previous release used 26.6) |
+| Xcode | **27.0** on the owner's Mac for builds 12–16 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `16`; upload pending) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `16`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
@@ -27,13 +27,13 @@ current brief.
 
 ## Current internal release — 2026-10-08
 
-Version **1.0.0 (15)** is processed **VALID** and **IN_BETA_TESTING**, with
-membership confirmed in the Internal group (build ID `52e14f42-e600-446c-be3c-810102b261e5`).
-It adds consistent generated-image disclosures and large-text Home cards to labeled image-file sharing, private estimate comparison, original/reference comparison and gallery refresh fixes
+Version **1.0.0 (16)** is processed **VALID** and **IN_BETA_TESTING**, with
+membership confirmed in the Internal group (build ID `fc44d5f0-66b1-4fae-8da0-038533971abd`).
+It adds private saved-look collections to generated-image disclosures, large-text Home cards, labeled image-file sharing, private comparison and gallery refresh fixes
 on top of build 12's contextual Home inspiration, closet-only renders, rerolls, edits and Kyra handoff.
-Studio backend is ACTIVE v10 and Profile v12, with server-owned jobs, durable trial accounting,
-private collection tables and owned export support. Collection UI follows build 15.
-External beta review for builds 12–15 has not been submitted;
+Studio backend is ACTIVE v11 and Profile v13, with server-owned jobs, durable trial accounting,
+private collections and owned export support. Studio-retention v1 is active with a verified five-minute Cron schedule. Saved and dependent outputs are protected; abandoned reference cleanup remains work.
+External beta review for builds 12–16 has not been submitted;
 the public link still serves build 11. Use Internal TestFlight for the owner's checks.
 See `docs/home-inspiration-device-checks.md` and `docs/studio-comparison-live-acceptance.md`.
 

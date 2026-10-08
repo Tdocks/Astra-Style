@@ -46,6 +46,11 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
       if (error?.message?.includes("studio_outfit_unavailable")) {
         throw badRequest("That outfit is no longer available.");
       }
+      if (error?.message?.includes("studio_source_unavailable")) {
+        throw badRequest(
+          "That source estimate expired or was removed. Generate a fresh inspiration instead.",
+        );
+      }
       if (error || !data) throw serverError("Couldn't enqueue the generation job.");
       return mapRow(data as Record<string, unknown>);
     },

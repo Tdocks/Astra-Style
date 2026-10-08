@@ -50,10 +50,7 @@ quotas using [Supabase's advisory](https://supabase.com/docs/guides/database/dat
 
 ## Remaining
 
-- A scheduled Storage API sweep must enforce expiration; a timestamp alone is
-  not automatic deletion. Saved estimates and source-image dependencies must be
-  protected when implementing that sweep.
+- A scheduled Storage API output sweep is now deployed and verified; see [ADR 0024](adr/0024-studio-retention-sweep.md). Abandoned references and server-owned manual deletion remain follow-up work.
 - Editable image descriptions, high-resolution generation/export, monthly
   Premium limits and full device image-fidelity acceptance remain separate work.
-- Internal build 15 predates the collection UI. The next build will include it;
-  do not attribute these native screens to build 15.
+- Internal build 16 is VALID / IN_BETA_TESTING, with Internal membership verified, and includes the collection UI.

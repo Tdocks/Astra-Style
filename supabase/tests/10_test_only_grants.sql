@@ -38,6 +38,9 @@ grant select on public.studio_allowances to authenticated;
 revoke insert, update on public.studio_generations from anon, authenticated;
 revoke all on public.studio_lookbooks,public.studio_lookbook_entries from anon;
 revoke update on public.studio_lookbook_entries from authenticated;
+revoke all on public.studio_retention_config,public.studio_retention_jobs from anon,authenticated;
+grant select(id,user_id,generation_id,status,attempts,error_message,created_at,completed_at)
+  on public.studio_retention_jobs to authenticated;
 
 -- No sequences to grant: every table in this schema uses
 -- `gen_random_uuid()` defaults, not serial/identity columns.
