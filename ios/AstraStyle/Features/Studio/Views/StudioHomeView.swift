@@ -37,6 +37,24 @@ struct StudioHomeView: View {
             }
         }
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
+        .safeAreaInset(edge: .top) {
+            if viewModel.pendingImageDeletionCount > 0 || viewModel.cleanupStatusError != nil {
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    Text(viewModel.cleanupStatusError ?? String(localized: "Image removal is in progress. We'll retry automatically."))
+                        .astraText(.callout).foregroundStyle(AstraColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(viewModel.isCheckingCleanup ? "Checking…" : "Check image removal") {
+                        Task { await viewModel.refreshCleanupStatus() }
+                    }
+                    .buttonStyle(.astraSecondary).disabled(viewModel.isCheckingCleanup)
+                    .accessibilityIdentifier("studio.cleanup.check")
+                }
+                .padding(AstraSpacing.pagePadding).frame(maxWidth: .infinity, alignment: .leading)
+                .background(AstraColor.surfaceElevated)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("studio.cleanup.status")
+            }
+        }
         .navigationTitle(String(localized: "Style Studio", comment: "Studio tab title"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -84,11 +102,12 @@ struct StudioHomeView: View {
                 Task { await viewModel.deleteGeneration(id: generationPendingDeletion) }
                 self.generationPendingDeletion = nil
             }
+            .accessibilityIdentifier("studio.delete.confirm")
             Button(String(localized: "Cancel", comment: "Cancel Studio preview deletion"), role: .cancel) {
                 generationPendingDeletion = nil
             }
         } message: {
-            Text(String(localized: "The saved image and its history will be removed.", comment: "Effect of deleting a Studio preview"))
+            Text(String(localized: "This removes the image, its history, and its saved-collection entries. If another variation uses it, remove that variation first. File removal may finish in the background.", comment: "Effect of deleting a Studio preview"))
         }
         .alert(
             String(localized: "That preview couldn't be deleted", comment: "Studio preview deletion failure title"),
@@ -103,25 +122,27 @@ struct StudioHomeView: View {
     }
 
     private var empty: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.md) {
-            Text(String(
-                localized: "See a look on you before you wear it.",
-                comment: "Studio empty title"
-            ))
-            .astraText(.body)
-            .foregroundStyle(AstraColor.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            AstraButton(
-                title: String(localized: "See a look on you", comment: "Studio generate CTA")
-            ) {
-                router.presentModal(.studioGeneration(outfitID: nil))
+        ScrollView {
+            VStack(alignment: .leading, spacing: AstraSpacing.md) {
+                Text(String(localized: "See a look on you before you wear it.", comment: "Studio empty title"))
+                    .astraText(.body)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    router.presentModal(.studioGeneration(outfitID: nil))
+                } label: {
+                    Text(String(localized: "See a look on you", comment: "Studio generate CTA"))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, AstraSpacing.sm)
+                }
+                .buttonStyle(.astraPrimary)
+                .accessibilityIdentifier("studio.empty.start")
             }
-            .accessibilityIdentifier("studio.empty.start")
-            Spacer()
+            .padding(AstraSpacing.pagePadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("studio.empty")
         }
-        .padding(AstraSpacing.pagePadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .accessibilityIdentifier("studio.empty")
     }
 
     private func failed(_ error: AstraError) -> some View {

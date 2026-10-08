@@ -166,6 +166,10 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/32_studio_retention.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/33_studio_deletion.sql"
+  test_exit=$?
+fi
 set -e
 echo
 

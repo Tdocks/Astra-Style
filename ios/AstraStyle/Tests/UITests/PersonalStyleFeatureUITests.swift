@@ -180,6 +180,43 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         try savePrivateCollection()
     }
 
+    func testStudioTrackedImageRemoval() throws {
+        app.launchArguments += ["-astra-test-pending-image-removal"]
+        try deleteStudioEstimate()
+    }
+
+    func testStudioTrackedRemovalLightAccessibility() throws {
+        app.launchArguments += ["-astra-test-pending-image-removal", "-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        try deleteStudioEstimate()
+    }
+
+    private func deleteStudioEstimate() throws {
+        launchMockMain()
+        let inspiration = app.buttons["home.style.inspiration"]
+        inspiration.scrollIntoView(in: app); inspiration.tap()
+        if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
+        let generate = app.buttons["home.inspiration.generate"]
+        awaitElement(generate, "Generate estimate")
+        generate.scrollIntoView(in: app); generate.tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        app.buttons["Close"].tap()
+        app.tapChromeTab("Studio")
+        let deletion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "studio.generation.delete.")).firstMatch
+        awaitElement(deletion, "Remove estimate action")
+        deletion.scrollIntoView(in: app); deletion.tap()
+        let confirm = app.buttons.matching(identifier: "studio.delete.confirm").firstMatch
+        awaitElement(confirm, "Confirm estimate removal"); confirm.tap()
+        awaitElement(app.buttons["studio.empty.start"], "Gallery empty after accepted deletion")
+        let check = app.buttons["studio.cleanup.check"]
+        awaitElement(check, "Tracked server removal remains visible")
+        check.scrollIntoView(in: app); check.tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: check)], timeout: timeout) == .completed)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Studio pending image removal"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testStudioSaveCollectionLightAccessibility() throws {
         app.launchArguments += ["-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         try savePrivateCollection()

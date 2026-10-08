@@ -234,9 +234,15 @@ begin
     p_table, 'A cannot UPDATE B''s row', v_rowcount = 0, format('%s row(s) affected', v_rowcount)
   );
 
-  -- 5. A cannot DELETE B's row (zero rows affected).
-  execute format('delete from %I where %I = %L', p_table, p_pk, p_row_b);
-  get diagnostics v_rowcount = row_count;
+  -- 5. A cannot DELETE B's row. Studio intentionally closes client DELETE
+  -- grants entirely; other tables exercise the zero-row RLS result.
+  begin
+    execute format('delete from %I where %I = %L', p_table, p_pk, p_row_b);
+    get diagnostics v_rowcount = row_count;
+  exception when insufficient_privilege then
+    if p_table<>'studio_generations' then raise; end if;
+    v_rowcount:=0;
+  end;
   perform pg_temp.record_result(
     p_table, 'A cannot DELETE B''s row', v_rowcount = 0, format('%s row(s) affected', v_rowcount)
   );

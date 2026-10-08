@@ -31,6 +31,8 @@ public protocol StudioRepository: Sendable {
     /// Deletes a generation and its stored images (spec §6.17 "Provide
     /// deletion controls", §29).
     func deleteGeneration(id: UUID) async throws
+    /// Accepted file removals that the server is still retrying.
+    func fetchPendingImageDeletionCount() async throws -> Int
 
     func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook]
     func createLookbook(name: String) async throws -> StudioLookbook
@@ -43,6 +45,7 @@ public protocol StudioRepository: Sendable {
 }
 
 public extension StudioRepository {
+    func fetchPendingImageDeletionCount() async throws -> Int { 0 }
     // Existing narrow test doubles need only implement their tested operations.
     // Live and offline repositories implement the complete collection contract.
     func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook] { throw AstraError.server("Collections are unavailable.") }

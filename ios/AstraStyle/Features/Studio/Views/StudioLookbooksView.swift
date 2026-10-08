@@ -14,7 +14,7 @@ struct StudioLookbooksView: View {
             LazyVStack(alignment: .leading, spacing: AstraSpacing.md) {
                 Text(viewModel.generationID == nil
                      ? "Keep your favorite estimates together. Saved looks stay private and are retained while saved."
-                     : "Choose collections for this look. Saving keeps the estimate; removing it from its last collection starts a fresh 30-day window.")
+                     : "Choose collections for this look. Saving keeps the estimate; removing it from its last collection starts a fresh expiration window.")
                     .astraText(.callout).foregroundStyle(AstraColor.textSecondary)
                 if viewModel.isLoading { ProgressView("Loading collections…") }
                 if let error = viewModel.error {

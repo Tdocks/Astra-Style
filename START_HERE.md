@@ -31,8 +31,8 @@ Version **1.0.0 (16)** is processed **VALID** and **IN_BETA_TESTING**, with
 membership confirmed in the Internal group (build ID `fc44d5f0-66b1-4fae-8da0-038533971abd`).
 It adds private saved-look collections to generated-image disclosures, large-text Home cards, labeled image-file sharing, private comparison and gallery refresh fixes
 on top of build 12's contextual Home inspiration, closet-only renders, rerolls, edits and Kyra handoff.
-Studio backend is ACTIVE v11 and Profile v13, with server-owned jobs, durable trial accounting,
-private collections and owned export support. Studio-retention v1 is active with a verified five-minute Cron schedule. Saved and dependent outputs are protected; abandoned reference cleanup remains work.
+Studio backend is ACTIVE v13 and Profile v13, with server-owned jobs, durable trial accounting,
+private collections and owned export support. Studio-retention v1 is active with a verified five-minute Cron schedule. Saved and dependent outputs are protected; server-owned individual deletion is deployed (ADR 0025). Builds through 16 can no longer use their old direct Studio deletion path; the next native build uses the new endpoint. Abandoned reference cleanup remains work.
 External beta review for builds 12–16 has not been submitted;
 the public link still serves build 11. Use Internal TestFlight for the owner's checks.
 See `docs/home-inspiration-device-checks.md` and `docs/studio-comparison-live-acceptance.md`.

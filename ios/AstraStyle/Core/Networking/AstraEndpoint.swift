@@ -30,6 +30,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     case listProductUnlocks
     case generateStudio
     case studioStatus(id: UUID)
+    case deleteStudioGeneration(id: UUID)
     case generatePacking
     case syncSubscriptions
     case appStoreWebhook
@@ -44,7 +45,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         switch self {
         case .studioStatus, .batchAnalyzeClosetStatus, .exportPersonalData, .fetchWardrobeScore:
             .get
-        case .deleteAccount:
+        case .deleteAccount, .deleteStudioGeneration:
             .delete
         default:
             .post
@@ -71,6 +72,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .listProductUnlocks: "products/unlocks"
         case .generateStudio: "studio/generate"
         case .studioStatus(let id): "studio/status/\(id.uuidString)"
+        case .deleteStudioGeneration(let id): "studio/generations/\(id.uuidString.lowercased())"
         case .generatePacking: "packing/generate"
         case .syncSubscriptions: "subscriptions/sync"
         case .appStoreWebhook: "app-store/webhook"

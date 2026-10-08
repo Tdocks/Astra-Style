@@ -55,9 +55,14 @@ begin
   perform set_config('request.jwt.claims',json_build_object('sub',u,'role','authenticated')::text,true);
   if not exists(select 1 from public.studio_allowances where user_id=u) then raise exception 'Owner could not export own allowance activity'; end if;
   if exists(select 1 from public.studio_allowances where user_id<>u) then raise exception 'Allowance reads crossed owner boundary'; end if;
+  blocked:=false;
+  begin delete from public.studio_generations where id=job.id;
+  exception when insufficient_privilege then blocked:=true; end;
+  if not blocked then raise exception 'Client bypassed server-owned image deletion'; end if;
+  perform set_config('role','service_role',true);
   delete from public.studio_generations where id=job.id;
   get diagnostics n=row_count;
-  if n<>1 then raise exception 'Owner could not delete a completed estimate'; end if;
+  if n<>1 then raise exception 'Service could not finalize a completed estimate'; end if;
   perform set_config('role','service_role',true);
   if not exists(select 1 from public.studio_allowances where id=job.allowance_id and consumed_at is not null and released_at is null) then
     raise exception 'Deleting a successful estimate refunded the free allowance';

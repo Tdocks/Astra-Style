@@ -26,6 +26,10 @@ public final class StudioHomeViewModel {
     public private(set) var isLoadingMore = false
     public private(set) var hasMore = false
     public private(set) var paginationError: String?
+    public private(set) var pendingImageDeletionCount = 0
+    public private(set) var cleanupStatusError: String?
+    public private(set) var isCheckingCleanup = false
+    private var cleanupRevision = 0
 
     private let studioRepository: StudioRepository
     private let imageURLResolver: ClosetImageURLResolving
@@ -69,6 +73,7 @@ public final class StudioHomeViewModel {
                 }
             )
             state = generations.isEmpty ? .empty : .loaded(generations)
+            await refreshCleanupStatus()
         } catch let error as AstraError {
             guard currentRequest == requestGeneration else { return }
             state = .failed(error)
@@ -154,6 +159,7 @@ public final class StudioHomeViewModel {
             } else {
                 state = remaining.isEmpty ? .empty : .loaded(remaining)
             }
+            await refreshCleanupStatus()
         } catch let error as AstraError {
             deletionError = error.message
         } catch {
@@ -163,6 +169,22 @@ public final class StudioHomeViewModel {
 
     public func clearDeletionError() {
         deletionError = nil
+    }
+
+    public func refreshCleanupStatus() async {
+        cleanupRevision += 1
+        let revision = cleanupRevision
+        isCheckingCleanup = true
+        defer { if revision == cleanupRevision { isCheckingCleanup = false } }
+        do {
+            let count = try await studioRepository.fetchPendingImageDeletionCount()
+            guard revision == cleanupRevision else { return }
+            pendingImageDeletionCount = count
+            cleanupStatusError = nil
+        } catch {
+            guard revision == cleanupRevision else { return }
+            cleanupStatusError = (error as? AstraError)?.message ?? "Couldn't check image removal. Try again."
+        }
     }
 
     public func clearPaginationError() {

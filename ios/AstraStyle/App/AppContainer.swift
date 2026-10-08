@@ -287,7 +287,7 @@ extension AppContainer {
             closetImageURLResolver: MockClosetImageURLResolver(),
             outfitRepository: MockOutfitRepository(),
             kyraRepository: MockKyraRepository(),
-            studioRepository: MockStudioRepository(),
+            studioRepository: MockStudioRepository(pendingImageDeletionCount: ProcessInfo.processInfo.arguments.contains("-astra-test-pending-image-removal") ? 1 : 0),
             studioEstimateExporter: MockStudioEstimateExporter(),
             shoppingRepository: MockShoppingRepository(),
             streakRepository: MockStreakRepository(),

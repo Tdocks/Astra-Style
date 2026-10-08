@@ -35,7 +35,7 @@ grant select, insert, update, delete on all tables in schema public to anon, aut
 -- the platform baseline. Tests below exercise both grants and RLS.
 revoke all on public.studio_allowances from anon, authenticated;
 grant select on public.studio_allowances to authenticated;
-revoke insert, update on public.studio_generations from anon, authenticated;
+revoke insert, update, delete on public.studio_generations from anon, authenticated;
 revoke all on public.studio_lookbooks,public.studio_lookbook_entries from anon;
 revoke update on public.studio_lookbook_entries from authenticated;
 revoke all on public.studio_retention_config,public.studio_retention_jobs from anon,authenticated;

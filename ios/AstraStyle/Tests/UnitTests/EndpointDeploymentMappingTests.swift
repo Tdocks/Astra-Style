@@ -74,6 +74,7 @@ struct EndpointDeploymentMappingTests {
         .listProductUnlocks,
         .generateStudio,
         .studioStatus(id: UUID()),
+        .deleteStudioGeneration(id: UUID()),
         .generatePacking,
         .syncSubscriptions,
         .appStoreWebhook,
@@ -90,7 +91,7 @@ struct EndpointDeploymentMappingTests {
         case .completeOnboarding, .exportPersonalData, .generateStyleDNA, .analyzeClosetItem, .fetchWardrobeScore,
              .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
-             .evaluateProduct, .listProductUnlocks, .generateStudio, .studioStatus,
+             .evaluateProduct, .listProductUnlocks, .generateStudio, .studioStatus, .deleteStudioGeneration,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,
              .deleteAccount, .recordWear, .signPublicLookImages:
             break
@@ -165,7 +166,7 @@ struct EndpointDeploymentMappingTests {
         // `AstraEndpoint` ever builds.
         for directory in functionDirectories {
             #expect(
-                Self.expectedSlugs.contains(directory),
+                Self.expectedSlugs.contains(directory) || directory == "studio-retention",
                 "supabase/functions/\(directory)/ is not a slug any AstraEndpoint path starts with — the client cannot reach it. Function directories must be named after the first path segment of the spec §14 endpoints they serve."
             )
         }
@@ -212,5 +213,15 @@ struct EndpointDeploymentMappingTests {
         #expect(AstraEndpoint.batchAnalyzeCloset.retryPolicy == .batchJob)
         #expect(AstraEndpoint.batchAnalyzeClosetStatus(id: UUID()).method == .get)
         #expect(AstraEndpoint.batchAnalyzeClosetStatus(id: UUID()).path.hasPrefix("closet/batch-status/"))
+    }
+
+    @Test("Studio deletion uses its owned server route and remains safe to retry")
+    func studioDeletionContract() {
+        let id = UUID()
+        let endpoint = AstraEndpoint.deleteStudioGeneration(id: id)
+        #expect(endpoint.method == .delete)
+        #expect(endpoint.path == "studio/generations/\(id.uuidString.lowercased())")
+        #expect(endpoint.requiresAuthentication)
+        #expect(!endpoint.requiresIdempotencyKey)
     }
 }

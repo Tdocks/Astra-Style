@@ -81,45 +81,19 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
     }
 
     public func deleteGeneration(id: UUID) async throws {
-        let generation = try await fetchGeneration(id: id)
-        guard generation.status == .complete || generation.status == .failed else {
-            throw AstraError.validation("Wait for this preview to finish before deleting it.")
-        }
+        struct Result: Decodable, Sendable { let id: UUID; let status: String }
+        _ = try await apiClient.send(.deleteStudioGeneration(id: id), as: Result.self)
+    }
 
-        if let resultPath = generation.resultImagePath {
-            let userID: String
-            do {
-                let session = try await supabase.auth.session
-                userID = session.user.id.uuidString.lowercased()
-            } catch {
-                throw AstraError.auth("Sign in again to delete this preview.")
-            }
-
-            let pathParts = resultPath.split(separator: "/").map(String.init)
-            guard generation.userID.uuidString.lowercased() == userID,
-                  pathParts.count == 5,
-                  pathParts[0] == "users",
-                  pathParts[1] == userID,
-                  pathParts[2] == "studio",
-                  pathParts[3] == id.uuidString.lowercased(),
-                  !pathParts[4].isEmpty,
-                  pathParts[4] != ".",
-                  pathParts[4] != ".." else {
-                throw AstraError.validation("That preview image doesn't belong to this account.")
-            }
-
-            do {
-                _ = try await supabase.storage.from("user-content").remove(paths: [resultPath])
-            } catch {
-                throw AstraError.network("Couldn't remove the preview image. The preview is still saved; please try again.")
-            }
-        }
-
+    public func fetchPendingImageDeletionCount() async throws -> Int {
+        let owner = try await collectionUserID()
         do {
-            try await supabase.from("studio_generations").delete().eq("id", value: id).execute()
-        } catch {
-            throw AstraError.network("The image was removed, but its preview history couldn't be cleared. Please try again.")
-        }
+            let response = try await supabase.from("studio_retention_jobs")
+                .select("id", head: true, count: .exact).eq("user_id", value: owner)
+                .neq("status", value: "complete").execute()
+            guard let count = response.count else { throw AstraError.server("Couldn't check image removal.") }
+            return count
+        } catch { throw AstraError.network("Couldn't check image removal. Try again.") }
     }
 
     public func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook] {

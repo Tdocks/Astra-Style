@@ -17,10 +17,15 @@ public actor MockStudioRepository: StudioRepository {
     private let quotaExhausted: Bool
     private var failFirstGeneration: Bool
     private var retryCount = 0
+    private var pendingDeletionCount = 0
 
-    public init(quotaExhausted: Bool = false, failFirstGeneration: Bool = false) {
+    public func setPendingImageDeletionCount(_ count: Int) { pendingDeletionCount = max(0, count) }
+    public func fetchPendingImageDeletionCount() async throws -> Int { pendingDeletionCount }
+
+    public init(quotaExhausted: Bool = false, failFirstGeneration: Bool = false, pendingImageDeletionCount: Int = 0) {
         self.quotaExhausted = quotaExhausted
         self.failFirstGeneration = failFirstGeneration
+        self.pendingDeletionCount = max(0, pendingImageDeletionCount)
     }
 
     public func seed(_ generation: StudioGeneration) {
@@ -156,6 +161,15 @@ public actor MockStudioRepository: StudioRepository {
     }
 
     public func deleteGeneration(id: UUID) async throws {
+        guard let generation = generations[id] else { return }
+        guard generation.status == .complete || generation.status == .failed else {
+            throw AstraError.validation("Wait for this estimate to finish before deleting it.")
+        }
+        if let path = generation.resultImagePath,
+           generations.values.contains(where: { $0.id != id && !$0.isDeleted && $0.referenceImagePath == path }) {
+            throw AstraError.validation("Another variation uses this image. Delete its newer variations first, then try again.")
+        }
         generations[id] = nil
+        for key in savedGenerationIDs.keys { savedGenerationIDs[key]?.removeAll { $0 == id } }
     }
 }

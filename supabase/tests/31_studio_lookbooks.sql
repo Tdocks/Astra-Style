@@ -83,6 +83,7 @@ begin
   if not exists(select 1 from public.studio_generations where id=own_gen and retention_expires_at between now()+interval '29 days' and now()+interval '31 days') then
     raise exception 'Removing final collection did not reset the window'; end if;
   insert into public.studio_lookbook_entries(user_id,lookbook_id,generation_id) values(u,own_book,own_gen);
+  perform set_config('role','service_role',true);
   delete from public.studio_generations where id=own_gen;
   if exists(select 1 from public.studio_lookbook_entries where generation_id=own_gen) then
     raise exception 'Deleted estimate left entries'; end if;
