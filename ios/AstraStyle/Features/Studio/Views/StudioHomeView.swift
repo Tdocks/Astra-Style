@@ -13,6 +13,8 @@ struct StudioHomeView: View {
     @Environment(AppRouter.self) private var router
     @State private var generationPendingDeletion: UUID?
     @State private var showsDeleteConfirmation = false
+    @State private var isSelectingComparison = false
+    @State private var comparisonIDs: Set<UUID> = []
 
     init(viewModel: StudioHomeViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -37,7 +39,19 @@ struct StudioHomeView: View {
         .navigationTitle(String(localized: "Style Studio", comment: "Studio tab title"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if isSelectingComparison {
+                    Button("Compare \(comparisonIDs.count)") {
+                        router.push(StudioRoute.compare(generationIDs: comparisonIDs.sorted { $0.uuidString < $1.uuidString }))
+                    }
+                    .disabled(comparisonIDs.count != 2)
+                    .accessibilityIdentifier("studio.compare.open")
+                    Button("Cancel") { isSelectingComparison = false; comparisonIDs = [] }
+                } else {
+                    Button("Compare") { isSelectingComparison = true; comparisonIDs = [] }
+                        .disabled(!canCompare)
+                        .accessibilityIdentifier("studio.compare.select")
+                }
                 Button {
                     router.presentModal(.studioGeneration(outfitID: nil))
                 } label: {
@@ -48,6 +62,13 @@ struct StudioHomeView: View {
             }
         }
         .task { await viewModel.onAppear() }
+        .onChange(of: router.selectedTab) { _, tab in
+            if tab == .studio { Task { await viewModel.refresh() } }
+        }
+        .onChange(of: router.presentedModal?.id) { previous, current in
+            if previous != nil && current == nil { Task { await viewModel.refresh() } }
+        }
+        .onChange(of: availableComparisonIDs) { _, ids in comparisonIDs.formIntersection(ids) }
         .refreshable { await viewModel.refresh() }
         .confirmationDialog(
             String(localized: "Delete this preview?", comment: "Confirmation before deleting a Studio preview"),
@@ -163,10 +184,21 @@ struct StudioHomeView: View {
 
     private func generationOpenButton(_ generation: StudioGeneration) -> some View {
         Button {
-            router.push(StudioRoute.generation(generationID: generation.id))
+            if isSelectingComparison {
+                guard generation.status == .complete else { return }
+                if comparisonIDs.contains(generation.id) { comparisonIDs.remove(generation.id) }
+                else if comparisonIDs.count < 2 { comparisonIDs.insert(generation.id) }
+            } else {
+                router.push(StudioRoute.generation(generationID: generation.id))
+            }
         } label: {
             HStack(spacing: AstraSpacing.md) {
-                if generation.status == .complete {
+                if isSelectingComparison {
+                    Image(systemName: comparisonIDs.contains(generation.id) ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(AstraColor.accentChampagneAccessible)
+                        .accessibilityLabel(comparisonIDs.contains(generation.id) ? "Selected for comparison" : "Not selected")
+                }
+                if generation.status == .complete && !isSelectingComparison {
                     AstraRemoteImage(
                         url: viewModel.imageURLs[generation.id],
                         aspectRatio: 4.0 / 5.0,
@@ -185,7 +217,7 @@ struct StudioHomeView: View {
                     Text(generation.createdAt.formatted(date: .abbreviated, time: .shortened))
                         .astraText(.caption)
                         .foregroundStyle(AstraColor.textMuted)
-                    Text(String(localized: "Open estimate", comment: "Studio gallery card action"))
+                    Text(isSelectingComparison ? "Select for comparison" : String(localized: "Open estimate", comment: "Studio gallery card action"))
                         .astraText(.caption)
                         .foregroundStyle(AstraColor.accentChampagneAccessible)
                 }
@@ -197,6 +229,8 @@ struct StudioHomeView: View {
             }
         }
         .buttonStyle(.plain)
+        .disabled(isSelectingComparison && generation.status != .complete)
+        .accessibilityValue(isSelectingComparison && comparisonIDs.contains(generation.id) ? "Selected" : "Not selected")
         .accessibilityIdentifier("studio.generation.\(generation.id.uuidString)")
     }
 
@@ -236,6 +270,16 @@ struct StudioHomeView: View {
         case .complete: String(localized: "Visual estimate", comment: "Studio generation status")
         case .failed: String(localized: "Didn't finish", comment: "Studio generation status")
         }
+    }
+
+    private var availableComparisonIDs: Set<UUID> {
+        guard case .loaded(let generations) = viewModel.state else { return [] }
+        return Set(generations.filter { !$0.isDeleted && $0.status == .complete }.map(\.id))
+    }
+
+    private var canCompare: Bool {
+        guard case .loaded(let generations) = viewModel.state else { return false }
+        return generations.filter { !$0.isDeleted && $0.status == .complete }.count >= 2
     }
 
     private var deletionErrorIsPresented: Binding<Bool> {

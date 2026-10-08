@@ -172,6 +172,64 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         waitForExpectations(timeout: timeout)
     }
 
+    func testStudioCompareGeneratedLooks() throws {
+        try compareGeneratedLooks()
+    }
+
+    func testStudioCompareLightAccessibility() throws {
+        app.launchArguments += ["-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        try compareGeneratedLooks()
+    }
+
+    private func compareGeneratedLooks() throws {
+        launchMockMain()
+        let inspiration = app.buttons["home.style.inspiration"]
+        inspiration.scrollIntoView(in: app)
+        inspiration.tap()
+        if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
+        let generate = app.buttons["home.inspiration.generate"]
+        awaitElement(generate, "Image generation")
+        for _ in 0..<2 {
+            XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+            generate.scrollIntoView(in: app)
+            generate.tap()
+            XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        }
+        app.buttons["Close"].tap()
+        app.tapChromeTab("Studio")
+        let select = app.buttons["studio.compare.select"]
+        awaitElement(select, "Comparison selection")
+        XCTAssertTrue(select.isEnabled)
+        select.tap()
+        let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete."))
+        XCTAssertGreaterThan(cards.count, 0)
+        let firstID = cards.element(boundBy: 0).identifier
+        let first = app.buttons[firstID]
+        first.scrollIntoView(in: app)
+        first.tap()
+        XCTAssertEqual(first.value as? String, "Selected")
+        let second = cards.matching(NSPredicate(format: "identifier != %@", firstID)).firstMatch
+        for _ in 0..<5 {
+            if second.exists { break }
+            app.swipeUp()
+        }
+        awaitElement(second, "Second completed estimate")
+        second.scrollIntoView(in: app)
+        second.tap()
+        XCTAssertEqual(second.value as? String, "Selected")
+        let open = app.buttons["studio.compare.open"]
+        XCTAssertTrue(open.isEnabled)
+        open.tap()
+        awaitElement(app.navigationBars["Compare looks"], "Completed comparison screen")
+        awaitElement(app.staticTexts["Look 1"], "First estimate")
+        app.staticTexts["Look 2"].scrollIntoView(in: app)
+        awaitElement(app.staticTexts["Look 2"], "Second estimate")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Studio comparison"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     private func launchMockMain() {
         app.launchArguments += [
             "-astra-reset-state",

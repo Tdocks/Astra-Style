@@ -21,7 +21,13 @@ struct StudioDestinationView: View {
                     imageURLResolver: container.closetImageURLResolver
                 )
             )
-        case .referenceCapture, .compare, .lookbook:
+        case .compare(let generationIDs):
+            StudioComparisonView(viewModel: StudioComparisonViewModel(
+                generationIDs: generationIDs,
+                repository: container.studioRepository,
+                resolver: container.closetImageURLResolver
+            ))
+        case .referenceCapture, .lookbook:
             FeaturePlaceholderView(
                 title: String(localized: "Style Studio"),
                 message: String(localized: "Compare and lookbook arrive with the rest of Style Studio."),

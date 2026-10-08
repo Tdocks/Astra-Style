@@ -60,6 +60,7 @@ public final class StudioHomeViewModel {
             let generations = page.filter { !$0.isDeleted }
             let paths = generations.compactMap(\.resultImagePath)
             let resolved = (try? await imageURLResolver.resolve(storagePaths: paths)) ?? [:]
+            guard currentRequest == requestGeneration else { return }
             imageURLs = Dictionary(
                 uniqueKeysWithValues: generations.compactMap { generation in
                     guard let path = generation.resultImagePath,
@@ -110,6 +111,7 @@ public final class StudioHomeViewModel {
             let additions = page.filter { !$0.isDeleted && !existingIDs.contains($0.id) }
             let paths = additions.compactMap(\.resultImagePath)
             let resolved = (try? await imageURLResolver.resolve(storagePaths: paths)) ?? [:]
+            guard currentRequest == requestGeneration else { return }
             for generation in additions {
                 if let path = generation.resultImagePath, let url = resolved[path] {
                     imageURLs[generation.id] = url
@@ -145,7 +147,8 @@ public final class StudioHomeViewModel {
             try await studioRepository.deleteGeneration(id: id)
             imageURLs[id] = nil
             serverOffset = max(0, serverOffset - 1)
-            let remaining = generations.filter { $0.id != id }
+            guard case .loaded(let currentGenerations) = state else { return }
+            let remaining = currentGenerations.filter { $0.id != id }
             if remaining.isEmpty, hasMore {
                 await refresh()
             } else {

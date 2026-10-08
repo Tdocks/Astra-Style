@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct StudioGenerationDetailView: View {
+    @Environment(AppRouter.self) private var router
     @State private var viewModel: StudioGenerationDetailViewModel
 
     init(viewModel: StudioGenerationDetailViewModel) {
@@ -60,6 +61,13 @@ struct StudioGenerationDetailView: View {
                             }
                             .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
                             .accessibilityIdentifier("studio.detail.image")
+                        }
+                        if generation.status == .complete && !generation.referenceImagePath.isEmpty {
+                            Button("Compare with original") {
+                                router.push(StudioRoute.compare(generationIDs: [generation.id]))
+                            }
+                            .buttonStyle(.astraSecondary)
+                            .accessibilityIdentifier("studio.detail.compare")
                         }
                         if generation.isRetryableWithoutCharge {
                             Button(String(localized: "Try again", comment: "Retry a provider-failed Studio estimate")) {
