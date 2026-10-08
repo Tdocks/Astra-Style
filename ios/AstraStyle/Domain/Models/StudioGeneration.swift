@@ -35,6 +35,8 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
     /// generation the server considers erased — which is the single worst
     /// place in this app to be wrong.
     public var deletedAt: Date?
+    /// `nil` when explicitly saved permanently; enforced by collection triggers.
+    public var retentionExpiresAt: Date?
 
     public var createdAt: Date
     public var updatedAt: Date
@@ -50,6 +52,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         provider: String? = nil,
         errorMessage: String? = nil,
         deletedAt: Date? = nil,
+        retentionExpiresAt: Date? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -63,6 +66,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         self.provider = provider
         self.errorMessage = errorMessage
         self.deletedAt = deletedAt
+        self.retentionExpiresAt = retentionExpiresAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -78,6 +82,7 @@ public struct StudioGeneration: Identifiable, Codable, Hashable, Sendable {
         case provider
         case errorMessage = "error_message"
         case deletedAt = "deleted_at"
+        case retentionExpiresAt = "retention_expires_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }

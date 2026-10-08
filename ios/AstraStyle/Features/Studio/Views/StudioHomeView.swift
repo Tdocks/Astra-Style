@@ -49,6 +49,9 @@ struct StudioHomeView: View {
                     .accessibilityIdentifier("studio.compare.open")
                     Button("Cancel") { isSelectingComparison = false; comparisonIDs = [] }
                 } else {
+                    Button("Saved looks", systemImage: "books.vertical") { router.push(StudioRoute.lookbook) }
+                        .labelStyle(.iconOnly)
+                        .accessibilityIdentifier("studio.lookbooks.open")
                     Button("Compare") { isSelectingComparison = true; comparisonIDs = [] }
                         .disabled(!canCompare)
                         .accessibilityIdentifier("studio.compare.select")

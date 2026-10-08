@@ -176,6 +176,58 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         try compareGeneratedLooks()
     }
 
+    func testStudioSavePrivateCollection() throws {
+        try savePrivateCollection()
+    }
+
+    func testStudioSaveCollectionLightAccessibility() throws {
+        app.launchArguments += ["-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        try savePrivateCollection()
+    }
+
+    private func savePrivateCollection() throws {
+        launchMockMain()
+        let inspiration = app.buttons["home.style.inspiration"]
+        inspiration.scrollIntoView(in: app)
+        inspiration.tap()
+        if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
+        let generate = app.buttons["home.inspiration.generate"]
+        awaitElement(generate, "Image generation")
+        generate.scrollIntoView(in: app)
+        generate.tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        app.buttons["Close"].tap()
+        app.tapChromeTab("Studio")
+        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")).firstMatch
+        awaitElement(card, "Completed estimate")
+        card.tap()
+        let save = app.buttons["studio.detail.save"]
+        save.scrollIntoView(in: app)
+        save.tap()
+        awaitElement(app.navigationBars["Save look"], "Private collection picker")
+        app.buttons["studio.collection.new"].tap()
+        let field = app.alerts.textFields["Collection name"]
+        awaitElement(field, "Collection name")
+        field.tap(); field.typeText("Everyday QA")
+        app.alerts.buttons["Create"].tap()
+        let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "studio.collection.", "Everyday QA")).firstMatch
+        awaitElement(saved, "Saved collection")
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Saved"), object: saved)], timeout: timeout) == .completed)
+        app.buttons["Done"].tap()
+        app.navigationBars["Estimate"].buttons.element(boundBy: 0).tap()
+        app.buttons["studio.lookbooks.open"].tap()
+        let collection = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "studio.collection.", "Everyday QA")).firstMatch
+        awaitElement(collection, "Saved collection in Studio")
+        collection.tap()
+        awaitElement(app.navigationBars["Everyday QA"], "Saved lookbook")
+        let estimate = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "studio.savedLook.")).firstMatch
+        awaitElement(estimate, "Retained visual estimate")
+        estimate.scrollIntoView(in: app)
+        app.buttons["Remove from collection"].tap()
+        app.alerts.buttons["Remove"].tap()
+        awaitElement(app.staticTexts["No looks saved here yet"], "Empty collection after removal")
+    }
+
     func testStudioPrepareShareableEstimate() throws {
         launchMockMain()
         let inspiration = app.buttons["home.style.inspiration"]

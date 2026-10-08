@@ -144,6 +144,7 @@ public enum StudioRoute: Hashable, Sendable {
     case referenceCapture
     case compare(generationIDs: [UUID])
     case lookbook
+    case savedLooks(lookbookID: UUID, name: String)
 }
 
 /// Destinations pushed on the Discover tab's `NavigationStack`.

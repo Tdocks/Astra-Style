@@ -92,6 +92,7 @@ export interface StudioGenerationRow {
   provider: string | null;
   errorMessage: string | null;
   deletedAt: string | null;
+  retentionExpiresAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -181,6 +182,7 @@ function rowToDTO(row: StudioGenerationRow): StudioGenerationDTO {
     deleted_at: row.deletedAt === null ? null : toWireTimestamp(row.deletedAt),
     created_at: toWireTimestamp(row.createdAt),
     updated_at: toWireTimestamp(row.updatedAt),
+    retention_expires_at: row.retentionExpiresAt ? toWireTimestamp(row.retentionExpiresAt) : null,
   };
 }
 

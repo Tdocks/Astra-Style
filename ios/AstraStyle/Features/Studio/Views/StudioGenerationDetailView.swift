@@ -9,6 +9,8 @@ import SwiftUI
 
 struct StudioGenerationDetailView: View {
     @Environment(AppRouter.self) private var router
+    @Environment(AppContainer.self) private var container
+    @State private var showsCollections = false
     @State private var viewModel: StudioGenerationDetailViewModel
 
     init(viewModel: StudioGenerationDetailViewModel) {
@@ -66,6 +68,16 @@ struct StudioGenerationDetailView: View {
                             .accessibilityIdentifier("studio.detail.compare")
                         }
                         if generation.status == .complete {
+                            Button("Save to collection") { showsCollections = true }
+                                .buttonStyle(.astraSecondary)
+                                .accessibilityIdentifier("studio.detail.save")
+                                .sheet(isPresented: $showsCollections) {
+                                    NavigationStack {
+                                        StudioLookbooksView(viewModel: StudioLookbooksViewModel(
+                                            repository: container.studioRepository, generationID: generation.id
+                                        ))
+                                    }
+                                }
                             if let exportURL = viewModel.exportURL {
                                 ShareLink(item: exportURL, subject: Text("Astra Style visual estimate"),
                                           message: Text("AI visual estimate. Fit, colors and garment details may differ.")) {

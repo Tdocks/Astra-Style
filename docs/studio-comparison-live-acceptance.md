@@ -29,7 +29,7 @@ The final combined run reported six export unit tests and both comparison/sharin
 
 ## Server job safety follow-up — deployed
 
-The subsequent batch closed the free-trial counting, direct-write and concurrent-submission gaps using server-only job writes, durable success-based allowances, idempotent retries, and fenced claims. Studio v9 and Profile v11 are deployed. See [ADR 0022](adr/0022-studio-server-jobs-and-allowances.md) for rollout, tests, live acceptance and limits. Configurable Premium monthly limits, high-resolution generation and saved-look collections remain work.
+The subsequent batch closed the free-trial counting, direct-write and concurrent-submission gaps using server-only job writes, durable success-based allowances, idempotent retries, and fenced claims. Studio v9 and Profile v11 are deployed. See [ADR 0022](adr/0022-studio-server-jobs-and-allowances.md) for rollout, tests, live acceptance and limits. Configurable Premium monthly limits and high-resolution generation remain work. Private collections were subsequently implemented; see [collection acceptance](studio-lookbooks-live-acceptance.md).
 
 The post-migration advisor scan found anonymous-identity access warnings on owner-scoped policies, rather than a missing ownership predicate. Review that access alongside provider quotas; see [Supabase's anonymous access advisory](https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins). The pending App Store notification table intentionally has RLS with no client policy and is service-only. Performance notices were unused indexes and Auth connection allocation; no indexes were removed based on this low-traffic sample.
 
@@ -37,7 +37,7 @@ The post-migration advisor scan found anonymous-identity access warnings on owne
 
 - Private reference-photo comparison and closet image fidelity need device acceptance.
 - Export with a populated wardrobe, attachment files, and more than 500 rows needs completeness checks.
-- Studio save-to-lookbook and higher-resolution export remain open.
+- Higher-resolution export and scheduled image retention remain open; private collection save/remove is covered by the subsequent acceptance report.
 - Real camera, voice, purchases, weather/location and calendar permission checks remain device work.
 - No claim of outside-user readiness follows from this batch.
 
@@ -61,3 +61,5 @@ Build 14 was independently verified VALID / IN_BETA_TESTING in the Internal
 group on 2026-10-08. It includes comparison and image-file sharing. The disclosure
 and Home accessibility adjustments above follow that archive and are not in
 build 14.
+
+Build 15 was subsequently verified VALID / IN_BETA_TESTING with Internal membership, including the disclosure and accessibility follow-up. Collection screens follow build 15.

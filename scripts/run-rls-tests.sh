@@ -158,6 +158,10 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/30_studio_job_safety.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/31_studio_lookbooks.sql"
+  test_exit=$?
+fi
 set -e
 echo
 

@@ -31,9 +31,28 @@ public protocol StudioRepository: Sendable {
     /// Deletes a generation and its stored images (spec §6.17 "Provide
     /// deletion controls", §29).
     func deleteGeneration(id: UUID) async throws
+
+    func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook]
+    func createLookbook(name: String) async throws -> StudioLookbook
+    func renameLookbook(id: UUID, name: String) async throws
+    func deleteLookbook(id: UUID) async throws
+    func fetchSavedLookbookIDs(generationID: UUID) async throws -> Set<UUID>
+    func fetchLookbookGenerations(lookbookID: UUID, offset: Int, limit: Int) async throws -> [StudioGeneration]
+    func saveGeneration(id: UUID, to lookbookID: UUID) async throws
+    func removeGeneration(id: UUID, from lookbookID: UUID) async throws
 }
 
 public extension StudioRepository {
+    // Existing narrow test doubles need only implement their tested operations.
+    // Live and offline repositories implement the complete collection contract.
+    func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook] { throw AstraError.server("Collections are unavailable.") }
+    func createLookbook(name: String) async throws -> StudioLookbook { throw AstraError.server("Collections are unavailable.") }
+    func renameLookbook(id: UUID, name: String) async throws { throw AstraError.server("Collections are unavailable.") }
+    func deleteLookbook(id: UUID) async throws { throw AstraError.server("Collections are unavailable.") }
+    func fetchSavedLookbookIDs(generationID: UUID) async throws -> Set<UUID> { throw AstraError.server("Collections are unavailable.") }
+    func fetchLookbookGenerations(lookbookID: UUID, offset: Int, limit: Int) async throws -> [StudioGeneration] { throw AstraError.server("Collections are unavailable.") }
+    func saveGeneration(id: UUID, to lookbookID: UUID) async throws { throw AstraError.server("Collections are unavailable.") }
+    func removeGeneration(id: UUID, from lookbookID: UUID) async throws { throw AstraError.server("Collections are unavailable.") }
     /// Compatibility implementation for in-memory repositories. The live
     /// repository overrides this with a server-side range query.
     func fetchGenerations(offset: Int, limit: Int) async throws -> [StudioGeneration] {

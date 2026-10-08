@@ -11,6 +11,9 @@ import Foundation
 
 public actor MockStudioRepository: StudioRepository {
     private var generations: [UUID: StudioGeneration] = [:]
+    private var lookbooks: [UUID: StudioLookbook] = [:]
+    private var savedGenerationIDs: [UUID: [UUID]] = [:]
+    private var collectionSaveFailures = 0
     private let quotaExhausted: Bool
     private var failFirstGeneration: Bool
     private var retryCount = 0
@@ -23,6 +26,63 @@ public actor MockStudioRepository: StudioRepository {
     public func seed(_ generation: StudioGeneration) {
         generations[generation.id] = generation
     }
+
+    public func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook] {
+        guard offset >= 0, (1...100).contains(limit) else { throw AstraError.validation("That collection page is invalid.") }
+        return Array(lookbooks.values.sorted {
+            $0.createdAt == $1.createdAt ? $0.id.uuidString > $1.id.uuidString : $0.createdAt > $1.createdAt
+        }.dropFirst(offset).prefix(limit))
+    }
+
+    public func createLookbook(name: String) async throws -> StudioLookbook {
+        let row = StudioLookbook(id: UUID(), userID: SampleData.userID, name: try StudioLookbook.validatedName(name))
+        lookbooks[row.id] = row
+        return row
+    }
+
+    public func renameLookbook(id: UUID, name: String) async throws {
+        guard var row = lookbooks[id] else { throw AstraError.validation("That collection is unavailable.") }
+        row.name = try StudioLookbook.validatedName(name)
+        lookbooks[id] = row
+    }
+
+    public func deleteLookbook(id: UUID) async throws {
+        lookbooks[id] = nil
+        savedGenerationIDs[id] = nil
+    }
+
+    public func fetchSavedLookbookIDs(generationID: UUID) async throws -> Set<UUID> {
+        guard let generation = generations[generationID], !generation.isDeleted else { return [] }
+        return Set(savedGenerationIDs.filter { $0.value.contains(generationID) }.map(\.key))
+    }
+
+    public func fetchLookbookGenerations(lookbookID: UUID, offset: Int, limit: Int) async throws -> [StudioGeneration] {
+        guard lookbooks[lookbookID] != nil else { throw AstraError.validation("That collection is unavailable.") }
+        guard offset >= 0, (1...100).contains(limit) else { throw AstraError.validation("That collection page is invalid.") }
+        return Array((savedGenerationIDs[lookbookID] ?? []).compactMap { generations[$0] }
+            .filter { $0.status == .complete && !$0.isDeleted }.dropFirst(offset).prefix(limit))
+    }
+
+    public func saveGeneration(id: UUID, to lookbookID: UUID) async throws {
+        guard lookbooks[lookbookID] != nil, let generation = generations[id],
+              generation.status == .complete, !generation.isDeleted, generation.resultImagePath != nil,
+              generation.userID == SampleData.userID else {
+            throw AstraError.validation("Choose an available completed estimate.")
+        }
+        if collectionSaveFailures > 0 {
+            collectionSaveFailures -= 1
+            throw AstraError.network("Couldn't save this look. Try again.")
+        }
+        if !(savedGenerationIDs[lookbookID] ?? []).contains(id) {
+            savedGenerationIDs[lookbookID, default: []].insert(id, at: 0)
+        }
+    }
+
+    public func removeGeneration(id: UUID, from lookbookID: UUID) async throws {
+        savedGenerationIDs[lookbookID]?.removeAll { $0 == id }
+    }
+
+    public func failNextCollectionSave() { collectionSaveFailures += 1 }
 
     public func fetchGenerations() async throws -> [StudioGeneration] {
         Array(generations.values).sorted { $0.createdAt > $1.createdAt }

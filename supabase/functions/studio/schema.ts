@@ -291,6 +291,7 @@ export interface StudioGenerationDTO {
   readonly deleted_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
+  readonly retention_expires_at: string | null;
 }
 
 /**

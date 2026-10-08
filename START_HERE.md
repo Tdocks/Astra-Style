@@ -17,9 +17,9 @@ current brief.
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
-| Xcode | **27.0** on the owner's Mac for builds 12–14 (previous release used 26.6) |
+| Xcode | **27.0** on the owner's Mac for builds 12–15 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `15`; upload pending) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `15`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
@@ -27,12 +27,13 @@ current brief.
 
 ## Current internal release — 2026-10-08
 
-Version **1.0.0 (14)** is processed **VALID** and **IN_BETA_TESTING**, with
-membership confirmed in the Internal group (build ID `6a804803-bdd1-456a-8c56-244724dddd01`).
-It adds labeled image-file sharing to private estimate comparison, original/reference comparison and gallery refresh fixes
+Version **1.0.0 (15)** is processed **VALID** and **IN_BETA_TESTING**, with
+membership confirmed in the Internal group (build ID `52e14f42-e600-446c-be3c-810102b261e5`).
+It adds consistent generated-image disclosures and large-text Home cards to labeled image-file sharing, private estimate comparison, original/reference comparison and gallery refresh fixes
 on top of build 12's contextual Home inspiration, closet-only renders, rerolls, edits and Kyra handoff.
-Studio backend is ACTIVE v9 and Profile v11, with server-owned jobs and durable trial accounting.
-External beta review for builds 12–14 has not been submitted;
+Studio backend is ACTIVE v10 and Profile v12, with server-owned jobs, durable trial accounting,
+private collection tables and owned export support. Collection UI follows build 15.
+External beta review for builds 12–15 has not been submitted;
 the public link still serves build 11. Use Internal TestFlight for the owner's checks.
 See `docs/home-inspiration-device-checks.md` and `docs/studio-comparison-live-acceptance.md`.
 

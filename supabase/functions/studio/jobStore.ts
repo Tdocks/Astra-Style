@@ -14,6 +14,7 @@ function mapRow(data: Record<string, unknown>): StudioGenerationRow {
     provider: (data["provider"] as string | null) ?? null,
     errorMessage: (data["error_message"] as string | null) ?? null,
     deletedAt: (data["deleted_at"] as string | null) ?? null,
+    retentionExpiresAt: (data["retention_expires_at"] as string | null) ?? null,
     createdAt: data["created_at"] as string,
     updatedAt: data["updated_at"] as string,
   };

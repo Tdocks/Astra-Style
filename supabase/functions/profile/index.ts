@@ -178,6 +178,8 @@ function personalDataExportRoute(req: Request): Promise<Response> {
     { name: "daily_briefs", ownerColumn: "user_id", orderColumn: "id" },
     { name: "studio_generations", ownerColumn: "user_id", orderColumn: "id" },
     { name: "studio_allowances", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "studio_lookbooks", ownerColumn: "user_id", orderColumn: "id" },
+    { name: "studio_lookbook_entries", ownerColumn: "user_id", orderColumn: "id" },
     { name: "subscriptions", ownerColumn: "user_id", orderColumn: "id" },
     { name: "closet_analysis_jobs", ownerColumn: "user_id", orderColumn: "id" },
     { name: "analytics_events", ownerColumn: "user_id", orderColumn: "id" },
@@ -208,7 +210,7 @@ function personalDataExportRoute(req: Request): Promise<Response> {
               .from(table.name)
               .select(
                 table.name === "studio_generations"
-                  ? "id,user_id,reference_image_path,outfit_id,prompt_payload,status,result_image_path,provider,error_message,deleted_at,created_at,updated_at,allowance_id,retry_of"
+                  ? "id,user_id,reference_image_path,outfit_id,prompt_payload,status,result_image_path,provider,error_message,deleted_at,created_at,updated_at,allowance_id,retry_of,retention_expires_at"
                   : "*",
               )
               .eq(table.ownerColumn, userId)

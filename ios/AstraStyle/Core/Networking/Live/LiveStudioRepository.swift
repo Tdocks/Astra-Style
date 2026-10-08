@@ -121,6 +121,99 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
             throw AstraError.network("The image was removed, but its preview history couldn't be cleared. Please try again.")
         }
     }
+
+    public func fetchLookbooks(offset: Int, limit: Int) async throws -> [StudioLookbook] {
+        guard offset >= 0, (1...100).contains(limit) else { throw AstraError.validation("That collection page is invalid.") }
+        let owner = try await collectionUserID()
+        do {
+            return try await supabase.from("studio_lookbooks").select().eq("user_id", value: owner)
+                .order("created_at", ascending: false).order("id", ascending: false)
+                .range(from: offset, to: offset + limit - 1).execute().value
+        } catch { throw AstraError.network("Couldn't load your saved-look collections.") }
+    }
+
+    public func createLookbook(name: String) async throws -> StudioLookbook {
+        struct Body: Encodable { let user_id: UUID; let name: String }
+        let name = try StudioLookbook.validatedName(name)
+        let owner = try await collectionUserID()
+        do {
+            return try await supabase.from("studio_lookbooks").insert(Body(user_id: owner, name: name))
+                .select().single().execute().value
+        } catch { throw AstraError.network("Couldn't create that collection. Try again.") }
+    }
+
+    public func renameLookbook(id: UUID, name: String) async throws {
+        struct Body: Encodable { let name: String }
+        let name = try StudioLookbook.validatedName(name)
+        let owner = try await collectionUserID()
+        do {
+            let _: StudioLookbook = try await supabase.from("studio_lookbooks").update(Body(name: name))
+                .eq("id", value: id).eq("user_id", value: owner).select().single().execute().value
+        } catch { throw AstraError.network("Couldn't rename that collection. Try again.") }
+    }
+
+    public func deleteLookbook(id: UUID) async throws {
+        let owner = try await collectionUserID()
+        do {
+            try await supabase.from("studio_lookbooks").delete().eq("id", value: id).eq("user_id", value: owner).execute()
+        } catch { throw AstraError.network("Couldn't remove that collection. Try again.") }
+    }
+
+    public func fetchSavedLookbookIDs(generationID: UUID) async throws -> Set<UUID> {
+        struct Entry: Decodable { let lookbook_id: UUID }
+        let owner = try await collectionUserID()
+        var ids: Set<UUID> = []
+        var offset = 0
+        do {
+            while true {
+                try Task.checkCancellation()
+                let rows: [Entry] = try await supabase.from("studio_lookbook_entries").select("lookbook_id")
+                    .eq("user_id", value: owner).eq("generation_id", value: generationID)
+                    .order("id").range(from: offset, to: offset + 499).execute().value
+                ids.formUnion(rows.map(\.lookbook_id))
+                if rows.count < 500 { return ids }
+                offset += rows.count
+            }
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw AstraError.network("Couldn't load where this look is saved.") }
+    }
+
+    public func fetchLookbookGenerations(lookbookID: UUID, offset: Int, limit: Int) async throws -> [StudioGeneration] {
+        struct Entry: Decodable { let generation: StudioGeneration }
+        guard offset >= 0, (1...100).contains(limit) else { throw AstraError.validation("That collection page is invalid.") }
+        let owner = try await collectionUserID()
+        do {
+            let rows: [Entry] = try await supabase.from("studio_lookbook_entries")
+                .select("generation:studio_generations!studio_lookbook_entries_generation_owner_fk!inner(*)")
+                .eq("user_id", value: owner).eq("lookbook_id", value: lookbookID)
+                .order("created_at", ascending: false).order("id", ascending: false)
+                .range(from: offset, to: offset + limit - 1).execute().value
+            return rows.map(\.generation)
+        } catch { throw AstraError.network("Couldn't load that saved-look collection.") }
+    }
+
+    public func saveGeneration(id: UUID, to lookbookID: UUID) async throws {
+        struct Entry: Encodable { let user_id: UUID; let generation_id: UUID; let lookbook_id: UUID }
+        let owner = try await collectionUserID()
+        do {
+            try await supabase.from("studio_lookbook_entries")
+                .upsert(Entry(user_id: owner, generation_id: id, lookbook_id: lookbookID),
+                        onConflict: "lookbook_id,generation_id", ignoreDuplicates: true).execute()
+        } catch { throw AstraError.network("Couldn't save this look. Check that the estimate has finished and try again.") }
+    }
+
+    public func removeGeneration(id: UUID, from lookbookID: UUID) async throws {
+        let owner = try await collectionUserID()
+        do {
+            try await supabase.from("studio_lookbook_entries").delete().eq("user_id", value: owner)
+                .eq("generation_id", value: id).eq("lookbook_id", value: lookbookID).execute()
+        } catch { throw AstraError.network("Couldn't remove this look from the collection. Try again.") }
+    }
+
+    private func collectionUserID() async throws -> UUID {
+        do { return try await supabase.auth.session.user.id }
+        catch { throw AstraError.auth("Sign in again to manage your saved looks.") }
+    }
 }
 
 private struct StudioGenerateBody: Encodable, Sendable {

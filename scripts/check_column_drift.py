@@ -55,6 +55,7 @@ MODEL_TABLES: dict[str, str] = {
     "KyraThread": "kyra_threads",
     "KyraMessage": "kyra_messages",
     "StudioGeneration": "studio_generations",
+    "StudioLookbook": "studio_lookbooks",
     "Subscription": "subscriptions",
 }
 

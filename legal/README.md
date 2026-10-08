@@ -203,7 +203,7 @@ be reconciled before release; the historical table below is not current truth.
 | Capability | Current evidence / remaining work |
 |---|---|
 | Account deletion | Profile Edge Function and in-app flow exist. Disposable-account live requests completed after the Storage API repair; see `docs/studio-comparison-live-acceptance.md`. |
-| Data export | Profile export is deployed, now returning 25 owned tables, including Studio allowances. Large populated exports and attachments still need completeness acceptance. |
+| Data export | Profile export is deployed, now returning 27 owned tables, including Studio allowances and private collections. Large populated exports and attachments still need completeness acceptance. |
 | Generated-image deletion | Owned terminal Studio previews can remove their image and row. Deletion preserves consumed trial accounting. |
 | Analytics | `analytics_events` exists in production after the append-only schema repair. Two-user export isolation was verified. |
 | Studio / Kyra | Native screens and live providers are implemented; internal build 14 includes comparison and labeled image-file sharing. Device acceptance remains. |

@@ -3,10 +3,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../_shared/errors.ts";
 import { supabaseJobStore } from "./jobStore.ts";
 
-function fakeClient(errorMessage?: string) {
+function fakeClient(errorMessage?: string, retentionExpiry: string | null = null) {
   const calls: Array<[string, ...unknown[]]> = [];
   const result = {
-    data: { id: "job", user_id: "owner", status: "queued", created_at: "now", updated_at: "now" },
+    data: {
+      id: "job",
+      user_id: "owner",
+      status: "queued",
+      created_at: "now",
+      updated_at: "now",
+      retention_expires_at: retentionExpiry,
+    },
     error: errorMessage ? { message: errorMessage } : null,
     count: 1,
   };
@@ -58,6 +65,13 @@ Deno.test("privileged reads always fence owner and generation ID", async () => {
     "id",
     "job",
   ]]);
+});
+
+Deno.test("job reads preserve unsaved expiry and permanent-save null", async () => {
+  for (const expiry of [null, "2026-11-08T21:00:00.000Z"]) {
+    const { store } = fakeClient(undefined, expiry);
+    assertEquals((await store.get("owner", "job"))?.retentionExpiresAt, expiry);
+  }
 });
 
 Deno.test("job updates and lease releases require owner, ID and claim token", async () => {
