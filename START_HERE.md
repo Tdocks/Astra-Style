@@ -17,9 +17,9 @@ current brief.
 |---|---|
 | Branch | `main` (pull latest) |
 | Bundle ID | `com.astrastyle.app` |
-| Xcode | **27.0** on the owner's Mac for builds 12–13 (previous release used 26.6) |
+| Xcode | **27.0** on the owner's Mac for builds 12–14 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `12`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `14`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
@@ -27,11 +27,12 @@ current brief.
 
 ## Current internal release — 2026-10-08
 
-Version **1.0.0 (13)** is processed **VALID** and **IN_BETA_TESTING**, with
-membership confirmed in the Internal group (build ID `d87d1e7d-f3f3-49b4-b749-96568a410e6a`).
-It adds private estimate comparison, original/reference comparison and gallery refresh fixes
+Version **1.0.0 (14)** is processed **VALID** and **IN_BETA_TESTING**, with
+membership confirmed in the Internal group (build ID `6a804803-bdd1-456a-8c56-244724dddd01`).
+It adds labeled image-file sharing to private estimate comparison, original/reference comparison and gallery refresh fixes
 on top of build 12's contextual Home inspiration, closet-only renders, rerolls, edits and Kyra handoff.
-Studio backend is ACTIVE v8. External beta review for builds 12–13 has not been submitted;
+Studio backend is ACTIVE v9 and Profile v11, with server-owned jobs and durable trial accounting.
+External beta review for builds 12–14 has not been submitted;
 the public link still serves build 11. Use Internal TestFlight for the owner's checks.
 See `docs/home-inspiration-device-checks.md` and `docs/studio-comparison-live-acceptance.md`.
 
@@ -39,7 +40,7 @@ Simulator build, three new Swift unit tests, two Home UI flows and 48 Studio/pro
 backend tests passed. Comparison unit and UI tests also passed, including light theme at Accessibility XXXL.
 Disposable-account live checks passed image generation, Kyra, scoped export and account deletion after schema repairs.
 The simulator uses mock images; personal-reference quality, edit consistency and closet fidelity still need device checks.
-Image-file sharing work follows build 13 and is not included in that upload.
+Image-file sharing unit tests and a serial simulator sharing flow passed; sharing is included in build 14.
 
 ## Previous public release — 2026-09-30
 
