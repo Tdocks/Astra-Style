@@ -13,7 +13,7 @@ All four carry a visible **Last updated: 31 July 2026**.
 
 ## Plan status: published on astra-style.com, still a draft for counsel
 
-**Updated 2026-08-23.** The four documents are served at `https://astra-style.com`
+**Updated 2026-10-08.** The four documents are served at `https://astra-style.com`
 (`/privacy/`, `/terms/`, `/privacy/delete/`, `/affiliate-disclosure/`).
 `AstraLegal.isPublished` is **`true`** and in-app links match those URLs.
 
@@ -21,28 +21,25 @@ All four carry a visible **Last updated: 31 July 2026**.
 addresses, or governing law to clear them. Counsel review is still required
 before these drafts can be treated as in-force legal text.
 
-That is a choice about sequencing, not neglect, and it is worth stating plainly so nobody picks
-this up as unfinished business and starts chasing entity names and jurisdictions. The reasoning is
-that almost every placeholder below is either a decision a human has to make once (entity,
-address, governing law) or a fact about a feature that has not shipped yet (analytics provider,
-affiliate networks, retention windows, the deletion orchestrator). Answering them now produces
-answers that go stale before anyone reads them, and each answer would need re-checking against the
-code at publication time anyway.
+Implementation facts can and should be updated from verified code and deployed
+behavior. Entity, address and governing-law choices require actual owner/counsel
+inputs. The reconciliation below separates verified implementation progress from
+the older inventory used when the draft was written.
 
 Where things stand, so the deferral is a known state rather than a vague one:
 
 - The four documents exist here and are unreviewed drafts.
-- `AstraLegal.isPublished` is **`false`**, so every legal URL in the app is `nil` and every call
-  site handles it. `LegalDocumentAvailabilityTests` pins that invariant.
-- The public `legal` storage bucket **exists and is empty**. Nothing is uploaded to it.
+- `AstraLegal.isPublished` is **`true`**: the app links to the reachable public drafts.
+  This flag describes reachability, not counsel approval.
+- Public legal pages are built from this directory into `web/dist/` and served by Cloudflare.
 - `astrastyle.app` was never registered. The owner purchased **`astra-style.com`**
   (Cloudflare DNS) for the marketing site — see `web/GATE.md`. That does **not**
-  by itself publish these drafts or flip `AstraLegal.isPublished`.
+  by itself make the drafts counsel-approved.
 - **Every `[[NEEDS INPUT]]` below still stands.** They are not resolved, not withdrawn, and not
-  being chased right now.
+  replaced by implementation work.
 
-This stays an App Store review blocker whenever submission comes around, and it is a one-flag
-change once the documents are live. Ticket: `P7-PRIVACY-05`. See `docs/03-progress.md`'s blocker
+Counsel placeholders and stale descriptions of implemented features remain release work;
+changing a reachability flag does not resolve them. Ticket: `P7-PRIVACY-05`. See `docs/03-progress.md`'s blocker
 list for the same statement in the project-wide record.
 
 ---
@@ -88,21 +85,12 @@ This draft does not attempt to resolve any of it. It flags it. See also
 
 ## How these are published
 
-They are served as static files from a **public Supabase Storage bucket**, so each one is a
-complete standalone document: inline CSS, no external stylesheets, no web fonts, no scripts,
-no images, no external links of any kind. They do not link to each other either — they refer
-to each other by title — because the bucket's URL layout and the paths in `AstraLegal.swift`
-are not the same shape, and a broken cross-link in a legal document tapped by an App Store
-reviewer is exactly the failure `AstraLegal.swift` was restructured to prevent.
-
-The bucket exists and is empty, and it stays that way until the end of the project — see "Plan
-status" above before uploading anything into it.
-
-Publishing is the orchestrator's job, not this directory's:
-`ios/AstraStyle/Core/Utilities/AstraLegal.swift` holds the host and the `isPublished` flag,
-and is **deliberately untouched** by this work. Until the documents are live and that flag is
-flipped, every legal URL in the app is `nil` and call sites must handle it —
-`LegalDocumentAvailabilityTests` pins that invariant. Ticket: `P7-PRIVACY-05`.
+They are standalone static HTML sources copied by `web/scripts/build.mjs` into
+`web/dist/` and served on Cloudflare. The build adds the intentional draft banner.
+`ios/AstraStyle/Core/Utilities/AstraLegal.swift` points to those HTTPS routes and
+currently has `isPublished = true`, meaning the documents are reachable. The
+source still needs factual updates and counsel review; do not remove the draft
+banner to imply that approval. See `web/CLAUDE.md` and `web/GATE.md` for publishing.
 
 ## Verifying
 
@@ -207,7 +195,22 @@ sitting rather than a rediscovery exercise.
 
 ---
 
-## Where the app does less than the documents would normally claim
+## Implementation reconciliation — 2026-10-08
+
+Several HTML descriptions still reflect the July implementation state. They must
+be reconciled before release; the historical table below is not current truth.
+
+| Capability | Current evidence / remaining work |
+|---|---|
+| Account deletion | Profile Edge Function and in-app flow exist. Disposable-account live requests completed after the Storage API repair; see `docs/studio-comparison-live-acceptance.md`. |
+| Data export | Profile export is deployed, now returning 25 owned tables, including Studio allowances. Large populated exports and attachments still need completeness acceptance. |
+| Generated-image deletion | Owned terminal Studio previews can remove their image and row. Deletion preserves consumed trial accounting. |
+| Analytics | `analytics_events` exists in production after the append-only schema repair. Two-user export isolation was verified. |
+| Studio / Kyra | Native screens and live providers are implemented; internal build 14 includes comparison and labeled image-file sharing. Device acceptance remains. |
+| Retention sweeps | ADR 0010's scheduled image expiration remains unimplemented; saved-look retention must be implemented with collections. |
+| Counsel inputs | Entity, contact details, governing law and other `[[NEEDS INPUT]]` decisions remain unresolved. No counsel approval is asserted. |
+
+## Historical implementation inventory — 2026-07-31
 
 Each of these is stated in the documents themselves rather than glossed. Check them against
 reality again before publishing, because several are one ticket away from changing.
