@@ -10,7 +10,7 @@ import Foundation
 import Testing
 @testable import AstraStyle
 
-@Suite("AstraAPIClient Idempotency-Key reuse across retries")
+@Suite("AstraAPIClient Idempotency-Key reuse across retries", .serialized)
 struct AstraAPIClientIdempotencyTests {
 
     @Test("analyzeClosetItem sends the same Idempotency-Key on every retry attempt of one logical call")
@@ -40,6 +40,27 @@ struct AstraAPIClientIdempotencyTests {
         #expect(keys.count == 3)
         #expect(Set(keys).count == 1)
         #expect(keys[0]?.isEmpty == false)
+    }
+
+    @MainActor
+    @Test("The request attaches renewed credentials instead of an expired token")
+    func requestUsesRenewedSession() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.successBody = Data(
+            #"{"data":[],"error":null,"request_id":"renewal"}"#.utf8)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+                                    session: URLSession(configuration: configuration), retryPolicy: .none)
+        let userID = UUID()
+        let keychain = KeychainTokenStore(service: "astra.test.request-renewal.\(UUID().uuidString)")
+        defer { try? keychain.clear() }
+        let store = SessionStore(apiClient: client, supabase: AstraSupabaseClientFactory.previewClient,
+                                 keychain: keychain, sessionRefresher: RequestSessionRefresher(userID: userID))
+        store.adoptInMemory(AuthSession(userID: userID, accessToken: "expired-token",
+                                       refreshToken: "old-refresh", expiresAt: .now.addingTimeInterval(-1)))
+        _ = try await client.send(.generateOutfits, body: AstraEmptyPayload(), as: [AstraEmptyPayload].self)
+        #expect(IdempotencyStubURLProtocol.capturedAuthorization == ["Bearer renewed-token"])
     }
 
     @Test("generateOutfits does not send an Idempotency-Key")
@@ -75,6 +96,9 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) private static var _failTimes = 0
     nonisolated(unsafe) private static var _successBody = Data()
     nonisolated(unsafe) private static var _keys: [String?] = []
+    nonisolated(unsafe) private static var _authorization: [String?] = []
+
+    static var capturedAuthorization: [String?] { lock.withLock { _authorization } }
 
     static var failTimes: Int {
         get { lock.withLock { _failTimes } }
@@ -95,6 +119,7 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
             _failTimes = 0
             _successBody = Data()
             _keys = []
+            _authorization = []
         }
     }
 
@@ -105,6 +130,7 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
         let key = request.value(forHTTPHeaderField: "Idempotency-Key")
         let (shouldFail, body): (Bool, Data) = Self.lock.withLock {
             Self._keys.append(key)
+            Self._authorization.append(request.value(forHTTPHeaderField: "Authorization"))
             if Self._failTimes > 0 {
                 Self._failTimes -= 1
                 return (true, Data(#"{"error":{"category":"server","message":"blip"},"data":null,"request_id":"r"}"#.utf8))
@@ -130,4 +156,12 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
     }
 
     override func stopLoading() {}
+}
+
+private struct RequestSessionRefresher: SessionRefreshing {
+    let userID: UUID
+    func refreshSession(refreshToken: String) async throws -> RefreshedSession {
+        RefreshedSession(userID: userID, accessToken: "renewed-token", refreshToken: "rotated",
+                         expiresAt: .now.addingTimeInterval(3600))
+    }
 }

@@ -117,6 +117,98 @@ struct SessionRestoreTests {
         #expect(try keychain.load() == nil)
     }
 
+    @Test("An API request renews an expired guest session and persists rotated credentials")
+    func requestRefreshesExpiredSession() async throws {
+        let keychain = uniqueKeychain()
+        let userID = UUID()
+        let refresher = StubRefresher(result: .success(RefreshedSession(
+            userID: userID, accessToken: "renewed", refreshToken: "rotated",
+            expiresAt: .now.addingTimeInterval(3600))))
+        let store = makeSessionStore(keychain: keychain, refresher: refresher)
+        store.adoptInMemory(AuthSession(userID: userID, accessToken: "expired",
+                                       refreshToken: "old", expiresAt: .now.addingTimeInterval(-1),
+                                       isAnonymous: true))
+        #expect(await store.currentAccessToken() == "renewed")
+        #expect(store.currentSession?.isAnonymous == true)
+        #expect(try keychain.load()?.refreshToken == "rotated")
+        #expect(await store.currentAccessToken() == "renewed")
+        #expect(await refresher.callCount == 1)
+    }
+
+    @Test("A failed network refresh keeps credentials for a later retry")
+    func requestNetworkFailureRetainsSession() async throws {
+        let keychain = uniqueKeychain()
+        let refresher = StubRefresher(result: .failure(.network("Offline")))
+        let store = makeSessionStore(keychain: keychain, refresher: refresher)
+        let session = AuthSession(userID: UUID(), accessToken: "expired", refreshToken: "retry",
+                                  expiresAt: .now.addingTimeInterval(-1))
+        try store.adopt(session)
+        #expect(await store.currentAccessToken() == nil)
+        #expect(store.currentSession?.userID == session.userID)
+        #expect(try keychain.load()?.refreshToken == "retry")
+    }
+
+    @Test("Refresh cannot replace the account with a different identity")
+    func requestRejectsDifferentIdentity() async throws {
+        let keychain = uniqueKeychain()
+        let refresher = StubRefresher(result: .success(RefreshedSession(
+            userID: UUID(), accessToken: "other-account", refreshToken: "other",
+            expiresAt: .now.addingTimeInterval(3600))))
+        let store = makeSessionStore(keychain: keychain, refresher: refresher)
+        try store.adopt(AuthSession(userID: UUID(), accessToken: "expired", refreshToken: "old",
+                                   expiresAt: .now.addingTimeInterval(-1)))
+        #expect(await store.currentAccessToken() == nil)
+        #expect(store.currentSession == nil)
+        #expect(try keychain.load() == nil)
+    }
+
+    @Test("Concurrent API requests share one renewal")
+    func concurrentRequestsShareRefresh() async throws {
+        let userID = UUID()
+        let refresher = PausedRefresher(userID: userID)
+        let store = makeSessionStore(keychain: uniqueKeychain(), refresher: refresher)
+        store.adoptInMemory(AuthSession(userID: userID, accessToken: "expired", refreshToken: "old",
+                                       expiresAt: .now.addingTimeInterval(-1)))
+        let first = Task { await store.currentAccessToken() }
+        await refresher.waitUntilStarted()
+        let second = Task { await store.currentAccessToken() }
+        await Task.yield()
+        await refresher.finish()
+        #expect(await first.value == "renewed")
+        #expect(await second.value == "renewed")
+        #expect(await refresher.callCount == 1)
+    }
+
+    @Test("A refresh finishing after sign-out cannot restore the account")
+    func lateRefreshCannotRestoreSignedOutSession() async throws {
+        let keychain = uniqueKeychain()
+        let userID = UUID()
+        let refresher = PausedRefresher(userID: userID)
+        let store = makeSessionStore(keychain: keychain, refresher: refresher)
+        store.adoptInMemory(AuthSession(userID: userID, accessToken: "expired", refreshToken: "old",
+                                       expiresAt: .now.addingTimeInterval(-1)))
+        let request = Task { await store.currentAccessToken() }
+        await refresher.waitUntilStarted()
+        store.clearInMemorySession()
+        await refresher.finish()
+        #expect(await request.value == nil)
+        #expect(store.currentSession == nil)
+        #expect(try keychain.load() == nil)
+    }
+
+    @Test("An offline launch retains the stored refresh token for recovery")
+    func offlineRestorePreservesCredentials() async throws {
+        let keychain = uniqueKeychain()
+        let session = AuthSession(userID: UUID(), accessToken: "expired", refreshToken: "recoverable",
+                                  expiresAt: .now.addingTimeInterval(-1))
+        try keychain.save(session)
+        let store = makeSessionStore(keychain: keychain,
+                                     refresher: StubRefresher(result: .failure(.network("Offline"))))
+        #expect(try await store.restoreSession() == nil)
+        #expect(try keychain.load()?.refreshToken == "recoverable")
+        #expect(store.isRestoring == false)
+    }
+
     @Test("No stored session returns nil without ever calling the refresher")
     func absentSessionReturnsNilWithoutRefreshing() async throws {
         let keychain = uniqueKeychain()
@@ -180,4 +272,24 @@ private func writeCorruptKeychainEntry(service: String) {
     ]
     SecItemDelete(query as CFDictionary)
     SecItemAdd(query as CFDictionary, nil)
+}
+
+private actor PausedRefresher: SessionRefreshing {
+    let userID: UUID
+    private(set) var callCount = 0
+    private var continuation: CheckedContinuation<RefreshedSession, Never>?
+    init(userID: UUID) { self.userID = userID }
+    func refreshSession(refreshToken: String) async throws -> RefreshedSession {
+        callCount += 1
+        return await withCheckedContinuation { continuation = $0 }
+    }
+    func waitUntilStarted() async {
+        while continuation == nil { await Task.yield() }
+    }
+    func finish() {
+        continuation?.resume(returning: RefreshedSession(
+            userID: userID, accessToken: "renewed", refreshToken: "rotated",
+            expiresAt: .now.addingTimeInterval(3600)))
+        continuation = nil
+    }
 }

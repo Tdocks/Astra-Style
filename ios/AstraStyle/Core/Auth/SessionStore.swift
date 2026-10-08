@@ -26,6 +26,8 @@ public final class SessionStore: AstraAuthTokenProviding {
     private let supabase: SupabaseClient
     private let keychain: KeychainTokenStore
     private let sessionRefresher: SessionRefreshing
+    @ObservationIgnored private var refreshTask: Task<String?, Never>?
+    @ObservationIgnored private var sessionRevision = UUID()
 
     public init(
         apiClient: AstraAPIClient,
@@ -48,7 +50,57 @@ public final class SessionStore: AstraAuthTokenProviding {
     // MARK: - AstraAuthTokenProviding
 
     public nonisolated func currentAccessToken() async -> String? {
-        await MainActor.run { self.currentSession?.accessToken }
+        await accessTokenForRequest()
+    }
+
+    private func accessTokenForRequest() async -> String? {
+        guard let stored = currentSession else { return nil }
+        guard stored.expiresAt.timeIntervalSinceNow <= 30 else { return stored.accessToken }
+        if let refreshTask { return await refreshTask.value }
+        let revision = sessionRevision
+        let task = Task { @MainActor [weak self] () -> String? in
+            guard let self else { return nil }
+            defer { if self.sessionRevision == revision { self.refreshTask = nil } }
+            do {
+                let refreshed = try await self.sessionRefresher.resolveSession(
+                    userID: stored.userID, refreshToken: stored.refreshToken)
+                guard self.sessionRevision == revision else { return nil }
+                guard refreshed.userID == stored.userID, refreshed.expiresAt > .now else {
+                    throw AstraError.auth("Please sign in again.")
+                }
+                let session = AuthSession(userID: refreshed.userID, accessToken: refreshed.accessToken,
+                                          refreshToken: refreshed.refreshToken, expiresAt: refreshed.expiresAt,
+                                          isAnonymous: stored.isAnonymous)
+                // Persist without replacing the revision shared by concurrent waiters.
+                try self.keychain.save(session)
+                self.currentSession = session
+                return session.accessToken
+            } catch {
+                guard self.sessionRevision == revision else { return nil }
+                if Self.isRejectedSession(error) {
+                    try? self.keychain.clear()
+                    self.currentSession = nil
+                }
+                // Keep recoverable credentials on connectivity/server failures.
+                return nil
+            }
+        }
+        refreshTask = task
+        return await task.value
+    }
+
+    private static func isRejectedSession(_ error: any Error) -> Bool {
+        (error as? AstraError)?.category == .auth
+            || (error as? AuthError).map {
+                [.refreshTokenNotFound, .refreshTokenAlreadyUsed, .sessionNotFound,
+                 .sessionExpired, .userNotFound, .userBanned].contains($0.errorCode)
+            } == true
+    }
+
+    private func invalidatePendingRefresh() {
+        sessionRevision = UUID()
+        refreshTask?.cancel()
+        refreshTask = nil
     }
 
     /// The current session's user id — `nil` only when nobody is signed in.
@@ -92,6 +144,8 @@ public final class SessionStore: AstraAuthTokenProviding {
     ///     — a normal "please sign in again" outcome, not a crash.
     @discardableResult
     public func restoreSession() async throws -> AuthSession? {
+        invalidatePendingRefresh()
+        let revision = sessionRevision
         defer { isRestoring = false }
 
         let stored: AuthSession?
@@ -114,7 +168,11 @@ public final class SessionStore: AstraAuthTokenProviding {
         }
 
         do {
-            let refreshed = try await sessionRefresher.refreshSession(refreshToken: stored.refreshToken)
+            let refreshed = try await sessionRefresher.resolveSession(userID: stored.userID, refreshToken: stored.refreshToken)
+            guard sessionRevision == revision else { return nil }
+            guard refreshed.userID == stored.userID, refreshed.expiresAt > .now else {
+                throw AstraError.auth("Please sign in again.")
+            }
             let session = AuthSession(
                 userID: refreshed.userID,
                 accessToken: refreshed.accessToken,
@@ -125,10 +183,10 @@ public final class SessionStore: AstraAuthTokenProviding {
             try persist(session)
             return session
         } catch {
-            // Refresh token itself is invalid/expired/revoked — the user
-            // must sign in again. This is a normal, expected path, not a
-            // crash.
-            try? keychain.clear()
+            guard sessionRevision == revision else { return nil }
+            // A connectivity failure must not destroy the only recoverable
+            // refresh token. A later launch can retry restoration.
+            if Self.isRejectedSession(error) { try? keychain.clear() }
             currentSession = nil
             return nil
         }
@@ -142,12 +200,14 @@ public final class SessionStore: AstraAuthTokenProviding {
     /// Mock identities must disappear with their process so they cannot
     /// replace a real account session or leave a stale user id behind.
     func adoptInMemory(_ session: AuthSession) {
+        invalidatePendingRefresh()
         currentSession = session
     }
 
     /// Clears only the current in-memory session. Preview auth must not make
     /// a request to the configured Supabase client when signing out.
     func clearInMemorySession() {
+        invalidatePendingRefresh()
         currentSession = nil
     }
 
@@ -155,18 +215,24 @@ public final class SessionStore: AstraAuthTokenProviding {
     /// The test flag may run before the mock backend is selected, so remove
     /// only this app's saved token and leave all other local data alone.
     func resetForUITest() {
+        invalidatePendingRefresh()
         try? keychain.clear()
         currentSession = nil
     }
 
     public func signOut() async throws {
-        try? await supabase.auth.signOut()
+        invalidatePendingRefresh()
+        currentSession = nil
+        let revision = sessionRevision
         try keychain.clear()
+        try? await supabase.auth.signOut()
+        guard sessionRevision == revision else { return }
         currentSession = nil
     }
 
     private func persist(_ session: AuthSession) throws {
         try keychain.save(session)
+        invalidatePendingRefresh()
         currentSession = session
     }
 }

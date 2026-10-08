@@ -41,6 +41,13 @@ public protocol SessionRefreshing: Sendable {
     /// server-side — a normal, expected outcome (the user must sign in
     /// again), not a crash condition.
     func refreshSession(refreshToken: String) async throws -> RefreshedSession
+    func resolveSession(userID: UUID, refreshToken: String) async throws -> RefreshedSession
+}
+
+extension SessionRefreshing {
+    public func resolveSession(userID: UUID, refreshToken: String) async throws -> RefreshedSession {
+        try await refreshSession(refreshToken: refreshToken)
+    }
 }
 
 /// Production `SessionRefreshing`: a thin wrapper over
@@ -50,6 +57,21 @@ public struct LiveSessionRefresher: SessionRefreshing {
 
     public init(supabase: SupabaseClient) {
         self.supabase = supabase
+    }
+
+    public func resolveSession(userID: UUID, refreshToken: String) async throws -> RefreshedSession {
+        // The SDK may already have rotated the refresh token. Reuse its session
+        // only for the expected identity; never adopt a different signed-in user.
+        if let cached = supabase.auth.currentSession {
+            guard cached.user.id == userID else {
+                throw AstraError.auth("Your session changed. Please sign in again.")
+            }
+            let session = try await supabase.auth.session
+            return RefreshedSession(userID: session.user.id, accessToken: session.accessToken,
+                                    refreshToken: session.refreshToken,
+                                    expiresAt: Date(timeIntervalSince1970: session.expiresAt))
+        }
+        return try await refreshSession(refreshToken: refreshToken)
     }
 
     public func refreshSession(refreshToken: String) async throws -> RefreshedSession {
