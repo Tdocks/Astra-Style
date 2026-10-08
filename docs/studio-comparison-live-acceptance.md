@@ -14,9 +14,9 @@ The deployed backend was exercised through authenticated requests using disposab
 
 - Two inspiration generations completed through the real image provider; private storage signing returned PNG images. Synthetic weather/style context was supplied. This verifies the provider path, not real-device WeatherKit or calendar permission integration.
 - Kyra returned HTTP 200 with a structured assistant response to a cool/rainy-day styling question.
-- Export initially returned HTTP 500 because the existing analytics migration had not been deployed. Applying `20260816120000_analytics_events.sql` restored HTTP 200.
+- Export initially returned HTTP 500 because the analytics table was absent despite the original migration appearing in deployment history. Reapplying its definitions restored HTTP 200; `20261008203730_restore_analytics_events.sql` records this repair without editing the original migration.
 - Two-user export acceptance returned 24 tables, included the caller's activity fixture, excluded the other user's activity, and rejected an attempted cross-user activity insert (HTTP 403).
-- Cleanup exposed a second production failure: `finalize_account_deletion` directly deleted `storage.objects`, now rejected by Supabase. The append-only `20261008204500_account_deletion_storage_api_only.sql` replaces that deletion with verification that the Storage API removed all files, retaining service-role-only execution.
+- Cleanup exposed a second production failure: `finalize_account_deletion` directly deleted `storage.objects`, now rejected by Supabase. The append-only `20261008203918_account_deletion_storage_api_only.sql` replaces that deletion with verification that the Storage API removed all files, retaining service-role-only execution.
 - Both original image-test accounts were cleaned after the repair. Two subsequent account-deletion requests completed through the deployed handler. All four deletion records were verified completed.
 
 ## Remaining acceptance
