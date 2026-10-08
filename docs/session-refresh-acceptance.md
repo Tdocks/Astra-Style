@@ -40,3 +40,10 @@ The archive's bundle/version were verified. Fastlane confirmed upload success at
 19:49:44 on 8 October 2026 (`/tmp/astra-testflight20.log`). Apple processing and
 Internal group membership are not yet verified. Build 19 remains the confirmed
 Internal release until those checks pass.
+
+## Confirmed Internal release
+
+Build 20 is VALID and IN_BETA_TESTING (build ID
+`5cba6279-9473-450e-bdff-6783bc30b096`). Internal group membership was
+confirmed via its builds endpoint. en-US testing notes were saved successfully.
+External beta review remains unsubmitted; the public group still uses build 11.
