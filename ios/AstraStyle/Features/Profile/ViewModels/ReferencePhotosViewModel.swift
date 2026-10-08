@@ -71,10 +71,9 @@ public final class ReferencePhotosViewModel {
                 return
             }
 
-            let generations = try await studioRepository.fetchGenerations()
-                .filter { paths.contains($0.referenceImagePath) }
-            let photos = paths.map { path in
-                let matches = generations.filter { $0.referenceImagePath == path }
+            let generations = try await fetchVisibleGenerations()
+            let photos = try paths.map { path in
+                let matches = try ReferencePhotoPreviewGraph.deletionOrder(sourcePath: path, generations: generations)
                 return SavedReferencePhoto(
                     path: path,
                     previewCount: matches.filter { !$0.isDeleted }.count,
@@ -116,8 +115,9 @@ public final class ReferencePhotosViewModel {
     }
 
     private func deletePreviewsUsing(path: String) async throws {
-        let matches = try await studioRepository.fetchGenerations()
-            .filter { $0.referenceImagePath == path }
+        let matches = try ReferencePhotoPreviewGraph.deletionOrder(
+            sourcePath: path, generations: await fetchVisibleGenerations()
+        )
         guard !matches.contains(where: Self.isActive) else {
             throw AstraError.validation("A preview is in progress. Try again when it finishes.")
         }
@@ -126,7 +126,50 @@ public final class ReferencePhotosViewModel {
         }
     }
 
+    private func fetchVisibleGenerations() async throws -> [StudioGeneration] {
+        // A single Data API select is capped. A reference's descendants can
+        // span gallery pages, so never treat the first page as its whole graph.
+        let pageSize = 100
+        var generations: [StudioGeneration] = []
+        var offset = 0
+        while true {
+            let page = try await studioRepository.fetchGenerations(offset: offset, limit: pageSize)
+            generations.append(contentsOf: page)
+            guard page.count == pageSize else { return generations }
+            offset += pageSize
+        }
+    }
+
     private static func isActive(_ generation: StudioGeneration) -> Bool {
         generation.status == .queued || generation.status == .generating
+    }
+}
+
+/// Counts every reachable variation and orders children before their sources.
+/// The server still validates each deletion; this graph is not an authorization
+/// boundary or a replacement for an atomic server-owned reference cascade.
+enum ReferencePhotoPreviewGraph {
+    static func deletionOrder(sourcePath: String, generations: [StudioGeneration]) throws -> [StudioGeneration] {
+        let visible = generations.filter { !$0.isDeleted }
+        let bySource = Dictionary(grouping: visible, by: \.referenceImagePath)
+        var visited: Set<UUID> = []
+        var ancestors: Set<UUID> = []
+        var ordered: [StudioGeneration] = []
+
+        func visit(_ generation: StudioGeneration) throws {
+            guard !ancestors.contains(generation.id) else {
+                throw AstraError.validation("These previews have an invalid source chain. Please try again later.")
+            }
+            guard visited.insert(generation.id).inserted else { return }
+            ancestors.insert(generation.id)
+            if let result = generation.resultImagePath, !result.isEmpty {
+                for child in bySource[result] ?? [] { try visit(child) }
+            }
+            ancestors.remove(generation.id)
+            ordered.append(generation)
+        }
+
+        for root in bySource[sourcePath] ?? [] { try visit(root) }
+        return ordered
     }
 }

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 
-FIRST_PARTY_WARNING = re.compile(r"^/.*/ios/AstraStyle/.*warning:")
+FIRST_PARTY_WARNING = re.compile(r"^(?:/.*/ios/)?AstraStyle/.*warning:")
 
 
 def is_first_party_warning(line: str) -> bool:
@@ -28,6 +28,9 @@ def self_test(repo_root: Path) -> int:
         return 1
     if any(is_first_party_warning(line) for line in fixture_lines[1:]):
         print("::error::Warning-gate self-test incorrectly caught a dependency or test-target warning.")
+        return 1
+    if not is_first_party_warning("AstraStyle/AstraTheme.swift:35:43: warning: macro probe"):
+        print("::error::Warning-gate self-test missed a relative macro diagnostic.")
         return 1
 
     command = [

@@ -20,6 +20,7 @@ import SwiftUI
 /// 2. Hold in-app appearance state, such as letting a user override the system color scheme
 ///    from Settings, independent of the device-wide setting.
 @Observable
+@MainActor
 public final class AstraTheme {
     /// Optional in-app appearance override. `nil` means "follow system."
     public var colorSchemeOverride: ColorScheme?
@@ -30,9 +31,10 @@ public final class AstraTheme {
 }
 
 public extension EnvironmentValues {
-    /// The shared `AstraTheme`, defaulting to a fresh instance that follows the system
-    /// appearance until `.astraTheme(_:)` injects an app-owned one.
-    @Entry var astraTheme = AstraTheme()
+    /// An app-owned appearance override, if one is injected. With no override,
+    /// design tokens follow the system. Do not allocate an observable reference
+    /// in the default getter: that changes its identity on every environment read.
+    @Entry var astraTheme: AstraTheme? = nil
 }
 
 public extension View {
