@@ -873,6 +873,13 @@ Deno.test("matching saved yes approval submits once and closes its confirmation"
     },
   });
   assertEquals(response.status, 200);
+  const payload = await response.json();
+  assertEquals(
+    payload.data.structured_payload.suggested_actions.find((action: { id: string }) =>
+      action.id === "studio-preview:" + PACKET_ITEM
+    )?.label,
+    "Open preview",
+  );
   assertEquals(submitted, 1);
   assertEquals(closed, 1);
 });

@@ -188,6 +188,7 @@ export interface KyraConfig {
   readonly memoryMinimumConfidence: number;
 }
 
+import { isUUID } from "../_shared/validation.ts";
 import { studioRequestCancelled } from "./tools/studioConfirmation.ts";
 import type { AnalyzeProductDeps } from "./tools/analyzeProduct.ts";
 import {
@@ -1077,9 +1078,10 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
     const pendingCall = ctx.globalTrace.findLast((call) =>
       call.name === "generate_studio_preview" && call.result.error === "CONFIRMATION_REQUIRED"
     );
-    const queuedPreview = ctx.globalTrace.some((call) =>
-      call.name === "generate_studio_preview" && typeof call.result.generation_id === "string"
+    const queuedCall = ctx.globalTrace.findLast((call) =>
+      call.name === "generate_studio_preview" && isUUID(call.result.generation_id)
     );
+    const queuedPreview = queuedCall !== undefined;
     const proposedSelection = deps.studio && !queuedPreview && pendingCall
       ? parseStudioPreview(pendingCall.args)
       : null;
@@ -1088,6 +1090,20 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         ...guarded.response,
         message:
           "Would you like me to generate this Studio preview? It uses one preview from your generation allowance. Reply yes to approve this selection, or tell me what to change.",
+      }
+      : queuedCall
+      ? {
+        ...guarded.response,
+        suggested_actions: [
+          ...guarded.response.suggested_actions.filter((action) =>
+            action.kind !== "start_studio_generation"
+          ),
+          {
+            id: "studio-preview:" + queuedCall.result.generation_id,
+            label: "Open preview",
+            kind: "start_studio_generation" as const,
+          },
+        ],
       }
       : guarded.response;
 

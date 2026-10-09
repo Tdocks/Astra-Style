@@ -68,6 +68,21 @@ public struct KyraConversationView: View {
                 )
             }
         )
+        .sheet(isPresented: Binding(
+            get: { viewModel.pendingStudioGenerationID != nil },
+            set: { if !$0 { viewModel.clearPendingStudioPreview() } }
+        )) {
+            if let generationID = viewModel.pendingStudioGenerationID {
+                NavigationStack {
+                    StudioDestinationView(route: .generation(generationID: generationID), container: container)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Close") { viewModel.clearPendingStudioPreview() }
+                            }
+                        }
+                }
+            }
+        }
         .accessibilityIdentifier("kyra.conversation")
     }
 

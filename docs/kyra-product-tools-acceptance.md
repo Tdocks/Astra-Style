@@ -273,3 +273,18 @@ entrypoint type checks passing. These fixtures exercise real handler/executor
 logic with mocked persistence/provider/queue dependencies. They do not establish
 hosted persistence, live model behavior, concurrent cancellation ordering or
 native preview-job UI acceptance. Migration and function deployment remain open.
+
+## Native queued-preview action
+
+A successful preview tool result now adds a deterministic `Open preview` action
+using the existing start_studio_generation wire kind and a studio-preview UUID
+action ID. The native conversation validates that ID and opens the existing
+Studio detail screen, including its status polling and private result retrieval.
+An unqualified/model-only generation action remains hidden.
+
+133 Kyra tests passed (`/tmp/astra-kyra-preview-action-tests.log`), including the
+server action on a successful approved submission. Backend lint/type checks pass.
+The simulator build compiled the changed native app; its chat unit-test process
+remains running (session 93077, `/tmp/astra-kyra-preview-native-tests.log`) with
+no final test verdict yet. New action-specific native tests and simulator UI
+acceptance remain open. No TestFlight upload or hosted deployment was performed.

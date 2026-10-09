@@ -78,6 +78,10 @@ public final class KyraConversationViewModel {
 
     /// Nested paywall when Edge returns 429 on a new thread. Ask Kyra is
     /// already a modal; AppRouter has one slot.
+    public private(set) var pendingStudioGenerationID: UUID?
+
+    public func clearPendingStudioPreview() { pendingStudioGenerationID = nil }
+
     public private(set) var pendingPaywall: PaywallContext?
 
     /// What the closet-item and outfit attachment pickers can offer. Kept
@@ -403,18 +407,9 @@ public final class KyraConversationViewModel {
 
 // WHICH ACTION KINDS RENDER, AND WHY THE OTHERS DO NOT. The server's
 // actions carry no payload — `{id, label, kind}` only — so an action's
-// target must come from the cards in the same message, and its behaviour
-// must be something the app can actually do today. Three kinds pass both
-// tests: `wearOutfit` and `saveOutfit` act on the message's outfit card
-// through repositories that exist, and `viewAlternatives` is a real
-// follow-up message. The other four (`openProduct`, `scheduleOutfit`,
-// `startStudioGeneration`, `addOccasion`) currently lead nowhere real —
-// their features are Phase-6/-7 surfaces — and a button that opens an
-// apology is the dead button §22 rules out by name (the same argument
-// ClosetView's header makes for the filter button, discharged the same
-// way: when the feature lands, `canPerform` is the one place to open the
-// door). Dropping them from RENDERING is honest; the data survives on the
-// entry untouched.
+// Outfit targets come from hydrated cards. A queued Studio preview uses the
+// server-produced studio-preview:<UUID> action ID to open its existing result
+// screen, whose repository enforces ownership. Unsupported actions stay hidden.
 extension KyraConversationViewModel {
 
     public func canPerform(_ action: KyraSuggestedAction, in entry: KyraTranscriptEntry) -> Bool {
@@ -423,7 +418,9 @@ extension KyraConversationViewModel {
             return true
         case .wearOutfit, .saveOutfit:
             return firstOutfitID(in: entry) != nil
-        case .openProduct, .scheduleOutfit, .startStudioGeneration, .addOccasion:
+        case .startStudioGeneration:
+            return studioPreviewID(action) != nil
+        case .openProduct, .scheduleOutfit, .addOccasion:
             return false
         }
     }
@@ -451,12 +448,20 @@ extension KyraConversationViewModel {
                 localized: "What else would work instead?",
                 comment: "Message sent when the user taps Kyra's see-alternatives action"
             ))
-        case .openProduct, .scheduleOutfit, .startStudioGeneration, .addOccasion:
+        case .startStudioGeneration:
+            pendingStudioGenerationID = studioPreviewID(action)
+        case .openProduct, .scheduleOutfit, .addOccasion:
             // Unreachable through the UI (canPerform filters them); listed
             // explicitly so a new kind added to the enum fails compilation
             // here instead of falling into silence.
             return
         }
+    }
+
+    private func studioPreviewID(_ action: KyraSuggestedAction) -> UUID? {
+        let prefix = "studio-preview:"
+        guard action.id.hasPrefix(prefix) else { return nil }
+        return UUID(uuidString: String(action.id.dropFirst(prefix.count)))
     }
 
     private func recordOutfitAction(
