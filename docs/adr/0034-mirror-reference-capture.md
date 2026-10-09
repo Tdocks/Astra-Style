@@ -8,10 +8,10 @@ P3-SCAN-12's mirror mode captures/imports a complete photo and associates it wit
 
 Reuse ProfileRepository and ReferenceImagePreparation rather than introducing another photo table or deletion system. Photos appear in Profile → Reference Photos and use its existing coordinated deletion and export behavior. Preparation resizes and re-encodes the photo. The scanner and Closet menus expose the mode.
 
-The view model verifies the body profile owner, verifies the returned private reference path's owner and checks the current account again before association. A failed profile write retains the uploaded path for retry rather than repeatedly uploading the photo. Existing body fields are preserved from the fetched profile. Mock uploads now return the mock profile's real owner path.
+The view model verifies the body profile owner, verifies the returned private reference path's owner and checks the current account again before association. A failed profile write retains the uploaded path for retry rather than repeatedly uploading the photo. Association uses a caller-scoped database RPC that locks the current body row and appends the reference without rewriting other body fields. Mock uploads now return the mock profile's real owner path.
 
 ## Remaining acceptance and risks
 
 Simulator build and strict lint passed. Three native workflow tests passed: permission gating and body-field preservation, deletion through the reference repository, failed-association retry reusing the path, and invalid-image rejection. Live permanent-account upload/deletion/export, camera/Photos UI, large text and physical-device acceptance remain open. Guest photo uploads remain server-denied.
 
-The current upload and body-profile association are separate operations. Abandoned unassociated references rely on the existing 24-hour retention sweep. Concurrent whole-profile writes and an uploaded path removed before retry need an atomic server association endpoint; this implementation does not claim those cases are resolved. TestFlight remains build 22 and does not contain this scanner batch.
+The current upload and body-profile association are separate operations. Abandoned unassociated references rely on the existing 24-hour retention sweep. The atomic association endpoint rejects missing uploaded objects and cleanup tombstones and deduplicates retries. A later stale whole-profile write can still drop reference paths; that broader profile-write concurrency risk remains open. TestFlight remains build 22 and does not contain this scanner batch.

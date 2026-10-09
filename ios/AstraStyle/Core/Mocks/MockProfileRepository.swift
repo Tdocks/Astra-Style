@@ -123,6 +123,15 @@ public actor MockProfileRepository: ProfileRepository {
         "users/\(profile.id.uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg"
     }
 
+    public func associateReferenceImage(path: String, acknowledged: Bool) async throws -> BodyProfile {
+        guard acknowledged, path.hasPrefix("users/\(profile.id.uuidString.lowercased())/references/") else {
+            throw AstraError.validation("Permission and an owned reference photo are required.")
+        }
+        var current = bodyProfile ?? BodyProfile(userID: profile.id)
+        if !current.appearance.referenceSelfiePaths.contains(path) { current.appearance.referenceSelfiePaths.append(path) }
+        return try await updateBodyProfile(current)
+    }
+
     public func deleteReferenceImage(path: String) async throws {
         guard var bodyProfile,
               bodyProfile.appearance.referenceSelfiePaths.contains(path) else {

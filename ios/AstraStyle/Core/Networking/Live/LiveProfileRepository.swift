@@ -191,6 +191,23 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
         }
     }
 
+    public func associateReferenceImage(path: String, acknowledged: Bool) async throws -> BodyProfile {
+        struct Parameters: Encodable {
+            let path: String
+            let acknowledged: Bool
+            enum CodingKeys: String, CodingKey {
+                case path = "p_path"
+                case acknowledged = "p_acknowledged"
+            }
+        }
+        do {
+            return try await supabase.rpc("associate_reference_photo", params: Parameters(path: path, acknowledged: acknowledged))
+                .single().execute().value
+        } catch {
+            throw AstraError.server("Couldn't save that reference. It may have expired or been removed. Reopen capture to try again.")
+        }
+    }
+
     public func deleteReferenceImage(path: String) async throws {
         struct Payload: Encodable, Sendable { let path: String }
         struct Result: Decodable, Sendable { let id: UUID; let status: String }

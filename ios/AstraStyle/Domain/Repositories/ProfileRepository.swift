@@ -72,6 +72,7 @@ public protocol ProfileRepository: Sendable {
     /// for a guest — a rule that is easier to hold when the call site is a
     /// single, named, mockable method.
     func uploadReferenceImage(_ imageData: Data) async throws -> String
+    func associateReferenceImage(path: String, acknowledged: Bool) async throws -> BodyProfile
 
     /// Removes one saved Style Studio reference image from private Storage
     /// and from the caller's appearance profile.
@@ -160,5 +161,11 @@ public struct StylePreferenceQuizAnswer: Codable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case pairID = "pair_id"
         case chosenOptionID = "chosen_option_id"
+    }
+}
+
+public extension ProfileRepository {
+    func associateReferenceImage(path: String, acknowledged: Bool) async throws -> BodyProfile {
+        throw AstraError.server("Reference photo saving is unavailable. Try again.")
     }
 }

@@ -558,3 +558,7 @@ Receipt entry acceptance: the Closet-menu-to-receipt-screen UI test passed (one 
 ## 2026-10-08 — Mirror-photo reference capture
 
 Added camera/import, explicit permission and private full-look reference saving, reachable from scanner and Closet menus. Photos are associated with the existing appearance reference collection and are removable through Profile → Reference Photos. No segmentation or generated-preview action occurs on save. Simulator build, strict lint and three native workflow tests passed. Atomic server association, live permanent-account upload/deletion/export, UI/accessibility and physical-device acceptance remain open (ADR 0034). This feature is not in build 22 yet.
+
+## 2026-10-08 — Atomic mirror reference association
+
+Deployed migration 20261009011956: caller-scoped, SECURITY INVOKER reference association checks permission, permanent sign-in, owner path and storage existence, then locks and appends to the current body profile. Full local SQL suite passed, including duplicate retry, missing object, peer ownership and guest denial. Hosted function privileges verified: anonymous execution denied, authenticated execution allowed, no definer privileges. Three native mirror workflow tests and strict lint passed. Later stale whole-profile writes remain a separate concurrency risk; permanent-account live upload and device acceptance remain open. Native changes await build 23.

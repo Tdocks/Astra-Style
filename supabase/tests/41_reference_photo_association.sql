@@ -1,0 +1,35 @@
+begin;
+do $$
+declare u uuid:=gen_random_uuid(); peer uuid:=gen_random_uuid(); p text; b public.body_profiles; blocked boolean;
+begin
+  p:='users/'||u||'/references/'||gen_random_uuid()||'.jpg';
+  insert into auth.users(id,email) values(u,u||'@association.invalid'),(peer,peer||'@association.invalid');
+  insert into public.body_profiles(user_id,height_value_cm,appearance) values(u,180,'{"hair_color":"brown"}');
+  insert into storage.objects(bucket_id,name) values('user-content',p);
+  perform set_config('role','authenticated',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated','is_anonymous',false)::text,true);
+  select * into b from public.associate_reference_photo(p,true);
+  if b.height_value_cm<>180 or b.appearance->>'hair_color'<>'brown' then raise exception 'Association overwrote profile fields'; end if;
+  select * into b from public.associate_reference_photo(p,true);
+  if jsonb_array_length(b.appearance->'reference_selfie_paths')<>1 then raise exception 'Repeated association duplicated photo'; end if;
+  blocked:=false;
+  begin perform public.associate_reference_photo(p,false);
+  exception when others then if sqlerrm='reference_permission_required' then blocked:=true; else raise; end if; end;
+  if not blocked then raise exception 'Unacknowledged photo saved'; end if;
+  blocked:=false;
+  begin perform public.associate_reference_photo('users/'||u||'/references/'||gen_random_uuid()||'.jpg',true);
+  exception when others then if sqlerrm='reference_photo_unavailable' then blocked:=true; else raise; end if; end;
+  if not blocked then raise exception 'Missing storage object associated'; end if;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',peer,'role','authenticated','is_anonymous',false)::text,true);
+  blocked:=false;
+  begin perform public.associate_reference_photo(p,true);
+  exception when others then if sqlerrm='reference_photo_unavailable' then blocked:=true; else raise; end if; end;
+  if not blocked then raise exception 'Peer associated photo'; end if;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated','is_anonymous',true)::text,true);
+  blocked:=false;
+  begin perform public.associate_reference_photo(p,true);
+  exception when insufficient_privilege then blocked:=true; end;
+  if not blocked then raise exception 'Guest associated a private reference'; end if;
+end;
+$$;
+rollback;

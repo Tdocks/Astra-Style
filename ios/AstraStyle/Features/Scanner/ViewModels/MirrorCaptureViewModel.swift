@@ -39,8 +39,6 @@ final class MirrorCaptureViewModel {
         defer { isSaving = false }
         do {
             guard let owner = await currentUserID() else { throw AstraError.auth("Sign in to save a private reference photo.") }
-            var body = try await repository.fetchBodyProfile() ?? BodyProfile(userID: owner)
-            guard body.userID == owner else { throw AstraError.auth("Your account changed. Reopen capture before saving.") }
             let path: String
             if let pendingPath { path = pendingPath } else {
                 path = try await repository.uploadReferenceImage(imageData)
@@ -50,8 +48,7 @@ final class MirrorCaptureViewModel {
                 pendingPath = path
             }
             guard await currentUserID() == owner else { throw AstraError.auth("Your account changed. Reopen capture before saving.") }
-            if !body.appearance.referenceSelfiePaths.contains(path) { body.appearance.referenceSelfiePaths.append(path) }
-            _ = try await repository.updateBodyProfile(body)
+            _ = try await repository.associateReferenceImage(path: path, acknowledged: hasPermission)
             savedPath = path
             pendingPath = nil
         } catch {
