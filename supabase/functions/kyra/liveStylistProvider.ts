@@ -164,11 +164,21 @@ export class LiveStylistProvider implements StylistReasoningProvider {
         );
       }
       if (!response.ok) {
+        // Retain only bounded machine identifiers, never provider messages
+        // which may echo private request content.
+        const failure = asRecord(asRecord(await response.json().catch(() => null))?.["error"]);
+        const safeIdentifier = (value: unknown): string | null =>
+          typeof value === "string" && /^[a-zA-Z0-9_.\[\]-]{1,100}$/.test(value) ? value : null;
         throw new ProviderError(
           "PROVIDER_UNAVAILABLE",
           response.status >= 500,
           `Stylist provider returned ${response.status}.`,
           response.status,
+          false,
+          {
+            code: safeIdentifier(failure?.["code"]),
+            parameter: safeIdentifier(failure?.["param"]),
+          },
         );
       }
 

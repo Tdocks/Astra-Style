@@ -429,6 +429,12 @@ async function repairAttempt(
 }
 
 interface OrchestrationOutcome {
+  readonly providerFailure?: {
+    code: string;
+    status: number | null;
+    retryable: boolean;
+    rejection?: { code: string | null; parameter: string | null };
+  };
   readonly response: KyraStructuredResponse;
   readonly tierUsed: ModelTier;
   readonly escalated: boolean;
@@ -626,6 +632,12 @@ async function orchestrateTurn(
         tierUsed,
         escalated,
         fallbackReason: err.isConfigurationIssue ? "provider_not_configured" : "provider_error",
+        providerFailure: {
+          code: err.code,
+          status: err.providerRawStatus ?? null,
+          retryable: err.retryable,
+          rejection: err.rejectionDetails,
+        },
         modelIdentifier: null,
         usage,
       };
@@ -1116,6 +1128,7 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       output_tokens: outcome.usage.outputTokens,
       confidence: finalResponse.confidence,
       fallback_reason: outcome.fallbackReason,
+      provider_failure: outcome.providerFailure ?? null,
       guardrail_violations: guarded.violations,
       truncation_applied: packetResult.truncationApplied,
     };

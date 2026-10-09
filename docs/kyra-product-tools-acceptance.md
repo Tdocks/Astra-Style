@@ -318,3 +318,20 @@ users, threads and confirmation records for that fixture. Report:
 Build 21 was started with the native preview action; its archive/upload producer
 remains active as session 80533 (`/tmp/astra-testflight21.log`). Build 20 remains
 the available internal release until upload, processing and group checks pass.
+
+## Provider compatibility diagnosis
+
+Kyra v13 is ACTIVE with JWT verification. Failed-turn metadata now retains only
+bounded provider error-code/parameter identifiers and HTTP status, never raw
+provider messages or echoed prompt content. The latest hosted probe reported
+HTTP 400 with rejected parameter `reasoning_effort`. This confirms request
+compatibility failure; authentication/missing-key claims are not supported.
+Both diagnostic QA accounts were removed, verified by live auth SQL count zero.
+
+134 Kyra tests passed (`/tmp/astra-kyra-provider-diagnostics-tests.log`), including
+privacy-safe rejection diagnostics. Lint and type checks passed. OpenAI's current
+reasoning guide recommends Responses for reasoning/tool workflows:
+https://developers.openai.com/api/docs/guides/reasoning?api-mode=chat .
+The current adapter still uses Chat Completions; Responses migration and hosted
+acceptance remain open. Build 21's archive completed and upload is actively
+running as session 80533; no processing/internal availability verdict yet.

@@ -175,3 +175,18 @@ Deno.test("completeStream throws rather than faking a stream", async () => {
   const iterator = live.completeStream(request(), CTX)[Symbol.asyncIterator]();
   await assertRejects(() => iterator.next(), ProviderError);
 });
+
+Deno.test("provider rejection diagnostics retain identifiers without echoed private text", async () => {
+  const captured: Array<Record<string, unknown>> = [];
+  const live = provider(() =>
+    Response.json({
+      error: {
+        code: "unsupported_value",
+        param: "response_format",
+        message: "private prompt and token must never be retained",
+      },
+    }, { status: 400 }), captured);
+  const error = await assertRejects(() => live.complete(request(), CTX), ProviderError);
+  assertEquals(error.rejectionDetails, { code: "unsupported_value", parameter: "response_format" });
+  assert(!error.message.includes("private prompt"));
+});

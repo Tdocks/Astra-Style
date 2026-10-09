@@ -65,6 +65,7 @@ export class ProviderError extends Error {
   readonly retryable: boolean;
   readonly providerRawStatus?: number;
   readonly isConfigurationIssue: boolean;
+  readonly rejectionDetails?: { code: string | null; parameter: string | null };
 
   constructor(
     code: ProviderErrorCode,
@@ -72,6 +73,7 @@ export class ProviderError extends Error {
     message: string,
     providerRawStatus?: number,
     isConfigurationIssue = false,
+    rejectionDetails?: { code: string | null; parameter: string | null },
   ) {
     super(message);
     this.name = "ProviderError";
@@ -79,6 +81,7 @@ export class ProviderError extends Error {
     this.retryable = retryable;
     this.providerRawStatus = providerRawStatus;
     this.isConfigurationIssue = isConfigurationIssue;
+    this.rejectionDetails = rejectionDetails;
   }
 }
 
