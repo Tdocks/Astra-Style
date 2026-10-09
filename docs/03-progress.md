@@ -543,3 +543,9 @@ Added a final existing-confirmation closed/expiry check under a row lock in the 
 Chat approval ordering follow-up: explicit confirmation-origin marker, missing-record rejection and final row-locked validity checks are deployed in migration 20261009005959, Studio v19 and Kyra v19. Local cancellation-first/submission-first concurrent transactions passed (zero/one allowances respectively); SQL isolation and 203 combined backend tests passed. Hosted consented-photo chat acceptance remains open.
 
 Build 22 release confirmation: VALID, Internal IN_BETA_TESTING, group membership and en-US notes verified. External review remains unsubmitted; public testers remain on build 11.
+
+## 2026-10-08 — Receipt/label capture implementation
+
+Replaced the receipt/label route placeholder with camera/import, on-device Vision OCR, recognized-text review and the existing editable closet item form. Suggestions include a conservative explicit total, currency only when identified and unambiguous ISO purchase date; refunds/grouped amounts and ambiguous totals are left blank. The receipt total may cover multiple items, which the screen explicitly asks the user to review. Successful save is acknowledged and forwarded to the parent scanner callback. Receipt image bytes stay local and are not uploaded by this flow.
+
+Simulator build and strict lint passed. Parser tests are running; real receipt/label image acceptance, UI/accessibility layouts and TestFlight release remain open. Mirror-photo capture remains unimplemented. P3-SCAN-12 remains Not started in the ticket table until this new branch of its acceptance is verified; no completion claim or ticket-count change yet.

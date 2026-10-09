@@ -124,12 +124,11 @@ struct ScannerDestinationView: View {
         case .batchCloset:
             batchRoot
         case .receiptLabel:
-            FeaturePlaceholderView(
-                title: String(localized: "Scan a Label", comment: "Scanner receipt/label mode title"),
-                message: String(localized: "Point at a care label or receipt to pull brand and size. That mode is not built yet.",
-                                comment: "Honest gap: receipt/label mode"),
-                systemImage: "doc.text.viewfinder"
-            )
+            ReceiptCaptureView(onItemSaved: onItemSaved, viewModel: ReceiptCaptureViewModel(
+                recognizer: LiveVisionLabelTextRecognizer(),
+                repository: container.closetRepository,
+                currentUserID: { await container.sessionStore.currentUserID() }
+            ))
         case .outfitMirror:
             FeaturePlaceholderView(
                 title: String(localized: "Mirror Photo", comment: "Scanner outfit mirror mode title"),
