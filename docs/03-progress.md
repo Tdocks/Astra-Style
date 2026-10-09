@@ -519,3 +519,7 @@ A new `AstraError.Category.unimplemented` backs 2 and 3. It is deliberately dist
 `.server`: retrying a missing table can never succeed, so the UI should degrade rather than offer
 a retry button, and a not-yet-built feature should not be indistinguishable from an outage at the
 call site.
+
+## 2026-10-08 — Premium Studio quota groundwork
+
+Added an append-only monthly Premium reservation guard with a configurable default of 20, preserving retry and initial-submission idempotency (ADR 0033). Full local SQL isolation suite and Studio job-store type check passed. This migration is not deployed yet; concurrent premium acceptance and native remaining/reset display remain open. Ticket totals are unchanged.

@@ -40,6 +40,13 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
           p_retry_of: row.retryOf ?? null,
         },
       ).single();
+      if (error?.message?.includes("studio_monthly_quota_exhausted")) {
+        throw new AppError(
+          "rate_limited",
+          429,
+          "You've used your monthly preview allowance. It resets on the first day of next month (UTC).",
+        );
+      }
       if (error?.message?.includes("studio_trial_exhausted")) {
         throw new AppError(
           "rate_limited",

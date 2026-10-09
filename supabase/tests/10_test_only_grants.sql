@@ -45,3 +45,5 @@ grant select(id,user_id,generation_id,kind,status,attempts,error_message,created
 
 -- No sequences to grant: every table in this schema uses
 -- `gen_random_uuid()` defaults, not serial/identity columns.
+
+revoke all on public.studio_quota_config from anon,authenticated;
