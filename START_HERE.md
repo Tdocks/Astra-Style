@@ -19,13 +19,26 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `27`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `28`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 27 (2026-10-08)
+## Current internal release — build 28 (2026-10-09)
+
+Version **1.0.0 (28)** is VALID and IN_BETA_TESTING in Internal
+(build ID `6650cb3c-b144-4e3b-92a8-2bfd3c46df08`). Internal group membership
+and en-US testing notes were verified by readback. Adds scanner interrupted-save
+recovery, owner-scoped offline closet photo caching, Premium Studio high resolution
+export confirmation/recovery, structured WeatherKit context for closet generation,
+and purchase-month Monthly Review attribution with complete history pagination.
+Selected native integration and Studio dark/light accessibility flows passed.
+Studio light accessibility screenshots were visually reviewed after fixing badge
+wrapping. This does not establish full-app accessibility or real-device acceptance.
+External review remains unsubmitted; public group still uses build 11.
+
+## Previous internal release — build 27 (2026-10-08)
 
 Version **1.0.0 (27)** is VALID and IN_BETA_TESTING in Internal
 (build ID `b460317e-1ace-4b5b-95f1-397c45cb97cf`), with group membership
