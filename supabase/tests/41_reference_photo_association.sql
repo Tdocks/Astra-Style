@@ -12,6 +12,11 @@ begin
   if b.height_value_cm<>180 or b.appearance->>'hair_color'<>'brown' then raise exception 'Association overwrote profile fields'; end if;
   select * into b from public.associate_reference_photo(p,true);
   if jsonb_array_length(b.appearance->'reference_selfie_paths')<>1 then raise exception 'Repeated association duplicated photo'; end if;
+  update public.body_profiles set appearance='{"hair_color":"black","reference_selfie_paths":[]}' where user_id=u;
+  select * into b from public.body_profiles where user_id=u;
+  if b.appearance->>'hair_color'<>'black' or not (b.appearance->'reference_selfie_paths') @> jsonb_build_array(p) then
+    raise exception 'Stale profile edit discarded reference or lost edited fields';
+  end if;
   blocked:=false;
   begin perform public.associate_reference_photo(p,false);
   exception when others then if sqlerrm='reference_permission_required' then blocked:=true; else raise; end if; end;
