@@ -62,11 +62,11 @@ lands data layers, protocols, and models long before the screens that use them.
 | 3 — Closet | 27 | 15 | 12 | 0 |
 | 4 — Outfit intelligence | 26 | 21 | 5 | 0 |
 | 5 — Kyra | 22 | 20 | 2 | 0 |
-| 6 — Studio and commerce | 25 | 21 | 3 | 1 |
+| 6 — Studio and commerce | 25 | 22 | 3 | 0 |
 | 7 — Monetization and hardening | 36 | 7 | 23 | 6 |
-| **Total** | **179** | **119** | **53** | **7** |
+| **Total** | **179** | **120** | **53** | **6** |
 
-Read that table carefully before drawing a conclusion from it. 119 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 120 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -385,7 +385,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P6-SHOP-03 | Done | `POST /products/extract`; Home paste sheet calls `extractProduct`. |
 | P6-SHOP-04 | Done | `POST /products/evaluate`; `ProductDecisionViewModel` calls it. Sponsorship cannot reach `evaluateProductCandidate`. |
 | P6-SHOP-05 | Done | Product decision page: verdict, unlocks, reasoning, compatibility, redundancy. No alternatives grid. |
-| P6-SHOP-06 | Not started | No "Shop the look" UI. Wave D kill list. |
+| P6-SHOP-06 | Done | Outfit Detail and missing-item routes open Shop the Look. Owned garments and explicit candidate-backed missing products are visibly separate, with preview, retailer, price, listed sizes, and per-product sponsorship/affiliate disclosure. Closet-only looks show an honest empty-product state. Both simulator cases passed, including Product Decision navigation; owner/candidate validation is unit-covered. See `docs/acceptance/2026-10-09-shop-the-look-ui-acceptance.md`. |
 | P6-SHOP-07 | Done | `SFSafariViewController` reopens the pasted URL after buy/consider. `wishlist_items` + save / mark purchased on the decision page; Profile shows counts. |
 | P6-SHOP-08 | Done | `scripts/ingest_product_candidates.py` upserts `supabase/seed/product_candidates.json` with the service role. `POST /products/extract` upserts the same table via service role after JWT auth and omits `sponsored`. RLS still blocks client writes. Unlocks scores catalog + evaluations via `computeUnlockCount` (`handler_unlocks_test.ts`). |
 | P6-SHOP-09 | Done | Server: `sponsored` is a label after scoring, never an `EvaluationInputs` field. iOS decision page has no sponsored sort. |

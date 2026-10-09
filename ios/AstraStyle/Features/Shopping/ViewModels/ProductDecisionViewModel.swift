@@ -3,8 +3,8 @@
 //  AstraStyle
 //
 //  Wave D: one pasted URL becomes a skip / wait / buy plus a real unlock
-//  count. Sponsorship never enters this type — evaluate already forbids it
-//  as an input, and this page does not rank alternatives.
+//  count. Alternatives are server-scored; full candidate and commercial
+//  details load only after the user chooses one.
 //
 
 import Foundation

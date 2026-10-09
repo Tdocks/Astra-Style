@@ -24,23 +24,24 @@ extension XCUIApplication {
     func tapChromeTab(_ title: String, timeout: TimeInterval = 8) {
         let tabID = title.lowercased()
         let tabItem = descendants(matching: .any)["main.tab.\(tabID)"].firstMatch
-        if tabItem.waitForExistence(timeout: 2) {
+        let shortWait = min(timeout, 2)
+        if tabItem.waitForExistence(timeout: shortWait) {
             tabItem.tap()
             return
         }
 
         let onBar = chromeTabBar.buttons[title]
-        if onBar.waitForExistence(timeout: 2) {
+        if onBar.waitForExistence(timeout: shortWait) {
             onBar.tap()
             return
         }
         let globalBarButton = tabBars.buttons[title]
-        if globalBarButton.waitForExistence(timeout: 1) {
+        if globalBarButton.exists {
             globalBarButton.tap()
             return
         }
 
-        selectChromeTabFromMore(title, timeout: timeout)
+        selectChromeTabFromMore(title, timeout: shortWait)
     }
 
     private func selectChromeTabFromMore(_ title: String, timeout: TimeInterval) {
@@ -48,50 +49,28 @@ extension XCUIApplication {
         XCTAssertTrue(more.waitForExistence(timeout: timeout), "\(title) tab missing and More is absent")
         more.tap()
 
-        let liveRun = ProcessInfo.processInfo.environment["CI"] != nil
-            || !ProcessInfo.processInfo.arguments.contains("-astra-mock-backend")
-        usleep(liveRun ? 1_200_000 : 600_000)
-
-        // More sheet items often live outside the tab bar hierarchy.
-        let sheetButton = buttons[title]
-        if sheetButton.waitForExistence(timeout: timeout) {
-            sheetButton.tap()
-            return
-        }
-
-        let tableCell = tables.cells.matching(NSPredicate(format: "label == %@ OR label BEGINSWITH[c] %@", title, title)).firstMatch
-        if tableCell.waitForExistence(timeout: timeout) {
-            tableCell.tap()
-            return
-        }
-
-        let collectionCell = collectionViews.cells.matching(
-            NSPredicate(format: "label == %@ OR label BEGINSWITH[c] %@", title, title)
-        ).firstMatch
-        if collectionCell.waitForExistence(timeout: 2) {
-            collectionCell.tap()
-            return
-        }
-
-        // Scroll any sheet content, then retry once.
-        for _ in 0..<4 {
-            swipeUp(velocity: .slow)
-            usleep(250_000)
-            if buttons[title].waitForExistence(timeout: 1) {
-                buttons[title].tap()
-                return
-            }
-            let cell = tables.cells.containing(NSPredicate(format: "label CONTAINS[c] %@", title)).firstMatch
-            if cell.waitForExistence(timeout: 1) {
-                cell.tap()
-                return
+        let destination = moreDestination(title)
+        XCTAssertTrue(destination.waitForExistence(timeout: timeout), "\(title) not in the tab bar or More list")
+        if !destination.isHittable {
+            for _ in 0..<4 where !destination.isHittable {
+                swipeUp(velocity: .slow)
             }
         }
+        XCTAssertTrue(destination.isHittable, "\(title) is present in More but not reachable")
+        destination.tap()
+    }
 
-        let extra = descendants(matching: .any).matching(
-            NSPredicate(format: "label == %@ OR identifier == %@ OR label BEGINSWITH[c] %@", title, title, title)
-        ).firstMatch
-        XCTAssertTrue(extra.waitForExistence(timeout: timeout), "\(title) not in the tab bar or More list")
-        extra.tap()
+    private func moreDestination(_ title: String) -> XCUIElement {
+        let exactLabelOrIdentifier = NSPredicate(format: "label == %@ OR identifier == %@", title, title)
+        let buttonMatch = self.buttons.matching(exactLabelOrIdentifier).firstMatch
+        if buttonMatch.exists { return buttonMatch }
+
+        let tableCells = tables.cells.matching(exactLabelOrIdentifier).firstMatch
+        if tableCells.exists { return tableCells }
+
+        let collectionCells = collectionViews.cells.matching(exactLabelOrIdentifier).firstMatch
+        if collectionCells.exists { return collectionCells }
+
+        return descendants(matching: .any).matching(exactLabelOrIdentifier).firstMatch
     }
 }

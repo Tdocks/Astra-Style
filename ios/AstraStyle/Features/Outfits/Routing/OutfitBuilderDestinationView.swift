@@ -10,14 +10,9 @@
 //  path behind it, so whatever is pushed inside that flow needs a stack
 //  of its own rather than borrowing one of the five tab paths.
 //
-//  TWO OF THREE CASES ARE HONEST PLACEHOLDERS. `.visualize` (Style
-//  Studio's "see it on yourself", P4-STUDIO/P5) and `.shopMissingItems`
-//  (Shopping's product search for a gap in the outfit, P6-SHOP) both
-//  belong to modules this ticket does not build. Nothing inside this
-//  flow pushes either case today — there is no "visualize" or "shop the
-//  rest" button on `OutfitBuilderView` — so neither is reachable by a
-//  control that looks like it would work; they exist on the enum for the
-//  tickets that will make them real.
+//  `.visualize` remains a placeholder owned by Style Studio. The shopping
+//  destination is shared with the Shop tab and uses the same owner-scoped
+//  saved-outfit read model.
 //
 
 import SwiftUI
@@ -63,11 +58,17 @@ struct OutfitBuilderDestinationView: View {
                 systemImage: "person.crop.rectangle"
             )
 
-        case .shopMissingItems:
-            FeaturePlaceholderView(
-                title: String(localized: "Shop the Rest"),
-                message: String(localized: "Kyra will find pieces to fill what this outfit is missing — this screen arrives with Shopping."),
-                systemImage: "bag"
+        case .shopMissingItems(let outfitID):
+            ShopTheLookView(
+                viewModel: ShopTheLookViewModel(
+                    outfitID: outfitID,
+                    outfitRepository: container.outfitRepository,
+                    closetRepository: container.closetRepository,
+                    profileRepository: container.profileRepository,
+                    shoppingRepository: container.shoppingRepository,
+                    imageURLResolver: container.closetImageURLResolver,
+                    currentOwnerID: { await container.sessionStore.currentUserID() }
+                )
             )
         }
     }

@@ -159,6 +159,7 @@ public enum DiscoverRoute: Hashable, Sendable {
 
 /// Destinations pushed on the Shop tab's `NavigationStack`.
 public enum ShopRoute: Hashable, Sendable {
+    case shopTheLook(outfitID: UUID)
     case productDecision(candidateID: UUID)
     case historicalDecision(candidateID: UUID)
 }

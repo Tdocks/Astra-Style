@@ -13,6 +13,18 @@ struct ShopDestinationView: View {
 
     var body: some View {
         switch route {
+        case .shopTheLook(let outfitID):
+            ShopTheLookView(
+                viewModel: ShopTheLookViewModel(
+                    outfitID: outfitID,
+                    outfitRepository: container.outfitRepository,
+                    closetRepository: container.closetRepository,
+                    profileRepository: container.profileRepository,
+                    shoppingRepository: container.shoppingRepository,
+                    imageURLResolver: container.closetImageURLResolver,
+                    currentOwnerID: { await container.sessionStore.currentUserID() }
+                )
+            )
         case .productDecision(let candidateID):
             ProductDecisionView(
                 viewModel: ProductDecisionViewModel(

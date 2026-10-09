@@ -24,7 +24,10 @@ public actor MockOutfitRepository: OutfitRepository {
     public private(set) var outfitGenerationCount = 0
     private let failsOutfitGeneration: Bool
 
-    public init(failsOutfitGeneration: Bool = false) {
+    public init(
+        failsOutfitGeneration: Bool = false,
+        shopTheLookCandidateFixture: Bool = false
+    ) {
         self.failsOutfitGeneration = failsOutfitGeneration
         var seededOutfits = [SampleData.heroOutfit: SampleData.heroOutfitItems()]
         for outfit in SampleData.alternativeOutfits {
@@ -32,6 +35,26 @@ public actor MockOutfitRepository: OutfitRepository {
         }
         outfits = Dictionary(uniqueKeysWithValues: seededOutfits.keys.map { ($0.id, $0) })
         outfitItemsByOutfit = Dictionary(uniqueKeysWithValues: seededOutfits.map { ($0.key.id, $0.value) })
+        if shopTheLookCandidateFixture {
+            let fixtureOutfit = ShopTheLookUITestFixture.outfit
+            outfits[fixtureOutfit.id] = fixtureOutfit
+            let ownedRows = SampleData.heroOutfitItems().map { item in
+                OutfitItem(
+                    outfitID: fixtureOutfit.id,
+                    closetItemID: item.closetItemID,
+                    role: item.role,
+                    sortOrder: item.sortOrder
+                )
+            }
+            outfitItemsByOutfit[fixtureOutfit.id] = ownedRows + [
+                OutfitItem(
+                    outfitID: fixtureOutfit.id,
+                    productCandidateID: ShopTheLookUITestFixture.candidateID,
+                    role: .outerwear,
+                    sortOrder: ownedRows.count
+                )
+            ]
+        }
 
         let today = SampleData.dailyBrief()
         briefsByDay[DateFormatter.astraDay.string(from: today.briefDate)] = today

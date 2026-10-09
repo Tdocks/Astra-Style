@@ -122,8 +122,13 @@ public struct OutfitDetailView: View {
                 },
                 onReport: { Task { await viewModel.reportLookbook() } },
                 showsStudioActions: viewModel.isOwnedByCurrentUser,
-                onCompleteLook: { candidateID in
-                    router.push(HomeRoute.productDecision(candidateID: candidateID))
+                onShopTheLook: {
+                    router.selectedTab = .shop
+                    router.push(ShopRoute.shopTheLook(outfitID: detail.outfit.id))
+                },
+                onCompleteLook: { _ in
+                    router.selectedTab = .shop
+                    router.push(ShopRoute.shopTheLook(outfitID: detail.outfit.id))
                 }
             )
         }
@@ -181,6 +186,7 @@ private struct OutfitDetailContent: View {
     /// Wave E: Visualize is still the generate door from this screen.
     /// (ADR 0015); hiding this control too would leave no way to see the look.
     let showsStudioActions: Bool
+    let onShopTheLook: () -> Void
     let onCompleteLook: (UUID) -> Void
 
     private var outfit: Outfit { detail.outfit }
@@ -333,6 +339,13 @@ private struct OutfitDetailContent: View {
                     second: nil
                 )
             }
+
+            Button(action: onShopTheLook) {
+                Label(String(localized: "Shop this look", comment: "Opens the owned and missing pieces view for this outfit"), systemImage: "bag")
+                    .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            }
+            .buttonStyle(.astraSecondary)
+            .accessibilityIdentifier("outfitDetail.action.shopThisLook")
 
             Button(action: onAskKyra) {
                 Label(askKyraTitle, systemImage: "bubble.left")

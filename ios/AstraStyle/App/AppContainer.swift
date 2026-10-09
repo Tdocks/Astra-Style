@@ -406,6 +406,9 @@ extension AppContainer {
         // `AstraEnvironment.current` and will `preconditionFailure` in a
         // preview/test process that has no configured Info.plist secrets.
         let sessionStore = SessionStore(apiClient: .previewClient, supabase: AstraSupabaseClientFactory.previewClient)
+        let includesShopTheLookCandidate = ProcessInfo.processInfo.arguments.contains(
+            "-astra-test-shop-the-look-candidate"
+        )
 
         let mockClosetRepository = MockClosetRepository(
             items: AstraFeatureFlags.usesPerformanceClosetFixture
@@ -449,7 +452,9 @@ extension AppContainer {
             closetImageURLResolver: AstraFeatureFlags.usesPerformanceClosetFixture
                 ? PerformanceClosetImageURLResolver()
                 : MockClosetImageURLResolver(),
-            outfitRepository: outfitRepository ?? MockOutfitRepository(),
+            outfitRepository: outfitRepository ?? MockOutfitRepository(
+                shopTheLookCandidateFixture: includesShopTheLookCandidate
+            ),
             subscriptionRepository: subscriptionRepository,
             scannerSaveJournal: scannerSaveJournal,
             scannerSaveRecoveryService: scannerSaveRecoveryService
@@ -467,7 +472,11 @@ extension AppContainer {
             kyraRepository: MockKyraRepository(previewGenerationID: dependencies.chatPreviewID),
             studioRepository: dependencies.studioRepository,
             studioEstimateExporter: MockStudioEstimateExporter(),
-            shoppingRepository: MockShoppingRepository(),
+            shoppingRepository: MockShoppingRepository(
+                shopTheLookCandidateFixture: ProcessInfo.processInfo.arguments.contains(
+                    "-astra-test-shop-the-look-candidate"
+                )
+            ),
             streakRepository: MockStreakRepository(),
             subscriptionRepository: dependencies.subscriptionRepository,
             weatherService: MockWeatherService(),

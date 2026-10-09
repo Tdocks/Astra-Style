@@ -2,8 +2,8 @@
 //  ProductDecisionView.swift
 //  AstraStyle
 //
-//  Spec §6.19 as a door, not a store. Verdict, unlocks, reasoning, save
-//  and purchased. No alternatives grid, no "Kyra says" frame on scorer copy.
+//  Spec §6.19 as a door, not a store. Verdict, unlocks, reasoning, alternatives,
+//  save and purchased. Server scorer copy is not framed as stylist advice.
 //
 
 import SwiftUI
@@ -55,6 +55,9 @@ struct ProductDecisionView: View {
                 identity(loaded.candidate)
                 evaluationFreshnessNotice(loaded)
                 scores(loaded.evaluation)
+                if !loaded.isCachedSnapshot {
+                    ProductAlternativesSection(loaded: loaded)
+                }
                 if loaded.isCachedSnapshot {
                     Button {
                         Task { await viewModel.refreshEvaluation() }

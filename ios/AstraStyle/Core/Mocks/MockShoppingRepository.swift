@@ -25,7 +25,7 @@ public actor MockShoppingRepository: ShoppingRepository {
     private var purchaseHistoryError: AstraError?
     private var evaluationHistoryError: AstraError?
 
-    public init() {
+    public init(shopTheLookCandidateFixture: Bool = false) {
         catalog = [
             ProductCandidate(
                 id: UUID(),
@@ -62,6 +62,9 @@ public actor MockShoppingRepository: ShoppingRepository {
                 lastCheckedAt: .now
             )
         ]
+        if shopTheLookCandidateFixture {
+            catalog.append(ShopTheLookUITestFixture.candidate)
+        }
         unlocks = zip(catalog, [9, 4, 1]).map { candidate, count in
             ProductUnlock(candidate: candidate, outfitsUnlocked: count)
         }
@@ -142,7 +145,8 @@ public actor MockShoppingRepository: ShoppingRepository {
                 expectedCostPerWear: evaluationOverride.expectedCostPerWear,
                 verdict: evaluationOverride.verdict,
                 reasoning: evaluationOverride.reasoning,
-                createdAt: evaluationOverride.createdAt
+                createdAt: evaluationOverride.createdAt,
+                alternatives: evaluationOverride.alternatives
             )
             evaluations.append(result)
             return result
