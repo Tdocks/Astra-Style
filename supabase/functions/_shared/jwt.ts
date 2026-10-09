@@ -31,6 +31,10 @@ import { unauthorized } from "./errors.ts";
 export interface AuthUser {
   id: string;
   is_anonymous?: boolean;
+  /** Supabase-managed claims; authorization decisions must use app_metadata. */
+  app_metadata?: Record<string, unknown>;
+  /** User-editable profile metadata; never use this for authorization. */
+  user_metadata?: Record<string, unknown>;
 }
 
 export interface AuthClient {

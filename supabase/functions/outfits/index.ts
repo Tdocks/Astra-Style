@@ -36,7 +36,11 @@ import {
   createUserScopedClient,
   readEdgeEnv,
 } from "../_shared/supabaseClient.ts";
-import { loadCompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
+import {
+  loadCompatibilityWeightsConfig,
+  parseCompatibilityWeightsConfig,
+} from "../_shared/scoring/compatibilityWeights.ts";
+import { handleUpdateCompatibilityWeights } from "./compatibilityWeightsAdmin.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import {
@@ -306,8 +310,39 @@ function recordWearRoute(req: Request): Promise<Response> {
   });
 }
 
+function updateCompatibilityWeightsRoute(req: Request): Promise<Response> {
+  const authorizationHeader = req.headers.get("Authorization") ??
+    req.headers.get("authorization") ?? "";
+  const userScopedClient = createUserScopedClient(env, authorizationHeader);
+  const serviceClient = createServiceRoleClient(env);
+
+  return handleUpdateCompatibilityWeights(req, {
+    authClient: userScopedClient,
+    rateLimiter,
+    now: () => new Date(),
+    store: {
+      async updateIfVersion(expectedVersion, weights) {
+        const { data, error } = await serviceClient
+          .from("compatibility_weights_config")
+          .update({ weights })
+          .eq("singleton", true)
+          .eq("version", expectedVersion)
+          .select("weights, version")
+          .maybeSingle();
+        if (error) throw serverError("Couldn't update compatibility weights.");
+        return data ? parseCompatibilityWeightsConfig(data) : null;
+      },
+    },
+  });
+}
+
 Deno.serve(createRouter("outfits", [
   { method: "POST", pattern: "/generate", handler: generateOutfitsRoute },
   { method: "POST", pattern: "/rank", handler: rankOutfitsRoute },
   { method: "POST", pattern: "/record-wear", handler: recordWearRoute },
+  {
+    method: "POST",
+    pattern: "/config/compatibility-weights",
+    handler: updateCompatibilityWeightsRoute,
+  },
 ]));
