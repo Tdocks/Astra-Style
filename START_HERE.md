@@ -19,13 +19,24 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `21`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `22`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 21 (2026-10-08)
+## Current internal release — build 22 (2026-10-08)
+
+Version **1.0.0 (22)** is VALID and IN_BETA_TESTING in Internal
+(build ID `71f4c60b-dfd4-435a-a6e8-0b5445c5d567`), with group membership and
+en-US testing notes verified. Adds remaining preview allowance/reset display,
+refresh/error handling and monthly-limit behavior without an upgrade paywall.
+Fifteen selected native tests and the Home inspiration UI flow passed.
+Studio v19 and Kyra v19 are deployed with final saved-confirmation checks.
+Hosted Premium purchase and consented-photo chat acceptance remain open.
+External review is not submitted; the public group still uses build 11.
+
+## Previous internal release — build 21
 
 Version **1.0.0 (21)** is VALID and IN_BETA_TESTING in Internal
 (build ID `aa507aee-4135-411d-b51e-d2550e9eb683`), with group membership and
