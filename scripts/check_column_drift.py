@@ -88,6 +88,12 @@ ALLOWED_UNMAPPED_COLUMNS: dict[tuple[str, str], str] = {
     ("studio_generations", "retry_of"): "Server-only retry lineage/idempotency (ADR 0022).",
     ("studio_generations", "claim_token"): "Server-only job claim fencing; never exposed in the Edge DTO.",
     ("studio_generations", "claim_expires_at"): "Server-only bounded job claim lease.",
+    ("studio_generations", "hi_res_source_id"):
+        "Server-owned export lineage, validated by enqueue_studio_hi_res_export; not client-written.",
+    ("profiles", "closet_state_version"):
+        "Server-triggered closet invalidation version; profile edits must not overwrite it.",
+    ("kyra_messages", "studio_generation_id"):
+        "Server-owned authorized Studio context reference; API request and provider history handle it separately from message DTOs.",
     # Denormalised owner columns. These exist so RLS can filter without a join
     # (see 20260728100900_rls_policies) and are written by the server, never by
     # the client — the parent row already carries ownership. Registered rather
