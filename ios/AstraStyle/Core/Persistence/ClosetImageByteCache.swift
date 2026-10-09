@@ -31,6 +31,8 @@ enum ClosetImageDownloadError: Error, Equatable {
 
 /// Owns the URLSessionDataTask so invalid or oversized streams are stopped at
 /// the transport, rather than merely discarded after retaining their body.
+/// Mutable delegate/task state is protected by `lock`; immutable inputs are
+/// fixed at initialization. Completion resumes exactly once outside the lock.
 final class ClosetImageDownloadTask: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let url: URL
     private let maxBytes: Int
