@@ -154,7 +154,7 @@ begin
       '[{"closet_item_id":"d3400000-0000-4000-8000-000000000011","role":"top","sort_order":0}]'
     );
     raise exception 'foreign outfit unexpectedly accepted';
-  exception when no_data_found then
+  exception when sqlstate 'PT404' then
     null;
   end;
 end
