@@ -28,3 +28,9 @@ This record does not prove live provider image fidelity, physical-device camera/
 ## Final focused verification
 
 The corrected article-navigation test passed all four article categories, article routing, and brand disclosure/source assertions in 123.396 seconds; xcodebuild ended with TEST SUCCEEDED. The immediately preceding run passed saved-history/explicit refresh and all 1,082 Swift tests. These results close P5-KYRA-18, P6-SHOP-10, P6-STUDIO-09, P6-STUDIO-10, and P6-CORE-01. Final article log: `/tmp/astra-discover-article-navigation-verification.log`. The scoped batch is committed; TestFlight processing and physical-device acceptance remain separate.
+
+## Build 31 upload
+
+Fastlane completed successfully at 03:40:50 local time on 2026-10-09 and reported successful binary upload. The archive at `/Users/tylerdockswell/Library/Developer/Xcode/Archives/2026-10-09/AstraStyle 2026-10-09 03.38.10.xcarchive` identifies `com.astrastyle.app`, version 1.0.0, build 31. Upload log: `/tmp/astra-build31-testflight.log`.
+
+The first post-upload App Store Connect query returned HTTP 200 but still listed build 30 as latest. Build 31 processing, internal-group membership, and testing notes are not yet verified; do not treat successful upload alone as TestFlight availability.
