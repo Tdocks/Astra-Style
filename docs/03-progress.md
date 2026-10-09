@@ -568,3 +568,7 @@ Reference preservation follow-up: migration 20261009012100 is deployed. Authenti
 Mirror entry acceptance: one simulator UI test passed (zero failures, 22.510 seconds), verifying Closet menu → Mirror photo, import/camera actions and disabled saving without a photo/permission. UI tests were moved into same-file extensions to maintain lint limits; rerunning both scanner-entry tests on that final structure. Build number 23 is prepared; no archive/upload or TestFlight availability is claimed yet.
 
 Final scanner-entry regression: both receipt and mirror tests passed on the extension-based test structure (two tests, zero failures, 38.949 seconds); strict lint passed. Build 23 archive/upload is starting. Camera/Photos/save UI and real-device acceptance remain open.
+
+## 2026-10-08 — Build 23 upload
+
+Signed archive/export and TestFlight upload completed successfully at 21:25:42 local time. Archive Info.plist confirms build 23. Includes receipt/label capture, mirror-reference capture and atomic association client changes; deployed reference preservation is already live. Apple listing/processing and Internal availability remain pending, so build 22 remains the last verified available release. Device camera/import/save and real photographed receipt acceptance remain open.
