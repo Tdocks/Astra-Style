@@ -98,3 +98,24 @@ Deno.test("missing and empty captures consume no reservation", async () => {
     assertEquals(f.events, []);
   }
 });
+
+Deno.test("completed claims cannot substitute another output path", async () => {
+  const f = fixture({
+    state: "complete",
+    path: output.replace(userId, "33333333-3333-4333-8333-333333333333"),
+  });
+  await assertRejects(() => fallbackBackgroundRemoval(source, false, ctx, f.deps));
+  assertEquals(f.events, ["load", "claim"]);
+});
+Deno.test("missing completed output never triggers a second provider charge", async () => {
+  const f = fixture({ state: "complete", path: output });
+  f.deps.storage.existsOwned = () => Promise.resolve(false);
+  assertEquals(await fallbackBackgroundRemoval(source, false, ctx, f.deps), null);
+  assertEquals(f.events, ["load", "claim"]);
+});
+Deno.test("storage failure after vendor processing retains the attempted reservation", async () => {
+  const f = fixture();
+  f.deps.storage.saveOwned = () => Promise.reject(new Error("storage unavailable"));
+  await assertRejects(() => fallbackBackgroundRemoval(source, false, ctx, f.deps));
+  assertEquals(f.events, ["load", "claim", "begin", "provider", "fail:true"]);
+});

@@ -19,13 +19,24 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `22`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `25`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 22 (2026-10-08)
+## Current internal release — build 24 (2026-10-08)
+
+Version **1.0.0 (24)** is VALID and IN_BETA_TESTING in Internal
+(build ID `56569c96-4950-4556-b670-8b6f014955b3`), with group membership
+and en-US testing notes verified. Includes item insights, saved-look gallery,
+and the accessibility laundry layout. Closet v19 is deployed; hosted ownership
+and insight fixtures passed. Device, live photo signing and VoiceOver acceptance
+remain open. Build 25 is being archived with scanner PNG metadata corrections,
+guest source/cutout migration and clearer insight uncertainty wording.
+External review is not submitted; the public group still uses build 11.
+
+## Previous internal release — build 22 (2026-10-08)
 
 Version **1.0.0 (22)** is VALID and IN_BETA_TESTING in Internal
 (build ID `71f4c60b-dfd4-435a-a6e8-0b5445c5d567`), with group membership and
