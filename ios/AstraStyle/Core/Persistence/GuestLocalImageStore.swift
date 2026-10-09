@@ -29,8 +29,13 @@ public enum GuestLocalImageStore: Sendable {
     public static func fileURL(for storagePath: String) -> URL? {
         guard isLocal(storagePath) else { return nil }
         let relative = String(storagePath.dropFirst(pathPrefix.count))
-        let parts = relative.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2, let userID = UUID(uuidString: parts[0]) else { return nil }
+        let parts = relative.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2, let userID = UUID(uuidString: parts[0]),
+              parts[0] == userID.uuidString.lowercased() else { return nil }
+        let filename = parts[1].split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        guard filename.count == 2, let imageID = UUID(uuidString: filename[0]),
+              filename[0] == imageID.uuidString.lowercased(),
+              ["jpg", "png"].contains(filename[1]) else { return nil }
         return try? directoryURL(userID: userID).appendingPathComponent(parts[1])
     }
 
@@ -78,7 +83,7 @@ enum GuestImageMigrationPaths {
         let prefix = GuestLocalImageStore.pathPrefix + ownerID.uuidString.lowercased() + "/"
         return [("storage_path", Optional(image.storagePath)),
                 ("background_removed_path", image.backgroundRemovedPath)].compactMap { field, path in
-            guard let path, path.hasPrefix(prefix) else { return nil }
+            guard let path, path.hasPrefix(prefix), GuestLocalImageStore.fileURL(for: path) != nil else { return nil }
             return (field, path)
         }
     }

@@ -95,7 +95,7 @@ struct GuestAuthTests {
     @Test("Migration finds a local cutout after its source is already remote")
     func migrationFindsCutoutOnly() {
         let owner = UUID()
-        let path = "guest-local/\(owner.uuidString.lowercased())/cutout.png"
+        let path = "guest-local/\(owner.uuidString.lowercased())/22222222-2222-4222-8222-222222222222.png"
         let image = ClosetItemImage(id: UUID(), closetItemID: UUID(), imageType: .front,
                                     storagePath: "users/remote.jpg", backgroundRemovedPath: path)
         let fields = GuestImageMigrationPaths.localFields(for: image, ownerID: owner)
@@ -103,6 +103,19 @@ struct GuestAuthTests {
         #expect(fields.first?.0 == "background_removed_path")
         #expect(fields.first?.1 == path)
         #expect(GuestImageMigrationPaths.localFields(for: image, ownerID: UUID()).isEmpty)
+    }
+
+    @Test("Local photo resolution rejects traversal and malformed filenames")
+    func malformedLocalPaths() {
+        let owner = UUID().uuidString.lowercased()
+        let prefix = "guest-local/\(owner)/"
+        for suffix in ["../private.jpg", "../../preferences.plist", "photo.jpg",
+                       "22222222-2222-4222-8222-222222222222.jpg/extra",
+                       "22222222-2222-4222-8222-222222222222.png.exe",
+                       "%2e%2e/private.jpg", "/22222222-2222-4222-8222-222222222222.jpg"] {
+            #expect(GuestLocalImageStore.fileURL(for: prefix + suffix) == nil)
+            #expect(GuestLocalImageStore.jpegData(for: prefix + suffix) == nil)
+        }
     }
 
     @Test("Guest JPEG bytes round-trip for migration onto Storage")
