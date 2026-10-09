@@ -72,3 +72,14 @@ enum CapturedImageUploadFormat {
         throw AstraError.validation("That photo format isn't supported.")
     }
 }
+
+enum GuestImageMigrationPaths {
+    static func localFields(for image: ClosetItemImage, ownerID: UUID) -> [(String, String)] {
+        let prefix = GuestLocalImageStore.pathPrefix + ownerID.uuidString.lowercased() + "/"
+        return [("storage_path", Optional(image.storagePath)),
+                ("background_removed_path", image.backgroundRemovedPath)].compactMap { field, path in
+            guard let path, path.hasPrefix(prefix) else { return nil }
+            return (field, path)
+        }
+    }
+}

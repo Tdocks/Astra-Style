@@ -236,45 +236,51 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
     }
 
     public func migrateGuestLocalImages() async throws {
-        struct ImageRow: Decodable, Sendable {
-            let id: UUID
-            let storagePath: String
-            enum CodingKeys: String, CodingKey {
-                case id
-                case storagePath = "storage_path"
-            }
-        }
-        let rows: [ImageRow]
+        let session = try await supabase.auth.session
+        guard !session.user.isAnonymous else { return }
+        let owner = session.user.id.uuidString.lowercased()
+        let prefix = "\(GuestLocalImageStore.pathPrefix)\(owner)/"
+        let rows: [ClosetItemImage]
         do {
             rows = try await supabase.from("closet_item_images")
-                .select("id,storage_path")
-                .like("storage_path", pattern: "\(GuestLocalImageStore.pathPrefix)%")
+                .select()
+                .eq("user_id", value: owner)
+                .or("storage_path.like.\(prefix)*,background_removed_path.like.\(prefix)*")
                 .execute()
                 .value
         } catch {
             throw AstraError.server("Couldn't find guest photos to move into your account.")
         }
-        for row in rows where GuestLocalImageStore.isLocal(row.storagePath) {
-            guard let data = GuestLocalImageStore.jpegData(for: row.storagePath), !data.isEmpty else {
-                continue
+        for row in rows {
+            // Commit each field separately: a retry must also find cutout-only rows.
+            let paths = GuestImageMigrationPaths.localFields(for: row, ownerID: session.user.id)
+            for (field, localPath) in paths {
+                guard let data = GuestLocalImageStore.jpegData(for: localPath), !data.isEmpty else {
+                    throw AstraError.server("A closet photo is missing from this device.")
+                }
+                let remotePath = try await uploadCaptured(imageData: data)
+                guard try await supabase.auth.session.user.id == session.user.id else {
+                    throw AstraError.auth("Your account changed while moving closet photos.")
+                }
+                do {
+                    try await supabase.from("closet_item_images")
+                        .update([field: remotePath])
+                        .eq("id", value: row.id)
+                        .eq("user_id", value: owner)
+                        .eq(field, value: localPath)
+                        .select("id")
+                        .single()
+                        .execute()
+                } catch {
+                    // Keep local bytes on an ambiguous response; don't delete a possibly linked upload.
+                    throw AstraError.server("Couldn't attach that photo to your closet after linking.")
+                }
             }
-            let remotePath: String
-            do {
-                remotePath = try await uploadCaptured(imageData: data)
-            } catch {
-                throw AstraError.network("Couldn't upload a closet photo after linking your account.")
-            }
-            do {
-                try await supabase.from("closet_item_images")
-                    .update(["storage_path": remotePath])
-                    .eq("id", value: row.id)
-                    .execute()
-            } catch {
-                throw AstraError.server("Couldn't attach that photo to your closet after linking.")
-            }
-            try? GuestLocalImageStore.delete(row.storagePath)
+            // The source and cutout may reference the same local file.
+            for (_, localPath) in paths { try? GuestLocalImageStore.delete(localPath) }
         }
     }
+
 }
 
 extension JSONEncoder {

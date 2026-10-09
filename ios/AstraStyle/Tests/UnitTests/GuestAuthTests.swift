@@ -92,6 +92,19 @@ struct GuestAuthTests {
         #expect(GuestLocalImageStore.jpegData(for: path) == data)
     }
 
+    @Test("Migration finds a local cutout after its source is already remote")
+    func migrationFindsCutoutOnly() {
+        let owner = UUID()
+        let path = "guest-local/\(owner.uuidString.lowercased())/cutout.png"
+        let image = ClosetItemImage(id: UUID(), closetItemID: UUID(), imageType: .front,
+                                    storagePath: "users/remote.jpg", backgroundRemovedPath: path)
+        let fields = GuestImageMigrationPaths.localFields(for: image, ownerID: owner)
+        #expect(fields.count == 1)
+        #expect(fields.first?.0 == "background_removed_path")
+        #expect(fields.first?.1 == path)
+        #expect(GuestImageMigrationPaths.localFields(for: image, ownerID: UUID()).isEmpty)
+    }
+
     @Test("Guest JPEG bytes round-trip for migration onto Storage")
     func guestBytesRoundTrip() throws {
         let data = Data([0xFF, 0xD8, 0xFF, 0xD9])
