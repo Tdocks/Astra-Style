@@ -93,7 +93,7 @@ confirmation and per-turn job deduplication remain open. No deployment yet.
 
 ## Durable submission deduplication
 
-New, unapplied migration `20261009000514_studio_submission_idempotency.sql`
+New, unapplied migration `20261009000859_studio_submission_idempotency.sql`
 adds a server-only request ledger and service-only enqueue wrapper. The wrapper
 shares the existing per-user transaction lock, binds a request UUID to a SHA-256
 request fingerprint and one generation, returns that generation for a replay,
@@ -122,3 +122,25 @@ Entrypoint type checking and lint passed. Native API calls already send a stable
 UUID Idempotency-Key for generateStudio; the deployed backend currently ignores
 it. Migration must be deployed before this backend version. Concurrent database
 and hosted HTTP verification remain open; no deployment yet.
+
+## Verified deployment — Studio submission deduplication
+
+Migration version **20261009000859** is applied; local filename matches hosted
+history. Studio **ACTIVE v16**, verify_jwt=true, is deployed. The earlier
+unapplied/undeployed notes above describe intermediate checkpoints.
+
+- Overlapping local transactions returned one job, one allowance and one ledger
+  record; scratch database removed. Setup `/tmp/astra-submission-concurrency-setup2.log`.
+- Live concurrent HTTP submissions returned the same job. Replay after trial usage
+  returned 202; changed payload 409, malformed key 400, genuinely new trial request
+  429. Another account using the same key received its own job.
+- Both disposable account deletions returned 202; SQL confirmed zero remaining
+  QA users, generations and submission records. No provider generation was polled.
+- Live privileged RPC execute grants are false for anon/authenticated.
+- Report `/tmp/astra-submission-live-report.json`. ADR 0030 records architecture.
+- Security scan still has existing findings plus intentional no-policy INFO for
+  this service-only ledger; it is not an all-clear scan.
+
+Build 20's existing stable submission keys now use this backend protection; no
+new native build is necessary for this deployment. Kyra preview service wiring
+and persisted confirmations remain open.
