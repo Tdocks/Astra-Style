@@ -266,6 +266,8 @@ public final class ClosetItemDetailViewModel {
             var settled = detail
             settled.item = try await closetRepository.markWorn(id: itemID, wornAt: wornAt)
             apply(settled)
+            invalidateInsights()
+            await loadInsights()
         } catch {
             await fail(error, rollingBackTo: detail)
         }
@@ -288,6 +290,8 @@ public final class ClosetItemDetailViewModel {
             var settled = detail
             settled.item = try await closetRepository.updateLaundryState(id: itemID, state: newState)
             apply(settled)
+            invalidateInsights()
+            await loadInsights()
         } catch {
             await fail(error, rollingBackTo: detail)
         }
@@ -339,6 +343,13 @@ public final class ClosetItemDetailViewModel {
         detail.item = item
         apply(detail)
         savedEditCount += 1
+        invalidateInsights()
+    }
+
+    private var insightRevision = 0
+
+    private func invalidateInsights() {
+        insightRevision += 1
         insights = nil
         insightLooks = []
         insightGalleryError = nil
@@ -518,22 +529,22 @@ public enum ClosetItemDetailCopy {
 public extension ClosetItemDetailViewModel {
     func loadInsights() async {
         guard !isLoadingInsights else { return }
-        let revision = savedEditCount
+        let revision = insightRevision
         isLoadingInsights = true
         insightsError = nil
         defer {
             isLoadingInsights = false
-            if revision != savedEditCount { Task { await loadInsights() } }
+            if revision != insightRevision { Task { await loadInsights() } }
         }
         do {
             let result = try await closetRepository.fetchItemInsights(id: itemID)
             let items = try await closetRepository.fetchItems()
-            guard revision == savedEditCount else { return }
+            guard revision == insightRevision else { return }
             insightItems = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
             insights = result
             await loadInsightGallery(ids: result.savedOutfitIds, closet: items, revision: revision)
         } catch {
-            guard revision == savedEditCount else { return }
+            guard revision == insightRevision else { return }
             insightsError = (error as? AstraError)?.message ?? "Couldn't load item insights. Try again."
         }
     }
@@ -552,11 +563,11 @@ private extension ClosetItemDetailViewModel {
             let ordered = outfits.map { outfit in links.filter { $0.outfitID == outfit.id }.sorted { $0.sortOrder < $1.sortOrder } }
             let hydrated = await LookHydrator(closetRepository: closetRepository, imageURLResolver: imageURLResolver)
                 .hydrate(outfits: ordered, closet: closet)
-            guard revision == savedEditCount else { return }
+            guard revision == insightRevision else { return }
             insightLooks = zip(outfits, hydrated).map { ClosetLooksViewModel.Look(outfit: $0.0, garments: $0.1) }
             insightGalleryError = nil
         } catch {
-            guard revision == savedEditCount else { return }
+            guard revision == insightRevision else { return }
             insightGalleryError = "Couldn't load photos and names for your saved looks. You can still open them below."
         }
     }

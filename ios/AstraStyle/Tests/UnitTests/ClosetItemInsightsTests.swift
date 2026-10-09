@@ -60,4 +60,23 @@ struct ClosetItemInsightsTests {
         #expect(model.insightGalleryError == nil)
     }
 
+    @Test("Laundry changes refresh pairing availability without counting an editor save")
+    @MainActor
+    func laundryRefresh() async throws {
+        let owner = UUID()
+        let shirt = ClosetItem(id: UUID(), userID: owner, name: "Shirt", category: .top)
+        let pants = ClosetItem(id: UUID(), userID: owner, name: "Pants", category: .bottom)
+        let repository = MockClosetRepository(items: [shirt, pants])
+        let model = ClosetItemDetailViewModel(itemID: shirt.id, closetRepository: repository,
+                                              imageURLResolver: MockClosetImageURLResolver())
+        await model.onAppear()
+        #expect(model.insights != nil)
+        await model.setLaundryState(.laundry)
+        #expect(model.insightItems[shirt.id]?.laundryState == .laundry)
+        #expect(model.savedEditCount == 0)
+        #expect(model.insightsError == nil)
+        await model.setLaundryState(.clean)
+        #expect(model.insightItems[shirt.id]?.laundryState == .clean)
+    }
+
 }

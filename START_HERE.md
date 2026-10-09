@@ -25,15 +25,25 @@ current brief.
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 24 (2026-10-08)
+## Current internal release — build 25 (2026-10-08)
+
+Version **1.0.0 (25)** is VALID and IN_BETA_TESTING in Internal
+(build ID `3f5ca547-39cd-479a-b833-bcc5e261e2af`), with group membership
+and en-US testing notes verified. Includes scanner PNG metadata corrections,
+guest source/cutout account migration and clearer insight uncertainty wording.
+Newer local-path validation and laundry/wear insight refresh await a subsequent
+native release. Hosted account-link interruption, real-device and full
+accessibility acceptance remain open. Server background-removal fallback is
+not enabled. External review is unsubmitted; the public group still uses build 11.
+
+## Previous internal release — build 24 (2026-10-08)
 
 Version **1.0.0 (24)** is VALID and IN_BETA_TESTING in Internal
 (build ID `56569c96-4950-4556-b670-8b6f014955b3`), with group membership
 and en-US testing notes verified. Includes item insights, saved-look gallery,
 and the accessibility laundry layout. Closet v19 is deployed; hosted ownership
 and insight fixtures passed. Device, live photo signing and VoiceOver acceptance
-remain open. Build 25 is being archived with scanner PNG metadata corrections,
-guest source/cutout migration and clearer insight uncertainty wording.
+remain open. These follow-ups shipped in build 25.
 External review is not submitted; the public group still uses build 11.
 
 ## Previous internal release — build 22 (2026-10-08)
