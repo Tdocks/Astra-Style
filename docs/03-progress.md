@@ -529,3 +529,5 @@ Added an append-only monthly Premium reservation guard with a configurable defau
 Added verified-owner quota API and native allowance/reset display with refresh/error handling on both generation screens. Fixed monthly-limit errors opening an upgrade paywall in personal Studio. Simulator build and 64 Studio backend tests passed. This display/API batch is committed but awaits deployment, native acceptance and a new TestFlight build; build 21 remains current.
 
 Studio allowance follow-up: Studio v18 is deployed, live guest quota read and unauthenticated denial passed, and the temporary account was removed with zero Auth users remaining. Fifteen selected native tests and strict lint passed. Real Premium entitlement acceptance, updated-screen UI acceptance and TestFlight release remain open.
+
+Allowance screen acceptance: Home inspiration UI flow passed with the count changing from 20 to 19 after generation and edit/reroll regression checks. Build 22 is being archived/uploaded; no TestFlight availability is claimed yet.
