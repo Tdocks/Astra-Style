@@ -610,3 +610,5 @@ Build 24 availability confirmation: VALID and Internal IN_BETA_TESTING, verified
 ## 2026-10-08 — Server segmentation adapter groundwork
 
 Added an optional remove.bg adapter with a fixed vendor endpoint, uploaded bytes (no arbitrary image URLs), transparent PNG request, unchanged framing, timeout/byte bounds and bounded provider errors. Four mocked tests, type check and lint passed. Protocol follows https://www.remove.bg/api; provider selection/credential activation is not yet confirmed. Adapter is not wired or deployed: caller ownership, output storage, persistent idempotency/cost controls and real-image quality acceptance must precede activation. P3-SCAN-10 is Partial; no acceptable live cutout is claimed.
+
+Segmentation validation follow-up: added PNG chunk-structure/completion, alpha-capable format and positive bounded-dimension checks, plus timeout regression coverage. Six mocked adapter tests and lint passed. These checks do not decompress pixels or establish cutout fidelity; ownership/storage/cost controls and real-photo acceptance remain open. Adapter remains undeployed and disabled.

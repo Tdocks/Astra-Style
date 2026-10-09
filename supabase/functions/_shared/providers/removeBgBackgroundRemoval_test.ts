@@ -83,3 +83,36 @@ Deno.test("invalid response type or missing alpha format is rejected", async () 
     );
   }
 });
+
+Deno.test("truncated or oversized-dimension PNGs cannot be saved as cutouts", async () => {
+  const huge = new Uint8Array(png);
+  new DataView(huge.buffer).setUint32(16, 30_000_000);
+  const empty = new Uint8Array(png);
+  new DataView(empty.buffer).setUint32(20, 0);
+  for (const bytes of [png.slice(0, 33), png.slice(0, png.length - 1), huge, empty]) {
+    const fetcher: typeof fetch = () =>
+      Promise.resolve(new Response(bytes, { headers: { "Content-Type": "image/png" } }));
+    await assertRejects(
+      () => new RemoveBgBackgroundRemovalProvider("fixture-key", fetcher).remove(png, ctx),
+      ProviderError,
+    );
+  }
+});
+Deno.test("timeout aborts a pending provider request without exposing vendor data", async () => {
+  const fetcher: typeof fetch = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("private detail")), {
+        once: true,
+      });
+    });
+  const error = await assertRejects(
+    () =>
+      new RemoveBgBackgroundRemovalProvider("fixture-key", fetcher).remove(png, {
+        ...ctx,
+        timeoutMs: 5,
+      }),
+    ProviderError,
+  );
+  assertEquals(error.code, "TIMEOUT");
+  assert(!error.message.includes("private detail"));
+});

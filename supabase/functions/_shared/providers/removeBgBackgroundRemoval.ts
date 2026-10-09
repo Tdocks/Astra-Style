@@ -96,11 +96,8 @@ export class RemoveBgBackgroundRemovalProvider implements BackgroundRemovalProvi
         bytes.set(chunk, offset);
         offset += chunk.length;
       }
-      // Require PNG and an alpha-capable pixel format; quality acceptance is separate.
-      if (
-        size < 33 || !PNG_SIGNATURE.every((value, index) => bytes[index] === value) ||
-        String.fromCharCode(...bytes.slice(12, 16)) !== "IHDR" || ![4, 6].includes(bytes[25] ?? -1)
-      ) {
+      // Validate structure and bounded dimensions, not subjective segmentation quality.
+      if (!validCutoutStructure(bytes)) {
         throw new ProviderError(
           "PROVIDER_UNAVAILABLE",
           false,
@@ -119,4 +116,31 @@ export class RemoveBgBackgroundRemovalProvider implements BackgroundRemovalProvi
       clearTimeout(timer);
     }
   }
+}
+
+function validCutoutStructure(bytes: Uint8Array): boolean {
+  if (bytes.length < 45 || !PNG_SIGNATURE.every((value, index) => bytes[index] === value)) {
+    return false;
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint32(8) !== 13 || String.fromCharCode(...bytes.slice(12, 16)) !== "IHDR") {
+    return false;
+  }
+  const width = view.getUint32(16), height = view.getUint32(20);
+  if (
+    width === 0 || height === 0 || width * height > 25_000_000 ||
+    ![4, 6].includes(bytes[25] ?? -1) ||
+    ![8, 16].includes(bytes[24] ?? -1) || bytes[26] !== 0 || bytes[27] !== 0 ||
+    ![0, 1].includes(bytes[28] ?? -1)
+  ) return false;
+  let offset = 8, hasData = false;
+  while (offset + 12 <= bytes.length) {
+    const length = view.getUint32(offset), end = offset + length + 12;
+    if (end > bytes.length) return false;
+    const type = String.fromCharCode(...bytes.slice(offset + 4, offset + 8));
+    if (type === "IDAT" && length > 0) hasData = true;
+    if (type === "IEND") return length === 0 && hasData && end === bytes.length;
+    offset = end;
+  }
+  return false;
 }
