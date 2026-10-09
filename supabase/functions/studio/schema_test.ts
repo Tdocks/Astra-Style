@@ -144,6 +144,13 @@ Deno.test("inspiration needs neither selfie nor closet and ignores supplied refe
     assertEquals(body.instructions, "More casual");
   }
 });
+Deno.test("explicit reroll nonce is optional and UUID-validated", () => {
+  const nonce = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const parsed = parseGenerateBody({ mode: "inspiration", variation_nonce: nonce });
+  assertEquals(parsed.kind, "generate");
+  if (parsed.kind === "generate") assertEquals(parsed.variationNonce, nonce);
+  assertThrows(() => parseGenerateBody({ mode: "inspiration", variation_nonce: "again" }));
+});
 Deno.test("closet inspiration requires pieces and bounds context", () => {
   assertThrows(() => parseGenerateBody({ mode: "closet_inspiration" }));
   assertThrows(() => parseGenerateBody({ mode: "inspiration", context: "x".repeat(6001) }));

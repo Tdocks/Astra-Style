@@ -83,6 +83,10 @@ export interface GenerateRequestBody {
   readonly formality?: string;
   readonly season?: string;
   readonly colorPalette: string[];
+  /** Only clients that explicitly opt in participate in semantic reuse. */
+  readonly semanticCacheOptIn: boolean;
+  /** Fresh only for an explicit user-requested reroll; absent means reuse-equivalent work. */
+  readonly variationNonce?: string;
   readonly consent: StudioConsentBlock;
 }
 
@@ -284,6 +288,12 @@ export function parseGenerateBody(rawBody: unknown): GenerateRequestBody | Retry
     formality: optionalEnum(record["formality"], "body.formality", FORMALITIES),
     season: optionalEnum(record["season"], "body.season", SEASONS),
     colorPalette: parsePalette(record["color_palette"]),
+    semanticCacheOptIn: requireBoolean(
+      record["semantic_cache_opt_in"],
+      "body.semantic_cache_opt_in",
+      false,
+    ),
+    variationNonce: optionalUUID(record["variation_nonce"], "body.variation_nonce"),
     consent: parseConsent(record["consent"]),
   };
 }

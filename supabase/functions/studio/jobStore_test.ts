@@ -120,6 +120,39 @@ Deno.test("enqueue delegates ownership, payload and retry identity to the atomic
   }]);
 });
 
+Deno.test("semantic cache lookups and enqueue carry only owner and server fingerprint", async () => {
+  const { calls, store } = fakeClient();
+  const key = "a".repeat(64);
+  const cached = await store.findSemanticCache?.("owner", key);
+  assertEquals(cached?.id, "job");
+  assertEquals(calls[0], ["rpc", "find_studio_generation_cache", {
+    p_user_id: "owner",
+    p_cache_key: key,
+  }]);
+
+  calls.length = 0;
+  await store.insert({
+    userId: "owner",
+    requestKey: "request",
+    requestHash: "b".repeat(64),
+    cacheKey: key,
+    referenceImagePath: "users/owner/references/photo.jpg",
+    outfitId: null,
+    promptPayload: { prompt: "private prompt" },
+    provider: "mock",
+  });
+  assertEquals(calls[0], ["rpc", "enqueue_studio_generation_cached", {
+    p_cache_key: key,
+    p_request_key: "request",
+    p_request_hash: "b".repeat(64),
+    p_user_id: "owner",
+    p_reference_image_path: "users/owner/references/photo.jpg",
+    p_outfit_id: null,
+    p_prompt_payload: { prompt: "private prompt" },
+    p_provider: "mock",
+  }]);
+});
+
 Deno.test("hi-res export delegates source, consent, Premium and reservation checks to its atomic RPC", async () => {
   const { calls, store } = fakeClient();
   const row = await store.enqueueHiResExport(

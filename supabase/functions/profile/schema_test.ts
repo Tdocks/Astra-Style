@@ -237,6 +237,9 @@ Deno.test("a complete payload parses into the three profile documents", () => {
   assertEquals(body.lifestyleProfile.typical_week, "Mostly in an office");
   assertEquals(body.lifestyleProfile.currency, "GBP");
   assertEquals(body.quizAnswerCount, 1);
+  assertEquals(body.styleProfile.preference_quiz_answers, [
+    { pair_id: "pair-1", chosen_option_id: "a" },
+  ]);
   assertEquals(body.wardrobeGraph, "menswear_3_role");
 });
 
@@ -255,6 +258,7 @@ Deno.test("the four Style DNA summary fields are not read from the request at al
   // The parsed document has no home for any of them, so nothing downstream
   // can write them even by accident. `StyleProfileInput` has five fields.
   assertEquals(Object.keys(body.styleProfile).sort(), [
+    "preference_quiz_answers",
     "preference_vector",
     "preferred_fit",
     "primary_identity",
@@ -325,4 +329,35 @@ Deno.test("an envelope with no body field is rejected", () => {
 Deno.test("the envelope's request_id is read when present", () => {
   const parsed = parseEnvelope({ request_id: "abc", client_version: "ios/1.0", body: {} });
   assertEquals(parsed.requestId, "abc");
+});
+
+Deno.test("quiz answer records are bounded, unique, and backward compatible", () => {
+  const missing = parseCompleteOnboardingBody({});
+  assertEquals(missing.styleProfile.preference_quiz_answers, []);
+
+  const full = structuredClone(FULL_BODY) as Record<string, unknown>;
+  full["quiz_answers"] = Array.from({ length: 16 }, (_, index) => ({
+    pair_id: "pair-" + index,
+    chosen_option_id: index % 2 === 0 ? "a" : "no_preference",
+  }));
+  const parsed = parseCompleteOnboardingBody(full);
+  assertEquals(parsed.styleProfile.preference_quiz_answers.length, 16);
+
+  const tooMany = structuredClone(FULL_BODY) as Record<string, unknown>;
+  tooMany["quiz_answers"] = Array.from({ length: 21 }, (_, index) => ({
+    pair_id: "pair-" + index,
+    chosen_option_id: "a",
+  }));
+  assertThrows(() => parseCompleteOnboardingBody(tooMany), AppError);
+
+  const duplicate = structuredClone(FULL_BODY) as Record<string, unknown>;
+  duplicate["quiz_answers"] = [
+    { pair_id: "pair-1", chosen_option_id: "a" },
+    { pair_id: "pair-1", chosen_option_id: "b" },
+  ];
+  assertThrows(() => parseCompleteOnboardingBody(duplicate), AppError);
+
+  const unsafeID = structuredClone(FULL_BODY) as Record<string, unknown>;
+  unsafeID["quiz_answers"] = [{ pair_id: "../other", chosen_option_id: "a" }];
+  assertThrows(() => parseCompleteOnboardingBody(unsafeID), AppError);
 });

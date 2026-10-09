@@ -17,7 +17,7 @@
 //     re-runs the consent-staleness check
 // ============================================================================
 
-import { assert, assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertNotEquals, assertStringIncludes } from "@std/assert";
 import type { AuthClient } from "../_shared/jwt.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { ProviderError } from "../_shared/providers/types.ts";
@@ -287,6 +287,7 @@ function tokenMappedAuthClient(): AuthClient {
 
 function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGenerationRow> } {
   const rows = new Map<string, StudioGenerationRow>();
+  const semanticCache = new Map<string, string>();
   const claims = new Map<string, string>();
   const retries = new Map<string, string>();
   const nowIso = () => new Date("2026-08-17T09:00:00Z").toISOString();
@@ -333,6 +334,15 @@ function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGeneration
       return Promise.resolve(structuredClone(child));
     },
     insert(row) {
+      if (row.cacheKey) {
+        const cachedID = semanticCache.get(`${row.userId}:${row.cacheKey}`);
+        const cached = cachedID ? rows.get(cachedID) : undefined;
+        if (
+          cached && cached.deletedAt === null &&
+          (cached.status === "queued" || cached.status === "generating" ||
+            (cached.status === "complete" && cached.resultImagePath !== null))
+        ) return Promise.resolve(structuredClone(cached));
+      }
       if (row.retryOf) {
         const existingID = retries.get(row.retryOf);
         const existing = existingID ? rows.get(existingID) : undefined;
@@ -353,8 +363,17 @@ function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGeneration
         updatedAt: nowIso(),
       };
       rows.set(stored.id, structuredClone(stored));
+      if (row.cacheKey) semanticCache.set(`${row.userId}:${row.cacheKey}`, stored.id);
       if (row.retryOf) retries.set(row.retryOf, stored.id);
       return Promise.resolve(structuredClone(stored));
+    },
+    findSemanticCache(userId, cacheKey) {
+      const id = semanticCache.get(`${userId}:${cacheKey}`);
+      const row = id ? rows.get(id) : undefined;
+      if (!row || row.deletedAt !== null) return Promise.resolve(null);
+      if (row.status === "failed") return Promise.resolve(null);
+      if (row.status === "complete" && row.resultImagePath === null) return Promise.resolve(null);
+      return Promise.resolve(structuredClone(row));
     },
     get(userId, id) {
       const row = rows.get(id);
@@ -463,6 +482,7 @@ function generateBody(overrides: Record<string, unknown> = {}): Record<string, u
   return {
     reference_image_path: `users/${USER_A_ID}/references/selfie.jpg`,
     outfit_id: OUTFIT_ID,
+    semantic_cache_opt_in: true,
     consent: {
       acknowledged: true,
       terms_version: CURRENT_STUDIO_CONSENT_TERMS_VERSION,
@@ -834,22 +854,20 @@ Deno.test("advanceGeneration is a no-op on terminal rows", async () => {
   assertEquals(advanced, row);
 });
 
-Deno.test("a second generate without premium is 429 with upgrade copy", async () => {
+Deno.test("an equivalent fresh request reuses its first result before the free quota check", async () => {
   const deps = buildDeps();
   const first = await handleGenerate(
     generateRequest(VALID_LOOKING_JWT_A, generateBody()),
     deps,
   );
   assertEquals(first.status, 202);
-  await first.body?.cancel();
+  const firstID = (await envelopeOf(first)).data?.["id"];
   const second = await handleGenerate(
     generateRequest(VALID_LOOKING_JWT_A, generateBody()),
     deps,
   );
-  assertEquals(second.status, 429);
-  const { error } = await envelopeOf(second);
-  assertEquals(error?.category, "rate_limited");
-  assertStringIncludes(error?.message ?? "", "free visual estimate");
+  assertEquals(second.status, 202);
+  assertEquals((await envelopeOf(second)).data?.["id"], firstID);
   assertEquals(deps.jobStore.rows.size, 1);
 });
 
@@ -863,7 +881,12 @@ Deno.test("premium skips the studio trial quota", async () => {
   assertEquals(first.status, 202);
   await first.body?.cancel();
   const second = await handleGenerate(
-    generateRequest(VALID_LOOKING_JWT_A, generateBody()),
+    generateRequest(
+      VALID_LOOKING_JWT_A,
+      generateBody({
+        variation_nonce: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      }),
+    ),
     deps,
   );
   assertEquals(second.status, 202);
@@ -1079,5 +1102,89 @@ Deno.test("initial submission replay returns the same job after the free allowan
   assertEquals(first.status, 202);
   assertEquals(replay.status, 202);
   assertEquals((await first.json()).data.id, (await replay.json()).data.id);
+  assertEquals(deps.jobStore.rows.size, 1);
+});
+
+Deno.test("equivalent requests across fresh transport keys reuse one job, explicit rerolls do not", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  const request = (key: string, variationNonce?: string) => {
+    const req = generateRequest(
+      VALID_LOOKING_JWT_A,
+      generateBody({
+        ...(variationNonce ? { variation_nonce: variationNonce } : {}),
+      }),
+    );
+    req.headers.set("Idempotency-Key", key);
+    return req;
+  };
+  const first = await handleGenerate(
+    request("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+    deps,
+  );
+  const equivalent = await handleGenerate(
+    request("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+    deps,
+  );
+  const firstID = (await envelopeOf(first)).data?.["id"];
+  const equivalentID = (await envelopeOf(equivalent)).data?.["id"];
+  assertEquals(firstID, equivalentID);
+  assertEquals(deps.jobStore.rows.size, 1);
+
+  const reroll = await handleGenerate(
+    request(
+      "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    ),
+    deps,
+  );
+  assertEquals(reroll.status, 202);
+  assertNotEquals((await envelopeOf(reroll)).data?.["id"], firstID);
+  assertEquals(deps.jobStore.rows.size, 2);
+});
+
+Deno.test("legacy requests without cache opt-in preserve distinct explicit generations", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  const legacyBody = generateBody();
+  delete legacyBody["semantic_cache_opt_in"];
+  const request = (key: string) => {
+    const req = generateRequest(VALID_LOOKING_JWT_A, legacyBody);
+    req.headers.set("Idempotency-Key", key);
+    return req;
+  };
+  const first = await handleGenerate(
+    request("11111111-1111-4111-8111-111111111111"),
+    deps,
+  );
+  const second = await handleGenerate(
+    request("22222222-2222-4222-8222-222222222222"),
+    deps,
+  );
+  assertEquals(first.status, 202);
+  assertEquals(second.status, 202);
+  assertNotEquals(
+    (await envelopeOf(first)).data?.["id"],
+    (await envelopeOf(second)).data?.["id"],
+  );
+  assertEquals(deps.jobStore.rows.size, 2);
+});
+
+Deno.test("concurrent equivalent requests converge on one provider job reservation", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  const request = (key: string) => {
+    const req = generateRequest(VALID_LOOKING_JWT_A, generateBody());
+    req.headers.set("Idempotency-Key", key);
+    return req;
+  };
+  const responses = await Promise.all([
+    handleGenerate(request("11111111-1111-4111-8111-111111111111"), deps),
+    handleGenerate(request("22222222-2222-4222-8222-222222222222"), deps),
+  ]);
+  assertEquals(responses.map((response) => response.status), [202, 202]);
+  const payloads = await Promise.all(responses.map(envelopeOf));
+  assert(payloads[0] && payloads[1]);
+  assertEquals(payloads[0].data?.["id"], payloads[1].data?.["id"]);
   assertEquals(deps.jobStore.rows.size, 1);
 });

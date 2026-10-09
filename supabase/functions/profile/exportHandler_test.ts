@@ -72,6 +72,23 @@ Deno.test("exports only the identity verified from the bearer token", async () =
   assertEquals(payload.data.tables.profiles[0].id, USER_ID);
 });
 
+Deno.test("preserves owner-entered closet care instructions in the personal data export", async () => {
+  const closetItem = {
+    id: "22222222-2222-4222-8222-222222222222",
+    user_id: USER_ID,
+    name: "Linen shirt",
+    care_instructions: "Hand wash cold; lay flat to dry.",
+  };
+  const response = await handlePersonalDataExport(
+    request("GET", TOKEN),
+    deps({ fetchForUser: () => Promise.resolve({ closet_items: [closetItem] }) }),
+  );
+  const payload = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(payload.data.tables.closet_items, [closetItem]);
+});
+
 Deno.test("emits only validated owner photo references with an honest scope", async () => {
   const ownCutout = `users/${USER_ID}/closet/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png`;
   const ownSource = `users/${USER_ID}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg`;

@@ -68,7 +68,11 @@ import {
   type StudioGenerationDTO,
   toWireTimestamp,
 } from "./schema.ts";
-import { parseSubmissionKey, submissionFingerprint } from "./submissionKey.ts";
+import {
+  generationCacheFingerprint,
+  parseSubmissionKey,
+  submissionFingerprint,
+} from "./submissionKey.ts";
 import { isUUID } from "../_shared/validation.ts";
 
 /**
@@ -109,6 +113,7 @@ export interface StudioJobInsert {
   outfitId: string | null;
   promptPayload: Record<string, unknown>;
   provider: string;
+  cacheKey?: string;
   retryOf?: string;
 }
 
@@ -121,6 +126,7 @@ export interface StudioJobPatch {
 
 export interface StudioJobStore {
   findSubmission?(userId: string, key: string, hash: string): Promise<StudioGenerationRow | null>;
+  findSemanticCache?(userId: string, cacheKey: string): Promise<StudioGenerationRow | null>;
   /** Inserts with `status = 'queued'` — the P6-STUDIO-04 contract. */
   insert(row: StudioJobInsert): Promise<StudioGenerationRow>;
   /** Returns null for missing AND for unowned (RLS) — same 404 either way. */
@@ -160,6 +166,8 @@ export interface StudioHandlerDeps {
   provider: ImageGenerationProvider;
   /** Stored on the row (`studio_generations.provider`), e.g. "mock" | "openai". */
   providerName: string;
+  /** Stable provider/model identity included in cache keys; bump for adapter changes. */
+  cacheProviderVersion?: string;
   jobStore: StudioJobStore;
   garmentSource: StudioGarmentSource;
   generateRateLimiter: RateLimiter;
@@ -392,12 +400,12 @@ async function advanceClaimedGeneration(
   return row;
 }
 
-async function enqueueGeneration(
+async function prepareGeneration(
   body: GenerateRequestBody,
   userId: string,
   deps: StudioHandlerDeps,
   submission?: { key: string; hash: string; confirmationID: string | null },
-): Promise<StudioGenerationRow> {
+): Promise<StudioJobInsert> {
   if (!body.mode) {
     assertConsentCurrent(body.consent);
     assertOwnedReferencePath(body.referenceImagePath, userId);
@@ -408,6 +416,8 @@ async function enqueueGeneration(
     const source = await deps.jobStore.get(userId, body.sourceGenerationId);
     if (
       !source || source.deletedAt !== null || source.status !== "complete" ||
+      (source.retentionExpiresAt !== undefined && source.retentionExpiresAt !== null &&
+        Date.parse(source.retentionExpiresAt) <= deps.now().getTime()) ||
       source.promptPayload["mode"] !== body.mode || !source.resultImagePath ||
       source.resultImagePath !==
         `users/${userId.toLowerCase()}/studio/${source.id.toLowerCase()}/result.png`
@@ -466,39 +476,53 @@ async function enqueueGeneration(
       preserveHair: body.preserveHair,
     });
 
-  return await deps.jobStore.insert({
+  const promptPayload = {
+    prompt,
+    chat_confirmation_id: submission?.confirmationID ?? null,
+    mode: body.mode ?? "reference",
+    source_generation_id: body.sourceGenerationId,
+    context: body.context,
+    instructions: body.instructions,
+    item_ids: body.adHocItemIds,
+    // §11's label, attached at row creation rather than at completion.
+    disclaimer: STUDIO_DISCLAIMER,
+    garments,
+    controls,
+    resolution: "draft",
+    consent: {
+      acknowledged: !body.mode && body.consent.acknowledged,
+      terms_version: body.consent.termsVersion,
+      attested_at: toWireTimestamp(deps.now()),
+    },
+  };
+  // Chat preview approvals are one-use authorization records. Do not turn a
+  // new approval into a cache-only response that skips its transactional consume.
+  const cacheKey = !body.semanticCacheOptIn || submission?.confirmationID
+    ? undefined
+    : await generationCacheFingerprint({
+      userId: userId.toLowerCase(),
+      referenceImagePath,
+      outfitId: body.outfitId ?? null,
+      provider: deps.cacheProviderVersion ?? deps.providerName,
+      resolution: "draft",
+      prompt,
+      garments,
+      mode: body.mode ?? "reference",
+      context: body.context ?? "",
+      instructions: body.instructions ?? "",
+      itemIds: body.adHocItemIds.map((id) => id.toLowerCase()).sort(),
+      controls,
+      ...(body.variationNonce ? { variationNonce: body.variationNonce.toLowerCase() } : {}),
+    });
+  return {
     ...(submission ? { requestKey: submission.key, requestHash: submission.hash } : {}),
     userId,
     referenceImagePath,
     outfitId: body.outfitId ?? null,
-    promptPayload: {
-      prompt,
-      chat_confirmation_id: submission?.confirmationID ?? null,
-      mode: body.mode ?? "reference",
-      source_generation_id: body.sourceGenerationId,
-      context: body.context,
-      instructions: body.instructions,
-      item_ids: body.adHocItemIds,
-      // §11's label, attached at row creation rather than at completion
-      // (stronger than docs/10 §2.6's flip-time attachment): there is no
-      // window in which a generation exists without its disclaimer.
-      disclaimer: STUDIO_DISCLAIMER,
-      garments,
-      controls,
-      // §13's draft-before-hi-res: the standard quota generation is a
-      // draft. Hi-res export is a distinct later action (P6-STUDIO-07/-11
-      // scope), not a second flag on this request.
-      resolution: "draft",
-      consent: {
-        acknowledged: !body.mode && body.consent.acknowledged,
-        terms_version: body.consent.termsVersion,
-        // Receipt time. The client's consent store holds the original
-        // attestation moment; this records when the server accepted it.
-        attested_at: toWireTimestamp(deps.now()),
-      },
-    },
+    promptPayload,
     provider: deps.providerName,
-  });
+    ...(cacheKey ? { cacheKey } : {}),
+  };
 }
 
 async function enqueueRetry(
@@ -616,7 +640,17 @@ export async function handleGenerate(
       }
     }
 
-    if (body.kind !== "retry") {
+    // Resolve authoritative owner-scoped garments/source and current prompt
+    // before quota accounting. A semantic cache hit must remain available
+    // after the user's allowance is otherwise exhausted.
+    const prepared = body.kind === "retry"
+      ? undefined
+      : await prepareGeneration(body, userId, deps, submission);
+    const semanticHit = prepared?.cacheKey && deps.jobStore.findSemanticCache
+      ? await deps.jobStore.findSemanticCache(userId, prepared.cacheKey)
+      : null;
+
+    if (body.kind !== "retry" && !semanticHit) {
       const premium = await deps.hasActivePremiumSubscription(deps.now().toISOString());
       if (!premium) {
         const used = await deps.jobStore.countForUser(userId);
@@ -631,6 +665,17 @@ export async function handleGenerate(
             );
             if (replay) {
               return jsonResponse(rowToDTO(replay), {
+                status: 202,
+                requestId,
+                extraHeaders: CORS_HEADERS,
+              });
+            }
+          }
+          if (prepared?.cacheKey && deps.jobStore.findSemanticCache) {
+            const cached = await deps.jobStore.findSemanticCache(userId, prepared.cacheKey);
+            if (cached) {
+              const row = await deps.jobStore.insert(prepared);
+              return jsonResponse(rowToDTO(row), {
                 status: 202,
                 requestId,
                 extraHeaders: CORS_HEADERS,
@@ -657,7 +702,7 @@ export async function handleGenerate(
 
     const row = body.kind === "retry"
       ? await enqueueRetry(body.retryOf, userId, deps)
-      : await enqueueGeneration(body, userId, deps, submission);
+      : await deps.jobStore.insert(prepared!);
 
     logger.info("studio_generate.enqueued", {
       user_id: userId,

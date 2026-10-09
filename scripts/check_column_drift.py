@@ -82,6 +82,8 @@ MODEL_TABLES: dict[str, str] = {
 BOILERPLATE_COLUMNS = {"id", "created_at", "updated_at"}
 
 ALLOWED_UNMAPPED_COLUMNS: dict[tuple[str, str], str] = {
+    ("studio_generations", "cache_key"): "Server-only semantic request fingerprint; never exposed or client-written.",
+    ("studio_generations", "cache_expires_at"): "Server-only semantic reuse deadline; never exposed or client-written.",
     ("subscriptions", "app_store_last_notification_uuid"): "Server-only App Store notification deduplication; never client-written.",
     ("subscriptions", "app_store_last_signed_at"): "Server-only App Store notification ordering; never client-written.",
     ("studio_generations", "allowance_id"): "Server-only durable allowance accounting (ADR 0022).",

@@ -316,6 +316,7 @@ export interface StyleProfileInput {
   style_goals: string[];
   preferred_fit: string | null;
   preference_vector: PreferenceVector;
+  preference_quiz_answers: Array<{ pair_id: string; chosen_option_id: string }>;
 }
 
 export interface BodyProfileInput {
@@ -404,6 +405,7 @@ function parseStyleProfile(raw: unknown): StyleProfileInput {
       record["preference_vector"],
       "body.style_profile.preference_vector",
     ),
+    preference_quiz_answers: [],
   };
 }
 
@@ -585,20 +587,31 @@ export function parseCompleteOnboardingBody(rawBody: unknown): CompleteOnboardin
     if (!Array.isArray(rawQuizAnswers)) {
       throw badRequest("body.quiz_answers must be an array.");
     }
-    if (rawQuizAnswers.length > MAX_LIST_ITEMS) {
-      throw badRequest(`body.quiz_answers must contain at most ${MAX_LIST_ITEMS} items.`);
+    if (rawQuizAnswers.length > 20) {
+      throw badRequest("body.quiz_answers must contain at most 20 items.");
     }
+    const seenPairIDs = new Set<string>();
+    const normalizedAnswers: Array<{ pair_id: string; chosen_option_id: string }> = [];
     for (const [index, answer] of rawQuizAnswers.entries()) {
+      const field = "body.quiz_answers[" + index + "]";
       if (!isRecord(answer)) {
-        throw badRequest(`body.quiz_answers[${index}] must be a JSON object.`);
+        throw badRequest(field + " must be a JSON object.");
       }
-      if (typeof answer["pair_id"] !== "string" || typeof answer["chosen_option_id"] !== "string") {
-        throw badRequest(
-          `body.quiz_answers[${index}] must carry string pair_id and chosen_option_id.`,
-        );
+      const pairID = answer["pair_id"];
+      const optionID = answer["chosen_option_id"];
+      const safeID = (value: unknown): value is string =>
+        typeof value === "string" && /^[a-z0-9][a-z0-9_-]{0,79}$/.test(value);
+      if (!safeID(pairID) || !safeID(optionID)) {
+        throw badRequest(field + " must carry safe pair_id and chosen_option_id values.");
       }
+      if (seenPairIDs.has(pairID)) {
+        throw badRequest("body.quiz_answers contains duplicate pair_id " + pairID + ".");
+      }
+      seenPairIDs.add(pairID);
+      normalizedAnswers.push({ pair_id: pairID, chosen_option_id: optionID });
     }
-    quizAnswerCount = rawQuizAnswers.length;
+    styleProfile.preference_quiz_answers = normalizedAnswers;
+    quizAnswerCount = normalizedAnswers.length;
   }
 
   const rawGraph = rawBody["wardrobe_graph"];

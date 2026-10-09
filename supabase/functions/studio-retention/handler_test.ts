@@ -121,6 +121,33 @@ Deno.test("Storage API removal precedes fenced row finalization", async () => {
   const finishIndex = calls.indexOf("finish:job:claim:true");
   assertEquals(removeIndex >= 0 && finishIndex > removeIndex, true);
 });
+
+Deno.test("short-window abandoned reference uses the same Storage-before-finalization fence", async () => {
+  const ownerID = crypto.randomUUID();
+  const key = crypto.randomUUID();
+  const path = `users/${ownerID}/references/${key}.jpg`;
+  const reference: RetentionJob = {
+    id: crypto.randomUUID(),
+    user_id: ownerID,
+    generation_id: null,
+    generation_key: key,
+    result_image_path: path,
+    kind: "reference",
+  };
+  const { deps, calls } = fixture([reference]);
+  const response = await handleRetention(request(SECRET), deps);
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), {
+    prepared: 1,
+    completed: 1,
+    retrying: 0,
+    orphanCompleted: 0,
+    orphanRetrying: 0,
+  });
+  const removal = calls.indexOf(`remove:${path}`);
+  const finish = calls.indexOf(`finish:${reference.id}:claim:true`);
+  assertEquals(removal >= 0 && finish > removal, true);
+});
 Deno.test("cross-owner and malformed paths never reach Storage", async () => {
   for (
     const path of [

@@ -269,10 +269,14 @@ function depsFor(req: Request) {
     req.headers.get("authorization") ?? "";
   const supabase = createUserScopedClient(env, authorizationHeader);
   const { provider, providerName } = buildProvider(storageSeam(supabase));
+  const providerModel = providerName === "openai"
+    ? Deno.env.get("IMAGE_PROVIDER_MODEL") ?? "gpt-image-1.5"
+    : providerName;
   return {
     authClient: supabase,
     provider,
     providerName,
+    cacheProviderVersion: `${providerName}:${providerModel}:studio-prompt-v1`,
     jobStore: supabaseJobStore(jobClient),
     garmentSource: supabaseGarmentSource(supabase),
     generateRateLimiter,

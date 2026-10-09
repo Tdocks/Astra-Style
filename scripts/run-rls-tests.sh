@@ -227,7 +227,27 @@ if [[ $test_exit -eq 0 ]]; then
   test_exit=$?
 fi
 if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/48_studio_semantic_generation_cache.sql"
+  test_exit=$?
+fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/49_studio_reference_short_retention.sql"
+  test_exit=$?
+fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/50_studio_semantic_generation_concurrency.sql"
+  test_exit=$?
+fi
+if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/51_closet_image_thumbnail_variants.sql"
+  test_exit=$?
+fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/52_style_preference_quiz_answers.sql"
+  test_exit=$?
+fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/53_closet_care_instructions.sql"
   test_exit=$?
 fi
 set -e

@@ -70,9 +70,14 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
     },
     async insert(row) {
       const { data, error } = await supabase.rpc(
-        row.requestKey ? "enqueue_studio_generation_idempotent" : "enqueue_studio_generation",
+        row.cacheKey
+          ? "enqueue_studio_generation_cached"
+          : (row.requestKey ? "enqueue_studio_generation_idempotent" : "enqueue_studio_generation"),
         {
-          ...(row.requestKey
+          ...(row.cacheKey ? { p_cache_key: row.cacheKey } : {}),
+          ...(row.cacheKey
+            ? { p_request_key: row.requestKey ?? null, p_request_hash: row.requestHash ?? null }
+            : row.requestKey
             ? { p_request_key: row.requestKey, p_request_hash: row.requestHash }
             : {}),
           p_user_id: row.userId,
@@ -80,7 +85,7 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
           p_outfit_id: row.outfitId,
           p_prompt_payload: row.promptPayload,
           p_provider: row.provider,
-          p_retry_of: row.retryOf ?? null,
+          ...(!row.cacheKey ? { p_retry_of: row.retryOf ?? null } : {}),
         },
       ).single();
       if (error?.message?.includes("studio_monthly_quota_exhausted")) {
@@ -127,6 +132,14 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
       }
       if (error || !data) throw serverError("Couldn't enqueue the generation job.");
       return mapRow(data as Record<string, unknown>);
+    },
+    async findSemanticCache(userId, cacheKey) {
+      const { data, error } = await supabase.rpc("find_studio_generation_cache", {
+        p_user_id: userId,
+        p_cache_key: cacheKey,
+      }).maybeSingle();
+      if (error) throw serverError("Couldn't check for an equivalent preview.");
+      return data ? mapRow(data as Record<string, unknown>) : null;
     },
     async findSubmission(userId, key, hash) {
       const { data, error } = await supabase.from("studio_submission_requests")

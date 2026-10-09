@@ -293,6 +293,9 @@ Deno.test("the preference vector reaches the write with absent and zero-observat
   assertEquals(dimensions["texture"]?.score, null);
   assertEquals(dimensions["texture"]?.observations, 0);
   assertEquals(Object.keys(dimensions).sort(), ["formality", "texture"]);
+  assertEquals(repository.calls[0]?.write.styleProfile.preference_quiz_answers, [
+    { pair_id: "p1", chosen_option_id: "a" },
+  ]);
 });
 
 Deno.test("a submission with only an identity succeeds — every other step is skippable", async () => {
