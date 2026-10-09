@@ -19,13 +19,27 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `29`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `30`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 29 (2026-10-09)
+## Current internal release — build 30 (2026-10-09)
+
+Version **1.0.0 (30)** is VALID and IN_BETA_TESTING in Internal
+(build ID `1ac7da90-68d5-434f-ac16-64d2f3dc7071`). Internal group membership
+and en-US testing notes were verified by readback. Adds explicit versioned local
+schemas and lightweight upgrades, verified with historical unversioned four-,
+five-, and six-entity on-disk fixtures and a second reopen. An on-disk offline
+queue fixture verifies payload/date preservation, FIFO replay, durable retry counts,
+and clearing after success. The full native unit suite passed; disabled live
+integration checks remain separate. Backend account deletion's Auth cascade fix
+is deployed and separately verified. New recommendation and scanner unlock-count
+work is not included. Real-device, provider, purchase, and legal gates remain open.
+External review remains unsubmitted; public group still uses build 11.
+
+## Previous internal release — build 29 (2026-10-09)
 
 Version **1.0.0 (29)** is VALID and IN_BETA_TESTING in Internal
 (build ID `d4950b5a-1a54-4a51-9512-d67ab7321a06`). Internal group membership
