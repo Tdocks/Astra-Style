@@ -113,6 +113,7 @@ export interface InsertedMessage {
 }
 
 export interface HistoryMessageRow {
+  readonly id?: string;
   readonly role: string;
   readonly content: string | null;
   readonly structured_payload: Record<string, unknown> | null;
@@ -188,8 +189,28 @@ export interface KyraConfig {
 }
 
 import type { AnalyzeProductDeps } from "./tools/analyzeProduct.ts";
+import {
+  type GenerateStudioPreviewDeps,
+  parseStudioPreview,
+} from "./tools/generateStudioPreview.ts";
+import {
+  buildStudioConfirmationStore,
+  type SavedStudioConfirmation,
+} from "./studioConfirmations.ts";
+export interface KyraStudioServices {
+  confirmations: ReturnType<typeof buildStudioConfirmationStore>;
+  preview(
+    turn: {
+      userID: string;
+      messageID: string;
+      userText: string;
+      proposal: SavedStudioConfirmation | null;
+    },
+  ): GenerateStudioPreviewDeps;
+}
 
 export interface HandlerDeps {
+  readonly studio?: KyraStudioServices;
   readonly analyzeProduct?: AnalyzeProductDeps;
   readonly authClient: AuthClient;
   readonly store: KyraStore;
@@ -861,6 +882,18 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       () => deps.store.listRecentMessages(threadId, HISTORY_LIMIT),
       [] as HistoryMessageRow[],
     );
+    const lastHistory = historyRows.at(-1);
+    let studioProposal = deps.studio
+      ? await deps.studio.confirmations.pending(
+        userId,
+        threadId,
+        lastHistory?.role === "assistant" ? lastHistory.id ?? null : null,
+      )
+      : null;
+    if (deps.studio && studioProposal && /^(no|nope|nah|cancel|stop)\b/i.test(body.text.trim())) {
+      await deps.studio.confirmations.close(userId, threadId, studioProposal.id);
+      studioProposal = null;
+    }
     const userMessage = await deps.store.insertUserMessage(userId, threadId, body.text);
 
     // Context packet sources — each independently degradable.
@@ -929,6 +962,12 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
     // Tool registry, bound to this request's caller and this turn's message.
     const registry = buildToolRegistry({
       analyzeProduct: deps.analyzeProduct,
+      generateStudioPreview: deps.studio?.preview({
+        userID: userId,
+        messageID: userMessage.id,
+        userText: body.text,
+        proposal: studioProposal,
+      }),
       searchCloset: { listClosetItems: () => deps.store.listClosetItems() },
       rankOutfits: {
         listItemsByIds: (ids) => deps.store.listItemsByIds(ids),
@@ -985,6 +1024,14 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
 
     const baseMessages: StylistMessage[] = [
       ...historyToStylistMessages(historyRows),
+      ...(studioProposal
+        ? [{
+          role: "system" as const,
+          content:
+            "Pending Studio preview selection (use this exact selection for an affirmative reply): " +
+            JSON.stringify(studioProposal.selection),
+        }]
+        : []),
       { role: "user", content: body.text },
     ];
 
@@ -1008,7 +1055,22 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         violations: guarded.violations.join(","),
       });
     }
-    const finalResponse = guarded.response;
+    const pendingCall = ctx.globalTrace.findLast((call) =>
+      call.name === "generate_studio_preview" && call.result.error === "CONFIRMATION_REQUIRED"
+    );
+    const queuedPreview = ctx.globalTrace.some((call) =>
+      call.name === "generate_studio_preview" && typeof call.result.generation_id === "string"
+    );
+    const proposedSelection = deps.studio && !queuedPreview && pendingCall
+      ? parseStudioPreview(pendingCall.args)
+      : null;
+    const finalResponse = proposedSelection
+      ? {
+        ...guarded.response,
+        message:
+          "Would you like me to generate this Studio preview? It uses one preview from your generation allowance. Reply yes to approve this selection, or tell me what to change.",
+      }
+      : guarded.response;
 
     const modelMetadata: Record<string, unknown> = {
       model_identifier: outcome.modelIdentifier,
@@ -1031,6 +1093,17 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       modelMetadata,
     );
 
+    if (deps.studio && proposedSelection) {
+      await deps.studio.confirmations.prepare(
+        userId,
+        threadId,
+        assistantMessage.id,
+        proposedSelection,
+      );
+    }
+    if (deps.studio && studioProposal && queuedPreview) {
+      await deps.studio.confirmations.close(userId, threadId, studioProposal.id);
+    }
     const payload: KyraMessageDTO = {
       id: assistantMessage.id,
       thread_id: threadId,

@@ -156,7 +156,7 @@ export function buildKyraStore(supabase: SupabaseClient): KyraStore {
     async listRecentMessages(threadId: string, limit: number): Promise<HistoryMessageRow[]> {
       const { data, error } = await supabase
         .from("kyra_messages")
-        .select("role, content, structured_payload, created_at")
+        .select("id, role, content, structured_payload, created_at")
         .eq("thread_id", threadId)
         .order("created_at", { ascending: false })
         .limit(limit);

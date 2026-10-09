@@ -645,3 +645,62 @@ Deno.test("live product tool registration replaces the stub and relays a missing
   assert(toolMessage?.content?.includes("PRODUCT_NOT_FOUND"));
   assert(!toolMessage?.content?.includes("NOT_BUILT"));
 });
+
+Deno.test("Studio cost question is persisted before its private approval record", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([
+    {
+      kind: "result",
+      result: {
+        finishReason: "tool_calls",
+        toolCalls: [{
+          id: "preview_call",
+          name: "generate_studio_preview",
+          arguments: { item_ids: [PACKET_ITEM], reference_image_id: PACKET_ITEM },
+        }],
+      },
+    },
+    { kind: "result", result: { message: goodJson() } },
+  ]);
+  let prepared = 0;
+  const response = await handleKyraRespond(request({ text: "Can I see a preview?" }), {
+    ...deps(provider, fakeStore(recording)),
+    studio: {
+      confirmations: {
+        pending: () => Promise.resolve(null),
+        close: () => {
+          throw new Error("Unexpected closure");
+        },
+        prepare: (user, thread, prompt, selection) => {
+          assertEquals(user, USER);
+          assertEquals(thread, THREAD);
+          assertEquals(prompt, ASSISTANT_MESSAGE);
+          assertEquals(recording.assistantMessages.length, 1);
+          assert(recording.assistantMessages[0]?.content.includes("uses one preview"));
+          assertEquals(selection.itemIds, [PACKET_ITEM]);
+          prepared++;
+          return Promise.resolve({
+            id: USER_MESSAGE,
+            promptMessageID: prompt,
+            selection,
+            selectionKey: "fixture",
+            expiresAt: "2026-10-09T00:30:00Z",
+          });
+        },
+      },
+      preview: (turn) => ({
+        userText: turn.userText,
+        pending: null,
+        currentConsentTermsVersion: "fixture",
+        resolveOwnedConsentedReference: () => {
+          throw new Error("No approval yet");
+        },
+        enqueue: () => {
+          throw new Error("No approval yet");
+        },
+      }),
+    },
+  });
+  assertEquals(response.status, 200);
+  assertEquals(prepared, 1);
+});

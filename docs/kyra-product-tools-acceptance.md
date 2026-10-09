@@ -226,3 +226,20 @@ for expired/changed proposals. Lint and production-entrypoint type checks passed
 Production handler/index injection, deterministic cost-prompt persistence,
 reference context, cancellation/closure, native job display and hosted acceptance
 remain open. This change is committed server code, not a deployment.
+
+## Conversation confirmation orchestration
+
+The handler now accepts injected Studio services, reads the last persisted
+assistant-message ID, loads its matching active proposal, closes an explicit
+cancellation, and passes the proposal to the preview service and model context.
+A valid CONFIRMATION_REQUIRED tool result causes a deterministic allowance
+question to be saved as the assistant message before the private confirmation
+record is prepared. Successful submissions close the pending proposal. History
+queries now include message IDs. Production entrypoint injection is still absent.
+
+130 Kyra tests passed (`/tmp/astra-kyra-confirmation-handler-tests.log`), including
+an orchestration test that rejects any premature submission and verifies the
+assistant question exists before preparation. Lint and entrypoint type checks
+passed. Full ask/yes/cancel/concurrent-request acceptance, owned reference context,
+entrypoint wiring, migration/function deployment and native job presentation
+remain open; these results do not establish a live working chat preview flow.
