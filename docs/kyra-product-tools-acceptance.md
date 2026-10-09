@@ -284,7 +284,6 @@ An unqualified/model-only generation action remains hidden.
 
 133 Kyra tests passed (`/tmp/astra-kyra-preview-action-tests.log`), including the
 server action on a successful approved submission. Backend lint/type checks pass.
-The simulator build compiled the changed native app; its chat unit-test process
-remains running (session 93077, `/tmp/astra-kyra-preview-native-tests.log`) with
-no final test verdict yet. New action-specific native tests and simulator UI
+The simulator build and twelve existing chat view-model tests passed
+(`/tmp/astra-kyra-preview-native-tests.log`, TEST SUCCEEDED). New action-specific native tests and simulator UI
 acceptance remain open. No TestFlight upload or hosted deployment was performed.
