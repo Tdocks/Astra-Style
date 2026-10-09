@@ -155,13 +155,14 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
 
     public func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] {
         do {
-            return try await supabase.from("closet_item_images")
-                .select()
-                .eq("closet_item_id", value: itemID)
-                .order("is_primary", ascending: false)
-                .execute()
-                .value
+            let remote: [ClosetItemImage] = try await supabase.from("closet_item_images")
+                .select().eq("closet_item_id", value: itemID).order("is_primary", ascending: false)
+                .execute().value
+            let pending = await pendingCreateImages(forItem: itemID)
+            return remote + pending.filter { image in !remote.contains { $0.id == image.id } }
         } catch {
+            let pending = await pendingCreateImages(forItem: itemID)
+            if !pending.isEmpty { return pending }
             throw AstraError.server("Couldn't load photos for that item.")
         }
     }
@@ -173,7 +174,7 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
             await drainPendingMutations()
             return created
         } catch {
-            try await queueMutation(.create, item: item)
+            try await queueMutation(.create, item: item, images: images)
             // Keep the offline cold-start cache coherent with what the UI
             // just accepted locally — otherwise a relaunch before reconnect
             // would hide a garment the user already "saved".

@@ -20,6 +20,12 @@ extension LiveClosetRepository {
         let conflictRecorder = self.conflictRecorder
         await offlineQueue.drain { mutation in
             guard mutation.entity == .closetItem else { throw OfflineMutationNotHandled() }
+            if mutation.operation == .create,
+               let payload = try? JSONDecoder.astraDefault.decode(ClosetCreateMutationPayload.self, from: mutation.payloadData) {
+                try await Self.replayCreate(payload.item, images: payload.images, writer: writer)
+                return
+            }
+            // Previously queued item-only payloads remain readable.
             let item = try JSONDecoder.astraDefault.decode(ClosetItem.self, from: mutation.payloadData)
             try await Self.replayClosetMutation(
                 mutation,
@@ -44,8 +50,21 @@ extension LiveClosetRepository {
         drainLock.unlock()
     }
 
-    func queueMutation(_ operation: OfflineMutation.Operation, item: ClosetItem) async throws {
-        let payload = try JSONEncoder.astraDefault.encode(item)
+    func pendingCreateImages(forItem itemID: UUID) async -> [ClosetItemImage] {
+        guard let owner = await currentUserID() else { return [] }
+        var images: [UUID: ClosetItemImage] = [:]
+        for mutation in await offlineQueue.pendingMutations() where mutation.entity == .closetItem && mutation.operation == .create {
+            guard let payload = try? JSONDecoder.astraDefault.decode(ClosetCreateMutationPayload.self, from: mutation.payloadData),
+                  payload.item.id == itemID, payload.item.userID == owner else { continue }
+            for image in payload.images where image.closetItemID == itemID { images[image.id] = image }
+        }
+        return images.values.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    func queueMutation(_ operation: OfflineMutation.Operation, item: ClosetItem, images: [ClosetItemImage] = []) async throws {
+        let payload = operation == .create && !images.isEmpty
+            ? try JSONEncoder.astraDefault.encode(ClosetCreateMutationPayload(item: item, images: images))
+            : try JSONEncoder.astraDefault.encode(item)
         await offlineQueue.enqueue(
             OfflineMutation(entity: .closetItem, operation: operation, payloadData: payload)
         )
@@ -61,7 +80,7 @@ extension LiveClosetRepository {
     ) async throws {
         switch mutation.operation {
         case .create:
-            try await replayCreate(item, writer: writer)
+            try await replayCreate(item, images: [], writer: writer)
         case .update, .delete:
             try await replayWithConflictCheck(
                 mutation,
@@ -75,11 +94,12 @@ extension LiveClosetRepository {
     /// Create has no LWW remote conflict of this shape. If the id already
     /// exists remotely (e.g. a prior partial sync), prefer update so drain
     /// does not fail on a unique-constraint conflict.
-    private static func replayCreate(_ item: ClosetItem, writer: any ClosetWriting) async throws {
+    private static func replayCreate(_ item: ClosetItem, images: [ClosetItemImage], writer: any ClosetWriting) async throws {
         if try await writer.fetch(id: item.id) != nil {
             _ = try await writer.update(item)
+            try await writer.ensureImages(images)
         } else {
-            _ = try await writer.create(item, images: [])
+            _ = try await writer.create(item, images: images)
         }
     }
 

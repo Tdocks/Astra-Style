@@ -30,8 +30,20 @@ protocol ClosetWriting: Sendable {
     /// Returns `nil` when the row is absent (not when the network fails).
     func fetch(id: UUID) async throws -> ClosetItem?
     func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem
+    func ensureImages(_ images: [ClosetItemImage]) async throws
     func update(_ item: ClosetItem) async throws -> ClosetItem
     func archive(id: UUID) async throws
+}
+
+struct ClosetCreateMutationPayload: Codable, Sendable {
+    let item: ClosetItem
+    let images: [ClosetItemImage]
+}
+
+extension ClosetWriting {
+    func ensureImages(_ images: [ClosetItemImage]) async throws {
+        guard images.isEmpty else { throw AstraError.unimplemented("Photo sync is unavailable.") }
+    }
 }
 
 /// The production conformance: plain Postgrest calls, no offline handling.
@@ -62,10 +74,14 @@ struct SupabaseClosetWriter: ClosetWriting {
             .single()
             .execute()
             .value
-        if !images.isEmpty {
-            try await supabase.from("closet_item_images").insert(images).execute()
-        }
+        try await ensureImages(images)
         return created
+    }
+
+    func ensureImages(_ images: [ClosetItemImage]) async throws {
+        guard !images.isEmpty else { return }
+        // Stable client image IDs make a partial/lost-response replay idempotent.
+        try await supabase.from("closet_item_images").upsert(images, onConflict: "id").execute()
     }
 
     func update(_ item: ClosetItem) async throws -> ClosetItem {

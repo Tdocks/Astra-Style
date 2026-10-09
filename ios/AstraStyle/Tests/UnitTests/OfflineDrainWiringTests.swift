@@ -29,8 +29,10 @@ struct OfflineDrainWiringTests {
     /// A `ClosetWriting` whose success/failure is switchable mid-test, so one
     /// test can express "offline, then online" rather than needing two.
     private actor StubClosetWriter: ClosetWriting {
+        private var shouldFailImages = false
         private var shouldFail: Bool
         private var remoteRows: [UUID: ClosetItem] = [:]
+        private(set) var savedImages: [ClosetItemImage] = []
         private(set) var created: [UUID] = []
         private(set) var updated: [UUID] = []
         private(set) var archived: [UUID] = []
@@ -38,6 +40,8 @@ struct OfflineDrainWiringTests {
         init(shouldFail: Bool) {
             self.shouldFail = shouldFail
         }
+
+        func setShouldFailImages(_ value: Bool) { shouldFailImages = value }
 
         func setShouldFail(_ value: Bool) {
             shouldFail = value
@@ -58,8 +62,14 @@ struct OfflineDrainWiringTests {
         func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
             if shouldFail { throw AstraError.network("offline") }
             created.append(item.id)
+            savedImages = images
             remoteRows[item.id] = item
             return item
+        }
+
+        func ensureImages(_ images: [ClosetItemImage]) async throws {
+            if shouldFail || shouldFailImages { throw AstraError.network("offline") }
+            savedImages = images
         }
 
         func update(_ item: ClosetItem) async throws -> ClosetItem {
@@ -78,13 +88,15 @@ struct OfflineDrainWiringTests {
 
     private func makeRepository(
         queue: InMemoryOfflineMutationQueue,
-        writer: some ClosetWriting
+        writer: some ClosetWriting,
+        userID: UUID? = nil
     ) -> LiveClosetRepository {
         LiveClosetRepository(
             apiClient: AstraAPIClient(environment: .preview),
             offlineQueue: queue,
             supabase: AstraSupabaseClientFactory.previewClient,
-            writer: writer
+            writer: writer,
+            currentUserID: { userID }
         )
     }
 
@@ -223,4 +235,36 @@ struct OfflineDrainWiringTests {
         #expect(await writer.created == [garment.id])
         #expect(await queue.pendingMutations().isEmpty)
     }
+    @Test("Queued creates retain source and cutout photo records through partial replay")
+    func queuedCreateKeepsImages() async throws {
+        for partial in [false, true] {
+            let queue = InMemoryOfflineMutationQueue()
+            let writer = StubClosetWriter(shouldFail: true)
+            let garment = item("Offline shirt")
+            let repository = makeRepository(queue: queue, writer: writer, userID: garment.userID)
+            let photo = ClosetItemImage(id: UUID(), closetItemID: garment.id, imageType: .front,
+                                        storagePath: "owned-source.jpg", backgroundRemovedPath: "owned-cutout.png")
+            _ = try await repository.createItem(garment, images: [photo])
+            let pending = await queue.pendingMutations()
+            let mutation = try #require(pending.first)
+            let payload = try JSONDecoder.astraDefault.decode(ClosetCreateMutationPayload.self, from: mutation.payloadData)
+            #expect(payload.images == [photo])
+            #expect(await repository.pendingCreateImages(forItem: garment.id) == [photo])
+            let peerRepository = makeRepository(queue: queue, writer: writer, userID: UUID())
+            #expect(await peerRepository.pendingCreateImages(forItem: garment.id).isEmpty)
+            if partial { await writer.seedRemote(garment) }
+            await writer.setShouldFail(false)
+            if partial {
+                await writer.setShouldFailImages(true)
+                await repository.drainPendingMutations()
+                #expect(await queue.pendingMutations().count == 1)
+                #expect(await repository.pendingCreateImages(forItem: garment.id) == [photo])
+                await writer.setShouldFailImages(false)
+            }
+            await repository.drainPendingMutations()
+            #expect(await writer.savedImages == [photo])
+            #expect(await queue.pendingMutations().isEmpty)
+        }
+    }
+
 }
