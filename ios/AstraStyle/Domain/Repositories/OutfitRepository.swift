@@ -116,6 +116,8 @@ public protocol OutfitRepository: Sendable {
 
     /// Wear events in the inclusive date range, used by the Monthly Review.
     func fetchOutfitWears(from: Date, to: Date) async throws -> [OutfitWear]
+    /// Wear events in the half-open range `[from, before)`, used for calendar-month facts.
+    func fetchOutfitWears(from: Date, before: Date) async throws -> [OutfitWear]
 
     func fetchOccasions(from: Date, to: Date) async throws -> [Occasion]
     func saveOccasion(_ occasion: Occasion) async throws -> Occasion
@@ -190,6 +192,10 @@ public extension OutfitRepository {
     func fetchDailyBriefs(from: Date, to: Date) async throws -> [DailyBrief] { [] }
 
     func fetchOutfitWears(from: Date, to: Date) async throws -> [OutfitWear] { [] }
+    func fetchOutfitWears(from: Date, before: Date) async throws -> [OutfitWear] {
+        let wears = try await fetchOutfitWears(from: from, to: before)
+        return wears.filter { $0.wornAt < before }
+    }
 
     func fetchOccasions(from: Date, to: Date) async throws -> [Occasion] { [] }
 

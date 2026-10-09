@@ -256,7 +256,7 @@ final class MonthlyReviewViewModel {
     }
 
     private func dataRevision(for snapshot: MonthlyReviewSnapshot) -> String {
-        let bytes = Data(("monthly-review-v1\n" + snapshot.kyraPrompt).utf8)
+        let bytes = Data(("monthly-review-v2\n" + snapshot.kyraPrompt).utf8)
         return SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
     }
 
@@ -289,7 +289,7 @@ struct MonthlyReviewSnapshot: Sendable {
         let bestPurchaseText = bestPurchase.map { rawName in
             let name = String(rawName.prefix(100))
             return "Best evaluated purchase: \(name), opening \(bestPurchaseOutfitsUnlocked ?? 0) new outfit combinations."
-        } ?? "No purchased item had an evaluation this month."
+        } ?? "No evaluated purchase was recorded for this month."
         let underusedText = underusedItems.isEmpty
             ? "No especially underused items were found."
             : "Underused pieces: \(underusedItems.prefix(3).map { String($0.prefix(80)) }.joined(separator: ", "))."

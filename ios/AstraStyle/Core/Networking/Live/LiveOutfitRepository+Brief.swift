@@ -136,6 +136,35 @@ public extension LiveOutfitRepository {
         }
     }
 
+    func fetchOutfitWears(from: Date, before: Date) async throws -> [OutfitWear] {
+        guard let ownerID = await currentUserID() else {
+            throw AstraError.auth("Sign in again to load your outfit history.")
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        do {
+            let wears: [OutfitWear] = try await supabase.from("outfit_wears")
+                .select()
+                .eq("user_id", value: ownerID)
+                .gte("worn_at", value: formatter.string(from: from))
+                .lt("worn_at", value: formatter.string(from: before))
+                .order("worn_at", ascending: true)
+                .execute()
+                .value
+            guard await currentUserID() == ownerID,
+                  wears.allSatisfy({ $0.userID == ownerID }) else {
+                throw AstraError.auth("Your account changed while loading outfit history.")
+            }
+            return wears
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.network("Couldn't load your outfit history.")
+        }
+    }
+
     func fetchOccasions(from: Date, to: Date) async throws -> [Occasion] {
         do {
             return try await supabase.from("occasions")

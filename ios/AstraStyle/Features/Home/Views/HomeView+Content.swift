@@ -181,7 +181,9 @@ extension HomeView {
 
     private var monthlyReviewCard: some View {
         Button {
-            router.push(.monthlyReview(month: .now))
+            let currentMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
+            let elapsedMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
+            router.push(.monthlyReview(month: elapsedMonth))
         } label: {
             AstraCard {
                 HStack(spacing: AstraSpacing.md) {

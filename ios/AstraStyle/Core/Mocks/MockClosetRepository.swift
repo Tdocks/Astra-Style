@@ -16,6 +16,8 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     private var scanUnlockCountResults: [UUID: ScanUnlockCountResult] = [:]
     private var wardrobeScoreSnapshot: WardrobeScoreSnapshot?
     private var wardrobeScoreError: AstraError?
+    public private(set) var monthlyVersatilityCaptureMonths: [Date] = []
+    public private(set) var monthlyVersatilityHistoryReads: [Date] = []
 
     /// Capture paths this mock has handed out and not yet been asked to
     /// delete — the in-memory stand-in for objects sitting in
@@ -44,16 +46,27 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
         self.previewBatchFailureIndex = previewBatchFailureIndex
         self.imagesByItemID = imagesByItemID
         if let currentMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start,
-           let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) {
+           let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth),
+           let earlierMonth = Calendar.current.date(byAdding: .month, value: -2, to: currentMonth) {
             monthlyVersatilityScores[DateFormatter.astraDay.string(from: previousMonth)] = max(
                 0,
                 SampleData.wardrobeScore.versatility - 4
+            )
+            monthlyVersatilityScores[DateFormatter.astraDay.string(from: earlierMonth)] = max(
+                0,
+                SampleData.wardrobeScore.versatility - 8
             )
         }
     }
 
     public func fetchItems() async throws -> [ClosetItem] {
         items.values.filter { !$0.isArchived }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    public func fetchMonthlyHistoryItems(createdOrPurchasedBefore: Date) async throws -> [ClosetItem] {
+        items.values.filter { item in
+            item.createdAt < createdOrPurchasedBefore || item.purchaseDate.map { $0 < createdOrPurchasedBefore } == true
+        }.sorted { $0.createdAt > $1.createdAt }
     }
 
     public func fetchItem(id: UUID) async throws -> ClosetItem {
@@ -245,7 +258,20 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
         }
         let previousScore = monthlyVersatilityScores[DateFormatter.astraDay.string(from: previousMonth)]
         monthlyVersatilityScores[DateFormatter.astraDay.string(from: currentMonth)] = score
+        monthlyVersatilityCaptureMonths.append(currentMonth)
         return previousScore
+    }
+
+    public func fetchMonthlyVersatilityHistory(monthStart: Date) async throws -> MonthlyVersatilityHistory {
+        guard let month = Calendar.current.dateInterval(of: .month, for: monthStart)?.start,
+              let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: month) else {
+            throw AstraError.validation("That monthly score period is invalid.")
+        }
+        monthlyVersatilityHistoryReads.append(month)
+        return MonthlyVersatilityHistory(
+            monthScore: monthlyVersatilityScores[DateFormatter.astraDay.string(from: month)],
+            previousScore: monthlyVersatilityScores[DateFormatter.astraDay.string(from: previousMonth)]
+        )
     }
 }
 

@@ -51,6 +51,124 @@ struct MonthlyReviewFactsTests {
         #expect(prompt.count <= 2_000)
     }
 
+    @Test("Elapsed month keeps archived additions and purchases added to the closet later")
+    func elapsedMonthIncludesHistoricalClosetFacts() async throws {
+        let currentStart = try #require(Calendar.current.dateInterval(of: .month, for: .now)?.start)
+        let monthStart = try #require(Calendar.current.date(byAdding: .month, value: -1, to: currentStart))
+        let interval = try #require(Calendar.current.dateInterval(of: .month, for: monthStart))
+        let archived = closetItem(
+            name: "Archived September shirt",
+            createdAt: interval.start.addingTimeInterval(60),
+            purchaseDate: interval.start.addingTimeInterval(60),
+            pricePaid: 20,
+            archivedAt: interval.end.addingTimeInterval(60)
+        )
+        let addedLater = closetItem(
+            name: "Late-added September shoes",
+            createdAt: interval.end.addingTimeInterval(60),
+            purchaseDate: interval.start.addingTimeInterval(120),
+            pricePaid: 30
+        )
+        let shopping = MockShoppingRepository()
+        let closet = MockClosetRepository(items: [archived, addedLater])
+        let viewModel = MonthlyReviewViewModel(
+            month: interval.start,
+            closetRepository: closet,
+            outfitRepository: MockOutfitRepository(),
+            shoppingRepository: shopping,
+            kyraRepository: MockKyraRepository(),
+            currentOwnerID: { SampleData.userID }
+        )
+
+        await viewModel.load()
+
+        guard case .loaded(let snapshot) = viewModel.state else {
+            Issue.record("The elapsed month should load from historical closet facts")
+            return
+        }
+        #expect(snapshot.newItemCount == 1)
+        #expect(snapshot.newItemNames == ["Archived September shirt"])
+        #expect(snapshot.trackedSpend.joined().contains("50"))
+        #expect(await closet.monthlyVersatilityCaptureMonths == [currentStart])
+        #expect(await closet.monthlyVersatilityHistoryReads == [interval.start])
+    }
+
+    @Test("Underuse counts repeated monthly wear events for each owned outfit piece")
+    func monthlyWearEventsOverrideLifetimeWearCount() async throws {
+        let interval = try #require(Calendar.current.dateInterval(of: .month, for: .now))
+        let heroItemID = try #require(SampleData.heroOutfitItems().compactMap(\.closetItemID).first)
+        let identifiedItem = ClosetItem(
+            id: heroItemID,
+            userID: SampleData.userID,
+            name: "Worn repeatedly this month",
+            category: .outerwear,
+            wearCount: 0,
+            createdAt: interval.start.addingTimeInterval(-86_400)
+        )
+        let outfits = MockOutfitRepository()
+        for day in 1...3 {
+            _ = try await outfits.recordWear(
+                outfitID: SampleData.heroOutfit.id,
+                wornAt: interval.start.addingTimeInterval(TimeInterval(day * 3_600)),
+                occasion: nil,
+                rating: nil,
+                feedback: nil
+            )
+        }
+        let viewModel = MonthlyReviewViewModel(
+            month: interval.start,
+            closetRepository: MockClosetRepository(items: [identifiedItem]),
+            outfitRepository: outfits,
+            shoppingRepository: MockShoppingRepository(),
+            kyraRepository: MockKyraRepository(),
+            currentOwnerID: { SampleData.userID }
+        )
+
+        await viewModel.load()
+
+        guard case .loaded(let snapshot) = viewModel.state else {
+            Issue.record("The current month should load its recorded wear history")
+            return
+        }
+        #expect(snapshot.underusedItems.isEmpty)
+    }
+
+    @Test("The final millisecond belongs to the month but the exact end does not")
+    func monthlyWearRangeUsesExactExclusiveEnd() async throws {
+        let interval = try #require(Calendar.current.dateInterval(of: .month, for: .now))
+        let outfits = MockOutfitRepository()
+        _ = try await outfits.recordWear(
+            outfitID: SampleData.heroOutfit.id,
+            wornAt: interval.end.addingTimeInterval(-0.0005),
+            occasion: nil,
+            rating: nil,
+            feedback: nil
+        )
+        _ = try await outfits.recordWear(
+            outfitID: SampleData.heroOutfit.id,
+            wornAt: interval.end,
+            occasion: nil,
+            rating: nil,
+            feedback: nil
+        )
+        let viewModel = MonthlyReviewViewModel(
+            month: interval.start,
+            closetRepository: MockClosetRepository(items: []),
+            outfitRepository: outfits,
+            shoppingRepository: MockShoppingRepository(),
+            kyraRepository: MockKyraRepository(),
+            currentOwnerID: { SampleData.userID }
+        )
+
+        await viewModel.load()
+
+        guard case .loaded(let snapshot) = viewModel.state else {
+            Issue.record("The month should load its wear events")
+            return
+        }
+        #expect(snapshot.wearCount == 1)
+    }
+
     private func makeViewModel(
         month: Date,
         shopping: MockShoppingRepository,
@@ -75,7 +193,8 @@ struct MonthlyReviewFactsTests {
         createdAt: Date,
         purchaseDate: Date? = nil,
         pricePaid: Decimal? = nil,
-        wearCount: Int = 0
+        wearCount: Int = 0,
+        archivedAt: Date? = nil
     ) -> ClosetItem {
         ClosetItem(
             id: UUID(),
@@ -86,6 +205,7 @@ struct MonthlyReviewFactsTests {
             pricePaid: pricePaid,
             currency: "USD",
             wearCount: wearCount,
+            archivedAt: archivedAt,
             createdAt: createdAt
         )
     }

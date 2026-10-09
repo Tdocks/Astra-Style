@@ -201,9 +201,20 @@ public actor MockShoppingRepository: ShoppingRepository {
     }
 
     public func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] {
+        try latestEvaluations(candidateIDs: candidateIDs, before: nil)
+    }
+
+    public func fetchLatestEvaluations(candidateIDs: Set<UUID>, before: Date) async throws -> [ProductEvaluation] {
+        try latestEvaluations(candidateIDs: candidateIDs, before: before)
+    }
+
+    private func latestEvaluations(candidateIDs: Set<UUID>, before: Date?) throws -> [ProductEvaluation] {
         if let evaluationHistoryError { throw evaluationHistoryError }
         let matching = evaluations.enumerated()
-            .filter { candidateIDs.contains($0.element.productCandidateID) }
+            .filter { entry in
+                candidateIDs.contains(entry.element.productCandidateID)
+                    && (before.map { cutoff in entry.element.createdAt < cutoff } ?? true)
+            }
             .sorted {
                 if $0.element.createdAt != $1.element.createdAt { return $0.element.createdAt > $1.element.createdAt }
                 return $0.offset > $1.offset

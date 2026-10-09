@@ -163,6 +163,10 @@ public actor MockOutfitRepository: OutfitRepository {
         wears.filter { $0.wornAt >= from && $0.wornAt <= to }
     }
 
+    public func fetchOutfitWears(from: Date, before: Date) async throws -> [OutfitWear] {
+        wears.filter { $0.wornAt >= from && $0.wornAt < before }
+    }
+
     @discardableResult
     public func recordFeedback(
         targetType: StyleFeedbackTargetType,

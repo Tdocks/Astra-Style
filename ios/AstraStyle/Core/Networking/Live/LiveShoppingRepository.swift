@@ -384,6 +384,14 @@ extension LiveShoppingRepository {
     }
 
     public func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] {
+        try await fetchLatestEvaluations(candidateIDs: candidateIDs, before: nil)
+    }
+
+    public func fetchLatestEvaluations(candidateIDs: Set<UUID>, before: Date) async throws -> [ProductEvaluation] {
+        try await fetchLatestEvaluations(candidateIDs: candidateIDs, before: Optional(before))
+    }
+
+    private func fetchLatestEvaluations(candidateIDs: Set<UUID>, before: Date?) async throws -> [ProductEvaluation] {
         guard !candidateIDs.isEmpty else { return [] }
         let owner = try await shoppingUserID()
         let candidateChunks = candidateIDs.sorted { $0.uuidString < $1.uuidString }.chunked(into: 100)
@@ -393,10 +401,12 @@ extension LiveShoppingRepository {
                 var offset = 0
                 while true {
                     try Task.checkCancellation()
-                    let rows: [ProductEvaluation] = try await supabase.from("user_product_evaluations")
+                    var query = supabase.from("user_product_evaluations")
                         .select()
                         .eq("user_id", value: owner)
                         .in("product_candidate_id", values: candidateChunk)
+                    if let before { query = query.lt("created_at", value: before) }
+                    let rows: [ProductEvaluation] = try await query
                         .order("created_at", ascending: false)
                         .order("id", ascending: false)
                         .range(from: offset, to: offset + 499)

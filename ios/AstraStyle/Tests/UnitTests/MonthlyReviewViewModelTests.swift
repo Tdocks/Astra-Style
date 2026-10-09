@@ -51,6 +51,27 @@ struct MonthlyReviewViewModelTests {
         #expect(snapshot?.bestPurchaseOutfitsUnlocked == 2)
     }
 
+    @Test("A future evaluation cannot rewrite an elapsed purchase review")
+    func evaluationAfterReviewMonthIsExcluded() async throws {
+        let currentStart = try #require(Calendar.current.dateInterval(of: .month, for: .now)?.start)
+        let monthStart = try #require(Calendar.current.date(byAdding: .month, value: -1, to: currentStart))
+        let interval = try #require(Calendar.current.dateInterval(of: .month, for: monthStart))
+        let candidate = candidate(name: "September purchase")
+        let futureEvaluation = evaluation(
+            candidateID: candidate.id,
+            createdAt: interval.end.addingTimeInterval(60),
+            unlocked: 9
+        )
+        let snapshot = await snapshot(
+            month: interval.start,
+            purchases: [(candidate, interval.start.addingTimeInterval(60))],
+            evaluations: [futureEvaluation]
+        )
+
+        #expect(snapshot?.bestPurchase == nil)
+        #expect(snapshot?.bestPurchaseOutfitsUnlocked == nil)
+    }
+
     @Test("The month start is included and next month start is excluded")
     func purchaseRangeUsesHalfOpenMonthBoundary() async throws {
         let interval = try #require(Calendar.current.dateInterval(of: .month, for: Date.now))

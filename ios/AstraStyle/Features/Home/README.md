@@ -25,6 +25,6 @@ Owns Kyra's Daily Brief — the Home tab and the app's default landing screen af
 ## Open destinations and planned work
 
 - The "Purchase opportunity" module renders when `HomeBriefData.purchaseOpportunity` is populated, but `DefaultHomeBriefProvider` never populates it yet — that requires `ShoppingRepository` integration and belongs to **P6-SHOP**.
-- The Monthly Review destination reads this month's closet additions, tracked spend, wear history, product evaluations, underused pieces, and Wardrobe Score. On first use it saves an RLS-protected versatility baseline; later months show the recorded change. The view can hand the recorded facts to Kyra for a written reflection.
+- Monthly Review opens the most recently completed calendar month. It reads owner-scoped closet history (including archived additions and late-added purchases), tracked spend, month-bounded wear events and purchase evaluations. Repeated wears count per piece. Current versatility measurements are saved under the current month; elapsed reviews use actual historical captures and explain missing comparisons. Kyra writes a grounded review, next priority and challenge. Owner/month/facts-scoped summaries are reused and can continue in their existing Kyra conversation.
 - Alternative looks, the Kyra thread, and occasion detail also resolve to placeholders in `HomeDestinationView.swift`.
 - Notifications and their in-context permission timing are **P7-HOME-01/02**.

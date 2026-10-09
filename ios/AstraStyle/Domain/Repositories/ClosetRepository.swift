@@ -17,6 +17,9 @@ public protocol ClosetRepository: Sendable {
     func removeBackground(storagePath: String) async throws -> String?
     func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights
     func fetchItems() async throws -> [ClosetItem]
+    /// Owner-scoped historical closet rows for Monthly Review. Includes
+    /// archived items and never replaces the active closet cache.
+    func fetchMonthlyHistoryItems(createdOrPurchasedBefore: Date) async throws -> [ClosetItem]
     func fetchItem(id: UUID) async throws -> ClosetItem
     /// Computes real, server-owned unlocks for a garment that has already
     /// been saved. The backend resolves its attributes by id and owner.
@@ -96,6 +99,9 @@ public protocol ClosetRepository: Sendable {
     /// the previous month's captured value when one exists. The first saved
     /// month establishes a baseline; a later review can show a real change.
     func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int?
+    /// Reads captured historical measurements without backdating today's
+    /// wardrobe score into an elapsed month.
+    func fetchMonthlyVersatilityHistory(monthStart: Date) async throws -> MonthlyVersatilityHistory
 
     /// After anonymous → Apple/email link, copy `guest-local/` photos into
     /// `user-content` and rewrite `closet_item_images.storage_path`.
@@ -104,6 +110,12 @@ public protocol ClosetRepository: Sendable {
 }
 
 extension ClosetRepository {
+    public func fetchMonthlyHistoryItems(createdOrPurchasedBefore: Date) async throws -> [ClosetItem] {
+        try await fetchItems().filter { item in
+            item.createdAt < createdOrPurchasedBefore || item.purchaseDate.map { $0 < createdOrPurchasedBefore } == true
+        }
+    }
+
     public func fetchScanUnlockCount(savedItemID: UUID) async throws -> ScanUnlockCountResult {
         throw AstraError.network("Outfit combinations aren't available right now.")
     }
@@ -112,8 +124,23 @@ extension ClosetRepository {
 
     public func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int? { nil }
 
+    public func fetchMonthlyVersatilityHistory(monthStart: Date) async throws -> MonthlyVersatilityHistory {
+        _ = monthStart
+        return MonthlyVersatilityHistory(monthScore: nil, previousScore: nil)
+    }
+
     public func fetchWardrobeScoreSnapshot() async throws -> WardrobeScoreSnapshot {
         WardrobeScoreSnapshot(score: try await fetchWardrobeScore())
+    }
+}
+
+public struct MonthlyVersatilityHistory: Equatable, Sendable {
+    public let monthScore: Int?
+    public let previousScore: Int?
+
+    public init(monthScore: Int?, previousScore: Int?) {
+        self.monthScore = monthScore
+        self.previousScore = previousScore
     }
 }
 

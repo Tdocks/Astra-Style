@@ -53,6 +53,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository, ClosetItemCacheP
         try await base.fetchItems()
     }
 
+    public func fetchMonthlyHistoryItems(createdOrPurchasedBefore: Date) async throws -> [ClosetItem] {
+        try await base.fetchMonthlyHistoryItems(createdOrPurchasedBefore: createdOrPurchasedBefore)
+    }
+
     public func fetchItem(id: UUID) async throws -> ClosetItem {
         try await base.fetchItem(id: id)
     }
@@ -140,6 +144,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository, ClosetItemCacheP
 
     public func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int? {
         try await base.captureMonthlyVersatilitySnapshot(monthStart: monthStart, score: score)
+    }
+
+    public func fetchMonthlyVersatilityHistory(monthStart: Date) async throws -> MonthlyVersatilityHistory {
+        try await base.fetchMonthlyVersatilityHistory(monthStart: monthStart)
     }
 
     public func migrateGuestLocalImages() async throws {

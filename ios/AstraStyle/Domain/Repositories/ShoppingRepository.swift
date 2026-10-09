@@ -51,6 +51,10 @@ public protocol ShoppingRepository: Sendable {
     /// The most recent evaluation for each requested candidate, regardless
     /// of evaluation date. Used to attribute current decisions to purchases.
     func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation]
+    /// Latest evaluation for each candidate that existed before the
+    /// exclusive cutoff. Monthly Review uses this to avoid letting a later
+    /// evaluation rewrite an elapsed month's purchase assessment.
+    func fetchLatestEvaluations(candidateIDs: Set<UUID>, before: Date) async throws -> [ProductEvaluation]
     func addToWishlist(candidateID: UUID) async throws
     func removeFromWishlist(candidateID: UUID) async throws
 
@@ -65,4 +69,14 @@ public extension ShoppingRepository {
     func fetchCachedDecision(candidateID: UUID) async throws -> ProductDecisionSnapshot? { nil }
     func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase] { [] }
     func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] { [] }
+    func fetchLatestEvaluations(candidateIDs: Set<UUID>, before: Date) async throws -> [ProductEvaluation] {
+        let history = try await fetchEvaluations(from: .distantPast, to: before)
+        var latestByCandidate: [UUID: ProductEvaluation] = [:]
+        for evaluation in history where candidateIDs.contains(evaluation.productCandidateID) && evaluation.createdAt < before {
+            if latestByCandidate[evaluation.productCandidateID].map({ $0.createdAt < evaluation.createdAt }) ?? true {
+                latestByCandidate[evaluation.productCandidateID] = evaluation
+            }
+        }
+        return Array(latestByCandidate.values)
+    }
 }
