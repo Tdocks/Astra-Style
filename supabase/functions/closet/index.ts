@@ -69,6 +69,7 @@ import type {
   ClosetItemAnalysisBatchItemDTO,
   ClosetItemAnalysisResultDTO,
 } from "./schema.ts";
+import { handleItemInsights } from "./itemInsights.ts";
 import { handleWardrobeScore } from "./wardrobeScore.ts";
 
 const env = readEdgeEnv();
@@ -318,9 +319,22 @@ function wardrobeScoreRoute(req: Request): Promise<Response> {
   });
 }
 
+function itemInsightsRoute(
+  req: Request,
+  params: Readonly<Record<string, string>>,
+): Promise<Response> {
+  const client = createUserScopedClient(env, req.headers.get("Authorization") ?? "");
+  return handleItemInsights(req, {
+    authClient: client,
+    supabase: client,
+    rateLimiter: wardrobeScoreRateLimiter,
+  }, params["id"] ?? "");
+}
+
 Deno.serve(createRouter("closet", [
   { method: "POST", pattern: "/analyze-item", handler: analyzeItemRoute },
   { method: "POST", pattern: "/batch-analyze", handler: batchAnalyzeRoute },
   { method: "GET", pattern: "/batch-status/:id", handler: batchStatusRoute },
   { method: "GET", pattern: "/wardrobe-score", handler: wardrobeScoreRoute },
+  { method: "GET", pattern: "/items/:id/insights", handler: itemInsightsRoute },
 ]));
