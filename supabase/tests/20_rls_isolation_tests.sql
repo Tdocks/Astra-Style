@@ -1050,6 +1050,102 @@ begin
 end
 $$;
 
+-- =========================================================================
+-- SECTION 8c — style embedding insertion, cosine ranking, and RLS isolation.
+-- =========================================================================
+-- The main RLS seed establishes two style_profiles rows. Give them orthogonal
+-- fixture vectors and add a third vector via INSERT so this exercises both
+-- the actual vector(1536) write path and the cosine-distance operator. These
+-- are synthetic unit vectors; no provider or user data is involved.
+create or replace function pg_temp.unit_vector(p_dimension integer)
+returns extensions.vector
+language plpgsql immutable as $$
+declare
+  v_values real[] := array_fill(0::real, array[1536]);
+begin
+  if p_dimension < 1 or p_dimension > 1536 then
+    raise exception 'fixture vector dimension is out of range';
+  end if;
+  v_values[p_dimension] := 1;
+  return ('[' || array_to_string(v_values, ',') || ']')::extensions.vector;
+end;
+$$;
+
+do $$
+declare
+  v_inserted boolean := false;
+  v_error text;
+  v_order_for_a text;
+  v_order_for_b text;
+  v_visible boolean;
+begin
+  update public.style_profiles
+     set embedding = pg_temp.unit_vector(1)
+   where user_id = pg_temp.user_a();
+  update public.style_profiles
+     set embedding = pg_temp.unit_vector(2)
+   where user_id = pg_temp.user_b();
+
+  begin
+    insert into public.style_profiles (user_id, embedding)
+    values (pg_temp.user_c(), pg_temp.unit_vector(3));
+    v_inserted := true;
+  exception when others then
+    v_error := sqlerrm;
+  end;
+  perform pg_temp.record_result(
+    'style_profiles', 'accepts a 1536-dimensional fixture embedding on insert', v_inserted, v_error
+  );
+
+  perform pg_temp.record_result(
+    'style_profiles', 'stores all three fixture embeddings at 1536 dimensions',
+    (select count(*) = 3 and bool_and(extensions.vector_dims(embedding) = 1536)
+       from public.style_profiles
+      where user_id in (pg_temp.user_a(), pg_temp.user_b(), pg_temp.user_c())
+        and embedding is not null),
+    null
+  );
+
+  select string_agg(user_id::text, ',' order by embedding OPERATOR(extensions.<=>) pg_temp.unit_vector(1), user_id)
+    into v_order_for_a
+    from public.style_profiles
+   where user_id in (pg_temp.user_a(), pg_temp.user_b());
+  select string_agg(user_id::text, ',' order by embedding OPERATOR(extensions.<=>) pg_temp.unit_vector(2), user_id)
+    into v_order_for_b
+    from public.style_profiles
+   where user_id in (pg_temp.user_a(), pg_temp.user_b());
+  perform pg_temp.record_result(
+    'style_profiles', 'cosine distance orders the nearest fixture first in both directions',
+    v_order_for_a = pg_temp.user_a()::text || ',' || pg_temp.user_b()::text
+      and v_order_for_b = pg_temp.user_b()::text || ',' || pg_temp.user_a()::text,
+    format('query-A order=%s; query-B order=%s', v_order_for_a, v_order_for_b)
+  );
+
+  execute 'set role authenticated';
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('sub', pg_temp.user_a(), 'role', 'authenticated')::text,
+    false
+  );
+  select count(*) = 1 and bool_and(user_id = pg_temp.user_a())
+    into v_visible
+    from public.style_profiles
+   where user_id in (pg_temp.user_a(), pg_temp.user_b(), pg_temp.user_c())
+     and embedding is not null;
+  perform pg_temp.record_result(
+    'style_profiles', 'authenticated cosine search sees only its owner embedding', v_visible, null
+  );
+  select not exists (
+    select 1 from public.style_profiles
+     where user_id in (pg_temp.user_b(), pg_temp.user_c()) and embedding is not null
+  ) into v_visible;
+  perform pg_temp.record_result(
+    'style_profiles', 'authenticated user cannot read peer or clean-user embeddings', v_visible, null
+  );
+  execute 'reset role';
+end
+$$;
+
 -- ============================================================================
 -- SECTION 9 — Summary. Non-zero exit (via RAISE EXCEPTION) if anything failed.
 -- ============================================================================

@@ -58,15 +58,15 @@ lands data layers, protocols, and models long before the screens that use them.
 | Phase | Tickets | Done | Partial | Not started |
 |---|---|---|---|---|
 | 1 — Foundation | 25 | 17 | 8 | 0 |
-| 2 — Identity | 18 | 15 | 3 | 0 |
+| 2 — Identity | 18 | 16 | 2 | 0 |
 | 3 — Closet | 27 | 15 | 12 | 0 |
 | 4 — Outfit intelligence | 26 | 20 | 5 | 1 |
 | 5 — Kyra | 22 | 18 | 4 | 0 |
 | 6 — Studio and commerce | 25 | 12 | 10 | 3 |
 | 7 — Monetization and hardening | 36 | 5 | 24 | 7 |
-| **Total** | **179** | **102** | **66** | **11** |
+| **Total** | **179** | **103** | **65** | **11** |
 
-Read that table carefully before drawing a conclusion from it. 102 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 103 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -248,7 +248,7 @@ pgvector ordering test.
 | P2-CORE-02 | Done | The protocol, deterministic preview, live adapter, and endpoint are deployed. The live path reuses Kyra's OpenAI Responses adapter and server-side key precedence; deterministic output requires explicit preview mode. Style DNA uses strict structured output plus server-side validation and only persists validated documents. The synthetic golden set passed all three hosted cases on `gpt-5.6-terra`; sparse inputs remained honest, generated summaries were present in each caller's data export, and fixture accounts were deleted and independently verified. Full evidence and limits are in `docs/acceptance/2026-10-09-style-dna-live-acceptance.md`. |
 | P2-HOME-01 | Done | `HomeView` + `DailyBriefHeaderView`, `HeroOutfitCardView`, and 6 secondary modules; `HomeBriefProvidingTests` cover the zero-item path. Built well past "skeleton". |
 | P2-HOME-02 | Done | `HomeEmptyStateView.swift:28` carries the §21 copy verbatim; CTA calls `router.startScan()`; state recomputed in `.task`. **Reachable for signed-in users since 2026-08-06** — `DefaultHomeBriefProvider.loadTodayBrief` now short-circuits to `loadSparseClosetBrief` below `HomeBriefData.minimumItemsForOutfits`, so a man who has just finished onboarding sees this screen instead of the `P4-HOME-02` 404. Previously only guests could reach it. Pinned by `HomeBriefProvidingTests`' sparse-closet suite, including the fifth-garment boundary and the unreadable-closet case. |
-| P2-INFRA-01 | Partial | `vector` extension enabled; live `style_profiles.embedding` is `vector(1536)`; hnsw `vector_cosine_ops` index exists. **No test inserts a fixture embedding or asserts cosine ordering.** |
+| P2-INFRA-01 | Done | Live `style_profiles.embedding` is `vector(1536)` with pgvector and its cosine index. Section 8c of `supabase/tests/20_rls_isolation_tests.sql` inserts a 1536-dimensional synthetic vector, checks dimensions, verifies nearest-first cosine ordering in both query directions, and proves peer embeddings remain hidden. Agent and root independently ran the complete scratch RLS runner successfully on 2026-10-09; the base suite has 160 assertions across 27 tables, including all five embedding assertions. Scratch databases were dropped. |
 
 ---
 
