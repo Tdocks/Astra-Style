@@ -71,7 +71,6 @@ public extension StudioRepository {
     }
 }
 
-
 public struct StudioQuota: Decodable, Sendable, Equatable {
     public let premium: Bool
     public let limit: Int

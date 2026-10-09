@@ -15,6 +15,7 @@ public actor MockStudioRepository: StudioRepository {
     private var savedGenerationIDs: [UUID: [UUID]] = [:]
     private var collectionSaveFailures = 0
     private let quotaExhausted: Bool
+    private let monthlyQuotaExhausted: Bool
     private var failFirstGeneration: Bool
     private var retryCount = 0
     private var pendingDeletionCount = 0
@@ -22,8 +23,9 @@ public actor MockStudioRepository: StudioRepository {
     public func setPendingImageDeletionCount(_ count: Int) { pendingDeletionCount = max(0, count) }
     public func fetchPendingImageDeletionCount() async throws -> Int { pendingDeletionCount }
 
-    public init(quotaExhausted: Bool = false, failFirstGeneration: Bool = false, pendingImageDeletionCount: Int = 0, referencePhotoPath: String? = nil, chatPreviewID: UUID? = nil) {
+    public init(quotaExhausted: Bool = false, monthlyQuotaExhausted: Bool = false, failFirstGeneration: Bool = false, pendingImageDeletionCount: Int = 0, referencePhotoPath: String? = nil, chatPreviewID: UUID? = nil) {
         self.quotaExhausted = quotaExhausted
+        self.monthlyQuotaExhausted = monthlyQuotaExhausted
         self.failFirstGeneration = failFirstGeneration
         self.pendingDeletionCount = max(0, pendingImageDeletionCount)
         if let chatPreviewID {
@@ -115,7 +117,8 @@ public actor MockStudioRepository: StudioRepository {
     public func failNextCollectionSave() { collectionSaveFailures += 1 }
 
     public func fetchQuota() async throws -> StudioQuota {
-        StudioQuota(premium: true, limit: 20, used: 0, remaining: 20, resetsAt: Calendar.current.date(byAdding: .month, value: 1, to: .now))
+        let used = monthlyQuotaExhausted ? 20 : generations.count
+        return StudioQuota(premium: true, limit: 20, used: used, remaining: max(0, 20 - used), resetsAt: Calendar.current.date(byAdding: .month, value: 1, to: .now))
     }
 
     public func fetchGenerations() async throws -> [StudioGeneration] {
@@ -133,6 +136,9 @@ public actor MockStudioRepository: StudioRepository {
         }
         guard request.inspirationMode != nil || request.consentTermsVersion == StudioConsentTerms.currentVersion else {
             throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
+        }
+        if monthlyQuotaExhausted {
+            throw AstraError.rateLimited("You've used your monthly preview allowance. It resets on the first day of next month (UTC).")
         }
         if quotaExhausted {
             throw AstraError.rateLimited("You've used your free visual estimate. Upgrade to Astra Style Premium for more.")

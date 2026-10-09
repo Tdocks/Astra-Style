@@ -23,3 +23,9 @@ Hosted premium request acceptance, quota-summary API and native remaining/reset 
 Added authenticated GET studio/quota with explicit verified-owner filters, exact counts and no-store response caching. Premium returns the configured monthly limit and UTC reset instant; free accounts return the lifetime trial count without a reset. The API is informational; the database transaction remains authoritative. Studio and Home inspiration display the returned allowance and provide refresh/error handling, refreshing after accepted submissions. Personal Studio no longer opens a paywall for every HTTP 429: only the existing free-trial exhaustion response triggers it.
 
 Simulator build passed; all 64 Studio backend tests passed, including UTC/year rollover, verified identity overriding caller-supplied owner and unauthenticated denial. This endpoint/display batch is not deployed or in TestFlight yet. Hosted API acceptance, native unit/UI verification and release remain open.
+
+## Hosted quota read and native acceptance
+
+Studio v18 is deployed ACTIVE with JWT verification. A temporary guest received the correct one-free-preview summary; a supplied peer user_id was ignored, and an unauthenticated request returned 401. Account cleanup returned 202 and an Auth query confirmed zero remaining QA users. This does not verify a real Premium purchase or live Premium entitlement.
+
+Fifteen selected Swift tests passed across generation, quota, inspiration and endpoint mapping, including Premium monthly exhaustion without upselling and count refresh after accepted generation. Changed first-party Swift files passed strict lint. The initial test build caught a missing exhaustive endpoint test case; the mapping was updated and the rerun passed. Screen UI acceptance and the next TestFlight release remain pending.

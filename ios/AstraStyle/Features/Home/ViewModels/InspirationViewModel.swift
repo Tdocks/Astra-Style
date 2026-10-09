@@ -132,8 +132,7 @@ final class InspirationViewModel: Identifiable {
     }
 
     func refreshQuota() async {
-        do { quotaSummary = try await container.studioRepository.fetchQuota().summary }
-        catch { quotaSummary = "Couldn't load your preview allowance. Try again." }
+        do { quotaSummary = try await container.studioRepository.fetchQuota().summary } catch { quotaSummary = "Couldn't load your preview allowance. Try again." }
     }
 
     func clearPaywall() { pendingPaywall = nil }

@@ -38,6 +38,9 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         inspiration.tap()
         if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
         awaitElement(app.navigationBars["Inspiration"], "Inspiration screen")
+        let allowance = app.staticTexts["home.inspiration.allowance"]
+        awaitElement(allowance, "Preview allowance")
+        XCTAssertTrue(allowance.label.contains("20 of 20"))
         let generate = app.buttons["home.inspiration.generate"]
         awaitElement(generate, "Generate image action")
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
@@ -46,6 +49,7 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         awaitElement(app.descendants(matching: .any)["home.inspiration.image"].firstMatch, "Completed estimate container")
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
         generate.scrollIntoView(in: app)
+        XCTAssertTrue(allowance.label.contains("19 of 20"))
         XCTAssertEqual(generate.label, "Try another look")
         let adjustment = app.textFields["home.inspiration.adjustment"]
         adjustment.scrollIntoView(in: app)

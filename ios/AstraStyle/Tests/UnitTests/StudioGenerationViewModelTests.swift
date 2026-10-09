@@ -114,7 +114,33 @@ struct StudioConsentWireTests {
 @Suite("Studio trial paywall")
 @MainActor
 struct StudioQuotaViewModelTests {
-    @Test("A 429 on generate sets pendingPaywall to studioQuota")
+    @Test("Premium monthly exhaustion displays the error without an upgrade paywall")
+    func monthlyLimitDoesNotUpsell() async {
+        let model = makeModel(studio: MockStudioRepository(monthlyQuotaExhausted: true))
+        await model.onAppear()
+        #expect(model.quotaSummary.contains("0 of 20"))
+        model.grantConsent()
+        await model.generate()
+        #expect(model.pendingPaywall == nil)
+        guard case .failed(let error) = model.phase else {
+            Issue.record("Expected a monthly allowance error")
+            return
+        }
+        #expect(error.message.contains("monthly preview allowance"))
+    }
+
+    @Test("An accepted job refreshes the remaining allowance")
+    func acceptedJobRefreshesQuota() async {
+        let model = makeModel(studio: MockStudioRepository())
+        model.pollInterval = .zero
+        await model.onAppear()
+        #expect(model.quotaSummary.contains("20 of 20"))
+        model.grantConsent()
+        await model.generate()
+        #expect(model.quotaSummary.contains("19 of 20"))
+    }
+
+    @Test("Free trial exhaustion presents the upgrade paywall")
     func rateLimitPresentsPaywall() async {
         let studio = MockStudioRepository(quotaExhausted: true)
         let model = makeModel(studio: studio)

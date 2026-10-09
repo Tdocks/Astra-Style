@@ -134,8 +134,7 @@ public final class StudioGenerationViewModel {
     }
 
     func refreshQuota() async {
-        do { quotaSummary = try await studioRepository.fetchQuota().summary }
-        catch { quotaSummary = "Couldn't load your preview allowance. Try again." }
+        do { quotaSummary = try await studioRepository.fetchQuota().summary } catch { quotaSummary = "Couldn't load your preview allowance. Try again." }
     }
 
     public func clearPendingPaywall() {

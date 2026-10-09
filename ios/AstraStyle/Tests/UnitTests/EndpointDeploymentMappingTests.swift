@@ -73,6 +73,7 @@ struct EndpointDeploymentMappingTests {
         .extractProduct,
         .evaluateProduct,
         .listProductUnlocks,
+        .studioQuota,
         .generateStudio,
         .studioStatus(id: UUID()),
         .deleteStudioGeneration(id: UUID()),
@@ -92,7 +93,7 @@ struct EndpointDeploymentMappingTests {
         case .completeOnboarding, .exportPersonalData, .deleteReferencePhoto, .generateStyleDNA, .analyzeClosetItem, .fetchWardrobeScore,
              .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
-             .evaluateProduct, .listProductUnlocks, .generateStudio, .studioStatus, .deleteStudioGeneration,
+             .evaluateProduct, .listProductUnlocks, .studioQuota, .generateStudio, .studioStatus, .deleteStudioGeneration,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,
              .deleteAccount, .recordWear, .signPublicLookImages:
             break

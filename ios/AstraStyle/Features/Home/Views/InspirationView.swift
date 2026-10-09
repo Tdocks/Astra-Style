@@ -77,6 +77,7 @@ struct InspirationView: View {
                         }
                     }
                     Text(viewModel.quotaSummary).astraText(.caption)
+                        .accessibilityIdentifier("home.inspiration.allowance")
                     Button("Refresh allowance") { run { await viewModel.refreshQuota() } }
                         .buttonStyle(.astraSecondary)
                     Text("Includes one free image estimate. Rerolls and edits use your image allowance; additional generations require Premium.")
@@ -100,13 +101,13 @@ struct InspirationView: View {
             .task { await viewModel.prepare() }
             .onDisappear { work?.cancel() }
             .onChange(of: viewModel.pendingPaywall) { _, context in showsPaywall = context != nil }
-            .sheet(isPresented: $showsPaywall, onDismiss: { viewModel.clearPaywall() }) {
+            .sheet(isPresented: $showsPaywall, onDismiss: { viewModel.clearPaywall() }, content: {
                 PaywallView(viewModel: PaywallViewModel(
                     context: .studioQuota,
                     purchasing: LiveStoreKitPurchasing(appAccountTokenProvider: { await container.sessionStore.currentUserID() }),
                     subscriptionRepository: container.subscriptionRepository
                 ))
-            }
+            })
         }
     }
 
@@ -134,8 +135,7 @@ struct InspirationView: View {
                 Toggle(item.name, isOn: Binding(
                     get: { viewModel.selectedItemIDs.contains(item.id) },
                     set: { selected in
-                        if selected { viewModel.selectedItemIDs.insert(item.id) }
-                        else { viewModel.selectedItemIDs.remove(item.id) }
+                        if selected { viewModel.selectedItemIDs.insert(item.id) } else { viewModel.selectedItemIDs.remove(item.id) }
                     }
                 ))
                 .tint(AstraColor.accentChampagne)
