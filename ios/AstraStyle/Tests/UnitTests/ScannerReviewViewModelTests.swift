@@ -417,6 +417,7 @@ final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
     var lastImages: [ClosetItemImage]?
     var lastAnalyzeStoragePath: String?
     var seedItems: [ClosetItem] = []
+    var createHook: (@MainActor @Sendable () async -> Void)?
     var createError: Error?
     private var uploadedPath: String?
     /// Paths handed out and not yet deleted — the stand-in for objects
@@ -486,6 +487,7 @@ final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
     var normalizeCreated: (@Sendable (ClosetItem) -> ClosetItem)?
 
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
+        await createHook?()
         if let createError { throw createError }
         lastCreated = item
         lastImages = images
@@ -604,6 +606,7 @@ struct ScannerReviewViewModelCapTests {
                 closetRepository: repository,
                 imageURLResolver: ReviewMockURLResolver(),
                 pendingScanQueue: InMemoryPendingScanQueue(),
+                networkMonitor: StaticNetworkReachabilityMonitor(offline: false),
                 currentUserID: { UUID() }
             )
         )

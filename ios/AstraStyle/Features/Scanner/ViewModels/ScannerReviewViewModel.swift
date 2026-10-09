@@ -87,6 +87,8 @@ public final class ScannerReviewViewModel {
     public internal(set) var localPreviewData: Data?
     public internal(set) var signedPreviewURL: URL?
     public internal(set) var storagePath: String?
+    private var discardRequestedDuringSave = false
+    private var saveMayHavePersisted = false
     private var cachedCutout: (source: String, path: String)?
     public internal(set) var analysis: ClosetItemAnalysisResult?
     public internal(set) var ocrText: String?
@@ -222,15 +224,16 @@ public final class ScannerReviewViewModel {
             ))
             return
         }
+        phase = .saving
         guard let userID = await currentUserID() else {
             phase = .saveFailed(AstraError.auth(
                 String(localized: "Sign in to save this piece to your closet.",
                        comment: "Scanner save without session")
             ))
+            await finishSaveCleanup()
             return
         }
 
-        phase = .saving
         let itemID = UUID()
         let item = buildItem(id: itemID, userID: userID)
         let image = ClosetItemImage(
@@ -249,9 +252,13 @@ public final class ScannerReviewViewModel {
             return
         }
 
+        let previouslyUncertain = saveMayHavePersisted
         do {
+            saveMayHavePersisted = true
             try await persistSavedItem(item, images: [image])
         } catch let error as FreeTierClosetError {
+            // The cap wrapper rejects before writing anything.
+            saveMayHavePersisted = previouslyUncertain
             switch error {
             case .capReached(let limit):
                 phase = .capReached(limit: limit)
@@ -263,6 +270,7 @@ public final class ScannerReviewViewModel {
             )
             phase = .saveFailed(astra)
         }
+        await finishSaveCleanup()
     }
 
     private func persistSavedItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws {
@@ -335,6 +343,9 @@ public final class ScannerReviewViewModel {
     ///   The leak is logged so it is a known number rather than an
     ///   invisible one; nothing about the flow depends on the result.
     public func discardUnsavedUpload() async {
+        if phase == .saving { discardRequestedDuringSave = true; return }
+        // A lost database response may have committed; retain photos until reconciliation.
+        guard !saveMayHavePersisted else { return }
         guard phase != .saved, let path = storagePath else { return }
         storagePath = nil
         let cutoutPath = cachedCutout?.path
@@ -367,6 +378,13 @@ public final class ScannerReviewViewModel {
 }
 
 extension ScannerReviewViewModel {
+    private func finishSaveCleanup() async {
+        if discardRequestedDuringSave {
+            discardRequestedDuringSave = false
+            await discardUnsavedUpload()
+        }
+    }
+
     func persistCutoutOrFallback(_ cutout: Data?) async -> String? {
         guard let source = storagePath else { return nil }
         if let cachedCutout, cachedCutout.source == source { return cachedCutout.path }

@@ -114,6 +114,51 @@ struct ScannerFallbackInvocationTests {
         repository.uploadHook = nil
     }
 
+    @Test("Dismissal during a successful database save retains referenced photos")
+    func dismissalDuringSave() async {
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(repository: repository)
+        model.storagePath = "users/test/closet/source.jpg"
+        model.name = "Shirt"
+        model.phase = .ready
+        repository.createHook = { await model.discardUnsavedUpload() }
+        await model.save()
+        #expect(model.phase == .saved)
+        #expect(repository.deletedPaths.isEmpty)
+        #expect(repository.lastImages?.first?.storagePath == model.storagePath)
+        repository.createHook = nil
+    }
+
+    @Test("Ambiguous database failure preserves photos for later reconciliation")
+    func ambiguousSaveRetainsPhotos() async {
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(repository: repository)
+        model.storagePath = "users/test/closet/source.jpg"
+        model.name = "Shirt"
+        model.phase = .ready
+        repository.createError = AstraError.network("Response lost")
+        repository.createHook = { await model.discardUnsavedUpload() }
+        await model.save()
+        #expect(repository.deletedPaths.isEmpty)
+        #expect(model.storagePath != nil)
+        repository.createHook = nil
+    }
+
+    @Test("Known cap rejection after dismissal cleans an unpersisted capture")
+    func rejectedSaveCanClean() async {
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(repository: repository)
+        model.storagePath = "users/test/closet/source.jpg"
+        model.name = "Shirt"
+        model.phase = .ready
+        repository.createError = FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)
+        repository.createHook = { await model.discardUnsavedUpload() }
+        await model.save()
+        #expect(repository.deletedPaths == ["users/test/closet/source.jpg"])
+        #expect(model.storagePath == nil)
+        repository.createHook = nil
+    }
+
     private func makeModel(repository: ClosetRepository) -> ScannerReviewViewModel {
         let owner = UUID()
         return ScannerReviewViewModel(draftID: UUID(), dependencies: .init(
