@@ -92,6 +92,14 @@ struct ScannerReviewView: View {
                 retry: { Task { await viewModel.retryAnalyze() } }
             )
 
+        case .queueFailed(let error):
+            failureBlock(
+                message: error.errorDescription ?? String(localized: "Couldn't keep this scan on your device.",
+                                                         comment: "Queued scan persistence failed"),
+                retryTitle: String(localized: "Retry Saving Scan", comment: "Retry offline scan persistence"),
+                retry: { Task { await viewModel.retryQueuePersistence() } }
+            )
+
         case .saveFailed(let error):
             saveFailedContent(error)
 

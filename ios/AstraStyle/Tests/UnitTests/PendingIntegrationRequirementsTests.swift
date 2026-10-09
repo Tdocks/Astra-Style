@@ -2,132 +2,106 @@
 //  PendingIntegrationRequirementsTests.swift
 //  AstraStyleTests
 //
-//  Spec §22 lists several integration tests that genuinely cannot be
-//  written yet — they require a live Supabase project, deployed Edge
-//  Functions, a configured StoreKit sandbox, and/or a running AI provider,
-//  none of which exist in this scaffold. They are represented here as
-//  explicitly SKIPPED tests rather than silently omitted, so the gap stays
-//  visible in Xcode's test navigator and in CI's test report.
+//  Spec §22 lists connected integration requirements that are not implemented
+//  as these native test cases. The project now has a live Supabase deployment
+//  and focused hosted acceptance harnesses. Those prove their named backend
+//  paths, not a continuous signed-in iOS journey. StoreKit sandbox,
+//  physical-device, and provider-cost requirements remain separate gates.
+//  These placeholders stay disabled so the requirements remain visible.
 //
-//  These were originally written as `Issue.record(...)` bodies — deliberate
-//  failures, so the gap would be impossible to miss. That was replaced with
-//  `.disabled(reason:)` for one reason: a suite that can never be green is a
-//  suite nobody reads. Seven permanent red tests do not communicate "seven
-//  things are missing", they communicate "this job is always red", and they
-//  make every OTHER failure — a real regression, the P1-INFRA-03 requirement
-//  that CI fails on a warning or lint violation — unverifiable, because the
-//  job was already failing. A skip with a stated reason says exactly the same
-//  thing, in the place a reader looks for it, without spending the signal.
-//
-//  `.disabled` rather than `withKnownIssue` for all seven: `withKnownIssue`
-//  is for a test that genuinely RUNS and genuinely fails, and that should
-//  start failing the moment it stops failing. None of these bodies contain a
-//  single assertion — there is nothing to run, so there is no known issue to
-//  observe, only work that has not started. "Disabled, with a stated reason"
-//  is what these actually are.
-//
-//  DO NOT delete these to make CI green — a deleted requirement is an
-//  invisible one. Each should be replaced with a real integration test (and
-//  the `.disabled` trait dropped at that point, not before) as its backing
-//  infrastructure lands. The `.disabled` reason names the spec requirement
-//  and the ticket prefix expected to close it.
+//  These bodies intentionally have no assertions. Keep them disabled until
+//  each test itself performs and verifies its named lifecycle. A focused
+//  hosted harness does not close a different client-side acceptance criterion.
 //
 
 import Testing
 @testable import AstraStyle
 
-@Suite("Pending integration requirements (spec §22) — skipped until their backing infrastructure exists")
+@Suite("Pending connected integration requirements (spec §22)")
 struct PendingIntegrationRequirementsTests {
 
     @Test(
         "Auth lifecycle: sign in, session refresh, sign out against a real Supabase project",
         .disabled(
-            "Not implemented: requires a live Supabase Auth project and a way to drive Sign in with Apple / email OTP in a test target. Owner: P1-CORE / P2-ONBOARD. Spec §22 'Integration tests: Auth lifecycle'."
+            "Connected lifecycle test not implemented: hosted Auth exists, but this case does not sign in, restore, and sign out a disposable account. A supported Sign in with Apple or email OTP test flow is also needed. Owner: P1-CORE / P2-ONBOARD. Spec §22 Auth lifecycle."
         )
     )
     func authLifecycle() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
+        // The disabled reason above describes the pending connected path.
     }
 
     @Test(
         "Closet upload and sync: capture -> analyze -> save round trip against live Storage + Postgrest",
         .disabled(
-            "Not implemented: requires a deployed `closet/analyze-item` Edge Function and a live Storage bucket. Owner: P3-CLOSET / P3-SCAN. Spec §22 'Integration tests: Closet upload and sync'."
+            "Connected capture round trip not implemented here: closet analysis and Storage are deployed, and scanner coverage exists, but this case does not capture/import, upload, analyze, save, and reload a garment against hosted services. Owner: P3-CLOSET / P3-SCAN. Spec §22 Closet upload and sync."
         )
     )
     func closetUploadAndSync() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
+        // The disabled reason above describes the pending connected path.
     }
 
-    // Daily Brief production-path and live integration coverage now lives in
-    // supabase/functions/daily-brief/{production_integration_test,hosted_acceptance}.ts.
+    // Focused Daily Brief production-path and hosted coverage lives in
+    // supabase/functions/daily-brief/production_integration_test.ts and
+    // hosted_acceptance.ts. It does not replace an iOS signed-in journey.
     // See docs/acceptance/2026-10-09-daily-brief-live-acceptance.md.
 
     @Test(
-        "Product evaluation against a live `products/evaluate` Edge Function",
+        "Product evaluation against the live products Edge Function",
         .disabled(
-            "Not implemented: requires a deployed Edge Function and a seeded product_candidates table. Owner: P6-SHOP. Spec §22 'Integration tests: Product evaluation'."
+            "Focused product acceptance exists: products/live_evaluation_acceptance.ts verifies a seeded duplicate candidate without retailer fetching. This native case still needs to connect pasted-link submission through live extraction/evaluation and verify the result in the signed-in app. Owner: P6-SHOP. Spec §22 Product evaluation."
         )
     )
     func productEvaluation() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
+        // The disabled reason above describes the pending connected path.
     }
 
     @Test(
-        "Style Studio job polling against a live `studio/generate` + `studio/status/:id` pair",
+        "Style Studio job polling against live generation and status routes",
         .disabled(
-            "Not implemented: requires a deployed Edge Function and a live ImageGenerationProvider. Owner: P6-STUDIO. Spec §22 'Integration tests: Studio job polling'."
+            "Focused hosted Studio generation/polling acceptance exists, including a real provider result. This native case remains open until it verifies the signed-in app request, polling, and rendered result against hosted services; provider spend needs an approved test budget. Owner: P6-STUDIO. Spec §22 Studio job polling."
         )
     )
     func studioJobPolling() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
+        // The disabled reason above describes the pending connected path.
     }
 
     @Test(
         "StoreKit sandbox purchase and server-side reconciliation",
         .disabled(
-            "Not implemented: requires a StoreKit configuration file / sandbox tester account and a deployed `subscriptions/sync` Edge Function. Owner: P7-SUB. Spec §22 'Integration tests: StoreKit sandbox purchase'."
+            "Local paywall/restore UI and subscription sync exist, but a sandbox purchase, renewal/cancel, and restore reconciliation has not been recorded. Requires an App Store Connect sandbox tester and configured products. Owner: P7-SUB / P7-TEST-03. Spec §22 StoreKit sandbox purchase."
         )
     )
     func storeKitSandboxPurchase() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
+        // The disabled reason above describes the pending external acceptance.
     }
 
     @Test(
         "Snapshot tests: major screens in light/dark mode across Dynamic Type sizes",
         .disabled(
-            "Not implemented: no snapshot-testing library is wired into the project yet (spec doesn't mandate one; a follow-up decision — swift-snapshot-testing is the likely candidate). Spec §22 'Snapshot tests'."
+            "Not implemented: no snapshot-testing library or baseline suite is wired into the native test target. Spec §22 Snapshot tests."
         )
     )
     func snapshotTestsNotYetConfigured() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real snapshot tests and remove the trait.
+        // The disabled reason above describes the missing snapshot suite.
     }
 
     @Test(
-        "Account deletion end-to-end: DELETE /account against a live Supabase project, through the Storage purge and auth.admin.deleteUser cascade to a completed account_deletions row",
+        "Account deletion end-to-end through completed deletion and account cleanup",
         .disabled(
-            "Not implemented: requires a live Supabase project with the account Edge Function deployed and service-role credentials to observe the cascade's terminal state. AccountDeletionViewModelTests covers the client-side flow against a fake AuthRepository; this is the missing live-backend half. Owner: P7-PRIVACY-01/02. Spec §22 'Integration tests'."
+            "Focused hosted deletion acceptance exists in disposable-account harnesses, including completed receipts and owner cleanup. This native case remains open until one disposable app session signs in, deletes through the UI, verifies receipt/data removal, and signs in again to prove prior data is not restored. Owner: P7-PRIVACY-01/02 / P7-TEST-06. Spec §22 Account deletion."
         )
     )
     func accountDeletionEndToEnd() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
+        // The disabled reason above describes the pending connected path.
     }
 
     @Test(
         "Personal data export: user-scoped data from major user-owned tables",
         .disabled(
-            "The authenticated profile/export-data route and shareable JSON file are implemented locally. This live integration acceptance still needs the function deployed and run with a disposable authenticated account so RLS isolation and completeness are checked against the hosted schema. Owner: P7-PRIVACY-03. Spec section 22 and section 29."
+            "Hosted export acceptance is complete for populated owner/peer fixtures: see docs/acceptance/2026-10-09-populated-personal-data-export.md and docs/acceptance/2026-10-09-daily-brief-live-acceptance.md. This native test remains open until the app invokes export, presents/shares the file, and verifies the decoded response through the client path. The manifest lists referenced storage paths, not image bytes or proof every object exists. Owner: P7-PRIVACY-03. Spec §§22 and 29."
         )
     )
     func personalDataExportEndToEnd() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
+        // The disabled reason above describes the pending native client path.
     }
 }

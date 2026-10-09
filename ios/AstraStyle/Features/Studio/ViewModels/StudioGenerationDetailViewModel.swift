@@ -96,6 +96,15 @@ public final class StudioGenerationDetailViewModel {
             await refresh()
             return
         }
+        // A detail task may be cancelled when the user leaves the screen or
+        // the app backgrounds. `follow` deliberately leaves the last known
+        // queued/generating value visible on cancellation, so resume status
+        // reconciliation when that same detail view appears again.
+        if case .loaded(let generation) = state,
+           generation.status == .queued || generation.status == .generating {
+            await refresh()
+            return
+        }
         guard !hasCheckedHighResolutionLineage,
               case .loaded(let generation) = state,
               generation.status == .complete else { return }

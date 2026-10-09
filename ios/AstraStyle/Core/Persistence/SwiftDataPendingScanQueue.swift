@@ -48,27 +48,33 @@ extension PendingScan {
 
 @ModelActor
 public actor SwiftDataPendingScanQueue: PendingScanQueue {
-    public func enqueue(_ scan: PendingScan) async {
-        let scanID = scan.id
-        let descriptor = FetchDescriptor<PersistedPendingScan>(predicate: #Predicate { $0.id == scanID })
-        let encodedHints = encodeDeviceHints(scan.deviceHints)
-        if let existing = try? modelContext.fetch(descriptor).first {
-            existing.jpegData = scan.jpegData
-            existing.deviceHintsData = encodedHints
-            existing.enqueuedAt = scan.enqueuedAt
-            existing.attemptCount = scan.attemptCount
-        } else {
-            modelContext.insert(
-                PersistedPendingScan(
-                    id: scan.id,
-                    jpegData: scan.jpegData,
-                    deviceHintsData: encodedHints,
-                    enqueuedAt: scan.enqueuedAt,
-                    attemptCount: scan.attemptCount
+    public func enqueue(_ scan: PendingScan) async throws {
+        do {
+            let scanID = scan.id
+            let descriptor = FetchDescriptor<PersistedPendingScan>(predicate: #Predicate { $0.id == scanID })
+            let existing = try modelContext.fetch(descriptor).first
+            let encodedHints = try scan.deviceHints.map { try JSONEncoder.astraDefault.encode($0) }
+            if let existing {
+                existing.jpegData = scan.jpegData
+                existing.deviceHintsData = encodedHints
+                existing.enqueuedAt = scan.enqueuedAt
+                existing.attemptCount = scan.attemptCount
+            } else {
+                modelContext.insert(
+                    PersistedPendingScan(
+                        id: scan.id,
+                        jpegData: scan.jpegData,
+                        deviceHintsData: encodedHints,
+                        enqueuedAt: scan.enqueuedAt,
+                        attemptCount: scan.attemptCount
+                    )
                 )
-            )
+            }
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw AstraError.server("Couldn't keep this scan on your device. Try again before leaving.")
         }
-        try? modelContext.save()
     }
 
     public func pendingScans() async -> [PendingScan] {
@@ -102,8 +108,4 @@ public actor SwiftDataPendingScanQueue: PendingScanQueue {
         try? modelContext.save()
     }
 
-    private func encodeDeviceHints(_ hints: GarmentDeviceHints?) -> Data? {
-        guard let hints else { return nil }
-        return try? JSONEncoder.astraDefault.encode(hints)
-    }
 }

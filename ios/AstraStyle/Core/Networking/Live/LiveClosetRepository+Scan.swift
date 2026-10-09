@@ -312,7 +312,7 @@ extension LiveClosetRepository {
                     )
                 },
                 removeObjects: { paths in
-                    try? await self.supabase.storage.from("user-content").remove(paths: paths)
+                    _ = try? await self.supabase.storage.from("user-content").remove(paths: paths)
                 }
             )
             return try await ClosetCaptureUploadPipeline.upload(
@@ -342,7 +342,7 @@ extension LiveClosetRepository {
             try await requireSameOwner(as: ownerID)
             return path
         } catch {
-            try? await supabase.storage.from("user-content").remove(paths: [path])
+            _ = try? await supabase.storage.from("user-content").remove(paths: [path])
             throw error
         }
     }

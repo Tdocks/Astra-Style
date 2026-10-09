@@ -99,6 +99,26 @@ struct StudioEstimateExportTests {
         await model.prepareExport()
         #expect(exporter.calls == 0)
     }
+
+    @Test("Reopening an active estimate resumes status polling")
+    func reopeningActiveEstimateResumesPolling() async {
+        let repo = MockStudioRepository(), exporter = RecordingEstimateExporter()
+        let generation = fixture(status: .generating)
+        await repo.seed(generation)
+        let model = StudioGenerationDetailViewModel(generationID: generation.id, studioRepository: repo,
+            imageURLResolver: MockClosetImageURLResolver(), exporter: exporter)
+        model.pollInterval = .zero
+        model.state = .loaded(generation)
+
+        await model.onAppear()
+
+        guard case .loaded(let refreshed) = model.state else {
+            Issue.record("Reopening an active estimate did not preserve its status")
+            return
+        }
+        #expect(refreshed.status == .complete)
+        #expect(model.resultImageURL != nil)
+    }
 }
 
 @MainActor

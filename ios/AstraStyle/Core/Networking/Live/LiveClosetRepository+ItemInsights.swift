@@ -32,7 +32,7 @@ extension LiveClosetRepository {
         guard let path = result.backgroundRemovedPath else { return nil }
         guard path == expected else { throw AstraError.server("That cutout is unavailable.") }
         guard let thumbnailPath = ClosetImageVariantPaths.thumbnail(for: path) else {
-            try? await supabase.storage.from("user-content").remove(paths: [path])
+            _ = try? await supabase.storage.from("user-content").remove(paths: [path])
             return nil
         }
         do {
@@ -52,7 +52,7 @@ extension LiveClosetRepository {
         } catch {
             // Server-produced cutouts are optional presentation assets. Do not
             // keep one whose small display variant could not be verified.
-            try? await supabase.storage.from("user-content").remove(paths: [path, thumbnailPath])
+            _ = try? await supabase.storage.from("user-content").remove(paths: [path, thumbnailPath])
             return nil
         }
         return path

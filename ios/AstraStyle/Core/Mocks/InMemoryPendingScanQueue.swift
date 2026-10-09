@@ -14,7 +14,7 @@ public actor InMemoryPendingScanQueue: PendingScanQueue {
         scans = seed.sorted { $0.enqueuedAt < $1.enqueuedAt }
     }
 
-    public func enqueue(_ scan: PendingScan) async {
+    public func enqueue(_ scan: PendingScan) async throws {
         scans.removeAll { $0.id == scan.id }
         scans.append(scan)
         scans.sort { $0.enqueuedAt < $1.enqueuedAt }

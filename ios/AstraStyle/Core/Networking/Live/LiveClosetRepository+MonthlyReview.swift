@@ -1,4 +1,5 @@
 import Foundation
+import Supabase
 
 extension LiveClosetRepository {
     /// Returns owner-owned garments created or purchased before the reviewed month's
@@ -68,13 +69,13 @@ extension LiveClosetRepository {
         }
         func score(on date: Date) async throws -> Int? {
             let monthDate = DateFormatter.astraDay.string(from: date)
-            let rows: [ScoreRow] = try await supabase.from("wardrobe_score_monthly_snapshots")
+            let query = supabase.from("wardrobe_score_monthly_snapshots")
                 .select("versatility_score, captured_at")
                 .eq("user_id", value: ownerID)
                 .eq("month_start", value: monthDate)
                 .limit(1)
-                .execute()
-                .value
+            let response: PostgrestResponse<[ScoreRow]> = try await query.execute()
+            let rows = response.value
             guard let row = rows.first else { return nil }
             guard let monthEnd = Calendar.current.date(byAdding: .month, value: 1, to: date),
                   row.capturedAt >= date, row.capturedAt < monthEnd else { return nil }

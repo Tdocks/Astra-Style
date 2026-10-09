@@ -386,6 +386,7 @@ struct ReviewTestSeams {
     var scannerSaveJournal: ScannerSaveJournaling = InMemoryScannerSaveJournal()
 }
 
+
 // MARK: - Fixtures / doubles
 
 func scannerReviewFixtureJPEG() -> Data? {

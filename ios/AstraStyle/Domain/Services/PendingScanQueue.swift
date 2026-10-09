@@ -32,7 +32,8 @@ public struct PendingScan: Identifiable, Codable, Hashable, Sendable {
 }
 
 public protocol PendingScanQueue: Sendable {
-    func enqueue(_ scan: PendingScan) async
+    /// A scan is not considered queued until its durable write succeeds.
+    func enqueue(_ scan: PendingScan) async throws
     func pendingScans() async -> [PendingScan]
     func remove(id: UUID) async
     func incrementAttemptCount(id: UUID) async

@@ -26,6 +26,7 @@ public final class ScannerReviewViewModel {
         case saved
         case uploadFailed(AstraError)
         case analyzeFailed(AstraError)
+        case queueFailed(AstraError)
         case saveFailed(AstraError)
         case capReached(limit: Int)
         case missingDraft
@@ -38,6 +39,7 @@ public final class ScannerReviewViewModel {
                 true
             case (.uploadFailed(let left), .uploadFailed(let right)),
                  (.analyzeFailed(let left), .analyzeFailed(let right)),
+                 (.queueFailed(let left), .queueFailed(let right)),
                  (.saveFailed(let left), .saveFailed(let right)):
                 left == right
             case (.capReached(let left), .capReached(let right)):

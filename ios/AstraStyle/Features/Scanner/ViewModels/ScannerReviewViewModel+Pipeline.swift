@@ -81,15 +81,28 @@ extension ScannerReviewViewModel {
 
     func enqueuePendingAnalysis(data: Data, deviceHints: GarmentDeviceHints?) async {
         localPreviewData = data
-        await pendingScanQueue.enqueue(
-            PendingScan(
-                id: draftID,
-                jpegData: data,
-                deviceHints: deviceHints,
-                enqueuedAt: .now
+        do {
+            try await pendingScanQueue.enqueue(
+                PendingScan(
+                    id: draftID,
+                    jpegData: data,
+                    deviceHints: deviceHints,
+                    enqueuedAt: .now
+                )
             )
-        )
-        phase = .pendingAnalysis
+            phase = .pendingAnalysis
+        } catch {
+            let message = (error as? AstraError)?.message
+                ?? "Couldn't keep this scan on your device. Try again before leaving."
+            phase = .queueFailed(.server(message))
+        }
+    }
+
+    public func retryQueuePersistence() async {
+        guard case .queueFailed = phase,
+              let data = localPreviewData,
+              let draft = draftStore.draft(id: draftID) else { return }
+        await enqueuePendingAnalysis(data: data, deviceHints: draft.deviceHints)
     }
 
     func startConnectivityObservation() {
