@@ -8,6 +8,7 @@
 
 import { assert, assertEquals } from "@std/assert";
 import { evaluateProductCandidate, type EvaluationInputs } from "./evaluation.ts";
+import { DEFAULT_WEIGHTS } from "../_shared/scoring/compatibility.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
 import type { RedundancyItem } from "../_shared/scoring/redundancy.ts";
 
@@ -68,6 +69,30 @@ Deno.test("a candidate that completes an outfit scores and unlocks something", (
   assert(result.compatibilityScore > 0);
   assert(result.compatibilityScore <= 100);
   assert(result.outfitsUnlocked >= 0);
+});
+
+Deno.test("product evaluation forwards server compatibility weights to outfit and unlock scoring", () => {
+  const base = inputs({
+    candidate: scorable({ id: "candidate", formalityScore: 95 }),
+    closet: [
+      scorable({ id: "b1", category: "bottom", role: "bottom", formalityScore: 15 }),
+      scorable({ id: "s1", category: "shoes", role: "shoes", formalityScore: 15 }),
+    ],
+  });
+  const formalHeavy = {
+    ...DEFAULT_WEIGHTS,
+    color: 0,
+    formality: 1,
+    silhouette: 0,
+    seasonWeather: 0,
+    userPreference: 0,
+    coWear: 0,
+    occasion: 0,
+    availability: 0,
+  };
+  const defaultResult = evaluateProductCandidate(base);
+  const configuredResult = evaluateProductCandidate({ ...base, compatibilityWeights: formalHeavy });
+  assert(configuredResult.compatibilityScore !== defaultResult.compatibilityScore);
 });
 
 Deno.test("an empty closet is reported as unmeasured, not scored as incompatible", () => {

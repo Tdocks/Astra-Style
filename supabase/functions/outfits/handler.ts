@@ -68,7 +68,8 @@ import {
 } from "../_shared/scoring/closetItemMapper.ts";
 import { generateCandidateOutfits } from "./candidateGeneration.ts";
 import { buildReason } from "./reason.ts";
-import { scoreOutfit } from "../_shared/scoring/compatibility.ts";
+import { DEFAULT_WEIGHTS, scoreOutfit } from "../_shared/scoring/compatibility.ts";
+import type { CompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
 import { toScoredOutfit } from "../_shared/scoring/wire.ts";
 import type { ScoredOutfitEnvelope } from "../_shared/scoring/wire.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
@@ -143,6 +144,8 @@ export interface HandlerDeps {
   rateLimiter: RateLimiter;
   /** Injected clock so latency logging is deterministic in tests. */
   now: () => Date;
+  /** Server-owned config read only after caller authentication. */
+  readCompatibilityWeights?: () => Promise<CompatibilityWeightsConfig>;
   insertWear?: (row: {
     user_id: string;
     outfit_id: string;
@@ -214,6 +217,10 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
     const body = parseGenerateOutfitsBody(envelope.body, deps.now());
+    const weightConfig = await deps.readCompatibilityWeights?.() ?? {
+      weights: DEFAULT_WEIGHTS,
+      version: 1,
+    };
 
     // 4. Validate ownership: `userId` below is the JWT-verified id from
     // step 1. `body` (schema.ts) has no `user_id` field at all, so there is
@@ -233,6 +240,7 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
       lockedItemIds: new Set(body.lockedClosetItemIds),
       excludedItemIds: new Set(body.excludedClosetItemIds),
       context: { ...context, wardrobeGraph },
+      weights: weightConfig.weights,
     });
 
     const payload: ScoredOutfitEnvelope[] = generated.map((outfit) =>
@@ -324,6 +332,10 @@ export async function handleRankOutfits(req: Request, deps: HandlerDeps): Promis
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
     const body = parseRankOutfitsBody(envelope.body);
+    const weightConfig = await deps.readCompatibilityWeights?.() ?? {
+      weights: DEFAULT_WEIGHTS,
+      version: 1,
+    };
 
     const allItemIds = [...new Set(body.candidates.flatMap((c) => c.itemIds))];
     const rows = await deps.closetRepository.listItemsByIds(userId, allItemIds);
@@ -365,7 +377,9 @@ export async function handleRankOutfits(req: Request, deps: HandlerDeps): Promis
 
     const results = scored
       .map(({ input, items }) => {
-        const score = scoreOutfit(items, { ...context, wardrobeGraph });
+        const score = scoreOutfit(items, { ...context, wardrobeGraph }, {
+          weights: weightConfig.weights,
+        });
         return { input, items, score };
       })
       .sort((a, b) => b.score.score - a.score.score);

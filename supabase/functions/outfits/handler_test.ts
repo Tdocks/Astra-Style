@@ -424,6 +424,41 @@ Deno.test("rank: ranking order matches scoreOutfit's own ordering for the same i
   assertEquals(json.data[0].item_ids.sort(), GOOD_CANDIDATE.item_ids.sort());
 });
 
+Deno.test("rank: authenticated server configuration reaches the shared scorer", async () => {
+  const weights = {
+    color: 1,
+    formality: 0,
+    silhouette: 0,
+    seasonWeather: 0,
+    userPreference: 0,
+    coWear: 0,
+    occasion: 0,
+    availability: 0,
+  } as const;
+  let reads = 0;
+  const deps = buildDeps({
+    readCompatibilityWeights: async () => {
+      reads++;
+      return { weights, version: 9 };
+    },
+  });
+  const req = requestFor(
+    "rank",
+    rankEnvelope({ candidates: [GOOD_CANDIDATE] }),
+    { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` },
+  );
+  const response = await handleRankOutfits(req, deps);
+  const json = await response.json();
+  const byId = new Map(USER_A_CLOSET.map((r) => [r.id, mapClosetItemRowToScorableItem(r)!]));
+  const expected = scoreOutfit(
+    GOOD_CANDIDATE.item_ids.map((id) => byId.get(id)!),
+    {},
+    { weights },
+  ).score;
+  assertEquals(reads, 1);
+  assertEquals(json.data[0].compatibility_score, expected);
+});
+
 Deno.test("rank: a locked item filters out every candidate that does not contain it", async () => {
   const req = requestFor(
     "rank",

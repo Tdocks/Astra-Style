@@ -33,7 +33,7 @@
 // pair with a wardrobe."
 // ============================================================================
 
-import { scoreOutfit } from "../_shared/scoring/compatibility.ts";
+import { type ComponentWeights, scoreOutfit } from "../_shared/scoring/compatibility.ts";
 import {
   DEFAULT_GENERATION_OPTIONS,
   generateAnchoredOutfits,
@@ -99,6 +99,7 @@ export interface EvaluationInputs {
   readonly lifestyle: LifestyleInputs;
   readonly scoringContext?: ScoringContext;
   readonly occasion?: string;
+  readonly compatibilityWeights?: ComponentWeights;
 }
 
 export interface EvaluationResult {
@@ -146,12 +147,14 @@ function computeCandidateCompatibility(
   candidate: ScorableItem,
   closet: readonly ScorableItem[],
   scoringContext: ScoringContext | undefined,
+  compatibilityWeights: ComponentWeights | undefined,
 ): { readonly score: number; readonly pairable: boolean; readonly colorFit: number | null } {
   if (closet.length === 0) return { score: 0, pairable: false, colorFit: null };
 
   const generated = generateAnchoredOutfits(candidate, closet, {
     ...DEFAULT_GENERATION_OPTIONS,
     qualityThreshold: 0,
+    ...(compatibilityWeights !== undefined ? { weights: compatibilityWeights } : {}),
     ...(scoringContext !== undefined ? { context: scoringContext } : {}),
   });
 
@@ -166,7 +169,9 @@ function computeCandidateCompatibility(
     // the headline number came from. Averaging colour across every generated
     // combination would report a colour fit for an outfit nobody is being
     // shown.
-    const detail = scoreOutfit(bestOutfit.items, scoringContext ?? {});
+    const detail = scoreOutfit(bestOutfit.items, scoringContext ?? {}, {
+      ...(compatibilityWeights !== undefined ? { weights: compatibilityWeights } : {}),
+    });
     return {
       score: unitClamp(bestOutfit.compatibilityScore / 100),
       pairable: true,
@@ -182,7 +187,9 @@ function computeCandidateCompatibility(
   let bestColor: number | null = null;
   for (const owned of closet) {
     if (owned.id === candidate.id) continue;
-    const scored = scoreOutfit([candidate, owned], scoringContext ?? {});
+    const scored = scoreOutfit([candidate, owned], scoringContext ?? {}, {
+      ...(compatibilityWeights !== undefined ? { weights: compatibilityWeights } : {}),
+    });
     if (scored.score >= bestPair) {
       bestPair = scored.score;
       bestColor = scored.components.color?.value ?? null;
@@ -340,6 +347,7 @@ export function evaluateProductCandidate(inputs: EvaluationInputs): EvaluationRe
     inputs.candidate,
     inputs.closet,
     inputs.scoringContext,
+    inputs.compatibilityWeights,
   );
   if (!pairable) {
     degraded.push(
@@ -357,6 +365,9 @@ export function evaluateProductCandidate(inputs: EvaluationInputs): EvaluationRe
     {
       ...(inputs.scoringContext !== undefined ? { scoringContext: inputs.scoringContext } : {}),
       ...(inputs.occasion !== undefined ? { occasion: inputs.occasion } : {}),
+      ...(inputs.compatibilityWeights !== undefined
+        ? { weights: inputs.compatibilityWeights }
+        : {}),
     } satisfies UnlockCountContext,
   );
 

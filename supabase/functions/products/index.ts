@@ -35,6 +35,7 @@ import {
   readEdgeEnv,
 } from "../_shared/supabaseClient.ts";
 import { hasActivePremiumSubscription } from "../_shared/premium.ts";
+import { loadCompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { authenticateRequest } from "../_shared/jwt.ts";
@@ -118,6 +119,7 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
   return {
     extractionProvider: extractionProvider(),
     requestID,
+    readCompatibilityWeights: () => loadCompatibilityWeightsConfig(catalogWriter),
 
     async upsertCandidate(row) {
       // Service role: authenticated cannot write this table. Omit `sponsored`

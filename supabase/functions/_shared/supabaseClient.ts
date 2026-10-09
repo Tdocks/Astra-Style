@@ -13,15 +13,16 @@
 // boundary; this client is just how we present the caller's own identity to
 // it, instead of substituting the Edge Function's own elevated identity.
 //
-// A function should reach for the service-role key ONLY when RLS cannot
-// express what it needs (e.g. `DELETE /account` touching another user's
+// A function should reach for the service-role key ONLY for an explicit
+// privileged/shared-data operation (e.g. `DELETE /account` touching another user's
 // row is never true, but deleting the `auth.users` identity itself requires
 // the Auth Admin API, which requires service-role; writing to
 // `product_candidates`, a shared catalog table with no `authenticated`
 // write policy at all, is another documented exception in
-// `20260728100900_rls_policies.sql`). the `outfits` function needs neither: it
-// only reads the caller's own `closet_items`, which RLS already allows for
-// `authenticated`. See `supabase/functions/README.md` for the project-wide
+// `20260728100900_rls_policies.sql`). A third narrowly-scoped use reads the
+// global `compatibility_weights_config` singleton; that table grants service
+// role access only and contains no user data. User-owned wardrobe reads remain
+// caller-scoped. See `supabase/functions/README.md` for the project-wide
 // policy this comment summarizes.
 // ============================================================================
 
@@ -67,9 +68,9 @@ export function createUserScopedClient(env: EdgeEnv, authorizationHeader: string
 }
 
 /**
- * Service-role client for the two documented exceptions RLS cannot express:
- * Auth Admin (`account`) and writes to `product_candidates` (no authenticated
- * insert/update policy — P6-SHOP-03 extract + P6-SHOP-08 ingest).
+ * Service-role client for explicit privileged/shared-data operations:
+ * Auth Admin (`account`), writes to `product_candidates`, and reading the
+ * service-only global compatibility weights singleton.
  *
  * `SUPABASE_SERVICE_ROLE_KEY` is injected for deployed functions; never ship
  * it in the iOS target.

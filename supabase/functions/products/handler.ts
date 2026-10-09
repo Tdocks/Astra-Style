@@ -52,6 +52,8 @@ import { assertSafeExternalUrl } from "./urlValidation.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
 import type { RedundancyItem } from "../_shared/scoring/redundancy.ts";
 import { computeUnlockCount } from "../_shared/scoring/unlockCount.ts";
+import { type ComponentWeights, DEFAULT_WEIGHTS } from "../_shared/scoring/compatibility.ts";
+import type { CompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
 
 /**
  * How long a retailer page gets before extraction gives up.
@@ -109,6 +111,8 @@ export interface ProductsDependencies {
     limit: number,
   ) => Promise<readonly ProductCandidateRow[]>;
   readonly requestID: string;
+  /** Server-owned config read only for authenticated scoring routes. */
+  readonly readCompatibilityWeights?: () => Promise<CompatibilityWeightsConfig>;
   readonly hasActivePremiumSubscription?: (nowIso: string) => Promise<boolean>;
   readonly countEvaluations?: (userID: string) => Promise<number>;
 }
@@ -189,6 +193,10 @@ export async function handleEvaluateProduct(
     deps.fetchLifestyle(userID),
     deps.fetchWardrobeGraph?.(userID) ?? Promise.resolve("menswear_3_role" as const),
   ]);
+  const weightConfig = await deps.readCompatibilityWeights?.() ?? {
+    weights: DEFAULT_WEIGHTS,
+    version: 1,
+  };
 
   const evaluation = evaluateProductCandidate({
     candidate: mapped.item,
@@ -198,6 +206,7 @@ export async function handleEvaluateProduct(
     redundancyCloset: closet.map((g) => g.redundancy),
     lifestyle,
     scoringContext: { wardrobeGraph },
+    compatibilityWeights: weightConfig.weights,
   });
 
   const persisted = await deps.persistEvaluation({
@@ -235,7 +244,7 @@ export async function handleEvaluateProduct(
     // Read here, after the verdict exists, and used only as a label.
     sponsored: row.sponsored,
     unmeasured: [...new Set(evaluation.degraded)],
-    alternatives: await buildAlternatives(row, closet, deps),
+    alternatives: await buildAlternatives(row, closet, deps, weightConfig.weights),
   };
 }
 
@@ -255,6 +264,7 @@ async function buildAlternatives(
   primary: ProductCandidateRow,
   closet: readonly OwnedGarment[],
   deps: ProductsDependencies,
+  compatibilityWeights: ComponentWeights = DEFAULT_WEIGHTS,
 ): Promise<readonly AlternativeProductDTO[]> {
   let rows: readonly ProductCandidateRow[];
   try {
@@ -274,6 +284,7 @@ async function buildAlternatives(
       redundancyCandidate: mapped.redundancyItem,
       redundancyCloset: closet.map((g) => g.redundancy),
       lifestyle: { monthlyBudget: null, dressCode: null },
+      compatibilityWeights,
     });
     return [{
       row: candidate,
@@ -322,6 +333,10 @@ export async function handleListUnlocks(
   const rows = mergeUnlockCandidates(evaluated, catalog).slice(0, UNLOCKS_SCAN_CAP);
   const closet = await deps.fetchCloset(userID);
   const wardrobeGraph = await deps.fetchWardrobeGraph?.(userID) ?? "menswear_3_role";
+  const weightConfig = await deps.readCompatibilityWeights?.() ?? {
+    weights: DEFAULT_WEIGHTS,
+    version: 1,
+  };
   const scorableCloset = closet.map((garment) => garment.scorable);
 
   const scored: Array<{
@@ -336,6 +351,7 @@ export async function handleListUnlocks(
       if (mapped.item === null) continue;
       const unlock = computeUnlockCount(mapped.item, scorableCloset, {
         scoringContext: { wardrobeGraph },
+        weights: weightConfig.weights,
       });
       if (unlock.unlockCount <= 0) continue;
       scored.push({

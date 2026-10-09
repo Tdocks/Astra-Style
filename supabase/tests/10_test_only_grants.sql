@@ -47,3 +47,4 @@ grant select(id,user_id,generation_id,kind,status,attempts,error_message,created
 -- `gen_random_uuid()` defaults, not serial/identity columns.
 
 revoke all on public.studio_quota_config from anon,authenticated;
+revoke all on public.compatibility_weights_config from anon,authenticated;

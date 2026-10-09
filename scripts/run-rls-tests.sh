@@ -214,6 +214,10 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/44_studio_hi_res_exports.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/45_compatibility_weights.sql"
+  test_exit=$?
+fi
 set -e
 echo
 

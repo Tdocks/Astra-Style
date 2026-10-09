@@ -25,14 +25,18 @@
 // Supabase stack), since its remaining logic is wiring that genuinely
 // requires a live Supabase Auth + Postgres to exercise meaningfully.
 //
-// NOTE ON SERVICE-ROLE: this function never constructs a service-role
-// client. See `_shared/supabaseClient.ts`'s header comment for why RLS with
-// the caller's own JWT is sufficient here (a plain `select` against the
-// caller's own `closet_items`, already allowed by
-// `closet_items_select_own` in `20260728100900_rls_policies.sql`).
+// NOTE ON SERVICE-ROLE: user-owned wardrobe reads always use the caller's
+// JWT and RLS. The function uses a service-role client only for the
+// service-only global compatibility weights singleton; see
+// `_shared/supabaseClient.ts` for the narrow scope and rationale.
 // ============================================================================
 
-import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import {
+  createServiceRoleClient,
+  createUserScopedClient,
+  readEdgeEnv,
+} from "../_shared/supabaseClient.ts";
+import { loadCompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import {
@@ -260,6 +264,7 @@ function generateOutfitsRoute(req: Request): Promise<Response> {
     closetRepository: buildClosetRepository(authorizationHeader),
     rateLimiter,
     now: () => new Date(),
+    readCompatibilityWeights: () => loadCompatibilityWeightsConfig(createServiceRoleClient(env)),
   });
 }
 
@@ -272,6 +277,7 @@ function rankOutfitsRoute(req: Request): Promise<Response> {
     closetRepository: buildClosetRepository(authorizationHeader),
     rateLimiter,
     now: () => new Date(),
+    readCompatibilityWeights: () => loadCompatibilityWeightsConfig(createServiceRoleClient(env)),
   });
 }
 
