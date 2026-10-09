@@ -531,3 +531,7 @@ Added verified-owner quota API and native allowance/reset display with refresh/e
 Studio allowance follow-up: Studio v18 is deployed, live guest quota read and unauthenticated denial passed, and the temporary account was removed with zero Auth users remaining. Fifteen selected native tests and strict lint passed. Real Premium entitlement acceptance, updated-screen UI acceptance and TestFlight release remain open.
 
 Allowance screen acceptance: Home inspiration UI flow passed with the count changing from 20 to 19 after generation and edit/reroll regression checks. Build 22 is being archived/uploaded; no TestFlight availability is claimed yet.
+
+## 2026-10-08 — Build 22 upload and Kyra failure handling
+
+TestFlight build 22 archived/exported and uploaded successfully at 20:56:03 local time. Apple processing and Internal availability are not yet verified. It includes the Studio allowance display and monthly-limit paywall fix. Kyra v18 is deployed and rejects failed/cancelled Responses before consuming partial tool output; 137 Kyra tests passed. This does not complete hosted preview, Premium purchase or device acceptance.

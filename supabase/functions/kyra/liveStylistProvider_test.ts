@@ -239,3 +239,22 @@ Deno.test("encrypted reasoning is replayed with its tool call inside the same re
   const peer = captured[2]?.input as Array<Record<string, unknown>>;
   assert(!peer.some((item) => item.type === "reasoning"));
 });
+
+Deno.test("terminal failed and cancelled responses cannot dispatch partial tools", async () => {
+  for (const status of ["failed", "cancelled"]) {
+    const live = provider(() =>
+      Response.json({
+        status,
+        error: { message: "private provider details" },
+        output: [{
+          type: "function_call",
+          call_id: "partial",
+          name: "generate_studio_preview",
+          arguments: "{}",
+        }],
+      }), []);
+    const error = await assertRejects(() => live.complete(request(), CTX), ProviderError);
+    assertEquals(error.code, "PROVIDER_UNAVAILABLE");
+    assert(!error.message.includes("private provider details"));
+  }
+});

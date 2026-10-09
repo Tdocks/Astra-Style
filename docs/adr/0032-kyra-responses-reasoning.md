@@ -33,3 +33,7 @@ without fallback and saved user/assistant messages. Client reads/preparation of
 private approvals returned 403. The disposable user and conversation were removed
 and verified absent. Full hosted multi-tool/preview/concurrency and real-device
 acceptance remain open; one conversation does not establish full Kyra acceptance.
+
+## Terminal provider failures
+
+Responses marked failed or cancelled are now rejected before reading partial output/tool calls, with a bounded generic provider error rather than echoed provider details. Official status contract: https://developers.openai.com/api/reference/resources/responses/methods/create. All 137 Kyra tests passed, including both terminal statuses carrying a partial Studio tool call. Kyra v18 is deployed ACTIVE with JWT verification. This is adapter error-path verification, not a live induced-provider-failure pass.

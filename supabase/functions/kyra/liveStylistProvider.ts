@@ -198,6 +198,15 @@ export class LiveStylistProvider implements StylistReasoningProvider {
 
       const json: unknown = await response.json();
       const root = asRecord(json);
+      if (root?.["status"] === "failed" || root?.["status"] === "cancelled") {
+        // HTTP 200 can still contain a terminal failure. Never use partial
+        // output/tool calls from such a response or echo provider error text.
+        throw new ProviderError(
+          "PROVIDER_UNAVAILABLE",
+          true,
+          "Stylist provider could not complete the response.",
+        );
+      }
       const output = root?.["output"];
       if (!Array.isArray(output)) {
         throw new ProviderError("INVALID_INPUT", false, "Stylist provider returned no output.");
