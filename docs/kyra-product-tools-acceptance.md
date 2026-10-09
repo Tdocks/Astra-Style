@@ -178,3 +178,19 @@ This schema is not deployed. Runtime wiring must persist the record only for an
 actually stored/displayed cost question, bind it to that assistant prompt,
 reject closed/expired pending choices, and use its confirmation ID as the stable
 Studio key across affirmative retries. Those steps remain open.
+
+## Saved assistant prompt binding
+
+The still-unapplied confirmation migration now binds each pending selection to
+a persisted assistant message through a composite message/thread/owner foreign
+key. Its service-only preparation rejects absent, empty or non-assistant prompts.
+Reasking about an unchanged selection preserves its request ID and updates the
+bound prompt and expiry; deleting that prompt cascades its confirmation record.
+The explicit service SELECT grant now includes messages. This storage binding
+does not by itself establish that a message contained the correct cost disclosure:
+the runtime must generate the disclosure, persist it, and then prepare the record.
+
+The complete scratch SQL/RLS suite passed, including latest-prompt binding and
+rejection of a user-message prompt (`/tmp/astra-kyra-prompt-binding-rls.log`).
+The scratch database was dropped. Live deployment, runtime confirmation handling,
+cancellation/expiry enforcement and native job presentation remain open.

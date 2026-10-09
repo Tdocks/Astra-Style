@@ -1,22 +1,28 @@
 begin;
 do $$
-declare u uuid:=gen_random_uuid(); peer uuid:=gen_random_uuid(); t uuid:=gen_random_uuid(); a uuid; b uuid; blocked boolean; n integer;
+declare u uuid:=gen_random_uuid(); peer uuid:=gen_random_uuid(); t uuid:=gen_random_uuid(); m uuid:=gen_random_uuid(); m2 uuid:=gen_random_uuid(); wrong uuid:=gen_random_uuid(); a uuid; b uuid; blocked boolean; n integer;
 begin
   insert into auth.users(id,email) values(u,u||'@confirmation.invalid'),(peer,peer||'@confirmation.invalid');
   insert into public.kyra_threads(id,user_id,title) values(t,u,'Fixture');
+  insert into public.kyra_messages(id,thread_id,user_id,role,content) values(m,t,u,'assistant','Generate this preview? It uses one preview.'),(m2,t,u,'assistant','Generate this preview? It uses one preview.'),(wrong,t,u,'user','yes');
   perform set_config('role','service_role',true);
-  select id into a from public.prepare_kyra_studio_confirmation(u,t,'{"selection":"one"}','one');
-  select id into b from public.prepare_kyra_studio_confirmation(u,t,'{"selection":"one"}','one');
+  select id into a from public.prepare_kyra_studio_confirmation(u,t,m,'{"selection":"one"}','one');
+  select id into b from public.prepare_kyra_studio_confirmation(u,t,m2,'{"selection":"one"}','one');
+  if not exists(select 1 from public.kyra_studio_confirmations where id=b and prompt_message_id=m2) then raise exception 'Latest saved prompt was not bound'; end if;
+  blocked:=false;
+  begin perform public.prepare_kyra_studio_confirmation(u,t,wrong,'{}','invalid');
+  exception when others then if sqlerrm='kyra_prompt_unavailable' then blocked:=true; else raise; end if; end;
+  if not blocked then raise exception 'User message accepted as cost question'; end if;
   if a is null or a<>b then raise exception 'Same pending selection was not reused'; end if;
-  select id into b from public.prepare_kyra_studio_confirmation(u,t,'{"selection":"two"}','two');
+  select id into b from public.prepare_kyra_studio_confirmation(u,t,m,'{"selection":"two"}','two');
   if a=b then raise exception 'Changed selection reused old confirmation'; end if;
   select count(*) into n from public.kyra_studio_confirmations where user_id=u and closed_at is null;
   if n<>1 then raise exception 'Multiple pending confirmations'; end if;
   update public.kyra_studio_confirmations set created_at=now()-interval '1 hour', expires_at=now()-interval '1 second' where id=b;
-  select id into a from public.prepare_kyra_studio_confirmation(u,t,'{"selection":"two"}','two');
+  select id into a from public.prepare_kyra_studio_confirmation(u,t,m,'{"selection":"two"}','two');
   if a=b then raise exception 'Expired confirmation was reused'; end if;
   blocked:=false;
-  begin perform public.prepare_kyra_studio_confirmation(peer,t,'{}','peer');
+  begin perform public.prepare_kyra_studio_confirmation(peer,t,m,'{}','peer');
   exception when others then if sqlerrm='kyra_thread_unavailable' then blocked:=true; else raise; end if; end;
   if not blocked then raise exception 'Peer thread confirmation accepted'; end if;
   perform set_config('role','authenticated',true);
@@ -24,7 +30,7 @@ begin
   select count(*) into n from public.kyra_studio_confirmations;
   if n<>0 then raise exception 'Confirmation records exposed to client'; end if;
   blocked:=false;
-  begin perform public.prepare_kyra_studio_confirmation(u,t,'{}','forged');
+  begin perform public.prepare_kyra_studio_confirmation(u,t,m,'{}','forged');
   exception when insufficient_privilege then blocked:=true; end;
   if not blocked then raise exception 'Client can forge server confirmation'; end if;
 end;
