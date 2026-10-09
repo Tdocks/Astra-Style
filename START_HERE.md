@@ -25,16 +25,18 @@ current brief.
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 25 (2026-10-08)
+## Current internal release — build 26 (2026-10-08)
 
-Version **1.0.0 (25)** is VALID and IN_BETA_TESTING in Internal
-(build ID `3f5ca547-39cd-479a-b833-bcc5e261e2af`), with group membership
-and en-US testing notes verified. Includes scanner PNG metadata corrections,
-guest source/cutout account migration and clearer insight uncertainty wording.
-Newer local-path validation and laundry/wear insight refresh await a subsequent
-native release. Hosted account-link interruption, real-device and full
-accessibility acceptance remain open. Server background-removal fallback is
-not enabled. External review is unsubmitted; the public group still uses build 11.
+Version **1.0.0 (26)** is VALID and IN_BETA_TESTING in Internal
+(build ID `10d90f34-93ed-4818-b2ce-9508fb360010`), with group membership
+and en-US testing notes verified. Includes guest-local path safeguards,
+laundry/wear insight refresh, optional scanner fallback wiring, cutout reuse,
+save/dismissal cleanup guards and offline garment/photo record preservation.
+Closet v20 and the reservation ledger are deployed. Server background-removal
+fallback remains disabled pending provider setup and acceptance. Ambiguous-save
+reconciliation, offline image rendering, hosted account-link interruption,
+real-device and full accessibility acceptance remain open.
+External review is unsubmitted; the public group still uses build 11.
 
 ## Previous internal release — build 24 (2026-10-08)
 
