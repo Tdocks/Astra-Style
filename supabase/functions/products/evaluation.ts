@@ -38,7 +38,11 @@ import {
   DEFAULT_GENERATION_OPTIONS,
   generateAnchoredOutfits,
 } from "../_shared/scoring/outfitGeneration.ts";
-import { computeUnlockCount, type UnlockCountContext } from "../_shared/scoring/unlockCount.ts";
+import {
+  computeUnlockCount,
+  type UnlockCountContext,
+  type UnlockCountResult,
+} from "../_shared/scoring/unlockCount.ts";
 import {
   DUPLICATE_SIMILARITY_THRESHOLD,
   type RedundancyItem,
@@ -100,6 +104,8 @@ export interface EvaluationInputs {
   readonly scoringContext?: ScoringContext;
   readonly occasion?: string;
   readonly compatibilityWeights?: ComponentWeights;
+  /** Supplied by the request-scoped persistent cache; pure callers still compute locally. */
+  readonly unlockCountResult?: UnlockCountResult;
 }
 
 export interface EvaluationResult {
@@ -359,7 +365,7 @@ export function evaluateProductCandidate(inputs: EvaluationInputs): EvaluationRe
 
   const redundancy = redundancyScore(inputs.redundancyCandidate, inputs.redundancyCloset);
 
-  const unlock = computeUnlockCount(
+  const unlock = inputs.unlockCountResult ?? computeUnlockCount(
     inputs.candidate,
     inputs.closet,
     {

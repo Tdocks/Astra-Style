@@ -5,19 +5,13 @@
  * §6.2's pruned generation and §6.3's dedup are `outfitGeneration.ts`, shared
  * with `wardrobeScore.ts`. This file adds what is specific to a purchase
  * decision: §6.4's novelty check (does an owned item already cover this),
- * gap-filling, and §6.5's cache-key derivation.
+ * gap-filling, and the complete result consumed by §6.5's cache layer.
  *
  * ─────────────────────────────────────────────────────────────────────────
  * WHAT THIS FILE DOES NOT DO, AND WHY THAT IS THE ENDPOINT'S JOB.
  *
- * §6.5 describes a cache — a key, a TTL, invalidation triggers. This file
- * exposes exactly the key derivation (`unlockCountCacheKey`), a pure
- * function of already-known version numbers. It does not read or write
- * anything: `closetStateVersion` is a counter the endpoint maintains (bumped
- * by a DB trigger on the columns §6.5 lists), and storing/looking up a value
- * under this key is a database concern this package has no access to. Baking
- * a cache INTO a pure function would also make it untestable offline, which
- * is the one property every file in this package exists to keep.
+ * §6.5's persistent storage and SHA-256 identity live in `unlockCountCache.ts`
+ * and the authenticated endpoint. This module remains the deterministic scorer.
  *
  * §6.6's 500ms/800ms compute budget is a wall-clock concern, and this
  * package's rule is no clock (`types.ts`'s header; `wardrobeScore.ts` takes
@@ -37,7 +31,7 @@ import {
   type PrunedGenerationOptions,
 } from "./outfitGeneration.ts";
 import { outfitFormality } from "./subscores/formality.ts";
-import type { Pattern, ScorableItem, ScoringContext } from "./types.ts";
+import type { ScorableItem, ScoringContext } from "./types.ts";
 
 export interface UnlockCountContext {
   readonly scoringContext?: ScoringContext;
@@ -231,76 +225,3 @@ export function computeUnlockCount(
 }
 
 // ── §6.5 cache key ──────────────────────────────────────────────────────────
-
-function fnv1a(input: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
-
-function hashHex(input: string): string {
-  const a = fnv1a(input);
-  const b = fnv1a(`${input}${a}`);
-  return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
-}
-
-/** The normalized attributes §6.5 hashes — deliberately NOT the candidate's product id, so colour-variant SKUs share a cache entry. */
-export interface CandidateAttributes {
-  readonly category: string;
-  readonly primaryColorName: string | null;
-  readonly formalityScore: number | null;
-  readonly fit: string | null;
-  readonly pattern: Pattern | null;
-}
-
-export function candidateAttributesFrom(
-  item: ScorableItem,
-  colorName: string | null,
-): CandidateAttributes {
-  return {
-    category: item.category,
-    primaryColorName: colorName,
-    formalityScore: item.formalityScore,
-    fit: item.fit,
-    pattern: item.pattern,
-  };
-}
-
-function candidateAttributesHash(attrs: CandidateAttributes): string {
-  const key = [
-    attrs.category,
-    attrs.primaryColorName ?? "unknown-color",
-    attrs.formalityScore ?? "unknown-formality",
-    attrs.fit ?? "unknown-fit",
-    attrs.pattern ?? "unknown-pattern",
-  ].join("|");
-  return hashHex(key);
-}
-
-export interface UnlockCacheKeyInput {
-  readonly userId: string;
-  readonly candidateAttributes: CandidateAttributes;
-  /** Bumped by the endpoint's trigger on closet-item add/archive/delete/edit — see §6.5. NOT bumped on laundry_state/availability_state. */
-  readonly closetStateVersion: number;
-  /** Bumped globally when admin-configured compatibility weights change. */
-  readonly compatibilityWeightsVersion: number;
-}
-
-/**
- * §6.5's `cacheKey = hash(user_id, candidateAttributesHash, closetStateVersion,
- * compatibilityWeightsVersion)`, verbatim — the pure part of caching. Storing
- * a value under this key, and maintaining `closetStateVersion` itself, are
- * the endpoint's job (see this file's header).
- */
-export function unlockCountCacheKey(input: UnlockCacheKeyInput): string {
-  const parts = [
-    input.userId,
-    candidateAttributesHash(input.candidateAttributes),
-    String(input.closetStateVersion),
-    String(input.compatibilityWeightsVersion),
-  ];
-  return hashHex(parts.join("::"));
-}

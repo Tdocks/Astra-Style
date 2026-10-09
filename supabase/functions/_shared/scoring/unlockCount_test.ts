@@ -1,5 +1,5 @@
-import { assert, assertEquals, assertNotEquals } from "jsr:@std/assert@1";
-import { candidateAttributesFrom, computeUnlockCount, unlockCountCacheKey } from "./unlockCount.ts";
+import { assert, assertEquals } from "jsr:@std/assert@1";
+import { computeUnlockCount } from "./unlockCount.ts";
 import { classifyNeutral, rgbToLCh } from "./colorSpace.ts";
 import type { Fit, GarmentRole, ScorableItem } from "./types.ts";
 
@@ -165,90 +165,6 @@ Deno.test("Test 27 (§9), negative case: a bucket already at >=2 qualifying comb
   const gap = result.gapsFilled[0]!;
   assertEquals(gap.qualifyingBefore >= 2, true);
   assertEquals(gap.fillsGap, false);
-});
-
-// ── §6.5 cache key ───────────────────────────────────────────────────────────
-
-Deno.test("Test 28 (§9): the cache key changes when closetStateVersion bumps", () => {
-  const attrs = candidateAttributesFrom(TOP, "white");
-  const a = unlockCountCacheKey({
-    userId: "u1",
-    candidateAttributes: attrs,
-    closetStateVersion: 1,
-    compatibilityWeightsVersion: 1,
-  });
-  const b = unlockCountCacheKey({
-    userId: "u1",
-    candidateAttributes: attrs,
-    closetStateVersion: 2,
-    compatibilityWeightsVersion: 1,
-  });
-  assertNotEquals(a, b);
-});
-
-Deno.test("Test 28 (§9): the cache key is unaffected by laundry_state — it is simply not part of the normalized attributes", () => {
-  // §6.5: laundry/availability must NOT invalidate an unlock-count cache
-  // entry (it answers a hypothetical-ownership question, not "what can I
-  // wear today"). That guarantee holds here because `candidateAttributesFrom`
-  // never reads `laundryState`/`availabilityState` in the first place —
-  // changing them on the same item produces the identical attribute set.
-  const clean = { ...TOP, laundryState: "clean" as const };
-  const dirty = { ...TOP, laundryState: "laundry" as const };
-  const attrsClean = candidateAttributesFrom(clean, "white");
-  const attrsDirty = candidateAttributesFrom(dirty, "white");
-  assertEquals(attrsClean, attrsDirty);
-
-  const keyClean = unlockCountCacheKey({
-    userId: "u1",
-    candidateAttributes: attrsClean,
-    closetStateVersion: 5,
-    compatibilityWeightsVersion: 1,
-  });
-  const keyDirty = unlockCountCacheKey({
-    userId: "u1",
-    candidateAttributes: attrsDirty,
-    closetStateVersion: 5,
-    compatibilityWeightsVersion: 1,
-  });
-  assertEquals(keyClean, keyDirty);
-});
-
-Deno.test("The cache key is deterministic for identical inputs and differs for a different user", () => {
-  const attrs = candidateAttributesFrom(TOP, "white");
-  const input = {
-    candidateAttributes: attrs,
-    closetStateVersion: 3,
-    compatibilityWeightsVersion: 2,
-  };
-  const key1 = unlockCountCacheKey({ userId: "user-a", ...input });
-  const key2 = unlockCountCacheKey({ userId: "user-a", ...input });
-  const key3 = unlockCountCacheKey({ userId: "user-b", ...input });
-  assertEquals(key1, key2);
-  assertNotEquals(key1, key3);
-});
-
-Deno.test("Two colour-variant SKUs with identical normalized attributes share a cache key (candidateAttributesHash is not the product id)", () => {
-  const variantA = candidateAttributesFrom(
-    garment("sku-red", "top", { colorHex: "223344" }),
-    "navy",
-  );
-  const variantB = candidateAttributesFrom(
-    garment("sku-blue", "top", { colorHex: "223344" }),
-    "navy",
-  );
-  const keyA = unlockCountCacheKey({
-    userId: "u",
-    candidateAttributes: variantA,
-    closetStateVersion: 1,
-    compatibilityWeightsVersion: 1,
-  });
-  const keyB = unlockCountCacheKey({
-    userId: "u",
-    candidateAttributes: variantB,
-    closetStateVersion: 1,
-    compatibilityWeightsVersion: 1,
-  });
-  assertEquals(keyA, keyB);
 });
 
 Deno.test("women's graph: a dress candidate unlocks against shoes without a top", () => {

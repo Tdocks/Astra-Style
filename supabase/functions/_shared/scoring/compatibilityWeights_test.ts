@@ -90,7 +90,7 @@ Deno.test("loader reads only the singleton service configuration and safely degr
           return {
             eq(column: string, value: boolean) {
               calls.push([column, value]);
-              return { maybeSingle: async () => ({ data: validRow(), error: null }) };
+              return { maybeSingle: () => Promise.resolve({ data: validRow(), error: null }) };
             },
           };
         },
@@ -106,7 +106,7 @@ Deno.test("loader reads only the singleton service configuration and safely degr
         select() {
           return {
             eq() {
-              return { maybeSingle: async () => ({ data: null, error: {} }) };
+              return { maybeSingle: () => Promise.resolve({ data: null, error: {} }) };
             },
           };
         },

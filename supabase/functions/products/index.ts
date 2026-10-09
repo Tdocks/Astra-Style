@@ -36,6 +36,8 @@ import {
 } from "../_shared/supabaseClient.ts";
 import { hasActivePremiumSubscription } from "../_shared/premium.ts";
 import { loadCompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
+import { isUnlockCountResult } from "../_shared/scoring/unlockCountCache.ts";
+import type { UnlockCountResult } from "../_shared/scoring/unlockCount.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { authenticateRequest } from "../_shared/jwt.ts";
@@ -121,6 +123,59 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
     requestID,
     readCompatibilityWeights: () => loadCompatibilityWeightsConfig(catalogWriter),
 
+    async readClosetStateVersion(userID) {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("closet_state_version")
+          .eq("id", userID)
+          .maybeSingle();
+        if (error) return null; // Cache is optional; the scorer can still use the caller's closet.
+        const version = (data as { closet_state_version?: unknown } | null)?.closet_state_version;
+        return typeof version === "number" && Number.isSafeInteger(version) && version > 0
+          ? version
+          : null;
+      } catch {
+        return null;
+      }
+    },
+
+    async readUnlockCountCache(userID, key) {
+      const { data, error } = await catalogWriter
+        .from("outfit_unlock_count_cache")
+        .select("result, expires_at")
+        .eq("user_id", userID)
+        .eq("cache_key", key)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (error) return null;
+      const row = data as { result?: unknown } | null;
+      return row && isUnlockCountResult(row.result) ? row.result : null;
+    },
+
+    async writeUnlockCountCache(row: {
+      readonly user_id: string;
+      readonly cache_key: string;
+      readonly closet_state_version: number;
+      readonly weights_version: number;
+      readonly result: UnlockCountResult;
+    }) {
+      const { error } = await catalogWriter
+        .from("outfit_unlock_count_cache")
+        .upsert({
+          ...row,
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        }, { onConflict: "user_id,cache_key" });
+      if (error) return; // Scoring succeeds even when the optional cache is unavailable.
+      // Opportunistic bounded cleanup. Old rows are never part of lookup and
+      // are removed in small service-role-only batches.
+      try {
+        await catalogWriter.rpc("purge_expired_outfit_unlock_count_cache", { p_limit: 100 });
+      } catch {
+        // Retention cleanup must not invalidate a successful cache write or score.
+      }
+    },
+
     async upsertCandidate(row) {
       // Service role: authenticated cannot write this table. Omit `sponsored`
       // so a paste cannot set or clear an admin/affiliate flag.
@@ -154,7 +209,8 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
       const { data, error } = await supabase
         .from("closet_items")
         .select(SCORABLE_COLUMNS)
-        .is("archived_at", null);
+        .is("archived_at", null)
+        .order("id", { ascending: true });
       if (error) throw serverError("Couldn't load your closet.");
 
       const rows = (data ?? []) as unknown as ClosetItemMapperRow[];

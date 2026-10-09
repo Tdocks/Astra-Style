@@ -48,3 +48,4 @@ grant select(id,user_id,generation_id,kind,status,attempts,error_message,created
 
 revoke all on public.studio_quota_config from anon,authenticated;
 revoke all on public.compatibility_weights_config from anon,authenticated;
+revoke all on public.outfit_unlock_count_cache from anon,authenticated;

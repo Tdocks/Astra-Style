@@ -49,9 +49,13 @@ import type {
 } from "./schema.ts";
 import { parseEvaluateProductBody, parseExtractProductBody } from "./schema.ts";
 import { assertSafeExternalUrl } from "./urlValidation.ts";
-import type { ScorableItem } from "../_shared/scoring/types.ts";
+import type { ScorableItem, ScoringContext } from "../_shared/scoring/types.ts";
 import type { RedundancyItem } from "../_shared/scoring/redundancy.ts";
-import { computeUnlockCount } from "../_shared/scoring/unlockCount.ts";
+import { computeUnlockCount, type UnlockCountResult } from "../_shared/scoring/unlockCount.ts";
+import {
+  asHypotheticalOwnership,
+  unlockCountCacheKey,
+} from "../_shared/scoring/unlockCountCache.ts";
 import { type ComponentWeights, DEFAULT_WEIGHTS } from "../_shared/scoring/compatibility.ts";
 import type { CompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
 
@@ -78,6 +82,26 @@ export interface ProductsDependencies {
   readonly fetchCandidate: (id: string) => Promise<ProductCandidateRow | null>;
   /** The caller's wearable closet, already mapped. */
   readonly fetchCloset: (userID: string) => Promise<readonly OwnedGarment[]>;
+  /** DB-triggered counter read before the closet snapshot; absent in pure handler fixtures. */
+  readonly readClosetStateVersion?: (userID: string) => Promise<number | null>;
+  /** Service-role cache access. Identity is always derived from the authenticated userID here. */
+  readonly readUnlockCountCache?: (
+    userID: string,
+    key: string,
+  ) => Promise<UnlockCountResult | null>;
+  readonly writeUnlockCountCache?: (row: {
+    readonly user_id: string;
+    readonly cache_key: string;
+    readonly closet_state_version: number;
+    readonly weights_version: number;
+    readonly result: UnlockCountResult;
+  }) => Promise<void>;
+  /** Injectable seam for proving persistent hits skip anchored generation. */
+  readonly computeUnlockCount?: (
+    candidate: ScorableItem,
+    closet: readonly ScorableItem[],
+    options: { readonly scoringContext: ScoringContext; readonly weights: ComponentWeights },
+  ) => UnlockCountResult;
   readonly fetchLifestyle: (userID: string) => Promise<LifestyleInputs>;
   readonly fetchWardrobeGraph?: (userID: string) => Promise<"menswear_3_role" | "womenswear">;
   /** Other catalog rows in the same category, for §5.5's alternatives. */
@@ -188,6 +212,10 @@ export async function handleEvaluateProduct(
     );
   }
 
+  // Capture the version before reading the closet. If it changes before the
+  // cache write, the computed value is returned for this request but never
+  // published under the newer version.
+  const closetStateVersion = await safeReadClosetStateVersion(deps, userID);
   const [closet, lifestyle, wardrobeGraph] = await Promise.all([
     deps.fetchCloset(userID),
     deps.fetchLifestyle(userID),
@@ -198,6 +226,17 @@ export async function handleEvaluateProduct(
     version: 1,
   };
 
+  const unlockCount = await cachedUnlockCount({
+    userID,
+    candidate: mapped.item,
+    closet: closet.map((garment) => garment.scorable),
+    scoringContext: { wardrobeGraph },
+    weights: weightConfig.weights,
+    closetStateVersion,
+    weightsVersion: weightConfig.version,
+    deps,
+  });
+
   const evaluation = evaluateProductCandidate({
     candidate: mapped.item,
     closet: closet.map((g) => g.scorable),
@@ -207,6 +246,7 @@ export async function handleEvaluateProduct(
     lifestyle,
     scoringContext: { wardrobeGraph },
     compatibilityWeights: weightConfig.weights,
+    unlockCountResult: unlockCount,
   });
 
   const persisted = await deps.persistEvaluation({
@@ -244,7 +284,11 @@ export async function handleEvaluateProduct(
     // Read here, after the verdict exists, and used only as a label.
     sponsored: row.sponsored,
     unmeasured: [...new Set(evaluation.degraded)],
-    alternatives: await buildAlternatives(row, closet, deps, weightConfig.weights),
+    alternatives: await buildAlternatives(row, closet, deps, weightConfig, {
+      userID,
+      wardrobeGraph,
+      closetStateVersion,
+    }),
   };
 }
 
@@ -264,7 +308,12 @@ async function buildAlternatives(
   primary: ProductCandidateRow,
   closet: readonly OwnedGarment[],
   deps: ProductsDependencies,
-  compatibilityWeights: ComponentWeights = DEFAULT_WEIGHTS,
+  weightConfig: CompatibilityWeightsConfig,
+  snapshot: {
+    readonly userID: string;
+    readonly wardrobeGraph: "menswear_3_role" | "womenswear";
+    readonly closetStateVersion: number | null;
+  },
 ): Promise<readonly AlternativeProductDTO[]> {
   let rows: readonly ProductCandidateRow[];
   try {
@@ -274,9 +323,19 @@ async function buildAlternatives(
   }
   if (rows.length === 0) return [];
 
-  const scored = rows.flatMap((candidate) => {
+  const scored = (await Promise.all(rows.map(async (candidate) => {
     const mapped = mapProductCandidateRowToEvaluationInput(candidate);
-    if (mapped.item === null || mapped.redundancyItem === null) return [];
+    if (mapped.item === null || mapped.redundancyItem === null) return null;
+    const unlockCount = await cachedUnlockCount({
+      userID: snapshot.userID,
+      candidate: mapped.item,
+      closet: closet.map((g) => g.scorable),
+      scoringContext: { wardrobeGraph: snapshot.wardrobeGraph },
+      weights: weightConfig.weights,
+      closetStateVersion: snapshot.closetStateVersion,
+      weightsVersion: weightConfig.version,
+      deps,
+    });
     const evaluation = evaluateProductCandidate({
       candidate: mapped.item,
       closet: closet.map((g) => g.scorable),
@@ -284,14 +343,16 @@ async function buildAlternatives(
       redundancyCandidate: mapped.redundancyItem,
       redundancyCloset: closet.map((g) => g.redundancy),
       lifestyle: { monthlyBudget: null, dressCode: null },
-      compatibilityWeights,
+      scoringContext: { wardrobeGraph: snapshot.wardrobeGraph },
+      compatibilityWeights: weightConfig.weights,
+      unlockCountResult: unlockCount,
     });
-    return [{
+    return {
       row: candidate,
       organicScore: evaluation.compatibilityScore,
       sponsored: candidate.sponsored,
-    }];
-  });
+    };
+  }))).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
   const ranked = rankProductCandidates(
     scored.map((s) => ({
@@ -331,6 +392,7 @@ export async function handleListUnlocks(
     ? await deps.fetchCatalogCandidates(UNLOCKS_SCAN_CAP)
     : [];
   const rows = mergeUnlockCandidates(evaluated, catalog).slice(0, UNLOCKS_SCAN_CAP);
+  const closetStateVersion = await safeReadClosetStateVersion(deps, userID);
   const closet = await deps.fetchCloset(userID);
   const wardrobeGraph = await deps.fetchWardrobeGraph?.(userID) ?? "menswear_3_role";
   const weightConfig = await deps.readCompatibilityWeights?.() ?? {
@@ -349,9 +411,15 @@ export async function handleListUnlocks(
     try {
       const mapped = mapProductCandidateRowToEvaluationInput(row);
       if (mapped.item === null) continue;
-      const unlock = computeUnlockCount(mapped.item, scorableCloset, {
+      const unlock = await cachedUnlockCount({
+        userID,
+        candidate: mapped.item,
+        closet: scorableCloset,
         scoringContext: { wardrobeGraph },
         weights: weightConfig.weights,
+        closetStateVersion,
+        weightsVersion: weightConfig.version,
+        deps,
       });
       if (unlock.unlockCount <= 0) continue;
       scored.push({
@@ -382,6 +450,87 @@ export async function handleListUnlocks(
       }];
     }).slice(0, UNLOCKS_CANDIDATE_CAP),
   };
+}
+
+async function cachedUnlockCount(input: {
+  readonly userID: string;
+  readonly candidate: ScorableItem;
+  readonly closet: readonly ScorableItem[];
+  readonly scoringContext: ScoringContext;
+  readonly weights: ComponentWeights;
+  readonly closetStateVersion: number | null;
+  readonly weightsVersion: number;
+  readonly deps: ProductsDependencies;
+}): Promise<UnlockCountResult> {
+  const { deps, userID, candidate, closet, scoringContext, weights } = input;
+  const hypotheticalCandidate = asHypotheticalOwnership(candidate);
+  const hypotheticalCloset = closet.map(asHypotheticalOwnership);
+  const compute = deps.computeUnlockCount ?? computeUnlockCount;
+  const canCache = input.closetStateVersion !== null &&
+    deps.readClosetStateVersion !== undefined &&
+    deps.readUnlockCountCache !== undefined &&
+    deps.writeUnlockCountCache !== undefined;
+  if (!canCache) {
+    return compute(hypotheticalCandidate, hypotheticalCloset, { scoringContext, weights });
+  }
+
+  let key: string;
+  try {
+    key = await unlockCountCacheKey({
+      userId: userID,
+      candidate,
+      closetStateVersion: input.closetStateVersion!,
+      compatibilityWeightsVersion: input.weightsVersion,
+      scoringContext,
+      weights,
+    });
+  } catch {
+    return compute(hypotheticalCandidate, hypotheticalCloset, { scoringContext, weights });
+  }
+  const versionBeforeLookup = await safeReadClosetStateVersion(deps, userID);
+  if (versionBeforeLookup === input.closetStateVersion) {
+    try {
+      const cached = await deps.readUnlockCountCache!(userID, key);
+      if (cached !== null) return cached;
+    } catch {
+      // A cache transport failure is a miss, never a recommendation failure.
+    }
+  }
+
+  const result = compute(hypotheticalCandidate, hypotheticalCloset, { scoringContext, weights });
+  // A closet mutation during the DB read or scoring must not make an old
+  // snapshot appear current. A later request can calculate against the new
+  // version; this request simply skips persistence.
+  const versionAfterCompute = await safeReadClosetStateVersion(deps, userID);
+  if (
+    versionBeforeLookup === input.closetStateVersion &&
+    versionAfterCompute === input.closetStateVersion
+  ) {
+    try {
+      await deps.writeUnlockCountCache!({
+        user_id: userID,
+        cache_key: key,
+        closet_state_version: input.closetStateVersion!,
+        weights_version: input.weightsVersion,
+        result,
+      });
+    } catch {
+      // Cache persistence is an optimization; do not fail a computed result.
+    }
+  }
+  return result;
+}
+
+async function safeReadClosetStateVersion(
+  deps: ProductsDependencies,
+  userID: string,
+): Promise<number | null> {
+  if (!deps.readClosetStateVersion) return null;
+  try {
+    return await deps.readClosetStateVersion(userID);
+  } catch {
+    return null;
+  }
 }
 
 function mergeUnlockCandidates(

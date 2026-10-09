@@ -437,9 +437,9 @@ Deno.test("rank: authenticated server configuration reaches the shared scorer", 
   } as const;
   let reads = 0;
   const deps = buildDeps({
-    readCompatibilityWeights: async () => {
+    readCompatibilityWeights: () => {
       reads++;
-      return { weights, version: 9 };
+      return Promise.resolve({ weights, version: 9 });
     },
   });
   const req = requestFor(
