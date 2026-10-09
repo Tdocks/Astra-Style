@@ -37,6 +37,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
         await isAnonymous() ? GuestLimits.maxClosetItems : FreeTierLimits.maxClosetItems
     }
 
+    public func removeBackground(storagePath: String) async throws -> String? {
+        try await base.removeBackground(storagePath: storagePath)
+    }
+
     public func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {
         try await base.fetchItemInsights(id: id)
     }

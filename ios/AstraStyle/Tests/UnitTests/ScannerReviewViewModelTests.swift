@@ -405,6 +405,9 @@ private func waitUntilReady(_ model: ScannerReviewViewModel) async throws {
 }
 
 private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
+    var fallbackCount = 0
+    var fallbackPath: String?
+    var fallbackError: AstraError?
     var uploadCount = 0
     var analyzeCount = 0
     var uploadError: AstraError?
@@ -423,6 +426,12 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     private(set) var liveStoragePaths: Set<String> = []
     private(set) var deletedPaths: [String] = []
     var deleteError: AstraError?
+
+    func removeBackground(storagePath: String) async throws -> String? {
+        fallbackCount += 1
+        if let fallbackError { throw fallbackError }
+        return fallbackPath
+    }
 
     func fetchItems() async throws -> [ClosetItem] {
         var items = seedItems
@@ -626,5 +635,64 @@ struct CapturedImageUploadFormatTests {
         #expect(throws: AstraError.self) {
             try CapturedImageUploadFormat.detect(Data([1, 2, 3]))
         }
+    }
+}
+
+@Suite("Scanner fallback path contract")
+struct ClosetCutoutPathTests {
+    @Test("Fallback endpoint requires authentication and stable idempotency")
+    func endpointContract() {
+        #expect(AstraEndpoint.removeClosetBackground.path == "closet/remove-background")
+        #expect(AstraEndpoint.removeClosetBackground.method == .post)
+        #expect(AstraEndpoint.removeClosetBackground.requiresAuthentication)
+        #expect(AstraEndpoint.removeClosetBackground.requiresIdempotencyKey)
+    }
+    @Test("Fallback accepts only a canonical owned source and deterministic output")
+    func ownedPath() throws {
+        let owner = UUID()
+        let source = "users/\(owner.uuidString.lowercased())/closet/\(UUID().uuidString.lowercased()).jpg"
+        #expect(try ClosetCutoutPath.expectedOutput(source: source, owner: owner) == String(source.dropLast(4)) + "-cutout.png")
+        for path in [source + "/../other.jpg", source.replacingOccurrences(of: ".jpg", with: ".png"),
+                     source.replacingOccurrences(of: owner.uuidString.lowercased(), with: UUID().uuidString.lowercased())] {
+            #expect(throws: AstraError.self) { try ClosetCutoutPath.expectedOutput(source: path, owner: owner) }
+        }
+    }
+}
+
+@Suite("Scanner fallback invocation")
+@MainActor
+struct ScannerFallbackInvocationTests {
+    @Test("Server fallback is used only for missing device cutouts and skips guest paths")
+    func serverFallbackGating() async {
+        let repository = ReviewMockClosetRepository()
+        repository.fallbackPath = "users/test/closet/fixture-cutout.png"
+        let model = makeModel(repository: repository)
+        model.storagePath = "users/test/closet/fixture.jpg"
+        let path = await model.persistCutoutOrFallback(nil)
+        #expect(path == repository.fallbackPath)
+        #expect(repository.fallbackCount == 1)
+        model.storagePath = "guest-local/fixture.jpg"
+        #expect(await model.persistCutoutOrFallback(nil) == nil)
+        #expect(repository.fallbackCount == 1)
+    }
+
+    @Test("Usable device cutout upload failure does not invoke paid fallback")
+    func deviceUploadFailureDoesNotProcessAgain() async {
+        let repository = ReviewMockClosetRepository()
+        repository.uploadError = .network("fixture upload failure")
+        let model = makeModel(repository: repository)
+        model.storagePath = "users/test/closet/fixture.jpg"
+        #expect(await model.persistCutoutOrFallback(Data([1])) == nil)
+        #expect(repository.uploadCount == 1)
+        #expect(repository.fallbackCount == 0)
+    }
+
+    private func makeModel(repository: ClosetRepository) -> ScannerReviewViewModel {
+        let owner = UUID()
+        return ScannerReviewViewModel(draftID: UUID(), dependencies: .init(
+            draftStore: CaptureDraftStore(), closetRepository: repository,
+            imageURLResolver: ReviewMockURLResolver(), pendingScanQueue: InMemoryPendingScanQueue(),
+            networkMonitor: StaticNetworkReachabilityMonitor(offline: false), currentUserID: { owner }
+        ))
     }
 }

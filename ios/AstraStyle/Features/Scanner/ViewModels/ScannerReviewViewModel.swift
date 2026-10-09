@@ -237,11 +237,8 @@ public final class ScannerReviewViewModel {
             closetItemID: itemID,
             imageType: .front,
             storagePath: storagePath,
-            // Device cut-out first, provider's second. `normalizedImagePath`
-            // is `VisionAnalysisProvider.removeBackground`'s output and is
-            // still always nil — that adapter is the documented FALLBACK for
-            // images the on-device pass cannot handle, so it is the fallback
-            // here too rather than the other way round.
+            // Prefer device segmentation, then the reserved server fallback.
+            // The original capture stays usable when optional processing fails.
             backgroundRemovedPath: await uploadedCutoutPath() ?? analysis?.normalizedImagePath,
             isPrimary: true
         )
@@ -307,8 +304,16 @@ public final class ScannerReviewViewModel {
         let cutout = await Task.detached(priority: .userInitiated) {
             BackgroundRemoval.cutout(from: data)
         }.value
-        guard let cutout else { return nil }
-        return try? await closetRepository.uploadCapturedImage(cutout)
+        return await persistCutoutOrFallback(cutout)
+    }
+
+    func persistCutoutOrFallback(_ cutout: Data?) async -> String? {
+        if let cutout {
+            // A failed upload of a usable device cutout is not a segmentation failure.
+            return try? await closetRepository.uploadCapturedImage(cutout)
+        }
+        guard let storagePath, !GuestLocalImageStore.isLocal(storagePath) else { return nil }
+        return try? await closetRepository.removeBackground(storagePath: storagePath)
     }
 
     /// Removes the uploaded capture when the user leaves without saving.

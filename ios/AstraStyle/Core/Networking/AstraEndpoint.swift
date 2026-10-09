@@ -15,6 +15,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     case exportPersonalData
     case deleteReferencePhoto
     case generateStyleDNA
+    case removeClosetBackground
     case analyzeClosetItem
     case fetchWardrobeScore
     case fetchItemInsights(id: UUID)
@@ -63,6 +64,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .exportPersonalData: "profile/export-data"
         case .deleteReferencePhoto: "profile/reference-photos"
         case .generateStyleDNA: "style-dna/generate"
+        case .removeClosetBackground: "closet/remove-background"
         case .analyzeClosetItem: "closet/analyze-item"
         case .fetchWardrobeScore: "closet/wardrobe-score"
         case .fetchItemInsights(let id): "closet/items/\(id.uuidString.lowercased())/insights"
@@ -99,7 +101,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// mobile retry cannot double-charge (docs/08 §0.1, HANDOFF §9.2).
     public var requiresIdempotencyKey: Bool {
         switch self {
-        case .analyzeClosetItem, .batchAnalyzeCloset, .generateStudio:
+        case .removeClosetBackground, .analyzeClosetItem, .batchAnalyzeCloset, .generateStudio:
             true
         default:
             false
@@ -111,7 +113,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// endpoints without that guarantee stay on the conservative default.
     public var retryPolicy: AstraRetryPolicy {
         switch self {
-        case .analyzeClosetItem:
+        case .removeClosetBackground, .analyzeClosetItem:
             // Same attempt budget as `.default`, but named so a future
             // tightening of the vision budget is a one-line change here
             // rather than a silent share with unrelated endpoints.

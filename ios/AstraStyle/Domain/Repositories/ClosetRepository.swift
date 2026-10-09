@@ -14,6 +14,7 @@
 import Foundation
 
 public protocol ClosetRepository: Sendable {
+    func removeBackground(storagePath: String) async throws -> String?
     func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights
     func fetchItems() async throws -> [ClosetItem]
     func fetchItem(id: UUID) async throws -> ClosetItem
@@ -193,6 +194,8 @@ public struct WardrobeScoreSnapshot: Hashable, Sendable {
 }
 
 public extension ClosetRepository {
+    func removeBackground(storagePath: String) async throws -> String? { nil }
+
     func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {
         throw AstraError.server("Item insights are unavailable. Try again later.")
     }

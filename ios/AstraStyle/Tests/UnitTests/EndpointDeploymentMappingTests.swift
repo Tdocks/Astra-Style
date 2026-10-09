@@ -62,6 +62,7 @@ struct EndpointDeploymentMappingTests {
         .exportPersonalData,
         .deleteReferencePhoto,
         .generateStyleDNA,
+        .removeClosetBackground,
         .analyzeClosetItem,
         .fetchWardrobeScore,
         .fetchItemInsights(id: UUID()),
@@ -91,7 +92,7 @@ struct EndpointDeploymentMappingTests {
     /// gains a case (the new case makes this switch non-exhaustive).
     private static func assertCovered(_ endpoint: AstraEndpoint) {
         switch endpoint {
-        case .completeOnboarding, .exportPersonalData, .deleteReferencePhoto, .generateStyleDNA, .analyzeClosetItem, .fetchWardrobeScore, .fetchItemInsights,
+        case .completeOnboarding, .exportPersonalData, .deleteReferencePhoto, .generateStyleDNA, .removeClosetBackground, .analyzeClosetItem, .fetchWardrobeScore, .fetchItemInsights,
              .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
              .evaluateProduct, .listProductUnlocks, .studioQuota, .generateStudio, .studioStatus, .deleteStudioGeneration,
