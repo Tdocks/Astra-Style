@@ -55,6 +55,9 @@ public struct OfflineMutation: Identifiable, Codable, Hashable, Sendable {
         /// same insert-with-a-client-minted-id shape, same reasoning for
         /// why no conflict-resolution pass is needed.
         case styleFeedback
+        /// A tagged Profile/StyleProfile/BodyProfile/LifestyleProfile snapshot.
+        /// The owner and table kind are part of its encoded payload.
+        case profile
     }
 
     public enum Operation: String, Codable, Sendable {

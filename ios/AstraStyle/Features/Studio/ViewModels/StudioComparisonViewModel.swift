@@ -27,7 +27,7 @@ final class StudioComparisonViewModel {
     func load() async {
         revision += 1
         let request = revision
-        guard (1...2).contains(generationIDs.count), Set(generationIDs).count == generationIDs.count else {
+        guard hasValidSelection else {
             state = .failed("Choose one or two different completed previews to compare.")
             return
         }
@@ -38,23 +38,18 @@ final class StudioComparisonViewModel {
             var generations: [StudioGeneration] = []
             for id in generationIDs {
                 let generation = try await repository.fetchGeneration(id: id)
-                guard !generation.isDeleted, generation.status == .complete, generation.resultImagePath != nil else {
-                    throw AstraError.validation("One of these previews is unavailable. Choose completed previews from Style Studio.")
+                guard !generation.isDeleted,
+                      generation.status == .complete,
+                      generation.resultImagePath != nil else {
+                    throw AstraError.validation(
+                        "One of these previews is unavailable. Choose completed previews from Style Studio."
+                    )
                 }
                 generations.append(generation)
             }
             guard request == revision else { return }
-            let paths = Set(generations.flatMap { generation in
-                [generation.resultImagePath, generation.referenceImagePath.isEmpty ? nil : generation.referenceImagePath].compactMap { $0 }
-            })
-            var resolved: [String: URL] = [:]
-            var failedToResolve = false
-            for path in paths {
-                try Task.checkCancellation()
-                do { resolved[path] = try await resolver.resolve(storagePath: path) }
-                catch is CancellationError { throw CancellationError() }
-                catch { failedToResolve = true }
-            }
+            let paths = Set(generations.flatMap { imagePaths(for: $0) })
+            let (resolved, failedToResolve) = try await resolveImages(paths)
             guard request == revision else { return }
             imageError = failedToResolve ? "Some images couldn't load. Pull to refresh to try again." : nil
             imageURLs = resolved
@@ -65,5 +60,30 @@ final class StudioComparisonViewModel {
             guard request == revision else { return }
             state = .failed((error as? AstraError)?.message ?? "Couldn't load these previews. Try again.")
         }
+    }
+
+    private var hasValidSelection: Bool {
+        (1...2).contains(generationIDs.count) && Set(generationIDs).count == generationIDs.count
+    }
+
+    private func imagePaths(for generation: StudioGeneration) -> [String] {
+        [generation.resultImagePath, generation.referenceImagePath.isEmpty ? nil : generation.referenceImagePath]
+            .compactMap { $0 }
+    }
+
+    private func resolveImages(_ paths: Set<String>) async throws -> ([String: URL], Bool) {
+        var resolved: [String: URL] = [:]
+        var failedToResolve = false
+        for path in paths {
+            try Task.checkCancellation()
+            do {
+                resolved[path] = try await resolver.resolve(storagePath: path)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                failedToResolve = true
+            }
+        }
+        return (resolved, failedToResolve)
     }
 }

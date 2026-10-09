@@ -47,6 +47,7 @@ public struct HomeView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            AstraPerformanceSignposts.beginHomeRender()
             await viewModel.onAppear()
         }
         // Same signal Closet already watches: a sheet does not tear down

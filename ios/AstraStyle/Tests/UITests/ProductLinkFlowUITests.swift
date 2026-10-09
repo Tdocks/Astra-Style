@@ -9,6 +9,13 @@ final class ProductLinkFlowUITests: XCTestCase {
 
     override func setUp() async throws {
         continueAfterFailure = false
+        addUIInterruptionMonitor(withDescription: "Apple Account Verification") { alert in
+            guard alert.label.contains("Apple Account Verification") else { return false }
+            let dismiss = alert.buttons["Not Now"]
+            guard dismiss.exists else { return false }
+            dismiss.tap()
+            return true
+        }
         app.launchArguments = [
             "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
             "-astra-reset-state", "-astra-mock-backend", "-astra-skip-onboarding"
@@ -56,6 +63,14 @@ final class ProductLinkFlowUITests: XCTestCase {
         XCTAssertTrue(save.isEnabled)
         save.tap()
         XCTAssertTrue(app.buttons["Saved"].waitForExistence(timeout: timeout))
+        let verification = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            .alerts["Apple Account Verification"]
+        if verification.exists {
+            let dismiss = verification.buttons["Not Now"]
+            XCTAssertTrue(dismiss.exists)
+            dismiss.tap()
+            XCTAssertFalse(verification.exists)
+        }
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Pasted-Product-Saved-Verdict"
         screenshot.lifetime = .keepAlways

@@ -60,6 +60,7 @@ public final class AccountDeletionViewModel {
     }
 
     public private(set) var phase: Phase = .confirming
+    public private(set) var profileCachePurgeFailed = false
 
     /// The explicit, separate acknowledgment `AccountDeletionView` gates
     /// its destructive button behind — see that file's header on why one
@@ -69,9 +70,18 @@ public final class AccountDeletionViewModel {
     public var hasAcknowledgedIrreversibility = false
 
     private let authRepository: AuthRepository
+    private let currentUserID: @Sendable () async -> UUID?
+    private let purgeLocalProfileCache: @Sendable (UUID) async throws -> Void
+    private var pendingPurgeOwnerID: UUID?
 
-    public init(authRepository: AuthRepository) {
+    public init(
+        authRepository: AuthRepository,
+        currentUserID: @escaping @Sendable () async -> UUID? = { nil },
+        purgeLocalProfileCache: @escaping @Sendable (UUID) async throws -> Void = { _ in }
+    ) {
         self.authRepository = authRepository
+        self.currentUserID = currentUserID
+        self.purgeLocalProfileCache = purgeLocalProfileCache
     }
 
     /// Sends `DELETE /account`. Guarded by both the acknowledgment toggle
@@ -90,13 +100,27 @@ public final class AccountDeletionViewModel {
         }
 
         phase = .deleting
+        let ownerID = await currentUserID()
         do {
             let status = try await authRepository.deleteAccount()
             phase = .started(status)
+            pendingPurgeOwnerID = ownerID
+            await retryLocalProfileCachePurge()
         } catch let error as AstraError {
             phase = .failed(error)
         } catch {
             phase = .failed(AstraError(category: .unknown, message: error.localizedDescription))
+        }
+    }
+
+    public func retryLocalProfileCachePurge() async {
+        guard let ownerID = pendingPurgeOwnerID else { return }
+        do {
+            try await purgeLocalProfileCache(ownerID)
+            pendingPurgeOwnerID = nil
+            profileCachePurgeFailed = false
+        } catch {
+            profileCachePurgeFailed = true
         }
     }
 }

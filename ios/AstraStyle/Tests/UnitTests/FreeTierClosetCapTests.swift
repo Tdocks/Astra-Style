@@ -137,7 +137,7 @@ struct FreeTierClosetCapTests {
     func scanUnlockCountPassesThroughWrapper() async throws {
         let base = MockClosetRepository(items: [])
         let item = makeItem(name: "Saved coat")
-        try await base.setScanUnlockCountResult(.count(4), for: item.id)
+        await base.setScanUnlockCountResult(.count(4), for: item.id)
         let repository = FreeTierCappedClosetRepository(
             base: base,
             isEntitledToPremium: { false }

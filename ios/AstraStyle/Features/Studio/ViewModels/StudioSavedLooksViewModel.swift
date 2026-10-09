@@ -23,10 +23,8 @@ final class StudioSavedLooksViewModel {
     }
 
     func load(reset: Bool = true) async {
-        guard !isRemoving else { return }
-        guard reset || (hasMore && !isLoadingMore && !isLoading && !isRemoving) else { return }
-        if reset { revision += 1; isLoading = true; isLoadingMore = false }
-        else { isLoadingMore = true }
+        guard shouldLoad(reset: reset) else { return }
+        if reset { revision += 1; isLoading = true; isLoadingMore = false } else { isLoadingMore = true }
         let request = revision
         let start = reset ? 0 : offset
         error = nil
@@ -39,15 +37,13 @@ final class StudioSavedLooksViewModel {
             offset = start + page.count
             hasMore = page.count == 20
             generations = reset ? visible : generations + visible.filter { new in !generations.contains { $0.id == new.id } }
-            if reset { imageURLs = [:] }
-            for row in visible {
-                if let path = row.resultImagePath, let url = urls[path] { imageURLs[row.id] = url }
-            }
-            if visible.contains(where: { imageURLs[$0.id] == nil }) {
+            updateImageURLs(for: visible, resolved: urls, reset: reset)
+            if hasMissingImage(visible) {
                 error = "Some images couldn't load. Pull to refresh to try again."
             }
-        } catch is CancellationError { return }
-        catch {
+        } catch is CancellationError {
+            return
+        } catch {
             guard request == revision else { return }
             self.error = (error as? AstraError)?.message ?? "Couldn't load your saved looks. Try again."
         }
@@ -65,5 +61,25 @@ final class StudioSavedLooksViewModel {
             isRemoving = false
             await load()
         } catch { self.error = (error as? AstraError)?.message ?? "Couldn't remove that saved look. Try again." }
+    }
+
+    private func shouldLoad(reset: Bool) -> Bool {
+        guard !isRemoving else { return false }
+        return reset || (hasMore && !isLoadingMore && !isLoading)
+    }
+
+    private func updateImageURLs(
+        for visible: [StudioGeneration],
+        resolved: [String: URL],
+        reset: Bool
+    ) {
+        if reset { imageURLs = [:] }
+        for row in visible {
+            if let path = row.resultImagePath, let url = resolved[path] { imageURLs[row.id] = url }
+        }
+    }
+
+    private func hasMissingImage(_ visible: [StudioGeneration]) -> Bool {
+        visible.contains { imageURLs[$0.id] == nil }
     }
 }

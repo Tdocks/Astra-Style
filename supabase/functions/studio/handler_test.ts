@@ -850,6 +850,77 @@ Deno.test("retry of a failed trial job is not a second trial", async () => {
   await response.body?.cancel();
 });
 
+Deno.test("controlled live-provider failure retries the same trial to completion without a new quota check", async () => {
+  const deps = buildDeps();
+  let quotaChecks = 0;
+  const countForUser = deps.jobStore.countForUser;
+  deps.jobStore.countForUser = (userId) => {
+    quotaChecks += 1;
+    return countForUser(userId);
+  };
+  let submissions = 0;
+  let originalPolls = 0;
+  deps.provider = {
+    submitGeneration(_request) {
+      submissions += 1;
+      return Promise.resolve({ providerJobId: `controlled-job-${submissions}` });
+    },
+    pollStatus(providerJobId) {
+      if (providerJobId === "controlled-job-2") {
+        return Promise.resolve({
+          status: "complete",
+          resultStoragePath: "users/synthetic/studio/retry/result.png",
+          providerJobId,
+          errorMessage: null,
+          isRetryableFailure: false,
+        });
+      }
+      originalPolls += 1;
+      return Promise.resolve({
+        status: "failed",
+        resultStoragePath: null,
+        providerJobId,
+        errorMessage: "controlled transient provider failure",
+        isRetryableFailure: true,
+      });
+    },
+  };
+
+  const accepted = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { mode: "inspiration" }),
+    deps,
+  );
+  const sourceID = (await envelopeOf(accepted)).data?.["id"] as string;
+  assertEquals(accepted.status, 202);
+  assertEquals(quotaChecks, 1);
+  const started = await handleStatus(statusRequest(VALID_LOOKING_JWT_A, sourceID), deps, sourceID);
+  assertEquals((await envelopeOf(started)).data?.["status"], "generating");
+  const failed = await handleStatus(statusRequest(VALID_LOOKING_JWT_A, sourceID), deps, sourceID);
+  assertEquals((await envelopeOf(failed)).data?.["status"], "failed");
+  assertEquals(deps.jobStore.rows.get(sourceID)?.promptPayload["is_retryable_failure"], true);
+  assertEquals(originalPolls, 1);
+
+  const retryResponse = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { retry_of: sourceID }),
+    deps,
+  );
+  assertEquals(retryResponse.status, 202);
+  const retryID = (await envelopeOf(retryResponse)).data?.["id"] as string;
+  assertEquals(quotaChecks, 1, "retry must not consume or re-check the one-trial allowance");
+  assertEquals(deps.jobStore.rows.get(sourceID)?.status, "failed");
+
+  const retryStarted = await handleStatus(
+    statusRequest(VALID_LOOKING_JWT_A, retryID),
+    deps,
+    retryID,
+  );
+  assertEquals((await envelopeOf(retryStarted)).data?.["status"], "generating");
+  const retried = await handleStatus(statusRequest(VALID_LOOKING_JWT_A, retryID), deps, retryID);
+  const retriedData = (await envelopeOf(retried)).data;
+  assertEquals(retriedData?.["status"], "complete");
+  assertEquals(deps.jobStore.rows.size, 2);
+});
+
 Deno.test("inspiration enqueues without selfie and carries weather and edit context", async () => {
   const deps = buildDeps();
   const response = await handleGenerate(

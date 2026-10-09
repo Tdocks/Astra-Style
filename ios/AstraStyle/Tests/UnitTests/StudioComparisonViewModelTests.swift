@@ -28,13 +28,18 @@ struct StudioComparisonViewModelTests {
     @Test("Two previews retain selected ordering")
     func twoLooks() async {
         let repository = MockStudioRepository()
-        let a = fixture(), b = fixture()
-        await repository.seed(a)
-        await repository.seed(b)
-        let model = StudioComparisonViewModel(generationIDs: [b.id, a.id], repository: repository, resolver: MockClosetImageURLResolver())
+        let firstGeneration = fixture()
+        let secondGeneration = fixture()
+        await repository.seed(firstGeneration)
+        await repository.seed(secondGeneration)
+        let model = StudioComparisonViewModel(
+            generationIDs: [secondGeneration.id, firstGeneration.id],
+            repository: repository,
+            resolver: MockClosetImageURLResolver()
+        )
         await model.load()
         guard case .loaded(let rows) = model.state else { Issue.record("Expected loaded comparison"); return }
-        #expect(rows.map(\.id) == [b.id, a.id])
+        #expect(rows.map(\.id) == [secondGeneration.id, firstGeneration.id])
         #expect(model.imageURLs.count == 3)
     }
 

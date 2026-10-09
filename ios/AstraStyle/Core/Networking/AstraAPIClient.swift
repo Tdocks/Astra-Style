@@ -43,6 +43,7 @@ public final class AstraAPIClient: @unchecked Sendable {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private let retryPolicy: AstraRetryPolicy
+    private let retrySleep: @Sendable (Double) async throws -> Void
     private let tokenProviderBox: TokenProviderBox
 
     /// Diagnostics only. Nothing user-identifying is ever logged here —
@@ -53,11 +54,15 @@ public final class AstraAPIClient: @unchecked Sendable {
     public init(
         environment: AstraEnvironment,
         session: URLSession = .shared,
-        retryPolicy: AstraRetryPolicy = .default
+        retryPolicy: AstraRetryPolicy = .default,
+        retrySleep: @escaping @Sendable (Double) async throws -> Void = { delay in
+            try await Task.sleep(for: .seconds(delay))
+        }
     ) {
         self.environment = environment
         self.session = session
         self.retryPolicy = retryPolicy
+        self.retrySleep = retrySleep
         self.tokenProviderBox = TokenProviderBox()
 
         let encoder = JSONEncoder()
@@ -120,7 +125,7 @@ public final class AstraAPIClient: @unchecked Sendable {
                     throw error
                 }
                 let delay = policy.delay(forAttempt: attempt)
-                try await Task.sleep(for: .seconds(delay))
+                try await retrySleep(delay)
                 continue
             }
         }

@@ -23,7 +23,9 @@
 // which variable is missing instead of quietly serving grey squares.
 //
 // Server-only job writes/allowances use a privileged client (ADR 0022).
-// Authentication, closet reads, and storage remain caller-scoped under RLS.
+// Authentication and reference-image reads remain caller-scoped under RLS.
+// Generated result writes use the service-role client only after checking the
+// canonical path against a live generation row owned by that path's user.
 // ============================================================================
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -47,6 +49,7 @@ import {
 import { handleQuota, readQuota } from "./quota.ts";
 import { supabaseJobStore } from "./jobStore.ts";
 import { deletionDeps, handleDelete } from "./deletion.ts";
+import { storeOwnedStudioResult } from "./resultStorage.ts";
 
 const env = readEdgeEnv();
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -85,15 +88,29 @@ function storageSeam(supabase: SupabaseClient): StorageSeam {
     async storeResult(storagePath: string, bytes: Uint8Array, contentType: string): Promise<void> {
       // upsert: a §21 retry of a lost render may legitimately rewrite the
       // same deterministic path.
-      const { error } = await supabase.storage.from(USER_CONTENT_BUCKET).upload(
-        storagePath,
-        // A fresh copy so the Blob cannot capture a larger backing buffer.
-        new Blob([new Uint8Array(bytes).buffer], { type: contentType }),
-        { contentType, upsert: true, cacheControl: "60" },
-      );
-      if (error) {
-        throw serverError("Couldn't store the generated image.");
-      }
+      const { data, error: authError } = await supabase.auth.getUser();
+      if (authError || !data.user) throw serverError("Couldn't store the generated image.");
+      await storeOwnedStudioResult(data.user.id, storagePath, bytes, contentType, {
+        async hasLiveOwnedGeneration(userId, generationId) {
+          const { data, error } = await jobClient.from("studio_generations")
+            .select("id")
+            .eq("id", generationId)
+            .eq("user_id", userId)
+            .in("status", ["queued", "generating"])
+            .is("deleted_at", null)
+            .maybeSingle();
+          return !error && data !== null;
+        },
+        async upload(path, imageBytes, type) {
+          const { error } = await jobClient.storage.from(USER_CONTENT_BUCKET).upload(
+            path,
+            // A fresh copy so the Blob cannot capture a larger backing buffer.
+            new Blob([new Uint8Array(imageBytes).buffer], { type }),
+            { contentType: type, upsert: true, cacheControl: "60" },
+          );
+          if (error) throw serverError("Couldn't store the generated image.");
+        },
+      });
     },
     async resultExists(storagePath: string): Promise<boolean> {
       const lastSlash = storagePath.lastIndexOf("/");

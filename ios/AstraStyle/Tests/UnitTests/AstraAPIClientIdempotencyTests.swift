@@ -13,6 +13,67 @@ import Testing
 @Suite("AstraAPIClient Idempotency-Key reuse across retries", .serialized)
 struct AstraAPIClientIdempotencyTests {
 
+    @Test("Default retry policy makes four requests with three exponential backoffs")
+    func defaultRetryCountAndBackoff() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 10
+        let delays = RetryDelayRecorder()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+            session: URLSession(configuration: configuration),
+            retrySleep: { await delays.record($0) })
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+        do {
+            _ = try await client.send(.exportPersonalData, as: AstraEmptyPayload.self)
+            Issue.record("Exhausted server retries must surface an error")
+        } catch let error as AstraError {
+            #expect(error.underlyingStatusCode == 503)
+        }
+        #expect(IdempotencyStubURLProtocol.capturedRequests.count == 4)
+        let recorded = await delays.values
+        #expect(recorded.count == 3)
+        for (delay, base) in zip(recorded, [0.5, 1.0, 2.0]) {
+            #expect(delay >= base && delay <= base * 1.2)
+        }
+    }
+
+    @Test("Retry stops immediately after recovery without an extra sleep or request")
+    func retryStopsAfterRecovery() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 2
+        IdempotencyStubURLProtocol.successBody = Data(#"{"data":{},"error":null,"request_id":"recovered"}"#.utf8)
+        let delays = RetryDelayRecorder()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+            session: URLSession(configuration: configuration),
+            retrySleep: { await delays.record($0) })
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+        _ = try await client.send(.exportPersonalData, as: AstraEmptyPayload.self)
+        #expect(IdempotencyStubURLProtocol.capturedRequests.count == 3)
+        #expect(await delays.values.count == 2)
+    }
+
+    @Test("An unauthenticated request never reaches transport or retry sleep")
+    func missingSessionDoesNotSendOrRetry() async throws {
+        IdempotencyStubURLProtocol.reset()
+        let delays = RetryDelayRecorder()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+            session: URLSession(configuration: configuration),
+            retrySleep: { await delays.record($0) })
+        do {
+            _ = try await client.send(.exportPersonalData, as: AstraEmptyPayload.self)
+            Issue.record("Missing credentials must fail before transport")
+        } catch let error as AstraError {
+            #expect(error.category == .auth)
+        }
+        #expect(IdempotencyStubURLProtocol.capturedRequests.isEmpty)
+        #expect(await delays.values.isEmpty)
+    }
+
     @Test("analyzeClosetItem sends the same Idempotency-Key on every retry attempt of one logical call")
     func analyzeItemReusesIdempotencyKeyAcrossRetries() async throws {
         IdempotencyStubURLProtocol.reset()
@@ -232,4 +293,9 @@ private struct RequestSessionRefresher: SessionRefreshing {
         RefreshedSession(userID: userID, accessToken: "renewed-token", refreshToken: "rotated",
                          expiresAt: .now.addingTimeInterval(3600))
     }
+}
+
+private actor RetryDelayRecorder {
+    private(set) var values: [Double] = []
+    func record(_ delay: Double) { values.append(delay) }
 }

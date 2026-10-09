@@ -269,15 +269,22 @@ extension AppContainer {
             offlineQueue: dependencies.offlineMutationQueue,
             cache: SwiftDataOutfitCache(modelContainer: dependencies.modelContainer)
         )
+        let profileRepository = LiveProfileRepository(
+            apiClient: dependencies.apiClient,
+            profileCache: SwiftDataProfileSnapshotCache(modelContainer: dependencies.modelContainer),
+            offlineQueue: dependencies.offlineMutationQueue,
+            currentUserID: { await sessionStore.currentUserID() }
+        )
         let offlineMutationDrainCoordinator = OfflineMutationDrainCoordinator(
             currentOwnerID: { await sessionStore.currentUserID() },
             drainCloset: drainClosetMutations,
-            drainOutfits: { await outfitRepository.drainPendingMutations() }
+            drainOutfits: { await outfitRepository.drainPendingMutations() },
+            drainProfiles: { await profileRepository.drainPendingMutations() }
         )
         return AppContainer(
             sessionStore: dependencies.sessionStore,
             authRepository: LiveAuthRepository(apiClient: dependencies.apiClient, sessionStore: dependencies.sessionStore),
-            profileRepository: LiveProfileRepository(apiClient: dependencies.apiClient),
+            profileRepository: profileRepository,
             closetRepository: dependencies.closetRepository,
             closetImageURLResolver: dependencies.closetImageURLResolver,
             outfitRepository: outfitRepository,
@@ -392,7 +399,11 @@ extension AppContainer {
         // preview/test process that has no configured Info.plist secrets.
         let sessionStore = SessionStore(apiClient: .previewClient, supabase: AstraSupabaseClientFactory.previewClient)
 
-        let mockClosetRepository = MockClosetRepository()
+        let mockClosetRepository = MockClosetRepository(
+            items: AstraFeatureFlags.usesPerformanceClosetFixture
+                ? PerformanceClosetFixture.items
+                : SampleData.closetItems
+        )
         var referenceBody = SampleData.bodyProfile
         let referencePath = ProcessInfo.processInfo.arguments.contains("-astra-test-reference-photo")
             ? "users/\(SampleData.userID.uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg" : nil
@@ -427,7 +438,9 @@ extension AppContainer {
             chatPreviewID: chatPreviewID,
             studioRepository: mockStudioRepository,
             closetRepository: freeTierCappedClosetRepository,
-            closetImageURLResolver: MockClosetImageURLResolver(),
+            closetImageURLResolver: AstraFeatureFlags.usesPerformanceClosetFixture
+                ? PerformanceClosetImageURLResolver()
+                : MockClosetImageURLResolver(),
             outfitRepository: outfitRepository ?? MockOutfitRepository(),
             subscriptionRepository: subscriptionRepository,
             scannerSaveJournal: scannerSaveJournal,

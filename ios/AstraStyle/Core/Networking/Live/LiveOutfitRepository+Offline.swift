@@ -43,7 +43,7 @@ extension LiveOutfitRepository {
                 let feedback = try JSONDecoder.astraDefault.decode(StyleFeedback.self, from: mutation.payloadData)
                 guard await currentUserID() == feedback.userID else { throw OfflineMutationNotHandled() }
                 _ = try await writer.createFeedback(feedback)
-            case .closetItem, .occasion:
+            case .closetItem, .occasion, .profile:
                 // Not this repository's mutation — owned by
                 // `LiveClosetRepository` (`.closetItem`) or nothing yet
                 // (`.occasion`). Skip rather than fail so this repository's

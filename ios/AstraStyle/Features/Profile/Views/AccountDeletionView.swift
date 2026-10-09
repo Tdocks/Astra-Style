@@ -263,6 +263,27 @@ struct AccountDeletionView: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
 
+            if viewModel.profileCachePurgeFailed {
+                AstraCard {
+                    VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                        Text(String(
+                            localized: "Your account deletion request was accepted, but this device couldn't clear its saved profile copy.",
+                            comment: "Explains local cache cleanup failure after server accepted account deletion"
+                        ))
+                        .astraText(.callout)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        AstraButton(title: String(
+                            localized: "Clear Saved Profile",
+                            comment: "Retries removing the local profile cache after account deletion"
+                        )) {
+                            Task { await viewModel.retryLocalProfileCachePurge() }
+                        }
+                        .accessibilityIdentifier("accountDeletion.retryLocalPurge")
+                    }
+                }
+            }
+
             AstraButton(title: String(
                 localized: "Done",
                 comment: "Acknowledges the account deletion has started and returns to sign-in"

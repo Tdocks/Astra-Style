@@ -34,7 +34,7 @@ public extension EnvironmentValues {
     /// An app-owned appearance override, if one is injected. With no override,
     /// design tokens follow the system. Do not allocate an observable reference
     /// in the default getter: that changes its identity on every environment read.
-    @Entry var astraTheme: AstraTheme? = nil
+    @Entry var astraTheme: AstraTheme?
 }
 
 public extension View {

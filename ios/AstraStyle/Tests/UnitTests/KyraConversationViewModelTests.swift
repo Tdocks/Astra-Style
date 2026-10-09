@@ -155,7 +155,7 @@ struct KyraConversationViewModelTests {
 
     @Test("A persisted provider fallback is identified and retried in the same thread")
     func providerFallbackCanBeRetried() async throws {
-        let repository = ProviderFallbackThenSuccessKyraRepository()
+        let repository = FallbackThenSuccessKyraRepository()
         let model = makeModel(kyra: repository)
         await model.onAppear()
 
@@ -341,7 +341,7 @@ private final class FlakyKyraRepository: KyraRepository, @unchecked Sendable {
 /// `fallback_reason` in model metadata. The first response mirrors that
 /// contract; the next delegates to the normal mock to prove retry uses the
 /// already-created thread.
-private final class ProviderFallbackThenSuccessKyraRepository: KyraRepository, @unchecked Sendable {
+private final class FallbackThenSuccessKyraRepository: KyraRepository, @unchecked Sendable {
     private let base = MockKyraRepository()
     private var didReturnFallback = false
     private(set) var sentThreadIDs: [UUID?] = []

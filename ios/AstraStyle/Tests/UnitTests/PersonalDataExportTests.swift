@@ -65,7 +65,7 @@ struct PersonalDataExportTests {
             PersonalDataExportStorageReference(
                 bucket: "user-content",
                 path: "users/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatars/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg"
-            ),
+            )
         ])
         #expect(export.storageManifestScope == "Referenced paths only; no image files included.")
 

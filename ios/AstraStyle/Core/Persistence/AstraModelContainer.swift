@@ -73,21 +73,38 @@ public enum AstraSchemaV3: VersionedSchema {
     }
 }
 
+/// Owner-scoped cached profile tables and per-table pending-sync state.
+public enum AstraSchemaV4: VersionedSchema {
+    public static let versionIdentifier = Schema.Version(4, 0, 0)
+    public static var models: [any PersistentModel.Type] {
+        [
+            PersistedClosetItem.self,
+            PersistedOutfit.self,
+            PersistedDailyBrief.self,
+            PersistedOfflineMutation.self,
+            PersistedPendingScan.self,
+            PersistedScannerSave.self,
+            PersistedProfileSnapshot.self
+        ]
+    }
+}
+
 public enum AstraSchemaMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
-        [AstraSchemaV1.self, AstraSchemaV2.self, AstraSchemaV3.self]
+        [AstraSchemaV1.self, AstraSchemaV2.self, AstraSchemaV3.self, AstraSchemaV4.self]
     }
 
     public static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: AstraSchemaV1.self, toVersion: AstraSchemaV2.self),
-            .lightweight(fromVersion: AstraSchemaV2.self, toVersion: AstraSchemaV3.self)
+            .lightweight(fromVersion: AstraSchemaV2.self, toVersion: AstraSchemaV3.self),
+            .lightweight(fromVersion: AstraSchemaV3.self, toVersion: AstraSchemaV4.self)
         ]
     }
 }
 
 public enum AstraModelContainer {
-    public static let schema = Schema(versionedSchema: AstraSchemaV3.self)
+    public static let schema = Schema(versionedSchema: AstraSchemaV4.self)
 
     /// The production, on-disk container.
     public static func live(storeURL: URL? = nil) throws -> ModelContainer {

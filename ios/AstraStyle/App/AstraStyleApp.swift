@@ -56,7 +56,10 @@ struct AstraStyleApp: App {
                 }
             }
             .preferredColorScheme(AstraFeatureFlags.forcedTheme?.resolvedColorScheme)
-            .task { startupController.openIfNeeded() }
+            .task {
+                AstraPerformanceSignposts.beginAppLaunch()
+                startupController.openIfNeeded()
+            }
         }
     }
 

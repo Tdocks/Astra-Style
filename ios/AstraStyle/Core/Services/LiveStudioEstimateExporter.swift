@@ -14,6 +14,13 @@ public final class LiveStudioEstimateExporter: StudioEstimateExporting {
 
     public func export(imageURL: URL) async throws -> URL {
         let (data, response) = try await dataLoader(imageURL)
+        let (image, imageSize) = try validatedImage(data: data, response: response)
+        try Task.checkCancellation()
+        let png = renderDisclosureImage(image, size: imageSize)
+        return try writeProtectedExport(png)
+    }
+
+    private func validatedImage(data: Data, response: URLResponse) throws -> (UIImage, CGSize) {
         guard let response = response as? HTTPURLResponse,
               (200..<300).contains(response.statusCode),
               response.mimeType?.hasPrefix("image/") == true,
@@ -27,12 +34,13 @@ public final class LiveStudioEstimateExporter: StudioEstimateExporting {
               let image = UIImage(data: data) else {
             throw AstraError.network("Couldn't download this estimate. Try again.")
         }
-        try Task.checkCancellation()
+        return (image, CGSize(width: width, height: height))
+    }
 
+    private func renderDisclosureImage(_ image: UIImage, size imageSize: CGSize) -> Data {
         // Export typography is proportional to image pixels, independent of
         // the app's Dynamic Type setting. Keep the disclosure legible at any
         // provider resolution without cropping or modifying the outfit.
-        let imageSize = CGSize(width: width, height: height)
         let inset = imageSize.width * 0.025
         let font = UIFont.systemFont(ofSize: max(12, imageSize.width * 0.023), weight: .medium)
         let label = "Astra Style · AI visual estimate\nFit, colors and garment details may differ."
@@ -48,7 +56,7 @@ public final class LiveStudioEstimateExporter: StudioEstimateExporting {
         let renderer = UIGraphicsImageRenderer(
             size: CGSize(width: imageSize.width, height: imageSize.height + footerHeight), format: format
         )
-        let png = renderer.pngData { context in
+        return renderer.pngData { context in
             image.draw(in: CGRect(origin: .zero, size: imageSize))
             UIColor.black.setFill()
             context.fill(CGRect(x: 0, y: imageSize.height, width: imageSize.width, height: footerHeight))
@@ -57,6 +65,9 @@ public final class LiveStudioEstimateExporter: StudioEstimateExporting {
                 withAttributes: attributes
             )
         }
+    }
+
+    private func writeProtectedExport(_ png: Data) throws -> URL {
         let manager = FileManager.default
         let directory = manager.temporaryDirectory.appendingPathComponent("AstraEstimateExports", isDirectory: true)
         try manager.createDirectory(at: directory, withIntermediateDirectories: true,

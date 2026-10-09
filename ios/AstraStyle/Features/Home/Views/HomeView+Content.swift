@@ -139,6 +139,7 @@ extension HomeView {
                 router.push(ClosetRoute.itemDetail(itemID: garment.item.id))
             }
             .padding(.horizontal, AstraSpacing.pagePadding)
+            .onAppear { AstraPerformanceSignposts.endHomeRender() }
 
             reason(data)
                 .padding(.horizontal, AstraSpacing.pagePadding)

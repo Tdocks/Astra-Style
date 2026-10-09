@@ -21,7 +21,7 @@ struct HomeStyleEntryPointsView: View {
             entryButton(
                 title: "Get today's inspiration",
                 detail: "Ideas shaped by your style, weather, and plans.",
-                symbol: "sparkles",
+                symbol: "sun.max",
                 identifier: "home.style.inspiration",
                 action: onInspiration
             )

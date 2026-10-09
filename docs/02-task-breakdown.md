@@ -90,7 +90,7 @@ Scope: Implement `Core/Networking/APIClient` that attaches the Supabase session 
 **Acceptance criteria**
 - A request made without a valid session throws a typed unauthenticated error before hitting the network.
 - A 5xx response triggers retries with backoff per `AstraRetryPolicy` before surfacing an error. Amended 2026-07-30: this originally said "exactly one retry"; the shipped default (`AstraRetryPolicy.default`, `maxAttempts: 3`) is the better policy for a mobile client on unreliable networks, so the criterion now matches it instead of the other way around — see `docs/03-progress.md`'s "Acceptance criteria that are wrong, rather than unmet."
-- Retry count and backoff timing are covered by an automated test. **Still unmet** — no test in the repo currently asserts either; this gap is real and stays open rather than being papered over by the amendment above.
+- Retry count and backoff timing are covered by an automated test. Verified 2026-10-09 by retry-count and backoff assertions in `AstraAPIClientIdempotencyTests.swift`.
 - No view or view model performs a network call directly — only repositories call `APIClient`.
 **Dependencies:** `P1-INFRA-02`, `P1-CORE-01`
 **Size:** M

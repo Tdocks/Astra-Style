@@ -13,35 +13,51 @@
 import Foundation
 import Supabase
 
-public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable {
-    private let apiClient: AstraAPIClient
-    private let supabase: SupabaseClient
+public final class LiveProfileRepository: ProfileRepository, ProfileCachePurging, @unchecked Sendable {
+    let apiClient: AstraAPIClient
+    let supabase: SupabaseClient
+    let profileWriter: any ProfileWriting
+    let profileCache: any ProfileSnapshotCaching
+    let offlineQueue: any OfflineMutationQueue
+    let currentUserID: @Sendable () async -> UUID?
+    let refreshLock = NSLock()
+    var activeRefreshes: Set<String> = []
 
-    public init(apiClient: AstraAPIClient, supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)) {
+    public init(
+        apiClient: AstraAPIClient,
+        supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current),
+        profileWriter: (any ProfileWriting)? = nil,
+        profileCache: any ProfileSnapshotCaching = InMemoryProfileSnapshotCache(),
+        offlineQueue: any OfflineMutationQueue = InMemoryOfflineMutationQueue(),
+        currentUserID: (@Sendable () async -> UUID?)? = nil
+    ) {
         self.apiClient = apiClient
         self.supabase = supabase
+        self.profileWriter = profileWriter ?? SupabaseProfileWriter(supabase: supabase)
+        self.profileCache = profileCache
+        self.offlineQueue = offlineQueue
+        self.currentUserID = currentUserID ?? { try? await supabase.auth.session.user.id }
     }
 
     public func fetchCurrentProfile() async throws -> Profile {
-        do {
-            return try await supabase.from("profiles").select().single().execute().value
-        } catch {
-            throw AstraError.server("Couldn't load your profile.")
+        let ownerID = try await requireOwner()
+        let cached = try await pendingAwareSnapshot(for: ownerID)
+        if cached.profileFetched, let profile = cached.profile {
+            scheduleRefresh(table: .profile, ownerID: ownerID)
+            return profile
         }
+        let profile = try await profileWriter.fetchProfile(ownerID: ownerID)
+        try await verifyCurrentOwner(ownerID)
+        guard profile.id == ownerID else { throw AstraError.auth("That profile belongs to another account.") }
+        try await profileCache.mergeRemote(.profile(profile))
+        return profile
     }
 
     public func updateProfile(_ profile: Profile) async throws -> Profile {
-        do {
-            return try await supabase.from("profiles")
-                .update(profile)
-                .eq("id", value: profile.id)
-                .select()
-                .single()
-                .execute()
-                .value
-        } catch {
-            throw AstraError.server("Couldn't save your profile changes.")
-        }
+        var updated = profile
+        updated.updatedAt = .now
+        try await queueProfileValue(.profile(updated), table: .profile)
+        return updated
     }
 
     public func uploadProfileAvatar(_ imageData: Data) async throws -> String {
@@ -105,58 +121,75 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
     }
 
     public func fetchStyleProfile() async throws -> StyleProfile? {
-        try await fetchOptionalSingle(table: "style_profiles")
+        let ownerID = try await requireOwner()
+        let cached = try await pendingAwareSnapshot(for: ownerID)
+        if cached.styleFetched {
+            scheduleRefresh(table: .style, ownerID: ownerID)
+            return cached.styleProfile
+        }
+        let value = try await profileWriter.fetchStyleProfile(ownerID: ownerID)
+        try await verifyCurrentOwner(ownerID)
+        if let value, value.userID != ownerID { throw AstraError.auth("That style profile belongs to another account.") }
+        try await profileCache.mergeRemote(value.map(ProfileSnapshotValue.style) ?? .styleMissing(ownerID: ownerID))
+        return value
     }
 
     public func updateStyleProfile(_ styleProfile: StyleProfile) async throws -> StyleProfile {
-        do {
-            return try await supabase.from("style_profiles")
-                .upsert(styleProfile)
-                .select()
-                .single()
-                .execute()
-                .value
-        } catch {
-            throw AstraError.server("Couldn't save your style profile.")
-        }
+        var updated = styleProfile
+        updated.updatedAt = .now
+        try await queueProfileValue(.style(updated), table: .style)
+        return updated
     }
 
     public func fetchBodyProfile() async throws -> BodyProfile? {
-        try await fetchOptionalSingle(table: "body_profiles")
+        let ownerID = try await requireOwner()
+        let cached = try await pendingAwareSnapshot(for: ownerID)
+        if cached.bodyFetched {
+            scheduleRefresh(table: .body, ownerID: ownerID)
+            return cached.bodyProfile
+        }
+        let value = try await profileWriter.fetchBodyProfile(ownerID: ownerID)
+        try await verifyCurrentOwner(ownerID)
+        if let value, value.userID != ownerID { throw AstraError.auth("That body profile belongs to another account.") }
+        try await profileCache.mergeRemote(value.map(ProfileSnapshotValue.body) ?? .bodyMissing(ownerID: ownerID))
+        return value
     }
 
     public func updateBodyProfile(_ bodyProfile: BodyProfile) async throws -> BodyProfile {
-        do {
-            return try await supabase.from("body_profiles")
-                .upsert(bodyProfile)
-                .select()
-                .single()
-                .execute()
-                .value
-        } catch {
-            throw AstraError.server("Couldn't save your measurements.")
-        }
+        var updated = bodyProfile
+        updated.updatedAt = .now
+        try await queueProfileValue(.body(updated), table: .body)
+        return updated
     }
 
     public func fetchLifestyleProfile() async throws -> LifestyleProfile? {
-        try await fetchOptionalSingle(table: "lifestyle_profiles")
+        let ownerID = try await requireOwner()
+        let cached = try await pendingAwareSnapshot(for: ownerID)
+        if cached.lifestyleFetched {
+            scheduleRefresh(table: .lifestyle, ownerID: ownerID)
+            return cached.lifestyleProfile
+        }
+        let value = try await profileWriter.fetchLifestyleProfile(ownerID: ownerID)
+        try await verifyCurrentOwner(ownerID)
+        if let value, value.userID != ownerID { throw AstraError.auth("That lifestyle profile belongs to another account.") }
+        try await profileCache.mergeRemote(value.map(ProfileSnapshotValue.lifestyle) ?? .lifestyleMissing(ownerID: ownerID))
+        return value
     }
 
     public func updateLifestyleProfile(_ lifestyleProfile: LifestyleProfile) async throws -> LifestyleProfile {
-        do {
-            return try await supabase.from("lifestyle_profiles")
-                .upsert(lifestyleProfile)
-                .select()
-                .single()
-                .execute()
-                .value
-        } catch {
-            throw AstraError.server("Couldn't save your lifestyle preferences.")
-        }
+        var updated = lifestyleProfile
+        updated.updatedAt = .now
+        try await queueProfileValue(.lifestyle(updated), table: .lifestyle)
+        return updated
     }
 
     public func completeOnboarding(_ payload: OnboardingCompletionPayload) async throws -> Profile {
-        try await apiClient.send(.completeOnboarding, body: payload, as: Profile.self)
+        let completed = try await apiClient.send(.completeOnboarding, body: payload, as: Profile.self)
+        try await profileCache.store(.profile(completed), pendingSync: false)
+        try await profileCache.store(.style(payload.styleProfile), pendingSync: false)
+        try await profileCache.store(.body(payload.bodyProfile), pendingSync: false)
+        try await profileCache.store(.lifestyle(payload.lifestyleProfile), pendingSync: false)
+        return completed
     }
 
     public func generateStyleDNA() async throws -> StyleDNA {
@@ -249,15 +282,6 @@ public final class LiveProfileRepository: ProfileRepository, @unchecked Sendable
         }
     }
 
-    private func fetchOptionalSingle<T: Decodable & Sendable>(table: String) async throws -> T? {
-        do {
-            return try await supabase.from(table).select().single().execute().value
-        } catch {
-            // No row yet (profile not created past this onboarding step)
-            // is an expected, non-error state.
-            return nil
-        }
-    }
 }
 
 private struct ProfileAvatarUpdatePayload: Encodable, Sendable {

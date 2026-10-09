@@ -95,6 +95,17 @@ public enum AstraFeatureFlags {
         #endif
     }
 
+    /// Loads a deterministic 125-item photo fixture for closet scrolling
+    /// measurements. Debug-only so a launch argument cannot replace live
+    /// account data in a distributed build.
+    public static var usesPerformanceClosetFixture: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-astra-performance-closet")
+        #else
+        false
+        #endif
+    }
+
     /// When `true`, first-run onboarding includes the deferred screens
     /// (goals, measurements, appearance, lifestyle, reference) so Debug
     /// UITests can still reach the §29 consent gate. Release ignores the

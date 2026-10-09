@@ -37,6 +37,7 @@ struct MainTabView: View {
             modalContent(for: modal)
         }
         .onAppear {
+            AstraPerformanceSignposts.endAppLaunch()
             guard !didPresentAuditPaywall,
                   let context = AstraFeatureFlags.auditPaywallContext else { return }
             didPresentAuditPaywall = true

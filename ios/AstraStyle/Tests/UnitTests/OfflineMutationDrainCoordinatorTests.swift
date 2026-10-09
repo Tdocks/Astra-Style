@@ -4,7 +4,7 @@ import Testing
 
 @Suite("Offline mutation drain coordinator")
 struct OfflineMutationDrainCoordinatorTests {
-    @Test("Only online triggers with the active owner drain closet then outfits")
+    @Test("Only online triggers with the active owner drain closet, outfits, then profiles")
     func validatesOwnerAndOrdersDrains() async {
         let ownerID = UUID()
         let state = DrainCoordinatorState(ownerID: ownerID)
@@ -16,7 +16,7 @@ struct OfflineMutationDrainCoordinatorTests {
         #expect(await state.events.isEmpty)
 
         await coordinator.connectivityChanged(isOnline: true)
-        #expect(await state.events == ["closet", "outfits"])
+        #expect(await state.events == ["closet", "outfits", "profiles"])
     }
 
     @Test("A session change between repository drains stops before replaying as the new owner")
@@ -27,7 +27,8 @@ struct OfflineMutationDrainCoordinatorTests {
         let coordinator = OfflineMutationDrainCoordinator(
             currentOwnerID: { await state.currentOwnerID() },
             drainCloset: { await state.recordClosetAndSwitchOwner(to: replacementOwner) },
-            drainOutfits: { await state.record("outfits") }
+            drainOutfits: { await state.record("outfits") },
+            drainProfiles: { await state.record("profiles") }
         )
 
         await coordinator.sessionChanged(ownerID: firstOwner)
@@ -40,7 +41,8 @@ struct OfflineMutationDrainCoordinatorTests {
         OfflineMutationDrainCoordinator(
             currentOwnerID: { await state.currentOwnerID() },
             drainCloset: { await state.record("closet") },
-            drainOutfits: { await state.record("outfits") }
+            drainOutfits: { await state.record("outfits") },
+            drainProfiles: { await state.record("profiles") }
         )
     }
 }

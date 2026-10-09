@@ -107,7 +107,10 @@ struct StudioHomeView: View {
                 generationPendingDeletion = nil
             }
         } message: {
-            Text(String(localized: "This removes the image, its history, and its saved-collection entries. If another variation uses it, remove that variation first. File removal may finish in the background.", comment: "Effect of deleting a Studio preview"))
+            Text(String(
+                localized: "This removes the image, its history, and its saved-collection entries. If another variation uses it, remove that variation first. File removal may finish in the background.",
+                comment: "Effect of deleting a Studio preview"
+            ))
         }
         .alert(
             String(localized: "That preview couldn't be deleted", comment: "Studio preview deletion failure title"),
@@ -208,55 +211,25 @@ struct StudioHomeView: View {
     }
 
     private func generationOpenButton(_ generation: StudioGeneration) -> some View {
-        Button {
+        StudioGenerationOpenButton(
+            generation: generation,
+            imageURL: viewModel.imageURLs[generation.id],
+            isSelectingComparison: isSelectingComparison,
+            isSelected: comparisonIDs.contains(generation.id),
+            dynamicTypeSize: dynamicTypeSize,
+            statusLabel: statusLabel(generation.status)
+        ) {
             if isSelectingComparison {
                 guard generation.status == .complete else { return }
-                if comparisonIDs.contains(generation.id) { comparisonIDs.removeAll { $0 == generation.id } }
-                else if comparisonIDs.count < 2 { comparisonIDs.append(generation.id) }
+                if comparisonIDs.contains(generation.id) {
+                    comparisonIDs.removeAll { $0 == generation.id }
+                } else if comparisonIDs.count < 2 {
+                    comparisonIDs.append(generation.id)
+                }
             } else {
                 router.push(StudioRoute.generation(generationID: generation.id))
             }
-        } label: {
-            HStack(spacing: AstraSpacing.md) {
-                if isSelectingComparison {
-                    Image(systemName: comparisonIDs.contains(generation.id) ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(AstraColor.accentChampagneAccessible)
-                        .accessibilityLabel(comparisonIDs.contains(generation.id) ? "Selected for comparison" : "Not selected")
-                }
-                if generation.status == .complete && !isSelectingComparison && !dynamicTypeSize.isAccessibilitySize {
-                    GeneratedImageContainer(accessibilityDescription: generation.imageDescription,
-                                            disclosurePlacement: .below) {
-                        AstraRemoteImage(
-                        url: viewModel.imageURLs[generation.id],
-                        aspectRatio: 4.0 / 5.0,
-                        thumbnail: .listRowThumbnail,
-                        accessibilityDescription: String(
-                            localized: "Visual estimate from Style Studio",
-                            comment: "Studio gallery image accessibility description"
-                        )
-                        )
-                    }
-                    .frame(width: 112)
-                }
-                VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                    Text(statusLabel(generation.status))
-                        .astraText(.headline)
-                        .foregroundStyle(AstraColor.textPrimary)
-                    Text(generation.createdAt.formatted(date: .abbreviated, time: .shortened))
-                        .astraText(.caption)
-                        .foregroundStyle(AstraColor.textMuted)
-                    Text(isSelectingComparison ? "Select for comparison" : String(localized: "Open estimate", comment: "Studio gallery card action"))
-                        .astraText(.caption)
-                        .foregroundStyle(AstraColor.accentChampagneAccessible)
-                }
-                Spacer(minLength: AstraSpacing.xs)
-                Image(systemName: "chevron.right")
-                    .astraIcon(.disclosure)
-                    .foregroundStyle(AstraColor.textMuted)
-                    .accessibilityHidden(true)
-            }
         }
-        .buttonStyle(.plain)
         .disabled(isSelectingComparison && generation.status != .complete)
         .accessibilityValue(isSelectingComparison && comparisonIDs.contains(generation.id) ? "Selected" : "Not selected")
         .accessibilityIdentifier("studio.generation.\(generation.id.uuidString)")
@@ -317,5 +290,73 @@ struct StudioHomeView: View {
                 if !isPresented { viewModel.clearDeletionError() }
             }
         )
+    }
+}
+
+private struct StudioGenerationOpenButton: View {
+    let generation: StudioGeneration
+    let imageURL: URL?
+    let isSelectingComparison: Bool
+    let isSelected: Bool
+    let dynamicTypeSize: DynamicTypeSize
+    let statusLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AstraSpacing.md) {
+                if isSelectingComparison { selectionMark }
+                if showsThumbnail { imagePreview }
+                generationDetails
+                Spacer(minLength: AstraSpacing.xs)
+                Image(systemName: "chevron.right")
+                    .astraIcon(.disclosure)
+                    .foregroundStyle(AstraColor.textMuted)
+                    .accessibilityHidden(true)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var selectionMark: some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .foregroundStyle(AstraColor.accentChampagneAccessible)
+            .accessibilityLabel(isSelected ? "Selected for comparison" : "Not selected")
+    }
+
+    private var showsThumbnail: Bool {
+        generation.status == .complete && !isSelectingComparison && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var imagePreview: some View {
+        GeneratedImageContainer(
+            accessibilityDescription: generation.imageDescription,
+            disclosurePlacement: .below
+        ) {
+            AstraRemoteImage(
+                url: imageURL,
+                aspectRatio: 4.0 / 5.0,
+                thumbnail: .listRowThumbnail,
+                accessibilityDescription: String(
+                    localized: "Visual estimate from Style Studio",
+                    comment: "Studio gallery image accessibility description"
+                )
+            )
+        }
+        .frame(width: 112)
+    }
+
+    private var generationDetails: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+            Text(statusLabel)
+                .astraText(.headline)
+                .foregroundStyle(AstraColor.textPrimary)
+            Text(generation.createdAt.formatted(date: .abbreviated, time: .shortened))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.textMuted)
+            Text(isSelectingComparison ? "Select for comparison" : String(localized: "Open estimate", comment: "Studio gallery card action"))
+                .astraText(.caption)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
+        }
     }
 }

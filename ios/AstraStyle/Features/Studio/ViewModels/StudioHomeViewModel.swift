@@ -125,13 +125,9 @@ public final class StudioHomeViewModel {
 
             let combined = existing + additions
             state = combined.isEmpty ? .empty : .loaded(combined)
-        } catch let error as AstraError {
-            if currentRequest == requestGeneration {
-                paginationError = error.message
-            }
         } catch {
             if currentRequest == requestGeneration {
-                paginationError = error.localizedDescription
+                paginationError = (error as? AstraError)?.message ?? error.localizedDescription
             }
         }
     }

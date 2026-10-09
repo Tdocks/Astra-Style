@@ -108,11 +108,33 @@ struct AccountDeletionViewModelTests {
         #expect(started.status == .processing)
     }
 
+    @Test("The accepted deletion purges the profile cache using the signed-in owner")
+    func acceptedDeletionPurgesCapturedOwner() async {
+        let ownerID = UUID()
+        let purger = ProfileCachePurgeSpy()
+        let viewModel = AccountDeletionViewModel(
+            authRepository: StubAuthRepository(deleteOutcome: .success(makeStatus(.pending))),
+            currentUserID: { ownerID },
+            purgeLocalProfileCache: { ownerID in await purger.record(ownerID) }
+        )
+        viewModel.hasAcknowledgedIrreversibility = true
+
+        await viewModel.delete()
+
+        #expect(await purger.owners == [ownerID])
+        #expect(viewModel.profileCachePurgeFailed == false)
+    }
+
     // MARK: - Fixtures
 
     private func makeStatus(_ state: AccountDeletionStatus.RequestState) -> AccountDeletionStatus {
         AccountDeletionStatus(deletionID: UUID(), status: state)
     }
+}
+
+private actor ProfileCachePurgeSpy {
+    private(set) var owners: [UUID] = []
+    func record(_ ownerID: UUID) { owners.append(ownerID) }
 }
 
 @Suite("AccountDeletionStatus — DELETE /account response decoding")

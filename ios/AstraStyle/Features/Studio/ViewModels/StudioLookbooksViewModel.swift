@@ -27,8 +27,7 @@ final class StudioLookbooksViewModel {
     func load(reset: Bool = true) async {
         guard !isMutating else { return }
         guard reset || (hasMore && !isLoadingMore && !isLoading && !isMutating) else { return }
-        if reset { revision += 1; isLoading = true; isLoadingMore = false }
-        else { isLoadingMore = true }
+        if reset { revision += 1; isLoading = true; isLoadingMore = false } else { isLoadingMore = true }
         let request = revision
         let start = reset ? 0 : offset
         error = nil
@@ -47,8 +46,9 @@ final class StudioLookbooksViewModel {
             lookbooks = reset ? page : lookbooks + page.filter { new in !lookbooks.contains { $0.id == new.id } }
             offset = start + page.count
             hasMore = page.count == Self.pageSize
-        } catch is CancellationError { return }
-        catch {
+        } catch is CancellationError {
+            return
+        } catch {
             guard request == revision else { return }
             self.error = (error as? AstraError)?.message ?? "Couldn't load your collections. Try again."
         }
@@ -72,7 +72,10 @@ final class StudioLookbooksViewModel {
                 savedIDs.insert(collection.id)
             }
             return true
-        } catch { self.error = (error as? AstraError)?.message ?? "Couldn't create that collection. Try again."; return false }
+        } catch {
+            self.error = (error as? AstraError)?.message ?? "Couldn't create that collection. Try again."
+            return false
+        }
     }
 
     func toggleSave(to collection: StudioLookbook) async {
@@ -90,7 +93,9 @@ final class StudioLookbooksViewModel {
                 try await repository.saveGeneration(id: generationID, to: collection.id)
                 savedIDs.insert(collection.id)
             }
-        } catch { self.error = (error as? AstraError)?.message ?? "Couldn't update your saved look. Try again." }
+        } catch {
+            self.error = (error as? AstraError)?.message ?? "Couldn't update your saved look. Try again."
+        }
     }
 
     func rename(_ collection: StudioLookbook, name: String) async {
@@ -110,7 +115,12 @@ final class StudioLookbooksViewModel {
         isMutating = true
         error = nil
         defer { isMutating = false }
-        do { try await operation(); isMutating = false; await load() }
-        catch { self.error = (error as? AstraError)?.message ?? "Couldn't update that collection. Try again." }
+        do {
+            try await operation()
+            isMutating = false
+            await load()
+        } catch {
+            self.error = (error as? AstraError)?.message ?? "Couldn't update that collection. Try again."
+        }
     }
 }

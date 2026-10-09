@@ -6,16 +6,19 @@ public actor OfflineMutationDrainCoordinator {
     private let currentOwnerID: @Sendable () async -> UUID?
     private let drainCloset: @Sendable () async -> Void
     private let drainOutfits: @Sendable () async -> Void
+    private let drainProfiles: @Sendable () async -> Void
     private let gate = AsyncOfflineMutationDrainGate()
 
     public init(
         currentOwnerID: @escaping @Sendable () async -> UUID?,
         drainCloset: @escaping @Sendable () async -> Void,
-        drainOutfits: @escaping @Sendable () async -> Void
+        drainOutfits: @escaping @Sendable () async -> Void,
+        drainProfiles: @escaping @Sendable () async -> Void = {}
     ) {
         self.currentOwnerID = currentOwnerID
         self.drainCloset = drainCloset
         self.drainOutfits = drainOutfits
+        self.drainProfiles = drainProfiles
     }
 
     /// Reachability streams may emit `true` at startup as well as on a
@@ -36,6 +39,7 @@ public actor OfflineMutationDrainCoordinator {
         let currentOwnerID = self.currentOwnerID
         let drainCloset = self.drainCloset
         let drainOutfits = self.drainOutfits
+        let drainProfiles = self.drainProfiles
         await gate.withPermit {
             guard !Task.isCancelled,
                   let ownerID = await currentOwnerID(),
@@ -44,6 +48,8 @@ public actor OfflineMutationDrainCoordinator {
             await drainCloset()
             guard !Task.isCancelled, await currentOwnerID() == ownerID else { return }
             await drainOutfits()
+            guard !Task.isCancelled, await currentOwnerID() == ownerID else { return }
+            await drainProfiles()
         }
     }
 }

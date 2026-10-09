@@ -26,8 +26,15 @@ struct ProfileDestinationView: View {
             )
 
         case .accountDeletion:
+            let cachePurger = container.profileRepository as? any ProfileCachePurging
             AccountDeletionView(
-                viewModel: AccountDeletionViewModel(authRepository: container.authRepository)
+                viewModel: AccountDeletionViewModel(
+                    authRepository: container.authRepository,
+                    currentUserID: { await container.sessionStore.currentUserID() },
+                    purgeLocalProfileCache: { ownerID in
+                        try await cachePurger?.purgeLocalProfileCache(ownerID: ownerID)
+                    }
+                )
             )
 
         case .styleDNA:
