@@ -176,6 +176,7 @@ function kyraRespondRoute(req: Request): Promise<Response> {
         generationID,
         buildStudioInspirationReads(supabase, userID),
         env.supabaseUrl,
+        new Date(),
       );
       return reference?.imageURL ?? null;
     },

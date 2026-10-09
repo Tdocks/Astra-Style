@@ -12,6 +12,7 @@ const resultPath = `users/${user}/studio/${generation}/result.png`;
 const storageOrigin = "https://project.supabase.co";
 const signedURL =
   `${storageOrigin}/storage/v1/object/sign/user-content/${resultPath}?token=short-lived`;
+const NOW = new Date("2026-10-08T12:00:00Z");
 
 function completedInspiration(
   overrides: Partial<CompletedInspirationRow> = {},
@@ -21,6 +22,7 @@ function completedInspiration(
     user_id: user,
     status: "complete",
     deleted_at: null,
+    retention_expires_at: "2026-10-09T12:00:00Z",
     result_image_path: resultPath,
     prompt_payload: { mode: "inspiration" },
     ...overrides,
@@ -29,16 +31,22 @@ function completedInspiration(
 
 Deno.test("completed owned inspiration resolves to a signed URL, never a storage path", async () => {
   let signedPath: string | null = null;
-  const resolved = await resolveCompletedStudioInspiration(user, generation, {
-    generation: (id) => {
-      assertEquals(id, generation);
-      return Promise.resolve(completedInspiration());
+  const resolved = await resolveCompletedStudioInspiration(
+    user,
+    generation,
+    {
+      generation: (id) => {
+        assertEquals(id, generation);
+        return Promise.resolve(completedInspiration());
+      },
+      signedImageURL: (candidate) => {
+        signedPath = candidate;
+        return Promise.resolve(signedURL);
+      },
     },
-    signedImageURL: (candidate) => {
-      signedPath = candidate;
-      return Promise.resolve(signedURL);
-    },
-  }, storageOrigin);
+    storageOrigin,
+    NOW,
+  );
   assertEquals(signedPath, resultPath);
   assertEquals(resolved, { imageURL: signedURL });
   assertEquals(Object.keys(resolved ?? {}).sort(), ["imageURL"]);
@@ -49,19 +57,27 @@ Deno.test("inspiration lookup fails closed for peer, deleted, incomplete, non-in
     completedInspiration({ user_id: "44444444-4444-4444-8444-444444444444" }),
     completedInspiration({ deleted_at: "2026-10-08T00:00:00Z" }),
     completedInspiration({ status: "generating" }),
+    completedInspiration({ retention_expires_at: "2026-10-08T11:59:59Z" }),
+    completedInspiration({ retention_expires_at: "not-a-time" }),
     completedInspiration({ prompt_payload: { mode: "reference" } }),
     completedInspiration({ result_image_path: null }),
     completedInspiration({ result_image_path: `users/${user}/studio/${generation}/other.png` }),
   ];
   for (const row of invalidRows) {
     let signed = false;
-    const resolved = await resolveCompletedStudioInspiration(user, generation, {
-      generation: () => Promise.resolve(row),
-      signedImageURL: () => {
-        signed = true;
-        return Promise.resolve("https://storage.example/signed/result.png");
+    const resolved = await resolveCompletedStudioInspiration(
+      user,
+      generation,
+      {
+        generation: () => Promise.resolve(row),
+        signedImageURL: () => {
+          signed = true;
+          return Promise.resolve("https://storage.example/signed/result.png");
+        },
       },
-    }, storageOrigin);
+      storageOrigin,
+      NOW,
+    );
     assertEquals(resolved, null);
     assertEquals(signed, false);
   }
@@ -76,12 +92,32 @@ Deno.test("missing object, foreign host, wrong object path, or non-HTTPS URL nev
       `${storageOrigin}/storage/v1/object/sign/user-content/users/${user}/studio/other/result.png`,
     ]
   ) {
-    const resolved = await resolveCompletedStudioInspiration(user, generation, {
-      generation: () => Promise.resolve(completedInspiration()),
-      signedImageURL: () => Promise.resolve(url),
-    }, storageOrigin);
+    const resolved = await resolveCompletedStudioInspiration(
+      user,
+      generation,
+      {
+        generation: () => Promise.resolve(completedInspiration()),
+        signedImageURL: () => Promise.resolve(url),
+      },
+      storageOrigin,
+      NOW,
+    );
     assertEquals(resolved, null);
   }
+});
+
+Deno.test("saved inspirations with null expiry remain available", async () => {
+  const resolved = await resolveCompletedStudioInspiration(
+    user,
+    generation,
+    {
+      generation: () => Promise.resolve(completedInspiration({ retention_expires_at: null })),
+      signedImageURL: () => Promise.resolve(signedURL),
+    },
+    storageOrigin,
+    NOW,
+  );
+  assertEquals(resolved, { imageURL: signedURL });
 });
 Deno.test("a saved owned reference with a current server receipt can be resolved", async () => {
   const result = await resolveConsentedStudioReference(user, reference, "current", {

@@ -13,6 +13,7 @@ export interface CompletedInspirationRow {
   readonly user_id: string;
   readonly status: string;
   readonly deleted_at: string | null;
+  readonly retention_expires_at: string | null;
   readonly result_image_path: string | null;
   readonly prompt_payload: unknown;
 }
@@ -28,16 +29,24 @@ export async function resolveCompletedStudioInspiration(
   generationID: string,
   reads: StudioInspirationReads,
   expectedStorageOrigin: string,
+  now: Date,
 ): Promise<{ readonly imageURL: string } | null> {
   if (!isUUID(userID) || !isUUID(generationID)) return null;
   const generation = await reads.generation(generationID);
   const mode = isRecord(generation?.prompt_payload) ? generation.prompt_payload["mode"] : null;
   const expectedPath =
     `users/${userID.toLowerCase()}/studio/${generationID.toLowerCase()}/result.png`;
+  const retentionExpiry = generation?.retention_expires_at;
+  const retentionIsCurrent = retentionExpiry === null || (
+    typeof retentionExpiry === "string" &&
+    Number.isFinite(Date.parse(retentionExpiry)) &&
+    Date.parse(retentionExpiry) > now.getTime()
+  );
   if (
     !generation || generation.id.toLowerCase() !== generationID.toLowerCase() ||
     generation.user_id.toLowerCase() !== userID.toLowerCase() ||
     generation.status !== "complete" || generation.deleted_at !== null ||
+    !retentionIsCurrent ||
     (mode !== "inspiration" && mode !== "closet_inspiration") ||
     generation.result_image_path !== expectedPath
   ) return null;
@@ -124,7 +133,9 @@ export function buildStudioInspirationReads(
   return {
     async generation(id) {
       const { data, error } = await supabase.from("studio_generations")
-        .select("id,user_id,status,deleted_at,result_image_path,prompt_payload")
+        .select(
+          "id,user_id,status,deleted_at,retention_expires_at,result_image_path,prompt_payload",
+        )
         .eq("id", id).eq("user_id", userID).is("deleted_at", null).maybeSingle();
       if (error) throw serverError("Couldn't verify this Studio image.");
       return data as CompletedInspirationRow | null;
