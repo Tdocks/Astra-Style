@@ -574,3 +574,7 @@ Final scanner-entry regression: both receipt and mirror tests passed on the exte
 Signed archive/export and TestFlight upload completed successfully at 21:25:42 local time. Archive Info.plist confirms build 23. Includes receipt/label capture, mirror-reference capture and atomic association client changes; deployed reference preservation is already live. Apple listing/processing and Internal availability remain pending, so build 22 remains the last verified available release. Device camera/import/save and real photographed receipt acceptance remain open.
 
 Build 23 release confirmation: Apple lists build 6234f81e-15ff-4004-a028-1aafc55af2eb as VALID and Internal IN_BETA_TESTING. Internal-group membership and en-US testing notes verified. External remains READY_FOR_BETA_SUBMISSION and is not submitted; device acceptance remains open.
+
+## 2026-10-08 — Item-detail insights calculation groundwork
+
+Added a pure item-insights calculation reusing the wardrobe redundancy formula and compatibility scorer. It reports a 0–100 redundancy value, similar active season-overlapping garments, ranked wearable complementary pieces with missing context, saved outfit IDs containing the item and replacement reasons only for recorded worn/damaged condition. Four new insights tests plus six shared redundancy tests passed; type check and lint passed. Caller-owned API reads, native item-detail display/navigation and acceptance remain unimplemented, so P3-CLOSET-07 remains Not started at the UI ticket level. This calculation is not deployed or in TestFlight build 23.
