@@ -30,6 +30,14 @@ struct AstraStyleApp: App {
                 .task {
                     await bootstrap()
                 }
+                .task {
+                    await observeConnectivityForScannerRecovery()
+                }
+                .onChange(of: appContainer.sessionStore.currentSession?.userID) { _, ownerID in
+                    guard let ownerID else { return }
+                    let recovery = appContainer.scannerSaveRecoveryService
+                    Task { await recovery.recover(ownerID: ownerID) }
+                }
         }
     }
 
@@ -151,6 +159,13 @@ struct AstraStyleApp: App {
             // Any other failure (5xx, offline, decode) is plausibly transient,
             // so keep the session and let Home offer a retry.
             return .main
+        }
+    }
+
+    private func observeConnectivityForScannerRecovery() async {
+        for await isOnline in appContainer.networkMonitor.connectivityUpdates() where isOnline {
+            guard let ownerID = await appContainer.sessionStore.currentUserID() else { continue }
+            await appContainer.scannerSaveRecoveryService.recover(ownerID: ownerID)
         }
     }
 }

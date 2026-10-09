@@ -58,6 +58,8 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
 
     private struct CachedSignature {
         let url: URL
+        let ownerID: UUID
+        let revision: ClosetImageCacheRevision
         /// Real expiry, not the margin-adjusted one — `isUsable` applies
         /// the margin, so the stored value stays a statement of fact.
         let expiresAt: Date
@@ -66,6 +68,7 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
     private let supabase: SupabaseClient
     private let apiClient: AstraAPIClient
     private let now: @Sendable () -> Date
+    private let currentUserID: @Sendable () async -> UUID?
     private var cache: [String: CachedSignature] = [:]
 
     /// - Parameters:
@@ -78,44 +81,93 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
     public init(
         apiClient: AstraAPIClient,
         supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current),
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        currentUserID: (@Sendable () async -> UUID?)? = nil
     ) {
         self.supabase = supabase
         self.apiClient = apiClient
         self.now = now
+        self.currentUserID = currentUserID ?? {
+            if let id = supabase.auth.currentSession?.user.id { return id }
+            return try? await supabase.auth.session.user.id
+        }
     }
 
     public func resolve(storagePath: String) async throws -> URL {
+        let ownerID = try await authenticatedOwnerID()
+        guard Self.isAccessiblePrivatePath(storagePath, ownerID: ownerID) else {
+            throw AstraError.auth("That photo belongs to a different account or is unavailable.")
+        }
         if let local = GuestLocalImageStore.fileURL(for: storagePath),
            FileManager.default.fileExists(atPath: local.path) {
+            try await verifyOwner(ownerID)
             return local
         }
-        if let cached = usableCachedURL(for: storagePath) {
-            return cached
+        let cachedFile = await ClosetImageByteCache.shared.fileURL(ownerID: ownerID, storagePath: storagePath)
+        try await verifyOwner(ownerID)
+        if let local = cachedFile {
+            return local
         }
+        if let cached = await usableCachedSignature(for: storagePath, ownerID: ownerID) {
+            try await verifyOwner(ownerID)
+            guard await signatureRevisionIsCurrent(cached, path: storagePath) else {
+                cache[storagePath] = nil
+                return try await signOne(storagePath, ownerID: ownerID)
+            }
+            prefetch(cached.url, storagePath: storagePath, ownerID: ownerID)
+            return cached.url
+        }
+        return try await signOne(storagePath, ownerID: ownerID)
+    }
+
+    private func signOne(_ storagePath: String, ownerID: UUID) async throws -> URL {
+        let revisions = await ClosetImageByteCache.shared.invalidationRevision(ownerID: ownerID, storagePath: storagePath)
+        let url: URL
         do {
-            let url = try await supabase.storage
+            url = try await supabase.storage
                 .from(Self.bucket)
                 .createSignedURL(path: storagePath, expiresIn: Self.signedURLLifetime)
-            store(url, for: storagePath)
-            return url
         } catch {
             throw AstraError.server(String(localized: "Couldn't load that photo.", comment: "Closet image could not be resolved"))
         }
+        try await verifyOwner(ownerID)
+        let latestRevision = await ClosetImageByteCache.shared.invalidationRevision(ownerID: ownerID, storagePath: storagePath)
+        guard latestRevision == revisions else {
+            throw AstraError.server(String(localized: "That photo changed while it was loading. Try again.", comment: "Closet image invalidated during signing"))
+        }
+        store(url, for: storagePath, ownerID: ownerID, revision: latestRevision)
+        prefetch(url, storagePath: storagePath, ownerID: ownerID)
+        return url
     }
 
     public func resolve(storagePaths: [String]) async throws -> [String: URL] {
+        guard !storagePaths.isEmpty else { return [:] }
+        let ownerID = try await authenticatedOwnerID()
         var resolved: [String: URL] = [:]
         var needsSigning: [String] = []
 
         for path in storagePaths {
+            guard Self.isAccessiblePrivatePath(path, ownerID: ownerID) else { continue }
             if let local = GuestLocalImageStore.fileURL(for: path),
                FileManager.default.fileExists(atPath: local.path) {
                 resolved[path] = local
-            } else if let cached = usableCachedURL(for: path) {
-                resolved[path] = cached
             } else {
-                needsSigning.append(path)
+                let cachedFile = await ClosetImageByteCache.shared.fileURL(ownerID: ownerID, storagePath: path)
+                try await verifyOwner(ownerID)
+                if let local = cachedFile {
+                    resolved[path] = local
+                } else if let cached = await usableCachedSignature(for: path, ownerID: ownerID) {
+                    try await verifyOwner(ownerID)
+                    if await signatureRevisionIsCurrent(cached, path: path) {
+                        resolved[path] = cached.url
+                        prefetch(cached.url, storagePath: path, ownerID: ownerID)
+                    } else {
+                        cache[path] = nil
+                        needsSigning.append(path)
+                    }
+                } else {
+                    needsSigning.append(path)
+                }
             }
         }
 
@@ -123,10 +175,11 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
         // (an item appearing in two sections), and signing it twice would
         // waste half the batch on duplicates.
         for chunk in Array(Set(needsSigning)).chunked(into: Self.batchLimit) {
-            for (path, url) in try await sign(chunk) {
+            for (path, url) in try await sign(chunk, ownerID: ownerID) {
                 resolved[path] = url
             }
         }
+        try await verifyOwner(ownerID)
         return resolved
     }
 
@@ -154,9 +207,10 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
 
     // MARK: - Signing
 
-    private func sign(_ paths: [String]) async throws -> [String: URL] {
+    private func sign(_ paths: [String], ownerID: UUID) async throws -> [String: URL] {
         guard !paths.isEmpty else { return [:] }
         let results: [SignedURLResult]
+        let revisionsBefore = await invalidationRevisions(ownerID: ownerID, paths: paths)
         do {
             results = try await supabase.storage
                 .from(Self.bucket)
@@ -168,38 +222,131 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
             // the loop below can drop them silently while this throws.
             throw AstraError.network(String(localized: "Couldn't load your closet photos. Check your connection and try again.", comment: "Batch closet image resolution failed"))
         }
+        try await verifyOwner(ownerID)
+        let revisionsAfter = await invalidationRevisions(ownerID: ownerID, paths: paths)
 
         var signed: [String: URL] = [:]
         for result in results {
+            guard Self.isAccessiblePrivatePath(result.path, ownerID: ownerID) else { continue }
             // Keyed by the path Storage echoes back rather than by
             // position: the API returns one object per requested path with
             // that path on it, and trusting the array's ORDER to match the
             // request would be an assumption that fails silently and
             // catastrophically — every tile showing the wrong garment.
             guard let url = result.signedURL else { continue }
+            guard revisionsBefore[result.path] == revisionsAfter[result.path],
+                  let revision = revisionsAfter[result.path] else { continue }
             signed[result.path] = url
-            store(url, for: result.path)
+            store(url, for: result.path, ownerID: ownerID, revision: revision)
+            prefetch(url, storagePath: result.path, ownerID: ownerID)
         }
         return signed
     }
 
+    private func authenticatedOwnerID() async throws -> UUID {
+        guard let ownerID = await currentUserID() else {
+            throw AstraError.auth("Sign in to view your closet photos.")
+        }
+        return ownerID
+    }
+
+    private func verifyOwner(_ expectedOwnerID: UUID) async throws {
+        guard await currentUserID() == expectedOwnerID else {
+            throw AstraError.auth("Your account changed while loading that photo. Try again.")
+        }
+    }
+
+    private static func isAccessiblePrivatePath(_ path: String, ownerID: UUID) -> Bool {
+        if GuestLocalImageStore.fileURL(for: path) != nil {
+            let prefix = "\(GuestLocalImageStore.pathPrefix)\(ownerID.uuidString.lowercased())/"
+            return path.hasPrefix(prefix)
+        }
+        let prefix = "users/\(ownerID.uuidString.lowercased())/"
+        guard path == path.lowercased(), path.hasPrefix(prefix) else { return false }
+        let components = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+        guard !components.isEmpty else { return false }
+        return components.allSatisfy { component in
+            !component.isEmpty && component != "." && component != ".." &&
+                component.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" || $0 == ".") }
+        }
+    }
+
+    /// Account deletion and image removal callers can invalidate durable
+    /// bytes without having to know the cache's on-disk layout.
+    public func removeCachedImage(ownerID: UUID, storagePath: String) async {
+        cache[storagePath] = nil
+        await ClosetImageByteCache.shared.remove(ownerID: ownerID, storagePath: storagePath)
+    }
+
+    public func removeAllCachedImages(ownerID: UUID) async {
+        let prefix = "users/\(ownerID.uuidString.lowercased())/"
+        cache = cache.filter { !$0.key.hasPrefix(prefix) }
+        await ClosetImageByteCache.shared.removeAll(ownerID: ownerID)
+    }
+
+    private func prefetch(_ url: URL, storagePath: String, ownerID: UUID?) {
+        guard let ownerID,
+              ClosetImageByteCache.isOwnedClosetImagePath(storagePath, ownerID: ownerID) else { return }
+        Task {
+            await ClosetImageByteCache.shared.prefetch(
+                signedURL: url,
+                ownerID: ownerID,
+                storagePath: storagePath
+            )
+        }
+    }
+
     // MARK: - Cache
 
-    private func usableCachedURL(for path: String) -> URL? {
-        guard let cached = cache[path] else { return nil }
+    func usableCachedURL(for path: String, ownerID: UUID) async -> URL? {
+        await usableCachedSignature(for: path, ownerID: ownerID)?.url
+    }
+
+    private func usableCachedSignature(for path: String, ownerID: UUID) async -> CachedSignature? {
+        guard let cached = cache[path], cached.ownerID == ownerID else { return nil }
         guard cached.expiresAt.timeIntervalSince(now()) > Self.refreshMargin else {
             cache[path] = nil
             return nil
         }
-        return cached.url
+        let revision = await ClosetImageByteCache.shared.invalidationRevision(ownerID: ownerID, storagePath: path)
+        guard let latest = cache[path],
+              latest.ownerID == ownerID,
+              latest.url == cached.url,
+              latest.revision == cached.revision else { return nil }
+        guard revision == cached.revision else {
+            cache[path] = nil
+            return nil
+        }
+        return cached
     }
 
-    private func store(_ url: URL, for path: String) {
+    private func signatureRevisionIsCurrent(_ signature: CachedSignature, path: String) async -> Bool {
+        let revision = await ClosetImageByteCache.shared.invalidationRevision(
+            ownerID: signature.ownerID,
+            storagePath: path
+        )
+        return revision == signature.revision &&
+            cache[path]?.url == signature.url &&
+            cache[path]?.revision == signature.revision &&
+            cache[path]?.ownerID == signature.ownerID
+    }
+
+    func store(_ url: URL, for path: String, ownerID: UUID, revision: ClosetImageCacheRevision) {
         cache[path] = CachedSignature(
             url: url,
+            ownerID: ownerID,
+            revision: revision,
             expiresAt: now().addingTimeInterval(TimeInterval(Self.signedURLLifetime))
         )
         pruneExpired()
+    }
+
+    private func invalidationRevisions(ownerID: UUID, paths: [String]) async -> [String: ClosetImageCacheRevision] {
+        var revisions: [String: ClosetImageCacheRevision] = [:]
+        for path in paths {
+            revisions[path] = await ClosetImageByteCache.shared.invalidationRevision(ownerID: ownerID, storagePath: path)
+        }
+        return revisions
     }
 
     /// Drops entries that can no longer be handed out.

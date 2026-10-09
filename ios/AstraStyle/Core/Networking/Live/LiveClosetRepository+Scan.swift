@@ -60,12 +60,14 @@ extension LiveClosetRepository {
     }
 
     public func deleteCapturedImage(atPath storagePath: String) async throws {
+        let owner = await currentUserID()
         if GuestLocalImageStore.isLocal(storagePath) {
             try GuestLocalImageStore.delete(storagePath)
             return
         }
         do {
             _ = try await supabase.storage.from("user-content").remove(paths: [storagePath])
+            if let owner { await ClosetImageByteCache.shared.remove(ownerID: owner, storagePath: storagePath) }
         } catch {
             throw AstraError.server("Couldn't remove that photo from your storage.")
         }

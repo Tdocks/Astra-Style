@@ -33,6 +33,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     case listProductUnlocks
     case studioQuota
     case generateStudio
+    case exportStudioHiRes
     case studioStatus(id: UUID)
     case deleteStudioGeneration(id: UUID)
     case generatePacking
@@ -79,6 +80,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .listProductUnlocks: "products/unlocks"
         case .studioQuota: "studio/quota"
         case .generateStudio: "studio/generate"
+        case .exportStudioHiRes: "studio/export-hi-res"
         case .studioStatus(let id): "studio/status/\(id.uuidString)"
         case .deleteStudioGeneration(let id): "studio/generations/\(id.uuidString.lowercased())"
         case .generatePacking: "packing/generate"
@@ -101,7 +103,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// mobile retry cannot double-charge (docs/08 §0.1, HANDOFF §9.2).
     public var requiresIdempotencyKey: Bool {
         switch self {
-        case .removeClosetBackground, .analyzeClosetItem, .batchAnalyzeCloset, .generateStudio:
+        case .removeClosetBackground, .analyzeClosetItem, .batchAnalyzeCloset, .generateStudio, .exportStudioHiRes:
             true
         default:
             false

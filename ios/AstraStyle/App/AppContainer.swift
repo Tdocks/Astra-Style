@@ -97,6 +97,9 @@ public final class AppContainer {
     public let captureDraftStore: CaptureDraftStore
     /// Durable queue for JPEGs captured while offline, before analysis runs.
     public let pendingScanQueue: PendingScanQueue
+    /// Write-ahead journal for scanner saves whose remote outcome is ambiguous.
+    public let scannerSaveJournal: ScannerSaveJournaling
+    public let scannerSaveRecoveryService: ScannerSaveRecoveryService
 
     // MARK: - Cross-cutting infrastructure
 
@@ -125,6 +128,8 @@ public final class AppContainer {
         captureSession: any CaptureSessionControlling,
         captureDraftStore: CaptureDraftStore = CaptureDraftStore(),
         pendingScanQueue: PendingScanQueue,
+        scannerSaveJournal: ScannerSaveJournaling = InMemoryScannerSaveJournal(),
+        scannerSaveRecoveryService: ScannerSaveRecoveryService,
         apiClient: AstraAPIClient,
         analyticsClient: AnalyticsClient,
         offlineMutationQueue: OfflineMutationQueue,
@@ -149,6 +154,8 @@ public final class AppContainer {
         self.captureSession = captureSession
         self.captureDraftStore = captureDraftStore
         self.pendingScanQueue = pendingScanQueue
+        self.scannerSaveJournal = scannerSaveJournal
+        self.scannerSaveRecoveryService = scannerSaveRecoveryService
         self.apiClient = apiClient
         self.analyticsClient = analyticsClient
         self.offlineMutationQueue = offlineMutationQueue
@@ -160,6 +167,36 @@ public final class AppContainer {
 // MARK: - Factories
 
 extension AppContainer {
+
+    private struct LiveContainerDependencies {
+        let apiClient: AstraAPIClient
+        let sessionStore: SessionStore
+        let analyticsClient: AnalyticsClient
+        let weatherService: WeatherService
+        let calendarService: CalendarService
+        let offlineMutationQueue: OfflineMutationQueue
+        let pendingScanQueue: PendingScanQueue
+        let scannerSaveJournal: ScannerSaveJournaling
+        let scannerSaveRecoveryService: ScannerSaveRecoveryService
+        let subscriptionRepository: SubscriptionRepository
+        let closetRepository: ClosetRepository
+        let closetImageURLResolver: ClosetImageURLResolving
+        let modelContainer: ModelContainer
+        let networkMonitor: NetworkReachabilityMonitoring
+    }
+
+    private struct PreviewContainerDependencies {
+        let sessionStore: SessionStore
+        let referenceBody: BodyProfile
+        let chatPreviewID: UUID?
+        let studioRepository: MockStudioRepository
+        let closetRepository: ClosetRepository
+        let closetImageURLResolver: ClosetImageURLResolving
+        let outfitRepository: OutfitRepository
+        let subscriptionRepository: SubscriptionRepository
+        let scannerSaveJournal: ScannerSaveJournaling
+        let scannerSaveRecoveryService: ScannerSaveRecoveryService
+    }
 
     /// Production dependency graph. Talks to Supabase Edge Functions per
     /// spec §8; the client never talks to a model provider directly.
@@ -178,45 +215,74 @@ extension AppContainer {
         let modelContainer = (try? AstraModelContainer.live()) ?? AstraModelContainer.preview()
         let offlineMutationQueue = SwiftDataOfflineMutationQueue(modelContainer: modelContainer)
         let pendingScanQueue = SwiftDataPendingScanQueue(modelContainer: modelContainer)
+        let scannerSaveJournal = SwiftDataScannerSaveJournal(modelContainer: modelContainer)
         let networkMonitor = SystemNetworkReachabilityMonitor()
         let subscriptionRepository = LiveSubscriptionRepository(apiClient: apiClient)
-        let closetRepository = makeLiveClosetStack(
+        let closetStack = makeLiveClosetStack(
             apiClient: apiClient,
             offlineMutationQueue: offlineMutationQueue,
             modelContainer: modelContainer,
             subscriptionRepository: subscriptionRepository,
             sessionStore: sessionStore
         )
-
-        return AppContainer(
+        let scannerSaveRecoveryService = makeScannerSaveRecoveryService(
+            journal: scannerSaveJournal,
+            repository: closetStack.repository,
+            remote: closetStack.remote,
             sessionStore: sessionStore,
-            authRepository: LiveAuthRepository(apiClient: apiClient, sessionStore: sessionStore),
-            profileRepository: LiveProfileRepository(apiClient: apiClient),
-            closetRepository: closetRepository,
-            closetImageURLResolver: LiveClosetImageURLResolver(apiClient: apiClient),
-            outfitRepository: LiveOutfitRepository(
-                apiClient: apiClient,
-                offlineQueue: offlineMutationQueue,
-                cache: SwiftDataOutfitCache(modelContainer: modelContainer)
-            ),
-            kyraRepository: LiveKyraRepository(
-                apiClient: apiClient,
-                weatherService: weatherService,
-                calendarService: calendarService
-            ),
-            studioRepository: LiveStudioRepository(apiClient: apiClient),
-            shoppingRepository: LiveShoppingRepository(apiClient: apiClient),
-            streakRepository: LiveStreakRepository(),
-            subscriptionRepository: subscriptionRepository,
+            offlineMutationQueue: offlineMutationQueue
+        )
+
+        return makeLiveContainer(LiveContainerDependencies(
+            apiClient: apiClient,
+            sessionStore: sessionStore,
+            analyticsClient: analyticsClient,
             weatherService: weatherService,
             calendarService: calendarService,
+            offlineMutationQueue: offlineMutationQueue,
+            pendingScanQueue: pendingScanQueue,
+            scannerSaveJournal: scannerSaveJournal,
+            scannerSaveRecoveryService: scannerSaveRecoveryService,
+            subscriptionRepository: subscriptionRepository,
+            closetRepository: closetStack.repository,
+            closetImageURLResolver: LiveClosetImageURLResolver(apiClient: apiClient),
+            modelContainer: modelContainer,
+            networkMonitor: networkMonitor
+        ))
+    }
+
+    private static func makeLiveContainer(_ dependencies: LiveContainerDependencies) -> AppContainer {
+        AppContainer(
+            sessionStore: dependencies.sessionStore,
+            authRepository: LiveAuthRepository(apiClient: dependencies.apiClient, sessionStore: dependencies.sessionStore),
+            profileRepository: LiveProfileRepository(apiClient: dependencies.apiClient),
+            closetRepository: dependencies.closetRepository,
+            closetImageURLResolver: dependencies.closetImageURLResolver,
+            outfitRepository: LiveOutfitRepository(
+                apiClient: dependencies.apiClient,
+                offlineQueue: dependencies.offlineMutationQueue,
+                cache: SwiftDataOutfitCache(modelContainer: dependencies.modelContainer)
+            ),
+            kyraRepository: LiveKyraRepository(
+                apiClient: dependencies.apiClient,
+                weatherService: dependencies.weatherService,
+                calendarService: dependencies.calendarService
+            ),
+            studioRepository: LiveStudioRepository(apiClient: dependencies.apiClient),
+            shoppingRepository: LiveShoppingRepository(apiClient: dependencies.apiClient),
+            streakRepository: LiveStreakRepository(),
+            subscriptionRepository: dependencies.subscriptionRepository,
+            weatherService: dependencies.weatherService,
+            calendarService: dependencies.calendarService,
             reminderService: LiveReminderService(),
             captureSession: LiveCaptureSessionController(),
-            pendingScanQueue: pendingScanQueue,
-            apiClient: apiClient,
-            analyticsClient: analyticsClient,
-            offlineMutationQueue: offlineMutationQueue,
-            networkMonitor: networkMonitor,
+            pendingScanQueue: dependencies.pendingScanQueue,
+            scannerSaveJournal: dependencies.scannerSaveJournal,
+            scannerSaveRecoveryService: dependencies.scannerSaveRecoveryService,
+            apiClient: dependencies.apiClient,
+            analyticsClient: dependencies.analyticsClient,
+            offlineMutationQueue: dependencies.offlineMutationQueue,
+            networkMonitor: dependencies.networkMonitor,
             settings: AppSettings()
         )
     }
@@ -234,7 +300,7 @@ extension AppContainer {
         modelContainer: ModelContainer,
         subscriptionRepository: SubscriptionRepository,
         sessionStore: SessionStore
-    ) -> ClosetRepository {
+    ) -> (repository: ClosetRepository, remote: any ScannerSaveRemoteWriting) {
         let liveClosetRepository = LiveClosetRepository(
             apiClient: apiClient,
             offlineQueue: offlineMutationQueue,
@@ -253,7 +319,44 @@ extension AppContainer {
                 await sessionStore.currentIsAnonymous()
             }
         )
-        return freeTierCappedClosetRepository
+        return (freeTierCappedClosetRepository, liveClosetRepository)
+    }
+
+    private static func offlineQueueContainsCreate(
+        _ queue: OfflineMutationQueue,
+        ownerID: UUID,
+        itemID: UUID
+    ) async -> Bool {
+        for mutation in await queue.pendingMutations() where mutation.entity == .closetItem && mutation.operation == .create {
+            if let payload = try? JSONDecoder.astraDefault.decode(ClosetCreateMutationPayload.self, from: mutation.payloadData),
+               payload.item.id == itemID, payload.item.userID == ownerID {
+                return true
+            }
+            if let item = try? JSONDecoder.astraDefault.decode(ClosetItem.self, from: mutation.payloadData),
+               item.id == itemID, item.userID == ownerID {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func makeScannerSaveRecoveryService(
+        journal: ScannerSaveJournaling,
+        repository: ClosetRepository,
+        remote: any ScannerSaveRemoteWriting,
+        sessionStore: SessionStore,
+        offlineMutationQueue: OfflineMutationQueue? = nil
+    ) -> ScannerSaveRecoveryService {
+        ScannerSaveRecoveryService(
+            journal: journal,
+            repository: repository,
+            remote: remote,
+            currentUserID: { await sessionStore.currentUserID() },
+            hasDurableQueuedCreate: { ownerID, itemID in
+                guard let offlineMutationQueue else { return false }
+                return await Self.offlineQueueContainsCreate(offlineMutationQueue, ownerID: ownerID, itemID: itemID)
+            }
+        )
     }
 
     /// Preview / early-UI dependency graph. Every dependency is an
@@ -288,25 +391,49 @@ extension AppContainer {
                 (try? await subscriptionRepository.fetchCurrentSubscription())?.isEntitledToPremium ?? false
             }
         )
-        return AppContainer(
+        let scannerSaveJournal = InMemoryScannerSaveJournal()
+        let scannerSaveRecoveryService = makeScannerSaveRecoveryService(
+            journal: scannerSaveJournal,
+            repository: freeTierCappedClosetRepository,
+            remote: mockClosetRepository,
+            sessionStore: sessionStore
+        )
+        return makePreviewContainer(PreviewContainerDependencies(
             sessionStore: sessionStore,
-            authRepository: MockAuthRepository(sessionStore: sessionStore),
-            profileRepository: MockProfileRepository(bodyProfile: referenceBody, studioRepository: mockStudioRepository),
+            referenceBody: referenceBody,
+            chatPreviewID: chatPreviewID,
+            studioRepository: mockStudioRepository,
             closetRepository: freeTierCappedClosetRepository,
             closetImageURLResolver: MockClosetImageURLResolver(),
             outfitRepository: outfitRepository ?? MockOutfitRepository(),
-            kyraRepository: MockKyraRepository(previewGenerationID: chatPreviewID),
-            studioRepository: mockStudioRepository,
+            subscriptionRepository: subscriptionRepository,
+            scannerSaveJournal: scannerSaveJournal,
+            scannerSaveRecoveryService: scannerSaveRecoveryService
+        ))
+    }
+
+    private static func makePreviewContainer(_ dependencies: PreviewContainerDependencies) -> AppContainer {
+        AppContainer(
+            sessionStore: dependencies.sessionStore,
+            authRepository: MockAuthRepository(sessionStore: dependencies.sessionStore),
+            profileRepository: MockProfileRepository(bodyProfile: dependencies.referenceBody, studioRepository: dependencies.studioRepository),
+            closetRepository: dependencies.closetRepository,
+            closetImageURLResolver: dependencies.closetImageURLResolver,
+            outfitRepository: dependencies.outfitRepository,
+            kyraRepository: MockKyraRepository(previewGenerationID: dependencies.chatPreviewID),
+            studioRepository: dependencies.studioRepository,
             studioEstimateExporter: MockStudioEstimateExporter(),
             shoppingRepository: MockShoppingRepository(),
             streakRepository: MockStreakRepository(),
-            subscriptionRepository: subscriptionRepository,
+            subscriptionRepository: dependencies.subscriptionRepository,
             weatherService: MockWeatherService(),
             calendarService: MockCalendarService(),
             reminderService: MockReminderService(),
             captureSession: MockCaptureSessionController(isHardwareAvailable: false),
             captureDraftStore: CaptureDraftStore(),
             pendingScanQueue: InMemoryPendingScanQueue(),
+            scannerSaveJournal: dependencies.scannerSaveJournal,
+            scannerSaveRecoveryService: dependencies.scannerSaveRecoveryService,
             apiClient: .previewClient,
             analyticsClient: NoOpAnalyticsClient(),
             offlineMutationQueue: InMemoryOfflineMutationQueue(),

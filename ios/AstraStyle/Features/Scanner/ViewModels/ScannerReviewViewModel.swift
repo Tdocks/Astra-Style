@@ -57,6 +57,7 @@ public final class ScannerReviewViewModel {
         public let closetRepository: ClosetRepository
         public let imageURLResolver: ClosetImageURLResolving
         public let pendingScanQueue: PendingScanQueue
+        public let scannerSaveJournal: ScannerSaveJournaling
         public let networkMonitor: NetworkReachabilityMonitoring
         public let analyticsClient: AnalyticsClient
         public let currentUserID: @Sendable () async -> UUID?
@@ -66,6 +67,7 @@ public final class ScannerReviewViewModel {
             closetRepository: ClosetRepository,
             imageURLResolver: ClosetImageURLResolving,
             pendingScanQueue: PendingScanQueue,
+            scannerSaveJournal: ScannerSaveJournaling = InMemoryScannerSaveJournal(),
             networkMonitor: NetworkReachabilityMonitoring = SystemNetworkReachabilityMonitor(),
             analyticsClient: AnalyticsClient = NoOpAnalyticsClient(),
             currentUserID: @escaping @Sendable () async -> UUID?
@@ -74,6 +76,7 @@ public final class ScannerReviewViewModel {
             self.closetRepository = closetRepository
             self.imageURLResolver = imageURLResolver
             self.pendingScanQueue = pendingScanQueue
+            self.scannerSaveJournal = scannerSaveJournal
             self.networkMonitor = networkMonitor
             self.analyticsClient = analyticsClient
             self.currentUserID = currentUserID
@@ -87,9 +90,9 @@ public final class ScannerReviewViewModel {
     public internal(set) var localPreviewData: Data?
     public internal(set) var signedPreviewURL: URL?
     public internal(set) var storagePath: String?
-    private var discardRequestedDuringSave = false
-    private var saveMayHavePersisted = false
-    private var cachedCutout: (source: String, path: String)?
+    var discardRequestedDuringSave = false
+    var saveMayHavePersisted = false
+    var cachedCutout: (source: String, path: String)?
     public internal(set) var analysis: ClosetItemAnalysisResult?
     public internal(set) var ocrText: String?
     /// Phase-3 simplified unlock count after a successful save (P3-SCAN-11).
@@ -103,7 +106,7 @@ public final class ScannerReviewViewModel {
     /// building. It is the repository's return value, not the locally-built
     /// draft, so anything the server normalised on write is what the caller
     /// sees rather than what was sent.
-    public private(set) var savedItem: ClosetItem?
+    public internal(set) var savedItem: ClosetItem?
 
     public var name: String = ""
     public var brand: String = ""
@@ -141,6 +144,7 @@ public final class ScannerReviewViewModel {
     let closetRepository: ClosetRepository
     let imageURLResolver: ClosetImageURLResolving
     let pendingScanQueue: PendingScanQueue
+    let scannerSaveJournal: ScannerSaveJournaling
     let networkMonitor: NetworkReachabilityMonitoring
     let analyticsClient: AnalyticsClient
     let currentUserID: @Sendable () async -> UUID?
@@ -154,6 +158,7 @@ public final class ScannerReviewViewModel {
         self.closetRepository = dependencies.closetRepository
         self.imageURLResolver = dependencies.imageURLResolver
         self.pendingScanQueue = dependencies.pendingScanQueue
+        self.scannerSaveJournal = dependencies.scannerSaveJournal
         self.networkMonitor = dependencies.networkMonitor
         self.analyticsClient = dependencies.analyticsClient
         self.currentUserID = dependencies.currentUserID
@@ -219,85 +224,6 @@ public final class ScannerReviewViewModel {
         }
     }
 
-    public func save() async {
-        guard canSave else { return }
-        guard let storagePath else {
-            phase = .saveFailed(AstraError.validation(
-                String(localized: "The photo is not uploaded yet. Try again.",
-                       comment: "Scanner save without storage path")
-            ))
-            return
-        }
-        phase = .saving
-        guard let userID = await currentUserID() else {
-            phase = .saveFailed(AstraError.auth(
-                String(localized: "Sign in to save this piece to your closet.",
-                       comment: "Scanner save without session")
-            ))
-            await finishSaveCleanup()
-            return
-        }
-
-        let identity = saveIdentity(for: userID)
-        let itemID = identity.item
-        let item = buildItem(id: itemID, userID: userID)
-        let image = ClosetItemImage(
-            id: identity.image,
-            closetItemID: itemID,
-            imageType: .front,
-            storagePath: storagePath,
-            // Prefer device segmentation, then the reserved server fallback.
-            // The original capture stays usable when optional processing fails.
-            backgroundRemovedPath: await uploadedCutoutPath() ?? analysis?.normalizedImagePath,
-            isPrimary: true
-        )
-        // Dismissal can clear the capture while segmentation/upload is awaited.
-        guard self.storagePath == storagePath else {
-            phase = .missingDraft
-            return
-        }
-
-        let previouslyUncertain = saveMayHavePersisted
-        do {
-            saveMayHavePersisted = true
-            try await persistSavedItem(item, images: [image])
-        } catch let error as FreeTierClosetError {
-            // The cap wrapper rejects before writing anything.
-            saveMayHavePersisted = previouslyUncertain
-            switch error {
-            case .capReached(let limit):
-                phase = .capReached(limit: limit)
-            }
-        } catch {
-            let astra = (error as? AstraError) ?? AstraError.server(
-                String(localized: "Couldn't save that piece. Try again.",
-                       comment: "Scanner save failure")
-            )
-            phase = .saveFailed(astra)
-        }
-        await finishSaveCleanup()
-    }
-
-    private func persistSavedItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws {
-        savedItem = try await closetRepository.createItem(item, images: images)
-        let corrected = fieldsCorrectedCount()
-        analyticsClient.log(.closetItemAdded(category: item.category, source: .scan))
-        if corrected > 0 {
-            analyticsClient.log(.scanCorrected(fieldsCorrectedCount: corrected))
-        }
-        // P3-SCAN-11: complementary partners already owned, not the
-        // Phase-4 purchase-unlock algorithm. Fail closed to 0 if the
-        // closet cannot be read — never invent a marketing number.
-        let closet = (try? await closetRepository.fetchItems()) ?? []
-        outfitsUnlockedCount = ScanOutfitUnlockEstimator.newlyUnlockedCount(
-            adding: item,
-            to: closet
-        )
-        draftStore.remove(id: draftID)
-        AstraHaptics.success()
-        phase = .saved
-    }
-
     /// Cuts the garment out of its background and uploads the result, or
     /// returns nil and lets the raw photograph stand.
     ///
@@ -316,7 +242,7 @@ public final class ScannerReviewViewModel {
     /// photographs. It is cheap, it is local, and storing it means turning
     /// the setting back on is instant instead of a re-scan of the whole
     /// wardrobe.
-    private func uploadedCutoutPath() async -> String? {
+    func uploadedCutoutPath() async -> String? {
         if let cachedCutout, cachedCutout.source == storagePath { return cachedCutout.path }
         guard let data = localPreviewData else { return nil }
         // Off the main actor: this is a Vision request and a full-frame
@@ -383,7 +309,7 @@ public final class ScannerReviewViewModel {
 }
 
 extension ScannerReviewViewModel {
-    private func finishSaveCleanup() async {
+    func finishSaveCleanup() async {
         if discardRequestedDuringSave {
             discardRequestedDuringSave = false
             await discardUnsavedUpload()

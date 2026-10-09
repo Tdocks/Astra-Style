@@ -77,6 +77,7 @@ struct EndpointDeploymentMappingTests {
         .listProductUnlocks,
         .studioQuota,
         .generateStudio,
+        .exportStudioHiRes,
         .studioStatus(id: UUID()),
         .deleteStudioGeneration(id: UUID()),
         .generatePacking,
@@ -95,7 +96,7 @@ struct EndpointDeploymentMappingTests {
         case .completeOnboarding, .exportPersonalData, .deleteReferencePhoto, .generateStyleDNA, .removeClosetBackground, .analyzeClosetItem, .fetchWardrobeScore, .fetchItemInsights,
              .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
-             .evaluateProduct, .listProductUnlocks, .studioQuota, .generateStudio, .studioStatus, .deleteStudioGeneration,
+             .evaluateProduct, .listProductUnlocks, .studioQuota, .generateStudio, .exportStudioHiRes, .studioStatus, .deleteStudioGeneration,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,
              .deleteAccount, .recordWear, .signPublicLookImages:
             break
@@ -228,4 +229,13 @@ struct EndpointDeploymentMappingTests {
         #expect(endpoint.requiresAuthentication)
         #expect(!endpoint.requiresIdempotencyKey)
     }
+    @Test("High-resolution export uses an authenticated idempotent POST")
+    func studioHiResContract() {
+        let endpoint = AstraEndpoint.exportStudioHiRes
+        #expect(endpoint.method == .post)
+        #expect(endpoint.path == "studio/export-hi-res")
+        #expect(endpoint.requiresAuthentication)
+        #expect(endpoint.requiresIdempotencyKey)
+    }
+
 }

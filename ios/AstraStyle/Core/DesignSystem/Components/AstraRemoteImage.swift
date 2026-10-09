@@ -24,19 +24,22 @@
 //  no automatic scale-factor handling from the response, and this file now
 //  owns retry semantics (there are none — see below).
 //
-//  CACHING. Two layers, and one deliberate gap.
+//  CACHING. Three layers, with a narrow durable-byte cache.
 //  * HTTP responses ride `URLCache.shared`, which `URLSession.shared` uses
 //    by default. Nothing here configures it, so it is the system default.
+//  * Signed-in closet images also have a bounded, owner-scoped disk cache of
+//    original bytes in `ClosetImageByteCache`. It covers only canonical
+//    closet storage paths that the resolver sees; it is not a general cache
+//    for profile, Studio, inspiration, or arbitrary remote images.
 //  * Decoded/downsampled `UIImage`s are cached in memory by
 //    `AstraImageCache` below, keyed on the URL's PATH rather than its full
 //    string. That is not an oversight: closet images are served as signed
 //    URLs whose query string carries a token that changes every time
 //    `ClosetImageURLResolving` re-signs, and keying on `absoluteString`
 //    would throw the whole grid's decoded cache away once an hour.
-//  * GAP: there is no on-disk cache of decoded thumbnails, so a cold launch
-//    re-downloads (or re-reads from `URLCache`) and re-decodes every tile.
-//    Acceptable while the closet is tens of items; revisit if §20's 60 fps
-//    target starts failing on first scroll rather than on re-scroll.
+//  * There is no on-disk cache of decoded thumbnails. A cold launch can
+//    reuse locally cached closet bytes, but still re-decodes them; other
+//    image types rely on URLCache/network behavior.
 //
 //  NO RETRY. A failed load shows the fallback and stays there until the
 //  view is rebuilt. Deliberate: a grid that retries per-tile turns one
@@ -183,7 +186,11 @@ public struct AstraRemoteImage: View {
         }
         phase = .loading
 
-        let fetched = await Self.fetch(url: url, maxPixelSize: maxPixelSize, scale: displayScale)
+        let fetched = await AstraRemoteImageLoader.load(
+            url: url,
+            maxPixelSize: maxPixelSize,
+            scale: displayScale
+        )
 
         // A cancelled load is not a failed one. Without this guard, a tile
         // scrolled off-screen mid-fetch would come back showing the "no
@@ -198,20 +205,29 @@ public struct AstraRemoteImage: View {
         phase = .loaded(fetched)
     }
 
-    /// Downloads and decodes. `nonisolated` and `static` so neither the
-    /// transfer nor — more importantly — the decode runs on the main actor:
-    /// `ImageDownsampling.downsample` is the expensive part of a grid tile
-    /// and doing it on the main thread is precisely the dropped frame this
-    /// component exists to avoid.
-    private nonisolated static func fetch(url: URL, maxPixelSize: CGFloat?, scale: CGFloat) async -> UIImage? {
+}
+
+/// Shared fetch/decode seam for remote and resolver-provided local file URLs.
+/// URLSession supports both HTTP(S) and file URLs; the latter lets cached
+/// closet bytes use exactly the same downsampling path as signed URLs.
+enum AstraRemoteImageLoader {
+    /// Nonisolated so transfer and image decode stay off the main actor.
+    static func load(url: URL, maxPixelSize: CGFloat?, scale: CGFloat) async -> UIImage? {
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let data: Data
+            if url.isFileURL {
+                data = try Data(contentsOf: url, options: .mappedIfSafe)
+            } else {
+                let (responseData, response) = try await URLSession.shared.data(from: url)
+                if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                    return nil
+                }
+                data = responseData
+            }
             // A signed URL that has expired comes back as a well-formed 400
             // with a JSON body, which `UIImage(data:)` would turn into nil
-            // several lines later and with no explanation. Check the status.
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                return nil
-            }
+            // several lines later and with no explanation. Network status is
+            // checked before decode; local files have no HTTP response.
             guard let maxPixelSize else { return UIImage(data: data) }
             return ImageDownsampling.downsample(data: data, to: maxPixelSize, scale: scale)
         } catch {

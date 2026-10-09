@@ -12,6 +12,7 @@ struct StudioGenerationDetailView: View {
     @Environment(AppContainer.self) private var container
     @State private var showsCollections = false
     @State private var showsDescriptionEditor = false
+    @State private var showsHighResolutionConfirmation = false
     @State private var viewModel: StudioGenerationDetailViewModel
 
     init(viewModel: StudioGenerationDetailViewModel) {
@@ -60,6 +61,15 @@ struct StudioGenerationDetailView: View {
                                     .accessibilityIdentifier("studio.detail.image")
                             }
                             .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
+                        }
+                        if generation.status == .complete && viewModel.canExportHighResolution {
+                            highResolutionAction
+                        }
+                        if let child = viewModel.highResolutionChild {
+                            highResolutionChildSection(child)
+                        }
+                        if let error = viewModel.highResolutionError, viewModel.highResolutionChild == nil {
+                            Text(error).astraText(.callout).foregroundStyle(AstraColor.textSecondary)
                         }
                         if generation.status == .complete && !generation.referenceImagePath.isEmpty {
                             Button("Compare with original") {
@@ -122,6 +132,84 @@ struct StudioGenerationDetailView: View {
         .navigationTitle(String(localized: "Estimate", comment: "Studio generation detail"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.onAppear() }
+        .alert("Export a high-resolution estimate?", isPresented: $showsHighResolutionConfirmation) {
+            Button("Cancel", role: .cancel) { viewModel.cancelHighResolutionExportConfirmation() }
+            Button(viewModel.highResolutionConfirmationActionTitle) {
+                Task {
+                    await viewModel.confirmHighResolutionExport()
+                    showsHighResolutionConfirmation = viewModel.hasPendingHighResolutionConfirmation
+                }
+            }
+            .disabled(viewModel.isExportingHighResolution)
+        } message: {
+            Text(viewModel.highResolutionConfirmationMessage)
+        }
+    }
+
+    private var highResolutionAction: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+            Button {
+                Task {
+                    await viewModel.prepareHighResolutionExport()
+                    showsHighResolutionConfirmation = viewModel.hasPendingHighResolutionConfirmation
+                }
+            } label: {
+                Label(
+                    viewModel.isPreparingHighResolutionExport ? "Checking allowance…" : "Export high resolution",
+                    systemImage: "arrow.up.right"
+                )
+            }
+            .buttonStyle(.astraSecondary)
+            .disabled(viewModel.isPreparingHighResolutionExport || viewModel.isExportingHighResolution)
+            .accessibilityIdentifier("studio.detail.exportHiRes")
+            if viewModel.isExportingHighResolution {
+                ProgressView("Preparing high-resolution export…")
+                    .tint(AstraColor.accentChampagne)
+            }
+        }
+    }
+
+    private func highResolutionChildSection(_ child: StudioGeneration) -> some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+            Text("High-resolution export")
+                .astraText(.headline)
+                .foregroundStyle(AstraColor.textPrimary)
+            Text(statusCopy(child.status))
+                .astraText(.callout)
+                .foregroundStyle(AstraColor.textSecondary)
+            if let url = viewModel.highResolutionImageURL {
+                GeneratedImageContainer(accessibilityDescription: child.imageDescription) {
+                    AstraRemoteImage(url: url, aspectRatio: 2.0 / 3.0, contentMode: .fit,
+                                     accessibilityDescription: child.imageDescription)
+                        .accessibilityIdentifier("studio.detail.exportHiRes.image")
+                }
+                .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
+            }
+            if let message = child.errorMessage {
+                Text(message).astraText(.callout).foregroundStyle(AstraColor.textSecondary)
+            }
+            if let error = viewModel.highResolutionError {
+                Text(error).astraText(.callout).foregroundStyle(AstraColor.textSecondary)
+                Button(child.isRetryableWithoutCharge ? "Retry high-resolution export" : "Check export status") {
+                    Task {
+                        if child.isRetryableWithoutCharge {
+                            await viewModel.retryHighResolutionExport()
+                        } else {
+                            await viewModel.refreshHighResolutionExport()
+                        }
+                    }
+                }
+                .buttonStyle(.astraSecondary)
+                .disabled(viewModel.isExportingHighResolution)
+            } else if child.isRetryableWithoutCharge {
+                Button("Retry high-resolution export") { Task { await viewModel.retryHighResolutionExport() } }
+                    .buttonStyle(.astraSecondary)
+                    .disabled(viewModel.isExportingHighResolution)
+            }
+        }
+        .padding(AstraSpacing.md)
+        .background(AstraColor.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
     }
 
     private func statusCopy(_ status: StudioGenerationStatus) -> String {

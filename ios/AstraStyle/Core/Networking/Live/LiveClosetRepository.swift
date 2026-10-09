@@ -31,7 +31,7 @@
 import Foundation
 import Supabase
 
-public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
+public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWriting, @unchecked Sendable {
     // Internal, not private: `LiveClosetRepository+Scan` is an extension in
     // another file, and Swift's `private` is file-scoped.
     let apiClient: AstraAPIClient
@@ -154,6 +154,16 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
             }
             throw AstraError.server("Couldn't load that item.")
         }
+    }
+
+    /// Reads Postgres directly, bypassing the offline cache. A cached row
+    /// cannot establish whether an ambiguous scanner save reached the server.
+    public func remoteScannerItem(id: UUID) async throws -> ClosetItem? {
+        try await writer.fetch(id: id)
+    }
+
+    public func ensureScannerImages(_ images: [ClosetItemImage]) async throws {
+        try await writer.ensureImages(images)
     }
 
     public func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] {

@@ -322,6 +322,7 @@ struct ScannerDestinationView: View {
                         closetRepository: container.closetRepository,
                         imageURLResolver: container.closetImageURLResolver,
                         pendingScanQueue: container.pendingScanQueue,
+                        scannerSaveJournal: container.scannerSaveJournal,
                         networkMonitor: container.networkMonitor,
                         analyticsClient: container.analyticsClient,
                         currentUserID: { await container.sessionStore.currentUserID() }

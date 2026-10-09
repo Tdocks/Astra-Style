@@ -171,11 +171,15 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
     }
 
     public func signOut() async throws {
+        let owner = supabase.auth.currentSession?.user.id
         try await sessionStore.signOut()
+        if let owner { await ClosetImageByteCache.shared.removeAll(ownerID: owner) }
     }
 
     public func deleteAccount() async throws -> AccountDeletionStatus {
+        let owner = supabase.auth.currentSession?.user.id
         let status = try await apiClient.send(.deleteAccount, as: AccountDeletionStatus.self)
+        if let owner { await ClosetImageByteCache.shared.removeAll(ownerID: owner) }
         try await sessionStore.signOut()
         return status
     }

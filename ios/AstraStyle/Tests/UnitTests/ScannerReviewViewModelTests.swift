@@ -370,6 +370,7 @@ struct ScannerReviewViewModelTests {
                 closetRepository: repository,
                 imageURLResolver: seams.resolver,
                 pendingScanQueue: seams.pendingScanQueue,
+                scannerSaveJournal: seams.scannerSaveJournal,
                 networkMonitor: seams.networkMonitor,
                 currentUserID: { seams.userID }
             )
@@ -384,6 +385,7 @@ private struct ReviewTestSeams {
     var pendingScanQueue: PendingScanQueue = InMemoryPendingScanQueue()
     var networkMonitor: NetworkReachabilityMonitoring = StaticNetworkReachabilityMonitor(offline: false)
     var userID = UUID()
+    var scannerSaveJournal: ScannerSaveJournaling = InMemoryScannerSaveJournal()
 }
 
 // MARK: - Fixtures / doubles
@@ -414,6 +416,7 @@ final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
     var uploadError: AstraError?
     var analyzeError: AstraError?
     var lastCreated: ClosetItem?
+    private(set) var createCount = 0
     var lastImages: [ClosetItemImage]?
     var lastAnalyzeStoragePath: String?
     var seedItems: [ClosetItem] = []
@@ -488,6 +491,7 @@ final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
 
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
         await createHook?()
+        createCount += 1
         if let createError { throw createError }
         lastCreated = item
         lastImages = images
@@ -589,7 +593,7 @@ struct ReviewMockURLResolver: ClosetImageURLResolving {
 @Suite("ScannerReviewViewModel closet cap")
 @MainActor
 struct ScannerReviewViewModelCapTests {
-    @Test("A free-tier cap on save is its own phase, not a generic server error")
+    @Test("Journal removal failure after cap retains recovery record and photo")
     func capReachedIsTyped() async throws {
         let jpeg = try #require(fixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
@@ -599,6 +603,8 @@ struct ScannerReviewViewModelCapTests {
 
         let repository = ReviewMockClosetRepository()
         repository.createError = FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)
+        let journal = ReviewScannerSaveJournal(removeFails: true)
+        let userID = UUID()
         let model = ScannerReviewViewModel(
             draftID: draft.id,
             dependencies: .init(
@@ -606,15 +612,57 @@ struct ScannerReviewViewModelCapTests {
                 closetRepository: repository,
                 imageURLResolver: ReviewMockURLResolver(),
                 pendingScanQueue: InMemoryPendingScanQueue(),
+                scannerSaveJournal: journal,
+                networkMonitor: StaticNetworkReachabilityMonitor(offline: false),
+                currentUserID: { userID }
+            )
+        )
+
+        await model.start()
+        let uploaded = try #require(model.storagePath)
+        #expect(model.phase == .ready)
+        await model.save()
+        await model.discardUnsavedUpload()
+        #expect(model.phase == .saveFailed(AstraError.server("Couldn't clear the saved scan recovery record. Try again.")))
+        #expect(repository.lastCreated == nil)
+        #expect(await journal.pendingCount == 1)
+        #expect(repository.deletedPaths.isEmpty)
+        #expect(repository.liveStoragePaths.contains(uploaded))
+        let pending = try #require(await journal.pendingSaves(for: userID).first)
+        #expect(await journal.beginForegroundSave(id: pending.id, ownerID: userID))
+        await journal.endForegroundSave(id: pending.id, ownerID: userID)
+    }
+}
+
+@Suite("ScannerReviewViewModel save journal")
+@MainActor
+struct ScannerReviewViewModelJournalTests {
+    @Test("A journal write failure blocks closet creation and preserves the draft")
+    func journalWriteFailureBlocksSave() async throws {
+        let jpeg = try #require(fixtureJPEG())
+        let draft = CaptureDraft(prepared: try CapturePreparation.prepareForUpload(jpeg))
+        let store = CaptureDraftStore()
+        store.put(draft)
+        let repository = ReviewMockClosetRepository()
+        let journal = ReviewScannerSaveJournal(saveFails: true)
+        let model = ScannerReviewViewModel(
+            draftID: draft.id,
+            dependencies: .init(
+                draftStore: store,
+                closetRepository: repository,
+                imageURLResolver: ReviewMockURLResolver(),
+                pendingScanQueue: InMemoryPendingScanQueue(),
+                scannerSaveJournal: journal,
                 networkMonitor: StaticNetworkReachabilityMonitor(offline: false),
                 currentUserID: { UUID() }
             )
         )
 
         await model.start()
-        #expect(model.phase == .ready)
         await model.save()
-        #expect(model.phase == .capReached(limit: FreeTierLimits.maxClosetItems))
-        #expect(repository.lastCreated == nil)
+
+        #expect(repository.createCount == 0)
+        #expect(store.draft(id: draft.id) != nil)
+        #expect(model.phase == .saveFailed(AstraError.server("Couldn't prepare this scan for a safe save. Try again.")))
     }
 }

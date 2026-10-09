@@ -15,11 +15,21 @@ public final class StudioGenerationDetailViewModel {
         case failed(AstraError)
     }
 
-    public private(set) var state: ViewState = .loading
+    public internal(set) var state: ViewState = .loading
     public private(set) var resultImageURL: URL?
     public private(set) var exportURL: URL?
     public private(set) var exportError: String?
     public private(set) var isExporting = false
+    public internal(set) var highResolutionChild: StudioGeneration?
+    public internal(set) var highResolutionImageURL: URL?
+    public internal(set) var highResolutionError: String?
+    public internal(set) var isPreparingHighResolutionExport = false
+    public internal(set) var isExportingHighResolution = false
+    public internal(set) var highResolutionQuota: StudioQuota?
+    public internal(set) var hasPendingHighResolutionConfirmation = false
+    public internal(set) var highResolutionSubmissionUncertain = false
+    public internal(set) var hasCheckedHighResolutionLineage = false
+    public internal(set) var isCheckingHighResolutionLineage = false
     public var descriptionDraft = ""
     public private(set) var isSavingDescription = false
     public private(set) var descriptionError: String?
@@ -27,10 +37,10 @@ public final class StudioGenerationDetailViewModel {
     public var maximumPollInterval: Duration = .seconds(8)
     public var maximumPollingDuration: Duration = .seconds(180)
 
-    private let generationID: UUID
-    private let studioRepository: StudioRepository
-    private let imageURLResolver: ClosetImageURLResolving
-    private let exporter: StudioEstimateExporting
+    let generationID: UUID
+    let studioRepository: StudioRepository
+    let imageURLResolver: ClosetImageURLResolving
+    let exporter: StudioEstimateExporting
 
     public init(
         generationID: UUID,
@@ -60,8 +70,9 @@ public final class StudioGenerationDetailViewModel {
             }
             let signedURL = try await imageURLResolver.resolve(storagePath: path)
             exportURL = try await exporter.export(imageURL: signedURL)
-        } catch is CancellationError { return }
-        catch { exportError = (error as? AstraError)?.message ?? "Couldn't prepare this image. Try again." }
+        } catch is CancellationError {
+            return
+        } catch { exportError = (error as? AstraError)?.message ?? "Couldn't prepare this image. Try again." }
     }
 
     public func saveImageDescription() async -> Bool {
@@ -81,8 +92,14 @@ public final class StudioGenerationDetailViewModel {
     }
 
     public func onAppear() async {
-        guard case .loading = state else { return }
-        await refresh()
+        if case .loading = state {
+            await refresh()
+            return
+        }
+        guard !hasCheckedHighResolutionLineage,
+              case .loaded(let generation) = state,
+              generation.status == .complete else { return }
+        await restoreExistingHighResolutionExport(sourceID: generation.id)
     }
 
     public func refresh() async {
@@ -93,6 +110,9 @@ public final class StudioGenerationDetailViewModel {
                 return
             }
             await follow(generation)
+            if generation.status == .complete {
+                await restoreExistingHighResolutionExport(sourceID: generation.id)
+            }
         } catch let error as AstraError {
             state = .failed(error)
         } catch is CancellationError {

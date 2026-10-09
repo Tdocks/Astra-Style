@@ -42,6 +42,57 @@ struct AstraAPIClientIdempotencyTests {
         #expect(keys[0]?.isEmpty == false)
     }
 
+    @Test("High-resolution export sends a nonempty idempotency key")
+    func hiResExportRequiresIdempotencyKey() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.successBody = Data(
+            #"{"data":[],"error":null,"request_id":"hires"}"#.utf8
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+                                    session: URLSession(configuration: configuration), retryPolicy: .none)
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+        _ = try await client.send(.exportStudioHiRes, body: AstraEmptyPayload(), as: [AstraEmptyPayload].self)
+        let keys = IdempotencyStubURLProtocol.capturedIdempotencyKeys
+        #expect(keys.count == 1)
+        #expect(keys.first.flatMap { $0 }?.isEmpty == false)
+        #expect(IdempotencyStubURLProtocol.capturedAuthorization == ["Bearer test-token"])
+    }
+
+    @Test("Live high-resolution repository encodes the source and fresh consent")
+    func hiResRepositoryRequestContract() async throws {
+        IdempotencyStubURLProtocol.reset()
+        let child = StudioGeneration(id: UUID(), userID: UUID(), referenceImagePath: "", status: .queued)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let response: [String: AstraJSONValue] = [
+            "data": try JSONDecoder().decode(AstraJSONValue.self, from: encoder.encode(child)),
+            "request_id": .string("hires"), "error": .null
+        ]
+        IdempotencyStubURLProtocol.successBody = try encoder.encode(response)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+                                    session: URLSession(configuration: configuration), retryPolicy: .none)
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+        let repository = LiveStudioRepository(apiClient: client, supabase: AstraSupabaseClientFactory.previewClient)
+        let sourceID = UUID()
+        let result = try await repository.exportHiRes(sourceID: sourceID,
+            consent: StudioConsentAttestation(acknowledged: true))
+        #expect(result.id == child.id)
+        let request = try #require(IdempotencyStubURLProtocol.capturedRequests.first)
+        #expect(request.url?.path.hasSuffix("/studio/export-hi-res") == true)
+        #expect(request.httpMethod == "POST")
+        let data = try #require(request.httpBody)
+        let envelope = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let body = try #require(envelope["body"] as? [String: Any])
+        #expect((body["source_generation_id"] as? String)?.lowercased() == sourceID.uuidString.lowercased())
+        let consent = try #require(body["consent"] as? [String: Any])
+        #expect(consent["acknowledged"] as? Bool == true)
+        #expect(consent["terms_version"] as? String == StudioConsentTerms.currentVersion)
+    }
+
     @MainActor
     @Test("The request attaches renewed credentials instead of an expired token")
     func requestUsesRenewedSession() async throws {
@@ -96,6 +147,8 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) private static var _failTimes = 0
     nonisolated(unsafe) private static var _successBody = Data()
     nonisolated(unsafe) private static var _keys: [String?] = []
+    nonisolated(unsafe) private static var _requests: [URLRequest] = []
+    static var capturedRequests: [URLRequest] { lock.withLock { _requests } }
     nonisolated(unsafe) private static var _authorization: [String?] = []
 
     static var capturedAuthorization: [String?] { lock.withLock { _authorization } }
@@ -120,6 +173,7 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
             _successBody = Data()
             _keys = []
             _authorization = []
+            _requests = []
         }
     }
 
@@ -127,8 +181,22 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        var capturedRequest = request
+        if capturedRequest.httpBody == nil, let stream = capturedRequest.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var body = Data()
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                guard count > 0 else { break }
+                body.append(contentsOf: buffer.prefix(count))
+            }
+            capturedRequest.httpBody = body
+        }
         let key = request.value(forHTTPHeaderField: "Idempotency-Key")
         let (shouldFail, body): (Bool, Data) = Self.lock.withLock {
+            Self._requests.append(capturedRequest)
             Self._keys.append(key)
             Self._authorization.append(request.value(forHTTPHeaderField: "Authorization"))
             if Self._failTimes > 0 {

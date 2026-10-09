@@ -28,6 +28,13 @@ public protocol StudioRepository: Sendable {
     /// Retries a provider-side failure without consuming quota
     /// (spec §21 "Studio failed ... allow retry without consuming another
     /// credit when failure is provider-side").
+    /// Creates one Premium high-resolution child, consuming one existing Studio allowance.
+    func exportHiRes(sourceID: UUID, consent: StudioConsentAttestation?) async throws -> StudioGeneration
+    /// Returns the owner's existing high-resolution export lineage leaf, if
+    /// one was accepted for this source. Used to recover a lost POST response
+    /// after the detail view or process is recreated.
+    func fetchHiResExport(sourceID: UUID) async throws -> StudioGeneration?
+
     func retryGeneration(id: UUID) async throws -> StudioGeneration
 
     /// Deletes a generation and its stored images (spec §6.17 "Provide
@@ -47,6 +54,10 @@ public protocol StudioRepository: Sendable {
 }
 
 public extension StudioRepository {
+    func fetchHiResExport(sourceID: UUID) async throws -> StudioGeneration? { nil }
+    func exportHiRes(sourceID: UUID, consent: StudioConsentAttestation?) async throws -> StudioGeneration {
+        throw AstraError.server("High-resolution exports are unavailable. Try again later.")
+    }
     func fetchQuota() async throws -> StudioQuota { throw AstraError.server("Couldn't load your preview allowance.") }
     func updateImageDescription(id: UUID, description: String) async throws -> StudioGeneration {
         throw AstraError.server("Image descriptions are unavailable.")

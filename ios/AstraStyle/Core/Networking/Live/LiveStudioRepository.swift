@@ -89,6 +89,48 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
         try await apiClient.send(.studioStatus(id: generationID), as: StudioGeneration.self)
     }
 
+    public func exportHiRes(sourceID: UUID, consent: StudioConsentAttestation?) async throws -> StudioGeneration {
+        struct Body: Encodable, Sendable {
+            let sourceGenerationID: UUID
+            let consent: StudioConsentAttestation?
+            enum CodingKeys: String, CodingKey {
+                case sourceGenerationID = "source_generation_id"
+                case consent
+            }
+        }
+        return try await apiClient.send(
+            .exportStudioHiRes, body: Body(sourceGenerationID: sourceID, consent: consent), as: StudioGeneration.self
+        )
+    }
+
+    public func fetchHiResExport(sourceID: UUID) async throws -> StudioGeneration? {
+        let owner = try await collectionUserID()
+        do {
+            let rows: [StudioGeneration] = try await supabase.from("studio_generations")
+                .select()
+                .eq("user_id", value: owner)
+                .eq("hi_res_source_id", value: sourceID)
+                .is("deleted_at", value: nil)
+                .order("created_at", ascending: false)
+                .order("id", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+            guard try await collectionUserID() == owner else {
+                throw AstraError.auth("Your account changed while checking for the export.")
+            }
+            guard let generation = rows.first else { return nil }
+            guard generation.userID == owner else {
+                throw AstraError.auth("That export belongs to another account.")
+            }
+            return generation
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.network("Couldn't check for an existing high-resolution export. Try again.")
+        }
+    }
+
     public func retryGeneration(id: UUID) async throws -> StudioGeneration {
         struct Body: Encodable, Sendable {
             let retryOf: UUID
@@ -124,11 +166,15 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
     }
 
     public func createLookbook(name: String) async throws -> StudioLookbook {
-        struct Body: Encodable { let user_id: UUID; let name: String }
+        struct Body: Encodable {
+            let userID: UUID
+            let name: String
+            enum CodingKeys: String, CodingKey { case userID = "user_id"; case name }
+        }
         let name = try StudioLookbook.validatedName(name)
         let owner = try await collectionUserID()
         do {
-            return try await supabase.from("studio_lookbooks").insert(Body(user_id: owner, name: name))
+            return try await supabase.from("studio_lookbooks").insert(Body(userID: owner, name: name))
                 .select().single().execute().value
         } catch { throw AstraError.network("Couldn't create that collection. Try again.") }
     }
@@ -151,7 +197,10 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
     }
 
     public func fetchSavedLookbookIDs(generationID: UUID) async throws -> Set<UUID> {
-        struct Entry: Decodable { let lookbook_id: UUID }
+        struct Entry: Decodable {
+            let lookbookID: UUID
+            enum CodingKeys: String, CodingKey { case lookbookID = "lookbook_id" }
+        }
         let owner = try await collectionUserID()
         var ids: Set<UUID> = []
         var offset = 0
@@ -161,12 +210,11 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
                 let rows: [Entry] = try await supabase.from("studio_lookbook_entries").select("lookbook_id")
                     .eq("user_id", value: owner).eq("generation_id", value: generationID)
                     .order("id").range(from: offset, to: offset + 499).execute().value
-                ids.formUnion(rows.map(\.lookbook_id))
+                ids.formUnion(rows.map(\.lookbookID))
                 if rows.count < 500 { return ids }
                 offset += rows.count
             }
-        } catch is CancellationError { throw CancellationError() }
-        catch { throw AstraError.network("Couldn't load where this look is saved.") }
+        } catch is CancellationError { throw CancellationError() } catch { throw AstraError.network("Couldn't load where this look is saved.") }
     }
 
     public func fetchLookbookGenerations(lookbookID: UUID, offset: Int, limit: Int) async throws -> [StudioGeneration] {
@@ -184,11 +232,20 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
     }
 
     public func saveGeneration(id: UUID, to lookbookID: UUID) async throws {
-        struct Entry: Encodable { let user_id: UUID; let generation_id: UUID; let lookbook_id: UUID }
+        struct Entry: Encodable {
+            let userID: UUID
+            let generationID: UUID
+            let lookbookID: UUID
+            enum CodingKeys: String, CodingKey {
+                case userID = "user_id"
+                case generationID = "generation_id"
+                case lookbookID = "lookbook_id"
+            }
+        }
         let owner = try await collectionUserID()
         do {
             try await supabase.from("studio_lookbook_entries")
-                .upsert(Entry(user_id: owner, generation_id: id, lookbook_id: lookbookID),
+                .upsert(Entry(userID: owner, generationID: id, lookbookID: lookbookID),
                         onConflict: "lookbook_id,generation_id", ignoreDuplicates: true).execute()
         } catch { throw AstraError.network("Couldn't save this look. Check that the estimate has finished and try again.") }
     }
@@ -202,8 +259,7 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
     }
 
     private func collectionUserID() async throws -> UUID {
-        do { return try await supabase.auth.session.user.id }
-        catch { throw AstraError.auth("Sign in again to manage your saved looks.") }
+        do { return try await supabase.auth.session.user.id } catch { throw AstraError.auth("Sign in again to manage your saved looks.") }
     }
 }
 

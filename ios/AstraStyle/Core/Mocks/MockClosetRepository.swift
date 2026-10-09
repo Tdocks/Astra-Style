@@ -8,7 +8,7 @@
 
 import Foundation
 
-public actor MockClosetRepository: ClosetRepository {
+public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     private var items: [UUID: ClosetItem]
     private let previewBatchFailureIndex: Int?
     private var monthlyVersatilityScores: [String: Int] = [:]
@@ -52,6 +52,12 @@ public actor MockClosetRepository: ClosetRepository {
             throw AstraError.server("That item couldn't be found.")
         }
         return item
+    }
+
+    public func remoteScannerItem(id: UUID) async throws -> ClosetItem? { items[id] }
+
+    public func ensureScannerImages(_ images: [ClosetItemImage]) async throws {
+        _ = images
     }
 
     public func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] {
