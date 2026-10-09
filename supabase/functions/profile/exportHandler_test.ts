@@ -48,6 +48,7 @@ Deno.test("requires a verified caller before reading any data", async () => {
     },
   };
   const response = await handlePersonalDataExport(request(), deps(repository));
+  assertEquals(response.headers.get("Cache-Control"), "no-store");
   assertEquals(response.status, 401);
   assertEquals(reads, 0);
 });
@@ -63,11 +64,40 @@ Deno.test("exports only the identity verified from the bearer token", async () =
   const response = await handlePersonalDataExport(request("GET", TOKEN), deps(repository));
   const payload = await response.json();
 
+  assertEquals(response.headers.get("Cache-Control"), "no-store");
   assertEquals(response.status, 200);
   assertEquals(received, [USER_ID]);
   assertEquals(payload.data.owner_user_id, USER_ID);
   assertEquals(payload.data.table_counts.profiles, 1);
   assertEquals(payload.data.tables.profiles[0].id, USER_ID);
+});
+
+Deno.test("emits only validated owner photo references with an honest scope", async () => {
+  const ownCutout = `users/${USER_ID}/closet/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png`;
+  const ownSource = `users/${USER_ID}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg`;
+  const peerSource = `users/22222222-2222-4222-8222-222222222222/closet/cccccccc-cccc-4ccc-8ccc-cccccccccccc.jpg`;
+  const repository: PersonalDataExportRepository = {
+    fetchForUser(userId) {
+      return Promise.resolve({
+        closet_item_images: [
+          { user_id: userId, storage_path: ownSource, background_removed_path: ownCutout },
+          { user_id: "22222222-2222-4222-8222-222222222222", storage_path: peerSource },
+        ],
+      });
+    },
+  };
+
+  const response = await handlePersonalDataExport(request("GET", TOKEN), deps(repository));
+  const payload = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(payload.data.referenced_storage_objects, [
+    { bucket: "user-content", path: ownCutout },
+    { bucket: "user-content", path: ownSource },
+  ]);
+  assertEquals(payload.data.storage_manifest_scope.includes("does not enumerate all Storage objects"), true);
+  assertEquals(payload.data.storage_manifest_scope.includes("does not verify whether referenced objects exist"), true);
+  assertEquals(payload.data.storage_manifest_scope.includes("does not include image files"), true);
 });
 
 Deno.test("rejects non-GET calls", async () => {
@@ -85,6 +115,7 @@ Deno.test("rate limits repeated exports for the same verified user", async () =>
   const second = await handlePersonalDataExport(request("GET", TOKEN), limited);
 
   assertEquals(first.status, 200);
+  assertEquals(second.headers.get("Cache-Control"), "no-store");
   assertEquals(second.status, 429);
   assertStringIncludes(second.headers.get("Retry-After") ?? "", "60");
 });
@@ -96,6 +127,7 @@ Deno.test("does not reveal database errors in the response", async () => {
   const response = await handlePersonalDataExport(request("GET", TOKEN), deps(repository));
   const body = await response.text();
 
+  assertEquals(response.headers.get("Cache-Control"), "no-store");
   assertEquals(response.status, 500);
   assertStringIncludes(body, "Couldn't prepare your data export.");
   assertEquals(body.includes("secret_column"), false);

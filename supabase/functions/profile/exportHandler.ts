@@ -19,6 +19,9 @@ import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import { createLogger } from "../_shared/logger.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
+import { extractExportedStorageReferences } from "./exportAttachments.ts";
+
+const EXPORT_HEADERS = { ...CORS_HEADERS, "Cache-Control": "no-store", "Vary": "Authorization" };
 
 export interface PersonalDataExport {
   schema_version: 1;
@@ -26,6 +29,8 @@ export interface PersonalDataExport {
   owner_user_id: string;
   table_counts: Record<string, number>;
   tables: Record<string, unknown[]>;
+  referenced_storage_objects: ReturnType<typeof extractExportedStorageReferences>;
+  storage_manifest_scope: string;
 }
 
 export interface PersonalDataExportRepository {
@@ -65,7 +70,7 @@ export async function handlePersonalDataExport(
       return errorResponse(
         rateLimited(),
         requestId,
-        { ...CORS_HEADERS, "Retry-After": String(limit.retryAfterSeconds) },
+        { ...EXPORT_HEADERS, "Retry-After": String(limit.retryAfterSeconds) },
       );
     }
 
@@ -80,6 +85,9 @@ export async function handlePersonalDataExport(
       owner_user_id: userId,
       table_counts: tableCounts,
       tables,
+      referenced_storage_objects: extractExportedStorageReferences(tables, userId),
+      storage_manifest_scope:
+        "References found in exported profile, closet-image, and Studio rows only; this does not enumerate all Storage objects, does not verify whether referenced objects exist, and does not include image files.",
     };
 
     logger.info("profile_export.completed", {
@@ -88,7 +96,7 @@ export async function handlePersonalDataExport(
       row_count: rowCount,
       latency_ms: deps.now().getTime() - startedAt,
     });
-    return jsonResponse(result, { requestId, extraHeaders: CORS_HEADERS });
+    return jsonResponse(result, { requestId, extraHeaders: EXPORT_HEADERS });
   } catch (err) {
     const appError = err instanceof AppError
       ? err
@@ -99,6 +107,6 @@ export async function handlePersonalDataExport(
       latency_ms: deps.now().getTime() - startedAt,
       error_name: err instanceof Error ? err.name : "unknown",
     });
-    return errorResponse(appError, requestId, CORS_HEADERS);
+    return errorResponse(appError, requestId, EXPORT_HEADERS);
   }
 }
