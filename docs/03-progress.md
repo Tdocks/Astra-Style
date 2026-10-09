@@ -623,3 +623,5 @@ Guest account photo migration: now queries caller-owned source OR cutout local p
 Final-source simulator rerun: 12 guest-auth/upload-format tests passed; strict lint passed. Native migration changes await the next TestFlight build.
 
 Build 25 preparation: source build number is 25; signed archive/upload lane is running with PNG upload/local-file corrections, source/cutout account migration and insight uncertainty wording. Not yet uploaded or available. Background coordinator output-ownership/missing-output/post-provider-storage failure checks bring focused backend tests to 15 passing; lint passed.
+
+Build 25 signed archive/export and TestFlight upload completed successfully. Archive Info.plist confirms version 1.0.0, build 25, com.astrastyle.app and non-exempt encryption false. Apple latest-build listing still shows build 24; build 25 processing/Internal availability and testing-note verification remain pending.
