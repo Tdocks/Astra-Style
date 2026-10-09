@@ -19,10 +19,12 @@ on:
     paths:
       - "ios/**"
       - ".github/workflows/ios.yml"
+      - "scripts/check_*"
   pull_request:
     paths:
       - "ios/**"
       - ".github/workflows/ios.yml"
+      - "scripts/check_*"
 
 concurrency:
   group: ios-${{ github.workflow }}-${{ github.ref }}
