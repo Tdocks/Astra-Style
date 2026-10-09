@@ -25,11 +25,15 @@
 // returns its in-voice unavailable response rather than simulating a live
 // conversation.
 //
-// NOTE ON SERVICE-ROLE: never constructed here. RLS with the caller's own
-// JWT covers every table this function touches — see store.ts's header.
+// SERVICE-ROLE: used only for private preview confirmation records. Wardrobe,
+// messages and reference consent reads retain caller JWT/RLS authorization.
 // ============================================================================
 
-import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import {
+  createServiceRoleClient,
+  createUserScopedClient,
+  readEdgeEnv,
+} from "../_shared/supabaseClient.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { ProviderError } from "../_shared/providers/types.ts";
@@ -40,6 +44,10 @@ import type {
 import type { ProviderRequestContext } from "../_shared/providers/types.ts";
 import { handleKyraRespond, type KyraConfig } from "./handler.ts";
 import { buildProductServices } from "./productServices.ts";
+import { buildStudioConfirmationStore } from "./studioConfirmations.ts";
+import { buildStudioPreviewServices } from "./studioServices.ts";
+import { buildStudioReferenceReads, listConsentedStudioReferenceIDs } from "./studioReferences.ts";
+import { CURRENT_STUDIO_CONSENT_TERMS_VERSION } from "../studio/schema.ts";
 import { buildKyraStore } from "./store.ts";
 import { LiveStylistProvider } from "./liveStylistProvider.ts";
 
@@ -158,6 +166,28 @@ function kyraRespondRoute(req: Request): Promise<Response> {
     authClient: supabase,
     store: buildKyraStore(supabase),
     analyzeProduct: buildProductServices(env, authorizationHeader, supabase),
+    studio: {
+      confirmations: buildStudioConfirmationStore(createServiceRoleClient(env)),
+      referenceIDs: (userID) =>
+        listConsentedStudioReferenceIDs(
+          userID,
+          CURRENT_STUDIO_CONSENT_TERMS_VERSION,
+          buildStudioReferenceReads(supabase, userID),
+        ),
+      preview: (turn) => {
+        const proposal =
+          /^(yes|yeah|yep|sure|go ahead|please do|do it)[.!\s]*$/i.test(turn.userText.trim())
+            ? turn.proposal
+            : null;
+        return buildStudioPreviewServices(env, authorizationHeader, supabase, {
+          ...turn,
+          pending: proposal
+            ? { selectionKey: proposal.selectionKey, askedAboutGenerationCost: true }
+            : null,
+          confirmedProposal: proposal,
+        });
+      },
+    },
     provider,
     rateLimiter,
     config,

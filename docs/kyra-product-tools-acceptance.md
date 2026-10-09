@@ -243,3 +243,18 @@ assistant question exists before preparation. Lint and entrypoint type checks
 passed. Full ask/yes/cancel/concurrent-request acceptance, owned reference context,
 entrypoint wiring, migration/function deployment and native job presentation
 remain open; these results do not establish a live working chat preview flow.
+
+## Production wiring (not deployed)
+
+The Kyra entrypoint now injects the confirmation repository and preview adapter.
+Only private confirmation operations use a service-role client (ADR 0031).
+Reference context is resolved with caller RLS, requiring saved owned filename
+UUIDs and current server consent receipts; only identifiers reach model context.
+Affirmative replies use the saved approval ID, while direct commands use their
+persisted message ID.
+
+131 Kyra tests passed (`/tmp/astra-kyra-production-preview-tests.log`), including
+owned reference-context filtering, duplicate removal and stale-consent rejection.
+Lint and entrypoint type checks passed. Full conversation/concurrency acceptance,
+migration/function deployment and native preview job presentation remain open.
+The deployed Kyra function is still the earlier version.

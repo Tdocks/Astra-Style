@@ -198,6 +198,7 @@ import {
   type SavedStudioConfirmation,
 } from "./studioConfirmations.ts";
 export interface KyraStudioServices {
+  referenceIDs?(userID: string): Promise<readonly string[]>;
   confirmations: ReturnType<typeof buildStudioConfirmationStore>;
   preview(
     turn: {
@@ -1022,7 +1023,24 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       globalTrace: [],
     };
 
+    const readStudioReferences = deps.studio?.referenceIDs;
+    const studioReferenceIDs = readStudioReferences
+      ? await fetchOrNull(
+        logger,
+        "studio_references",
+        () => readStudioReferences(userId),
+        [] as readonly string[],
+      )
+      : [];
     const baseMessages: StylistMessage[] = [
+      ...(deps.studio
+        ? [{
+          role: "system" as const,
+          content: "Saved Studio reference image IDs with current consent: " +
+            JSON.stringify(studioReferenceIDs) +
+            ". Use only these IDs. If empty, ask the user to open Studio to save and consent to a reference photo.",
+        }]
+        : []),
       ...historyToStylistMessages(historyRows),
       ...(studioProposal
         ? [{

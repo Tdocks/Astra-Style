@@ -51,3 +51,25 @@ export function buildStudioReferenceReads(
     },
   };
 }
+
+/** Return identifiers only, never private paths or signed photo URLs. */
+export async function listConsentedStudioReferenceIDs(
+  userID: string,
+  termsVersion: string,
+  reads: StudioReferenceReads,
+): Promise<string[]> {
+  if (!isUUID(userID)) return [];
+  const prefix = `users/${userID.toLowerCase()}/references/`;
+  const candidates = [...new Set(await reads.savedPaths())].filter((path) =>
+    path.startsWith(prefix) && path.endsWith(".jpg") &&
+    isUUID(path.slice(prefix.length, -4))
+  ).slice(0, 10);
+  const accepted = await Promise.all(
+    candidates.map(async (path) =>
+      await reads.hasCurrentConsentReceipt(path, termsVersion)
+        ? path.slice(prefix.length, -4)
+        : null
+    ),
+  );
+  return accepted.filter((id): id is string => id !== null);
+}

@@ -38,3 +38,26 @@ Deno.test("a photo without current acknowledged consent is unavailable to chat",
     null,
   );
 });
+
+Deno.test("chat reference context excludes peer paths and stale consent and returns only IDs", async () => {
+  const { listConsentedStudioReferenceIDs } = await import("./studioReferences.ts");
+  const stale = "44444444-4444-4444-8444-444444444444";
+  const checked: string[] = [];
+  const ids = await listConsentedStudioReferenceIDs(user, "current", {
+    savedPaths: () =>
+      Promise.resolve([
+        path,
+        path,
+        `users/${user}/references/${stale}.jpg`,
+        `users/${stale}/references/${reference}.jpg`,
+        `users/${user}/references/not-a-uuid.jpg`,
+      ]),
+    hasCurrentConsentReceipt: (candidate, terms) => {
+      assertEquals(terms, "current");
+      checked.push(candidate);
+      return Promise.resolve(candidate === path);
+    },
+  });
+  assertEquals(ids, [reference]);
+  assertEquals(checked.length, 2);
+});
