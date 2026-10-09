@@ -159,6 +159,38 @@ struct ScannerFallbackInvocationTests {
         repository.createHook = nil
     }
 
+    @Test("Save retry identities stay stable and remain separated by account")
+    func stableSaveIdentities() {
+        let model = makeModel(repository: ReviewMockClosetRepository())
+        let owner = UUID()
+        let first = model.saveIdentity(for: owner)
+        let retry = model.saveIdentity(for: owner)
+        let other = model.saveIdentity(for: UUID())
+        #expect(first.item == retry.item)
+        #expect(first.image == retry.image)
+        #expect(first.item != other.item)
+        #expect(first.image != other.image)
+    }
+
+    @Test("Failed saves allow a retry that reuses the original identities")
+    func failedSaveCanRetry() async throws {
+        let repository = ReviewMockClosetRepository()
+        let model = makeModel(repository: repository)
+        model.storagePath = "guest-local/source.jpg"
+        model.name = "Shirt"
+        model.phase = .ready
+        repository.createError = AstraError.network("Response lost")
+        await model.save()
+        #expect(model.canSave)
+        let first = try #require(model.saveIdentities.values.first)
+        repository.createError = nil
+        await model.save()
+        #expect(model.phase == .saved)
+        #expect(repository.lastCreated?.id == first.item)
+        #expect(repository.lastImages?.first?.id == first.image)
+        #expect(!model.canSave)
+    }
+
     private func makeModel(repository: ClosetRepository) -> ScannerReviewViewModel {
         let owner = UUID()
         return ScannerReviewViewModel(draftID: UUID(), dependencies: .init(

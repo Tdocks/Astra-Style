@@ -122,7 +122,10 @@ public final class ScannerReviewViewModel {
     public var waterResistanceScoreText: String = ""
 
     public var canSave: Bool {
-        guard case .ready = phase else { return false }
+        switch phase {
+        case .ready, .saveFailed, .capReached: break
+        default: return false
+        }
         return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -142,6 +145,7 @@ public final class ScannerReviewViewModel {
     let analyticsClient: AnalyticsClient
     let currentUserID: @Sendable () async -> UUID?
     var originalSuggestions: ClosetItemAnalysisResult?
+    @ObservationIgnored var saveIdentities: [UUID: (item: UUID, image: UUID)] = [:]
     @ObservationIgnored var connectivityTask: Task<Void, Never>?
 
     public init(draftID: UUID, dependencies: Dependencies) {
@@ -234,10 +238,11 @@ public final class ScannerReviewViewModel {
             return
         }
 
-        let itemID = UUID()
+        let identity = saveIdentity(for: userID)
+        let itemID = identity.item
         let item = buildItem(id: itemID, userID: userID)
         let image = ClosetItemImage(
-            id: UUID(),
+            id: identity.image,
             closetItemID: itemID,
             imageType: .front,
             storagePath: storagePath,

@@ -3,6 +3,14 @@ import Foundation
 import ImageIO
 
 extension ScannerReviewViewModel {
+    /// A lost response must not turn one capture into another garment on retry.
+    func saveIdentity(for owner: UUID) -> (item: UUID, image: UUID) {
+        if let identity = saveIdentities[owner] { return identity }
+        let identity = (item: UUID(), image: UUID())
+        saveIdentities[owner] = identity
+        return identity
+    }
+
     @discardableResult
     func upload(data: Data) async -> AstraError? {
         phase = .uploading
