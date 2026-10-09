@@ -48,6 +48,7 @@ struct ScannerDestinationView: View {
                             Menu("Capture mode") {
                                 Button("Receipt or label") { path.append(.receiptLabel) }
                                     .accessibilityIdentifier("scanner.mode.receipt")
+                                Button("Mirror photo") { path.append(.outfitMirror) }
                                 Button("Batch closet photos") { path.append(.batchCloset) }
                             }
                             .accessibilityIdentifier("scanner.mode.menu")
@@ -127,6 +128,13 @@ struct ScannerDestinationView: View {
         }
     }
 
+    private var mirrorRoot: some View {
+        MirrorCaptureView(viewModel: MirrorCaptureViewModel(
+            repository: container.profileRepository,
+            currentUserID: { await container.sessionStore.currentUserID() }
+        ), onDone: { closeScanner() })
+    }
+
     private var receiptRoot: some View {
         ReceiptCaptureView(onDone: { closeScanner() }, onItemSaved: onItemSaved, viewModel: ReceiptCaptureViewModel(
             recognizer: LiveVisionLabelTextRecognizer(),
@@ -145,12 +153,7 @@ struct ScannerDestinationView: View {
         case .receiptLabel:
             receiptRoot
         case .outfitMirror:
-            FeaturePlaceholderView(
-                title: String(localized: "Mirror Photo", comment: "Scanner outfit mirror mode title"),
-                message: String(localized: "Capture a full look in the mirror. That mode is not built yet.",
-                                comment: "Honest gap: outfit mirror mode"),
-                systemImage: "person.crop.rectangle"
-            )
+            mirrorRoot
         case .review(let id):
             reviewScreen(draftID: id)
         }
@@ -173,6 +176,8 @@ struct ScannerDestinationView: View {
             receiptRoot
         case .batchCloset:
             batchRoot
+        case .outfitMirror:
+            mirrorRoot
         default:
             FeaturePlaceholderView(
                 title: String(localized: "Scan", comment: "Generic scanner placeholder"),

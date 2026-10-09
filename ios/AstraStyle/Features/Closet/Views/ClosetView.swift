@@ -639,6 +639,7 @@ extension ClosetView {
                 router.startScan(mode: .receiptLabel)
             }
             .accessibilityIdentifier("closet.scan.receipt")
+            Button("Mirror photo", systemImage: "person.crop.rectangle") { router.startScan(mode: .outfitMirror) }
             Button(String(localized: "Add Several at Once", comment: "Closet scan menu: batch"),
                    systemImage: "square.stack.3d.up") {
                 router.startScan(mode: .batchCloset)

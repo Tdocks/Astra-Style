@@ -9,6 +9,9 @@
 import Foundation
 
 public actor MockProfileRepository: ProfileRepository {
+    private var bodySaveFailures = 0
+    public func failNextBodySaves(_ count: Int) { bodySaveFailures = max(0, count) }
+
     private var profile: Profile
     private var styleProfile: StyleProfile?
     private var bodyProfile: BodyProfile?
@@ -46,6 +49,10 @@ public actor MockProfileRepository: ProfileRepository {
     public func fetchBodyProfile() async throws -> BodyProfile? { bodyProfile }
 
     public func updateBodyProfile(_ bodyProfile: BodyProfile) async throws -> BodyProfile {
+        if bodySaveFailures > 0 {
+            bodySaveFailures -= 1
+            throw AstraError.network("Couldn't save your reference. Try again.")
+        }
         self.bodyProfile = bodyProfile
         return bodyProfile
     }
@@ -113,7 +120,7 @@ public actor MockProfileRepository: ProfileRepository {
     /// anything that later parses the `users/{uid}/references/` convention
     /// behaves the same against the mock as against Supabase.
     public func uploadReferenceImage(_ imageData: Data) async throws -> String {
-        "users/\(UUID().uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg"
+        "users/\(profile.id.uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg"
     }
 
     public func deleteReferenceImage(path: String) async throws {
