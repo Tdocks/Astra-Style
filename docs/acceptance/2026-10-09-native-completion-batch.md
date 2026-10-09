@@ -34,3 +34,7 @@ The corrected article-navigation test passed all four article categories, articl
 Fastlane completed successfully at 03:40:50 local time on 2026-10-09 and reported successful binary upload. The archive at `/Users/tylerdockswell/Library/Developer/Xcode/Archives/2026-10-09/AstraStyle 2026-10-09 03.38.10.xcarchive` identifies `com.astrastyle.app`, version 1.0.0, build 31. Upload log: `/tmp/astra-build31-testflight.log`.
 
 The first post-upload App Store Connect query returned HTTP 200 but still listed build 30 as latest. Build 31 processing, internal-group membership, and testing notes are not yet verified; do not treat successful upload alone as TestFlight availability.
+
+## Internal TestFlight acceptance
+
+App Store Connect returned build 31 (`5ca3832e-5e19-4793-ae0b-48e410f85ed8`) with processing state VALID and internal state IN_BETA_TESTING. The Internal group's builds endpoint confirms membership. The en-US testing notes were saved and reread with exact equality. Build 31 is available for internal device testing. External beta review and actual on-device feature acceptance are not implied.
