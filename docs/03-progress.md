@@ -60,11 +60,11 @@ lands data layers, protocols, and models long before the screens that use them.
 | 1 — Foundation | 25 | 17 | 8 | 0 |
 | 2 — Identity | 18 | 14 | 4 | 0 |
 | 3 — Closet | 27 | 15 | 12 | 0 |
-| 4 — Outfit intelligence | 26 | 17 | 7 | 2 |
+| 4 — Outfit intelligence | 26 | 17 | 8 | 1 |
 | 5 — Kyra | 22 | 18 | 4 | 0 |
 | 6 — Studio and commerce | 25 | 12 | 10 | 3 |
 | 7 — Monetization and hardening | 36 | 4 | 25 | 7 |
-| **Total** | **179** | **97** | **70** | **12** |
+| **Total** | **179** | **97** | **71** | **11** |
 
 Read that table carefully before drawing a conclusion from it. 97 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -321,7 +321,7 @@ deliberately a placeholder scorer, not the real one.
 | P4-TEST-01 | Partial | `CompatibilityScoringTests` fully covers the weighted aggregate. Per-sub-scorer pass/fail cases cannot exist — 7 of 8 sub-scorers don't. |
 | P4-TEST-02 | Done | `supabase/functions/_shared/scoring/wardrobeScore_test.ts` and `unlockCount_test.ts` cover the Wardrobe Score and unlock-count algorithms. The Edge route and iOS presentation added in this pass still need integration and UI acceptance. |
 | P4-TEST-03 | Not started | `PendingIntegrationRequirementsTests.dailyBriefGeneration()` is a deliberate placeholder, `.disabled()` with the reason stated. |
-| P4-TEST-04 | Not started | `testGenerateOutfit()`/`testMarkOutfitWorn()` are unwritten placeholders — both report as explicit `XCTSkip`s naming the assertions they owe. |
+| P4-TEST-04 | Partial | Both named mock UI tests exist and passed in the eight-flow run. Generation currently checks a pre-seeded Home look rather than triggering generation and asserting three owned-item outfits. Wear checks the completed button state without asserting the persisted/local wear event. These stronger UI assertions remain open; the former placeholder/XCTSkip claim was stale. |
 
 ---
 
