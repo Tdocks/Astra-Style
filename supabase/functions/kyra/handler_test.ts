@@ -28,7 +28,7 @@ const fakeAuthClient = {
 
 interface StoreRecording {
   threadsCreated: string[];
-  userMessages: Array<{ threadId: string; content: string }>;
+  userMessages: Array<{ threadId: string; content: string; studioGenerationID?: string | null }>;
   assistantMessages: Array<{
     threadId: string;
     content: string;
@@ -49,8 +49,8 @@ function fakeStore(
     },
     threadExists: (threadId) => Promise.resolve(threadId === THREAD),
     countThreadsCreatedSince: () => Promise.resolve(0),
-    insertUserMessage: (_userId, threadId, content) => {
-      recording.userMessages.push({ threadId, content });
+    insertUserMessage: (_userId, threadId, content, studioGenerationID) => {
+      recording.userMessages.push({ threadId, content, studioGenerationID });
       // Postgres-shaped timestamp WITH microseconds: the DTO must normalize
       // it to whole-second Zulu or the Swift decoder throws.
       return Promise.resolve({ id: USER_MESSAGE, createdAt: "2026-08-16T09:00:01.123456+00:00" });
@@ -371,6 +371,94 @@ Deno.test("studio inspiration attachment is owner-resolved and sent as image inp
   assertEquals(userMessage?.images, [{ url: signedURL }]);
   assertEquals(JSON.stringify(firstRequest?.contextPacket).includes(generationID), true);
   assertEquals(recording.userMessages[0]?.content.includes(signedURL), false);
+  assertEquals(recording.userMessages[0]?.studioGenerationID, generationID);
+});
+
+Deno.test("reopened Kyra history re-resolves only its newest Studio image reference", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([{ kind: "result", result: { message: goodJson() } }]);
+  const newestGeneration = "99999999-9999-4999-8999-999999999999";
+  const signedURL =
+    "https://project.supabase.co/storage/v1/object/sign/user-content/users/aaaaaaaa-0000-4000-8000-000000000001/studio/99999999-9999-4999-8999-999999999999/result.png?token=secret";
+  const resolverCalls: string[] = [];
+  const response = await handleKyraRespond(
+    request({ text: "Can you refine that?", thread_id: THREAD }),
+    {
+      ...deps(
+        provider,
+        fakeStore(recording, {
+          listRecentMessages: () =>
+            Promise.resolve([
+              {
+                role: "user",
+                content: "Look at this first look.",
+                structured_payload: null,
+                // Repeated reference UUIDs still attach only to the newest row.
+                studio_generation_id: newestGeneration,
+              },
+              {
+                role: "assistant",
+                content: "I like the silhouette.",
+                structured_payload: { message: "I like the silhouette." },
+              },
+              {
+                role: "user",
+                content: "And this newer version?",
+                structured_payload: null,
+                studio_generation_id: newestGeneration,
+              },
+            ]),
+        }),
+      ),
+      resolveStudioInspiration: (_userID, id) => {
+        resolverCalls.push(id);
+        return Promise.resolve(signedURL);
+      },
+    },
+  );
+  assertEquals(response.status, 200);
+  assertEquals(resolverCalls, [newestGeneration]);
+  const messages = provider.requests[0]?.messages ?? [];
+  const attachedMessages = messages.filter((message) => (message.images?.length ?? 0) > 0);
+  assertEquals(attachedMessages.length, 1);
+  assertEquals(attachedMessages[0]?.content, "And this newer version?");
+  assertEquals(attachedMessages[0]?.images, [{ url: signedURL }]);
+  assertEquals(recording.userMessages[0]?.content.includes(signedURL), false);
+  assertEquals(JSON.stringify(recording.assistantMessages).includes(signedURL), false);
+});
+
+Deno.test("unavailable historical Studio image gets a no-vision system instruction", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([{ kind: "result", result: { message: goodJson() } }]);
+  const generationID = "99999999-9999-4999-8999-999999999999";
+  const response = await handleKyraRespond(
+    request({ text: "What did you think of that?", thread_id: THREAD }),
+    {
+      ...deps(
+        provider,
+        fakeStore(recording, {
+          listRecentMessages: () =>
+            Promise.resolve([{
+              role: "user",
+              content: "Here is my look.",
+              structured_payload: null,
+              studio_generation_id: generationID,
+            }]),
+        }),
+      ),
+      resolveStudioInspiration: () => Promise.resolve(null),
+    },
+  );
+  assertEquals(response.status, 200);
+  const messages = provider.requests[0]?.messages ?? [];
+  assertEquals(
+    messages.some((message) =>
+      message.role === "system" &&
+      message.content.includes("Do not claim to see or describe its visual contents")
+    ),
+    true,
+  );
+  assertEquals(messages.some((message) => (message.images?.length ?? 0) > 0), false);
 });
 
 Deno.test("unavailable Studio inspiration references are rejected before conversation creation", async () => {

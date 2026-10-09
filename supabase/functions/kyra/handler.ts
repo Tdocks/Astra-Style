@@ -117,6 +117,8 @@ export interface HistoryMessageRow {
   readonly role: string;
   readonly content: string | null;
   readonly structured_payload: Record<string, unknown> | null;
+  /** Opaque reference only; resolve again before any provider image input. */
+  readonly studio_generation_id?: string | null;
 }
 
 export interface KyraStore {
@@ -125,7 +127,12 @@ export interface KyraStore {
   threadExists(threadId: string): Promise<boolean>;
   /** Threads this user created at/after `sinceIso` — the daily-gate counter. */
   countThreadsCreatedSince(userId: string, sinceIso: string): Promise<number>;
-  insertUserMessage(userId: string, threadId: string, content: string): Promise<InsertedMessage>;
+  insertUserMessage(
+    userId: string,
+    threadId: string,
+    content: string,
+    studioGenerationID?: string | null,
+  ): Promise<InsertedMessage>;
   insertAssistantMessage(
     userId: string,
     threadId: string,
@@ -755,12 +762,18 @@ function collectKnownIds(
 // The endpoint
 // ---------------------------------------------------------------------------
 
-function historyToStylistMessages(rows: readonly HistoryMessageRow[]): StylistMessage[] {
+function historyToStylistMessages(
+  rows: readonly HistoryMessageRow[],
+  historicalImage: { row: HistoryMessageRow; url: string } | null,
+): StylistMessage[] {
   const messages: StylistMessage[] = [];
   for (const row of rows) {
     if (row.role === "user") {
       if (row.content !== null && row.content.length > 0) {
-        messages.push({ role: "user", content: row.content });
+        const image = historicalImage && historicalImage.row === row
+          ? { images: [{ url: historicalImage.url }] }
+          : {};
+        messages.push({ role: "user", content: row.content, ...image });
       }
     } else if (row.role === "assistant") {
       // Prefer the structured payload's message: that is what the user saw.
@@ -931,7 +944,13 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       await deps.studio.confirmations.close(userId, threadId, studioProposal.id);
       studioProposal = null;
     }
-    const userMessage = await deps.store.insertUserMessage(userId, threadId, body.text);
+    const currentStudioGenerationID = inspirationAttachments[0]?.value ?? null;
+    const userMessage = await deps.store.insertUserMessage(
+      userId,
+      threadId,
+      body.text,
+      currentStudioGenerationID,
+    );
 
     // Context packet sources — each independently degradable.
     const occasionWindowEnd = new Date(
@@ -1068,6 +1087,31 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         [] as readonly string[],
       )
       : [];
+    // Reattach at most one image from the active provider history window.
+    // A verified image on this turn takes precedence; signed URLs are always
+    // freshly resolved and live only in this in-memory provider request.
+    const historicalReferenceRow = inspirationImageURL === null
+      ? [...historyRows].reverse().find((row) =>
+        row.role === "user" && typeof row.studio_generation_id === "string"
+      ) ?? null
+      : null;
+    const historicalReference = historicalReferenceRow?.studio_generation_id ?? null;
+    const historicalImageURL = historicalReference && deps.resolveStudioInspiration
+      ? await fetchOrNull(
+        logger,
+        "historical_studio_inspiration",
+        () => deps.resolveStudioInspiration!(userId, historicalReference),
+        null as string | null,
+      )
+      : null;
+    const historicalMessages = historyToStylistMessages(
+      historyRows,
+      historicalReference !== null && historicalReferenceRow !== null &&
+        historicalImageURL !== null
+        ? { row: historicalReferenceRow, url: historicalImageURL }
+        : null,
+    );
+    const historicalImageUnavailable = historicalReference !== null && historicalImageURL === null;
     const baseMessages: StylistMessage[] = [
       ...(deps.studio
         ? [{
@@ -1077,7 +1121,14 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
             ". Use only these IDs. If empty, ask the user to open Studio to save and consent to a reference photo.",
         }]
         : []),
-      ...historyToStylistMessages(historyRows),
+      ...(historicalImageUnavailable
+        ? [{
+          role: "system" as const,
+          content:
+            "An earlier Studio inspiration image in this conversation is not available to this request. Do not claim to see or describe its visual contents. Ask the user to attach it again if visual details are needed.",
+        }]
+        : []),
+      ...historicalMessages,
       ...(studioProposal
         ? [{
           role: "system" as const,

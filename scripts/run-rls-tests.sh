@@ -206,6 +206,10 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/42_closet_cutout_reservations.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/43_kyra_studio_inspiration_history.sql"
+  test_exit=$?
+fi
 set -e
 echo
 
