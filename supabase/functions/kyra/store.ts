@@ -24,6 +24,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serverError } from "../_shared/errors.ts";
+import { isPremiumSubscriptionEntitled } from "../_shared/subscriptionEntitlement.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
 import { parseWardrobeGraph, type WardrobeGraphId } from "../_shared/scoring/wardrobeGraph.ts";
 import type { HistoryMessageRow, InsertedMessage, KyraStore } from "./handler.ts";
@@ -39,6 +40,7 @@ import type {
 import type { KyraStructuredResponse, MemoryType } from "./schema.ts";
 import type { SearchClosetRow } from "./tools/searchCloset.ts";
 import type { NewOutfitRecord } from "./tools/createOutfit.ts";
+import type { AtomicOutfitCommit } from "./outfitQuota.ts";
 import type { ExistingMemoryRow } from "./tools/savePreference.ts";
 import { createPackingRepository } from "../packing/repository.ts";
 
@@ -65,10 +67,10 @@ const PACKET_COLUMNS =
   "id, category, subcategory, brand, primary_color, formality_score, fit, availability_state, " +
   "laundry_state, wear_count, last_worn_at";
 
-/** Subscription states that count as entitled (StoreKit 2's active-ish set). */
-const PREMIUM_STATUSES = new Set(["trialing", "active", "in_grace_period", "in_billing_retry"]);
-
-export function buildKyraStore(supabase: SupabaseClient): KyraStore {
+export function buildKyraStore(
+  supabase: SupabaseClient,
+  serviceRole?: SupabaseClient,
+): KyraStore {
   return {
     // -- Threads + messages -------------------------------------------------
 
@@ -82,6 +84,37 @@ export function buildKyraStore(supabase: SupabaseClient): KyraStore {
         throw serverError("Couldn't start a new conversation.");
       }
       return (data as { id: string }).id;
+    },
+
+    async createThreadWithDailyLimit(userId, title, limit, now, requestID, fingerprint) {
+      if (!serviceRole) throw serverError("Conversation allowance checks are unavailable.");
+      const { data, error } = await serviceRole.rpc("create_kyra_thread_with_daily_limit", {
+        p_user_id: userId,
+        p_title: title,
+        p_limit: limit,
+        p_now: now.toISOString(),
+        p_request_id: requestID,
+        p_fingerprint: fingerprint,
+      }).single();
+      if (error || !data) throw serverError("Couldn't start a new conversation.");
+      const row = data as {
+        thread_id: string | null;
+        allowed: boolean;
+        replayed: boolean;
+        thread_deleted: boolean;
+        limit_count: number;
+        remaining: number;
+        resets_at: string;
+      };
+      return {
+        threadID: row.thread_id,
+        allowed: row.allowed,
+        replayed: row.replayed,
+        threadDeleted: row.thread_deleted,
+        limitCount: row.limit_count,
+        remaining: row.remaining,
+        resetsAt: row.resets_at,
+      };
     },
 
     async threadExists(threadId: string): Promise<boolean> {
@@ -176,10 +209,11 @@ export function buildKyraStore(supabase: SupabaseClient): KyraStore {
 
     // -- Subscription tier (P5-KYRA-19) -------------------------------------
 
-    async hasActivePremiumSubscription(nowIso: string): Promise<boolean> {
+    async hasActivePremiumSubscription(userID: string, nowIso: string): Promise<boolean> {
       const { data, error } = await supabase
         .from("subscriptions")
-        .select("status, expires_at");
+        .select("status, expires_at")
+        .eq("user_id", userID);
       if (error) {
         // Failing OPEN would hand out unlimited conversations on every
         // subscriptions-table blip; failing CLOSED (treat as free) keeps the
@@ -187,10 +221,7 @@ export function buildKyraStore(supabase: SupabaseClient): KyraStore {
         return false;
       }
       const rows = (data ?? []) as Array<{ status: string; expires_at: string | null }>;
-      return rows.some((row) =>
-        PREMIUM_STATUSES.has(row.status) &&
-        (row.expires_at === null || row.expires_at > nowIso)
-      );
+      return rows.some((row) => isPremiumSubscriptionEntitled(row.status, row.expires_at, nowIso));
     },
 
     // -- Context-packet sources ---------------------------------------------
@@ -386,6 +417,51 @@ export function buildKyraStore(supabase: SupabaseClient): KyraStore {
         throw serverError("Couldn't save the outfit's items.");
       }
       return outfitId;
+    },
+
+    async listProductCandidateCategories(ids: readonly string[]) {
+      if (ids.length === 0) return new Map<string, string | null>();
+      const { data, error } = await supabase
+        .from("product_candidates")
+        .select("id, category")
+        .in("id", ids);
+      if (error) throw serverError("Couldn't load those product candidates.");
+      return new Map(
+        ((data ?? []) as Array<{ id: string; category: string | null }>).map((row) => [
+          row.id,
+          row.category,
+        ]),
+      );
+    },
+
+    async commitOutfitGeneration(input: AtomicOutfitCommit): Promise<Record<string, unknown>> {
+      if (!serviceRole) throw serverError("Outfit generation persistence is unavailable.");
+      const { data, error } = await serviceRole.rpc("commit_kyra_outfit_generation", {
+        p_user_id: input.userID,
+        p_request_id: input.requestID,
+        p_fingerprint: input.fingerprint,
+        p_reservation_id: input.reservationID,
+        p_outfit: {
+          name: input.record.name,
+          description: input.record.description,
+          occasion_tags: input.record.occasionTags,
+          compatibility_score: input.record.compatibilityScore,
+          allow_product_candidates: input.allowProductCandidates,
+          locked_item_ids: input.lockedItemIDs,
+          items: input.record.items.map((item) => ({
+            closet_item_id: item.closetItemId,
+            product_candidate_id: item.productCandidateId,
+            role: item.role,
+            sort_order: item.sortOrder,
+          })),
+        },
+        p_result: input.result,
+        p_now: input.now.toISOString(),
+      });
+      if (error || data === null || typeof data !== "object" || Array.isArray(data)) {
+        throw serverError("Couldn't save the outfit.");
+      }
+      return data as Record<string, unknown>;
     },
 
     async listOwnedItemIds(ids: readonly string[]): Promise<string[]> {

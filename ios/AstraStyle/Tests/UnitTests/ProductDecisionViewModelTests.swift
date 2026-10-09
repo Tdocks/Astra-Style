@@ -201,7 +201,7 @@ struct ProductDecisionViewModelTests {
         #expect(model.historicalDecisionRoute(candidateID: candidate.id) == .historicalDecision(candidateID: candidate.id))
     }
 
-    @Test("Rate limits never fall back to a stale saved verdict")
+    @Test("A traffic throttle never falls back to a stale verdict or opens a paywall")
     func rateLimitedEvaluationDoesNotUseCache() async throws {
         let shopping = MockShoppingRepository()
         let url = try #require(URL(string: "https://example.com/coat"))
@@ -216,7 +216,37 @@ struct ProductDecisionViewModelTests {
             return
         }
         #expect(error.category == .rateLimited)
-        #expect(model.pendingPaywall == .pasteEvaluate)
+        #expect(model.pendingPaywall == nil)
+    }
+
+    @Test("A typed product trial limit remains an inline error")
+    func typedQuotaDoesNotPresentPaywall() async throws {
+        let shopping = MockShoppingRepository()
+        let url = try #require(URL(string: "https://example.com/coat"))
+        let candidate = try await shopping.extractProduct(from: url)
+        await shopping.setEvaluateError(AstraError(
+            category: .subscriptionLimitReached,
+            message: "Evaluation allowance reached.",
+            quotaDetails: AstraQuotaDetails(limit: "paste_product_evaluation_trial", limitCount: 1, remaining: 0, resetsAt: nil)
+        ))
+        let model = ProductDecisionViewModel(candidateID: candidate.id, shoppingRepository: shopping)
+        await model.onAppear()
+        #expect(model.pendingPaywall == nil)
+    }
+
+    @Test("Paste product trial quota is shown inline without a paywall")
+    func pasteTrialQuotaDoesNotUpsell() async throws {
+        let shopping = MockShoppingRepository()
+        await shopping.setExtractError(AstraError(
+            category: .subscriptionLimitReached,
+            message: "Your product evaluation trial has been used.",
+            quotaDetails: AstraQuotaDetails(limit: "paste_product_evaluation_trial", limitCount: 1, remaining: 0, resetsAt: nil)
+        ))
+        let model = ProductLinkPasteViewModel(shoppingRepository: shopping)
+        let candidateID = await model.extract(from: "https://example.com/coat")
+        #expect(candidateID == nil)
+        #expect(model.pendingPaywall == nil)
+        #expect(model.submitError?.category == .subscriptionLimitReached)
     }
 
     @Test("Server failures never fall back to an old decision")

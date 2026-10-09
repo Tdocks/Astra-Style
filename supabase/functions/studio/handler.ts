@@ -56,6 +56,7 @@ import type {
   StudioGarment,
 } from "../_shared/providers/imageGeneration.ts";
 import { buildInspirationPrompt, buildStudioPrompt, STUDIO_DISCLAIMER } from "./promptBuilder.ts";
+import { studioQuotaExceededError } from "./quota.ts";
 import {
   assertConsentCurrent,
   assertOwnedReferencePath,
@@ -173,7 +174,7 @@ export interface StudioHandlerDeps {
   generateRateLimiter: RateLimiter;
   statusRateLimiter: RateLimiter;
   now: () => Date;
-  hasActivePremiumSubscription: (nowIso: string) => Promise<boolean>;
+  hasActivePremiumSubscription: (userID: string, nowIso: string) => Promise<boolean>;
   /** Free Visualize trials before the paywall. Spec is 1. */
   freeStudioTrialGenerations: number;
 }
@@ -651,7 +652,7 @@ export async function handleGenerate(
       : null;
 
     if (body.kind !== "retry" && !semanticHit) {
-      const premium = await deps.hasActivePremiumSubscription(deps.now().toISOString());
+      const premium = await deps.hasActivePremiumSubscription(userId, deps.now().toISOString());
       if (!premium) {
         const used = await deps.jobStore.countForUser(userId);
         if (used >= deps.freeStudioTrialGenerations) {
@@ -688,9 +689,11 @@ export async function handleGenerate(
             limit: deps.freeStudioTrialGenerations,
           });
           return errorResponse(
-            new AppError(
-              "rate_limited",
-              429,
+            studioQuotaExceededError(
+              "studio_trial_generation",
+              deps.freeStudioTrialGenerations,
+              Math.max(0, deps.freeStudioTrialGenerations - used),
+              null,
               "You've used your free visual estimate. Upgrade to Astra Style Premium for more.",
             ),
             requestId,

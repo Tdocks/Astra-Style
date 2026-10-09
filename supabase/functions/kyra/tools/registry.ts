@@ -88,7 +88,11 @@ export interface ToolExecution {
 
 export interface ToolRegistry {
   readonly definitions: readonly StylistToolDefinition[];
-  execute(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>>;
+  execute(
+    name: string,
+    args: Record<string, unknown>,
+    toolCallID?: string,
+  ): Promise<Record<string, unknown>>;
 }
 
 export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
@@ -114,7 +118,7 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
 
   return {
     definitions,
-    async execute(name, args) {
+    async execute(name, args, toolCallID) {
       switch (name) {
         case "generate_studio_preview":
           return deps.generateStudioPreview
@@ -129,7 +133,10 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
         case "rank_outfits":
           return await executeRankOutfits(parseRankOutfitsArgs(args), deps.rankOutfits);
         case "create_outfit":
-          return await executeCreateOutfit(parseCreateOutfitArgs(args), deps.createOutfit);
+          return await executeCreateOutfit(parseCreateOutfitArgs(args), {
+            ...deps.createOutfit,
+            toolCallID,
+          });
         case "get_weather":
           return executeGetWeather(args, deps.getWeather);
         case "get_schedule":

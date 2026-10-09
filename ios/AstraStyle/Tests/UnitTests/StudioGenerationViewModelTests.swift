@@ -328,7 +328,7 @@ struct StudioQuotaViewModelTests {
     }
 
     @Test("Free trial exhaustion presents the upgrade paywall")
-    func rateLimitPresentsPaywall() async {
+    func typedTrialQuotaPresentsPaywall() async {
         let studio = MockStudioRepository(quotaExhausted: true)
         let model = makeModel(studio: studio)
         model.pollInterval = .zero
@@ -338,6 +338,23 @@ struct StudioQuotaViewModelTests {
         #expect(model.pendingPaywall == .studioQuota)
         guard case .failed(let error) = model.phase else {
             Issue.record("expected .failed, got \(model.phase)")
+            return
+        }
+        #expect(error.category == .subscriptionLimitReached)
+        #expect(error.quotaDetails?.limit == "studio_trial_generation")
+    }
+
+    @Test("A transport throttle does not present the upgrade paywall")
+    func transportThrottleDoesNotUpsell() async {
+        let studio = MockStudioRepository()
+        await studio.setStartGenerationError(.rateLimited())
+        let model = makeModel(studio: studio)
+        await model.onAppear()
+        model.grantConsent()
+        await model.generate()
+        #expect(model.pendingPaywall == nil)
+        guard case .failed(let error) = model.phase else {
+            Issue.record("Expected the transport throttle to remain a retryable error")
             return
         }
         #expect(error.category == .rateLimited)

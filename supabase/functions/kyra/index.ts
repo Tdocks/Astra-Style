@@ -55,6 +55,7 @@ import {
 import { CURRENT_STUDIO_CONSENT_TERMS_VERSION } from "../studio/schema.ts";
 import { buildKyraStore } from "./store.ts";
 import { LiveStylistProvider } from "./liveStylistProvider.ts";
+import { finishGeneration, readGenerationPremium, reserveGeneration } from "../outfits/quota.ts";
 
 const env = readEdgeEnv();
 
@@ -166,10 +167,18 @@ function kyraRespondRoute(req: Request): Promise<Response> {
   const authorizationHeader = req.headers.get("Authorization") ??
     req.headers.get("authorization") ?? "";
   const supabase = createUserScopedClient(env, authorizationHeader);
+  const quotaClient = createServiceRoleClient(env);
 
   return handleKyraRespond(req, {
     authClient: supabase,
-    store: buildKyraStore(supabase),
+    store: buildKyraStore(supabase, quotaClient),
+    outfitGenerationQuota: {
+      isPremium: (userID, now) => readGenerationPremium(quotaClient, userID, now),
+      reserve: (userID, requestID, fingerprint, now) =>
+        reserveGeneration(quotaClient, userID, requestID, fingerprint, now),
+      finish: (userID, reservationID, succeeded, result, now) =>
+        finishGeneration(quotaClient, userID, reservationID, succeeded, result, now),
+    },
     resolveStudioInspiration: async (userID, generationID) => {
       const reference = await resolveCompletedStudioInspiration(
         userID,
@@ -182,7 +191,7 @@ function kyraRespondRoute(req: Request): Promise<Response> {
     },
     analyzeProduct: buildProductServices(env, authorizationHeader, supabase),
     studio: {
-      confirmations: buildStudioConfirmationStore(createServiceRoleClient(env)),
+      confirmations: buildStudioConfirmationStore(quotaClient),
       referenceIDs: (userID) =>
         listConsentedStudioReferenceIDs(
           userID,

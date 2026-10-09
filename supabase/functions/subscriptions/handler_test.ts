@@ -47,6 +47,131 @@ Deno.test("handleSync persists the verified transaction for the JWT user", async
   assertEquals(dto.expires_at, "2027-08-22T21:00:00Z");
 });
 
+Deno.test("sync keeps a live verified grace period for the same expired paid transaction", async () => {
+  const store = memoryStore({
+    user_id: USER_A,
+    app_store_original_transaction_id: "orig-1",
+    product_id: "com.astrastyle.app.premium.annual",
+    status: "in_grace_period",
+    expires_at: "2026-10-10T12:00:00.000Z",
+    environment: "sandbox",
+    app_store_last_signed_at: "2026-09-30T11:00:00.000Z",
+  });
+  const dto = await handleSync(
+    { signed_transaction_info: "apple-signed-jws" },
+    USER_A,
+    {
+      store,
+      verifier: verifierFor(verifiedTransaction({
+        appAccountToken: USER_A,
+        expiresDate: Date.parse("2026-09-29T12:00:00.000Z"),
+        signedDate: Date.parse("2026-10-01T09:00:00.000Z"),
+      })),
+      now: () => new Date("2026-10-01T10:00:00.000Z"),
+    },
+  );
+
+  assertEquals(dto.status, "in_grace_period");
+  assertEquals(dto.expires_at, "2026-10-10T12:00:00Z");
+});
+
+Deno.test("a verified new paid period replaces the existing grace state", async () => {
+  const store = memoryStore({
+    user_id: USER_A,
+    app_store_original_transaction_id: "orig-1",
+    product_id: "com.astrastyle.app.premium.annual",
+    status: "in_grace_period",
+    expires_at: "2026-10-10T12:00:00.000Z",
+    environment: "sandbox",
+    app_store_last_signed_at: "2026-09-30T11:00:00.000Z",
+  });
+  const dto = await handleSync(
+    { signed_transaction_info: "apple-signed-jws" },
+    USER_A,
+    {
+      store,
+      verifier: verifierFor(verifiedTransaction({
+        appAccountToken: USER_A,
+        transactionId: "tx-renewed",
+        expiresDate: Date.parse("2027-09-29T12:00:00.000Z"),
+        signedDate: Date.parse("2026-10-01T09:00:00.000Z"),
+      })),
+      now: () => new Date("2026-10-01T10:00:00.000Z"),
+    },
+  );
+
+  assertEquals(dto.status, "active");
+  assertEquals(dto.expires_at, "2027-09-29T12:00:00Z");
+});
+
+Deno.test("a verified revocation overrides an existing grace period", async () => {
+  const store = memoryStore({
+    user_id: USER_A,
+    app_store_original_transaction_id: "orig-1",
+    product_id: "com.astrastyle.app.premium.annual",
+    status: "in_grace_period",
+    expires_at: "2026-10-10T12:00:00.000Z",
+    environment: "sandbox",
+    app_store_last_signed_at: "2026-09-30T11:00:00.000Z",
+  });
+  const dto = await handleSync(
+    { signed_transaction_info: "apple-signed-jws" },
+    USER_A,
+    {
+      store,
+      verifier: verifierFor(verifiedTransaction({
+        appAccountToken: USER_A,
+        expiresDate: Date.parse("2026-09-29T12:00:00.000Z"),
+        signedDate: Date.parse("2026-10-01T09:00:00.000Z"),
+        revocationDate: Date.parse("2026-09-30T18:00:00.000Z"),
+      })),
+      now: () => new Date("2026-10-01T10:00:00.000Z"),
+    },
+  );
+
+  assertEquals(dto.status, "revoked");
+  assertEquals(dto.expires_at, "2026-09-29T12:00:00Z");
+});
+
+Deno.test("a newer verified revocation notification overrides existing grace", async () => {
+  const store = memoryStore(
+    {
+      user_id: USER_A,
+      app_store_original_transaction_id: "orig-1",
+      product_id: "com.astrastyle.app.premium.annual",
+      status: "in_grace_period",
+      expires_at: "2026-10-10T12:00:00.000Z",
+      environment: "sandbox",
+      app_store_last_signed_at: "2026-09-30T11:00:00.000Z",
+    },
+    {
+      originalTransactionId: "orig-1",
+      notificationUUID: "revoke-1",
+      productId: "com.astrastyle.app.premium.annual",
+      status: "revoked",
+      expiresAt: "2026-09-29T12:00:00.000Z",
+      environment: "sandbox",
+      signedAt: "2026-10-01T09:30:00.000Z",
+    },
+  );
+  const dto = await handleSync(
+    { signed_transaction_info: "apple-signed-jws" },
+    USER_A,
+    {
+      store,
+      verifier: verifierFor(verifiedTransaction({
+        appAccountToken: USER_A,
+        expiresDate: Date.parse("2026-09-29T12:00:00.000Z"),
+        signedDate: Date.parse("2026-10-01T09:00:00.000Z"),
+      })),
+      now: () => new Date("2026-10-01T10:00:00.000Z"),
+    },
+  );
+
+  assertEquals(dto.status, "revoked");
+  assertEquals(dto.expires_at, "2026-09-29T12:00:00Z");
+});
+
 Deno.test("handleSync rejects a signed purchase bound to another Astra account", async () => {
   await assertRejects(
     () =>
@@ -141,9 +266,14 @@ function verifierFor(transaction: VerifiedTransaction): AppStoreSignedDataVerifi
   };
 }
 
-function memoryStore(): SubscriptionStore {
+function memoryStore(
+  initial?: SubscriptionRow,
+  initialPending?: PendingAppStoreState,
+): SubscriptionStore {
   const rows = new Map<string, SubscriptionRow>();
+  if (initial) rows.set(initial.user_id, initial);
   const pending = new Map<string, PendingAppStoreState>();
+  if (initialPending) pending.set(initialPending.originalTransactionId, initialPending);
   return {
     upsertForUser(row) {
       const stored: SubscriptionRow = {

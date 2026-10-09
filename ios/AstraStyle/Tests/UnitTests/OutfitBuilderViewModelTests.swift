@@ -486,4 +486,72 @@ extension OutfitBuilderViewModelTests {
         #expect(viewModel.recommendationError == "Suggestions are offline.")
     }
 
+    @Test("Daily generation quota is typed and does not replace a working canvas")
+    func dailyGenerationQuotaPreservesCanvasAndOffersUpgrade() async throws {
+        let top = item(.top, name: "Locked jacket")
+        let bottom = item(.bottom, name: "Chosen trousers")
+        let repository = StubOutfitRepository()
+        let recommendation = OutfitRecommendation(
+            id: UUID(), name: "Existing idea", reason: "A useful look", compatibilityScore: 82,
+            itemIDs: [top.id, bottom.id], missingProductIDs: []
+        )
+        await repository.setGenerationResult([recommendation])
+        let (viewModel, _) = makeViewModel(closet: [top, bottom], repository: repository)
+        await viewModel.onAppear()
+        await viewModel.generateClosetRecommendations()
+        viewModel.selectRecommendation(recommendation)
+        viewModel.toggleLock(for: .top)
+        let slotsBeforeLimit = viewModel.slots
+
+        await repository.failGeneration(with: AstraError(
+            category: .subscriptionLimitReached,
+            message: "Daily outfit limit reached.",
+            underlyingStatusCode: 429,
+            quotaDetails: AstraQuotaDetails(
+                limit: "outfit_generation_daily",
+                limitCount: 5,
+                remaining: 0,
+                resetsAt: "2026-10-10T00:00:00.000Z"
+            )
+        ))
+        await viewModel.generateClosetRecommendations()
+
+        #expect(viewModel.recommendations.map(\.id) == [recommendation.id])
+        #expect(viewModel.slots == slotsBeforeLimit)
+        #expect(viewModel.generationQuota?.limitCount == 5)
+        #expect(viewModel.recommendationError == nil)
+    }
+
+    @Test("Quota exhaustion during regenerate keeps the locked slot and allows manual save")
+    func regenerateQuotaKeepsCanvasAndManualSaveAvailable() async throws {
+        let userID = UUID()
+        let top = item(.top, name: "Kept top", userID: userID)
+        let bottom = item(.bottom, name: "Kept trousers", userID: userID)
+        let repository = StubOutfitRepository()
+        let (viewModel, _) = makeViewModel(closet: [top, bottom], repository: repository)
+        await viewModel.onAppear()
+        viewModel.selectItem(top, for: .top)
+        viewModel.selectItem(bottom, for: .bottom)
+        viewModel.toggleLock(for: .top)
+        let slotsBeforeLimit = viewModel.slots
+        await repository.failGeneration(with: AstraError(
+            category: .subscriptionLimitReached,
+            message: "Daily outfit limit reached.",
+            underlyingStatusCode: 429,
+            quotaDetails: AstraQuotaDetails(
+                limit: "outfit_generation_daily", limitCount: 5,
+                remaining: 0, resetsAt: "2026-10-10T00:00:00.000Z"
+            )
+        ))
+
+        await viewModel.regenerate()
+
+        #expect(viewModel.slots == slotsBeforeLimit)
+        #expect(viewModel.generationQuota?.remaining == 0)
+        #expect(viewModel.actionError == nil)
+
+        await viewModel.save()
+        #expect(viewModel.backingOutfitID != nil)
+    }
+
 }

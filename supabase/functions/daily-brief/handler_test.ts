@@ -537,6 +537,14 @@ Deno.test("a fourth free generate is 429; returning today's existing brief is no
   });
   const blocked = await handleGenerateDailyBrief(requestFor(generateBody()), gated);
   assertEquals(blocked.status, 429);
+  const body = await blocked.json();
+  assertEquals(body.error.category, "subscription_limit_reached");
+  assertEquals(body.error.details, {
+    limit: "daily_brief_trial_generation",
+    limit_count: 3,
+    remaining: 0,
+    resets_at: null,
+  });
 
   const existing = memoryRepository(POPULATED_CLOSET);
   await handleGenerateDailyBrief(

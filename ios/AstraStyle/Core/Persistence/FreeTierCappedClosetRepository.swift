@@ -123,7 +123,19 @@ public struct FreeTierCappedClosetRepository: ClosetRepository, ClosetItemCacheP
     }
 
     public func updateItem(_ item: ClosetItem) async throws -> ClosetItem {
-        try await base.updateItem(item)
+        // Editing an active item remains available when a user falls back
+        // to Free above the cap. Only an unarchive consumes a new slot.
+        if item.archivedAt == nil, await isEntitledToPremium() == false {
+            let existing = try await base.fetchItem(id: item.id)
+            if existing.isArchived {
+                let limit = await capLimit()
+                let activeCount = try await base.fetchItems().count
+                guard activeCount < limit else {
+                    throw FreeTierClosetError.capReached(limit: limit)
+                }
+            }
+        }
+        return try await base.updateItem(item)
     }
 
     public func archiveItem(id: UUID) async throws {

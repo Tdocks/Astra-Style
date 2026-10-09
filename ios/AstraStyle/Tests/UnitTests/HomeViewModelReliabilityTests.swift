@@ -62,6 +62,29 @@ struct HomeViewModelReliabilityTests {
         #expect(data.primaryOutfit?.id == dressed.primaryOutfit?.id)
     }
 
+    @Test("Daily Brief trial exhaustion stays inline without an upgrade paywall")
+    func dailyBriefTrialLimitDoesNotUpsell() async {
+        let provider = RecordingHomeProvider(data: emptyBrief(have: 4))
+        let viewModel = HomeViewModel(
+            provider: provider,
+            networkMonitor: StaticNetworkReachabilityMonitor(offline: false)
+        )
+        await viewModel.onAppear()
+        provider.loadError = AstraError(
+            category: .subscriptionLimitReached,
+            message: "Your Daily Brief trial has been used.",
+            quotaDetails: AstraQuotaDetails(limit: "daily_brief_trial_generation", limitCount: 1, remaining: 0, resetsAt: nil)
+        )
+        await viewModel.reloadAfterExternalChange()
+
+        #expect(viewModel.pendingPaywall == nil)
+        guard case .failed(let error) = viewModel.state else {
+            Issue.record("Expected the allowance message to stay in Home's inline error state")
+            return
+        }
+        #expect(error.category == .subscriptionLimitReached)
+    }
+
     @Test("Reloading a dressed Home keeps today's look — a new scan does not churn the brief")
     func loadedReloadDoesNotRegenerate() async {
         let provider = RecordingHomeProvider(data: loadedBrief())
@@ -205,6 +228,7 @@ private func loadedBrief(outfitID: UUID = UUID()) -> HomeBriefData {
 
 private final class RecordingHomeProvider: HomeBriefProviding, @unchecked Sendable {
     nonisolated(unsafe) var data: HomeBriefData
+    nonisolated(unsafe) var loadError: Error?
     private let markError: Error?
     nonisolated(unsafe) private(set) var loadCallCount = 0
     nonisolated(unsafe) private(set) var markCallCount = 0
@@ -218,6 +242,7 @@ private final class RecordingHomeProvider: HomeBriefProviding, @unchecked Sendab
     func loadTodayBrief(regenerate: Bool) async throws -> HomeBriefData {
         loadCallCount += 1
         lastRegenerate = regenerate
+        if let loadError { throw loadError }
         return data
     }
 

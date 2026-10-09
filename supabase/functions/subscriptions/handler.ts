@@ -111,13 +111,39 @@ export async function handleSync(
   let state = transactionState(transaction, expiresAt, deps.now());
 
   const pending = await deps.store.fetchPending(originalTransactionId);
-  if (pending && new Date(pending.signedAt) > new Date(signedAt)) {
+  const newerPending = pending !== null && new Date(pending.signedAt) > new Date(signedAt);
+  if (pending && newerPending) {
     state = {
       productId: pending.productId,
       status: pending.status,
       expiresAt: pending.expiresAt ?? expiresAt,
       environment: pending.environment,
       signedAt: pending.signedAt,
+    };
+  }
+
+  // StoreKit may return the same expired paid-period transaction after an
+  // App Store server notification has already established a verified grace
+  // deadline. A newer `signedDate` on that same transaction does not extend
+  // its paid period, so retain the authoritative grace state until its
+  // verified deadline. A newer pending notification, a new transaction
+  // period, or an explicit transaction revocation still takes precedence.
+  const existingGraceExpiry = existingLineage?.status === "in_grace_period"
+    ? millisecondsToISO(Date.parse(existingLineage.expires_at ?? ""))
+    : null;
+  if (
+    !newerPending &&
+    transaction.revocationDate === undefined &&
+    transaction.isUpgraded !== true &&
+    state.status === "expired" &&
+    existingGraceExpiry &&
+    new Date(existingGraceExpiry) > deps.now() &&
+    new Date(expiresAt) <= new Date(existingGraceExpiry)
+  ) {
+    state = {
+      ...state,
+      status: "in_grace_period",
+      expiresAt: existingGraceExpiry,
     };
   }
 

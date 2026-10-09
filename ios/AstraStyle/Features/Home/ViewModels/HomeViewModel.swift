@@ -282,9 +282,9 @@ public final class HomeViewModel {
                     weekSlots = await provider.loadWeekStrip()
                 }
             }
-        } catch let error as AstraError where error.category == .rateLimited && regenerate {
-            pendingPaywall = .dailyBrief
         } catch let error as AstraError {
+            // Daily Brief's one-time trial allowance is explained inline;
+            // it does not open an upgrade paywall (ADR-0017).
             state = .failed(error)
         } catch {
             state = .failed(AstraError(category: .unknown, message: error.localizedDescription))

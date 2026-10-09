@@ -181,7 +181,8 @@ public final class StudioGenerationViewModel {
             await completeGeneration(from: job)
         } catch let error as AstraError {
             phase = .failed(error)
-            if error.category == .rateLimited && error.message.contains("free visual") {
+            if error.category == .subscriptionLimitReached,
+               error.quotaDetails?.limit == "studio_trial_generation" {
                 pendingPaywall = .studioQuota
             }
         } catch {

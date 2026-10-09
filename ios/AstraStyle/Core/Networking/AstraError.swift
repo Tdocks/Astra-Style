@@ -32,6 +32,9 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
         /// Client-side rate limiting or a 429 from the server (spec §14
         /// "Rate limit").
         case rateLimited
+        /// A server-authoritative free subscription quota is exhausted.
+        /// This is separate from temporary traffic throttling.
+        case subscriptionLimitReached
         /// Request was cancelled (e.g. view disappeared mid-flight).
         case cancelled
         /// The feature exists as a protocol requirement but its backing
@@ -54,12 +57,20 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
     /// Correlates this failure with server-side logs (spec §14 "Log
     /// request ID and latency").
     public let requestID: String?
+    public let quotaDetails: AstraQuotaDetails?
 
-    public init(category: Category, message: String, underlyingStatusCode: Int? = nil, requestID: String? = nil) {
+    public init(
+        category: Category,
+        message: String,
+        underlyingStatusCode: Int? = nil,
+        requestID: String? = nil,
+        quotaDetails: AstraQuotaDetails? = nil
+    ) {
         self.category = category
         self.message = message
         self.underlyingStatusCode = underlyingStatusCode
         self.requestID = requestID
+        self.quotaDetails = quotaDetails
     }
 
     public var errorDescription: String? { message }
@@ -69,6 +80,7 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
     public var isRetryable: Bool {
         switch category {
         case .network, .server, .provider, .rateLimited: true
+        case .subscriptionLimitReached: false
         case .auth, .validation, .cancelled, .unimplemented, .unknown: false
         }
     }
@@ -78,6 +90,22 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
             && lhs.message == rhs.message
             && lhs.underlyingStatusCode == rhs.underlyingStatusCode
             && lhs.requestID == rhs.requestID
+            && lhs.quotaDetails == rhs.quotaDetails
+    }
+}
+
+/// Server-owned allowance information included with quota exhaustion errors.
+public struct AstraQuotaDetails: Decodable, Sendable, Equatable {
+    public let limit: String?
+    public let limitCount: Int?
+    public let remaining: Int?
+    public let resetsAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case limit
+        case limitCount = "limit_count"
+        case remaining
+        case resetsAt = "resets_at"
     }
 }
 

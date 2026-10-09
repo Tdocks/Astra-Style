@@ -78,7 +78,7 @@ extension StudioGenerationDetailViewModel {
                 throw AstraError.validation("Higher-quality export is a Premium feature.")
             }
             guard quota.remaining > 0 || highResolutionSubmissionUncertain else {
-                throw AstraError.rateLimited("Your monthly Studio render allowance is used up. Try again after it resets.")
+                throw Self.monthlyQuotaError(quota)
             }
             hasPendingHighResolutionConfirmation = true
         } catch is CancellationError {
@@ -149,7 +149,7 @@ extension StudioGenerationDetailViewModel {
                 throw AstraError.validation("Higher-quality export is a Premium feature.")
             }
             guard quota.remaining > 0 || highResolutionSubmissionUncertain else {
-                throw AstraError.rateLimited("Your monthly Studio render allowance is used up. Try again after it resets.")
+                throw Self.monthlyQuotaError(quota)
             }
             guard quota.remaining == highResolutionQuota?.remaining,
                   quota.limit == highResolutionQuota?.limit,
@@ -172,7 +172,7 @@ extension StudioGenerationDetailViewModel {
         } catch is CancellationError {
             return
         } catch let error as AstraError {
-            if [.auth, .validation, .rateLimited, .unimplemented].contains(error.category) {
+            if [.auth, .validation, .rateLimited, .subscriptionLimitReached, .unimplemented].contains(error.category) {
                 highResolutionSubmissionUncertain = false
             }
             highResolutionError = error.message
@@ -271,5 +271,20 @@ extension StudioGenerationDetailViewModel {
         guard case .object(let payload)? = generation.promptPayload,
               case .string(let mode)? = payload["mode"] else { return true }
         return mode != "inspiration" && mode != "closet_inspiration"
+    }
+}
+
+private extension StudioGenerationDetailViewModel {
+    static func monthlyQuotaError(_ quota: StudioQuota) -> AstraError {
+        AstraError(
+            category: .subscriptionLimitReached,
+            message: "Your monthly Studio render allowance is used up. Try again after it resets.",
+            quotaDetails: AstraQuotaDetails(
+                limit: "studio_generation_monthly",
+                limitCount: quota.limit,
+                remaining: quota.remaining,
+                resetsAt: quota.resetsAt?.ISO8601Format()
+            )
+        )
     }
 }

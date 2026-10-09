@@ -466,12 +466,28 @@ extension AppContainer {
                 ? PerformanceClosetImageURLResolver()
                 : MockClosetImageURLResolver(),
             outfitRepository: outfitRepository ?? MockOutfitRepository(
-                shopTheLookCandidateFixture: includesShopTheLookCandidate
+                shopTheLookCandidateFixture: includesShopTheLookCandidate,
+                outfitGenerationError: Self.mockOutfitGenerationError
             ),
             subscriptionRepository: subscriptionRepository,
             scannerSaveJournal: scannerSaveJournal,
             scannerSaveRecoveryService: scannerSaveRecoveryService
         ))
+    }
+
+    private static var mockOutfitGenerationError: AstraError? {
+        guard AstraFeatureFlags.simulatesDailyOutfitQuota else { return nil }
+        return AstraError(
+            category: .subscriptionLimitReached,
+            message: "Daily outfit limit reached.",
+            underlyingStatusCode: 429,
+            quotaDetails: AstraQuotaDetails(
+                limit: "outfit_generation_daily",
+                limitCount: 5,
+                remaining: 0,
+                resetsAt: "2026-10-10T00:00:00.000Z"
+            )
+        )
     }
 
     private static func makePreviewContainer(_ dependencies: PreviewContainerDependencies) -> AppContainer {

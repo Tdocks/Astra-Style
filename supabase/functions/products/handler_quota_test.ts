@@ -60,6 +60,13 @@ Deno.test("extract 429s after the free paste-evaluate pair", async () => {
     throw new Error("expected quota");
   } catch (error) {
     assertEquals((error as { status?: number }).status, 429);
+    assertEquals((error as { category?: string }).category, "subscription_limit_reached");
+    assertEquals((error as { details?: Record<string, unknown> }).details, {
+      limit: "paste_product_evaluation_trial",
+      limit_count: 1,
+      remaining: 0,
+      resets_at: null,
+    });
   }
 });
 
@@ -73,6 +80,13 @@ Deno.test("evaluate 429s after the free paste-evaluate pair", async () => {
     throw new Error("expected quota");
   } catch (error) {
     assertEquals((error as { status?: number }).status, 429);
+    assertEquals((error as { category?: string }).category, "subscription_limit_reached");
+    assertEquals((error as { details?: Record<string, unknown> }).details, {
+      limit: "paste_product_evaluation_trial",
+      limit_count: 1,
+      remaining: 0,
+      resets_at: null,
+    });
   }
 });
 

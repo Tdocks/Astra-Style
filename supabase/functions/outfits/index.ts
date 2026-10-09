@@ -53,6 +53,7 @@ import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts
 import { serverError } from "../_shared/errors.ts";
 import { preferenceContextFromRow } from "./scoringContext.ts";
 import { readAllUserIdBatches, readAllUserPages } from "./readPagination.ts";
+import { finishGeneration, readGenerationPremium, reserveGeneration } from "./quota.ts";
 
 // Read once at cold start (per isolate), not per request: a misconfigured
 // deploy should fail immediately and visibly rather than on the first
@@ -263,12 +264,20 @@ function generateOutfitsRoute(req: Request): Promise<Response> {
   const authorizationHeader = req.headers.get("Authorization") ??
     req.headers.get("authorization") ?? "";
 
+  const quotaClient = createServiceRoleClient(env);
   return handleGenerateOutfits(req, {
     authClient: createUserScopedClient(env, authorizationHeader),
     closetRepository: buildClosetRepository(authorizationHeader),
     rateLimiter,
     now: () => new Date(),
     readCompatibilityWeights: () => loadCompatibilityWeightsConfig(createServiceRoleClient(env)),
+    generationQuota: {
+      isPremium: (userID, now) => readGenerationPremium(quotaClient, userID, now),
+      reserve: (userID, requestID, fingerprint, now) =>
+        reserveGeneration(quotaClient, userID, requestID, fingerprint, now),
+      finish: (userID, reservationID, succeeded, result, now) =>
+        finishGeneration(quotaClient, userID, reservationID, succeeded, result, now),
+    },
   });
 }
 

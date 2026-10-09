@@ -18,7 +18,7 @@ import Foundation
 import Testing
 @testable import AstraStyle
 
-@Suite("AstraAPIClient error envelope mapping")
+@Suite("AstraAPIClient error envelope mapping", .serialized)
 struct AstraAPIClientErrorMappingTests {
 
     /// The undeployed-slug case, and the one the owner actually hit in
@@ -83,11 +83,58 @@ struct AstraAPIClientErrorMappingTests {
         #expect(try JSONDecoder().decode(AstraGatewayErrorPayload.self, from: numeric).message == payload.message)
     }
 
+    @Test("A subscription quota 429 preserves typed allowance details")
+    func subscriptionQuota429IsNotTrafficThrottling() async throws {
+        let error = try await errorFrom(
+            statusCode: 429,
+            body: #"""
+            {
+              "error": {
+                "category": "subscription_limit_reached",
+                "message": "Daily outfit limit reached.",
+                "details": {
+                  "limit": "outfit_generation_daily",
+                  "limit_count": 5,
+                  "remaining": 0,
+                  "resets_at": "2026-10-10T00:00:00.000Z"
+                }
+              },
+              "request_id": "req_quota"
+            }
+            """#
+        )
+
+        #expect(error.category == .subscriptionLimitReached)
+        #expect(error.quotaDetails == AstraQuotaDetails(
+            limit: "outfit_generation_daily",
+            limitCount: 5,
+            remaining: 0,
+            resetsAt: "2026-10-10T00:00:00.000Z"
+        ))
+        #expect(error.isRetryable == false)
+    }
+
+    @Test("A normal traffic 429 remains retryable and has no subscription details")
+    func traffic429RemainsRateLimited() async throws {
+        let error = try await errorFrom(
+            statusCode: 429,
+            body: #"{"error":{"category":"rate_limited","message":"Too many requests."}}"#
+        )
+
+        #expect(error.category == .rateLimited)
+        #expect(error.quotaDetails == nil)
+        #expect(error.isRetryable)
+    }
+
     // MARK: - Helper
 
     private func errorFromNotFound(body: String) async throws -> AstraError {
+        try await errorFrom(statusCode: 404, body: body)
+    }
+
+    private func errorFrom(statusCode: Int, body: String) async throws -> AstraError {
         EnvelopeStubURLProtocol.reset()
-        EnvelopeStubURLProtocol.statusCode = 404
+        EnvelopeStubURLProtocol.statusCode = statusCode
         EnvelopeStubURLProtocol.responseBody = Data(body.utf8)
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -98,7 +145,7 @@ struct AstraAPIClientErrorMappingTests {
 
         do {
             _ = try await client.send(.analyzeClosetItem, body: AstraEmptyPayload(), as: AstraEmptyPayload.self)
-            Issue.record("Expected send to throw on 404")
+            Issue.record("Expected send to throw on HTTP \(statusCode)")
             throw AstraError.validation("unreachable")
         } catch let error as AstraError {
             return error

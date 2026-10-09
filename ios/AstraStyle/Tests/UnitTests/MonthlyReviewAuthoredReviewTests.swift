@@ -54,11 +54,15 @@ struct MonthlyReviewAuthoredReviewTests {
         #expect((await kyra.sentMessages).count == 2)
     }
 
-    @Test("Kyra's daily limit is exposed as an upgrade state, not an immediate retry")
-    func authoredReviewRateLimitDoesNotOfferRetryableFailure() async throws {
+    @Test("Kyra's typed daily quota is exposed as an upgrade state")
+    func authoredReviewQuotaShowsUpgradeState() async throws {
         let interval = try #require(Calendar.current.dateInterval(of: .month, for: Date.now))
         let kyra = MockKyraRepository()
-        await kyra.failNextSend(with: .rateLimited("Daily Kyra limit reached."))
+        await kyra.failNextSend(with: AstraError(
+            category: .subscriptionLimitReached,
+            message: "Daily Kyra limit reached.",
+            quotaDetails: AstraQuotaDetails(limit: "kyra_conversation_daily", limitCount: 3, remaining: 0, resetsAt: "2026-10-10T00:00:00Z")
+        ))
         let viewModel = makeViewModel(month: interval.start, shopping: MockShoppingRepository(), kyra: kyra)
 
         await viewModel.load()
@@ -70,6 +74,25 @@ struct MonthlyReviewAuthoredReviewTests {
         #expect(message == "Daily Kyra limit reached.")
         #expect(rateLimited)
         #expect((await kyra.sentMessages).count == 1)
+    }
+
+    @Test("A traffic throttle stays retryable and preserves a saved review")
+    func transportThrottlePreservesSavedReviewWithoutPaywall() async throws {
+        let interval = try #require(Calendar.current.dateInterval(of: .month, for: Date.now))
+        let kyra = MockKyraRepository()
+        await kyra.setNextReplyMessage("A saved review.")
+        let viewModel = makeViewModel(month: interval.start, shopping: MockShoppingRepository(), kyra: kyra)
+        await viewModel.load()
+        await viewModel.generateAuthoredReview()
+        await kyra.failNextSend(with: .rateLimited("Try again shortly."))
+        await viewModel.refreshAuthoredReview()
+        guard case .refreshFailed(let message, let previous, let quotaReached) = viewModel.authoredReviewState else {
+            Issue.record("Traffic throttling should preserve the saved review and expose refresh retry")
+            return
+        }
+        #expect(message == "Try again shortly.")
+        #expect(previous.message == "A saved review.")
+        #expect(!quotaReached)
     }
 
     @Test("A review loaded for the previous account is never sent to Kyra")

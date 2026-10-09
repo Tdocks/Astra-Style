@@ -894,6 +894,30 @@ Deno.test("premium skips the studio trial quota", async () => {
   assertEquals(deps.jobStore.rows.size, 2);
 });
 
+Deno.test("exhausted Studio trial returns a typed lifetime subscription limit", async () => {
+  const deps = buildDeps();
+  await enqueueOne(deps);
+  const response = await handleGenerate(
+    generateRequest(
+      VALID_LOOKING_JWT_A,
+      generateBody({
+        semantic_cache_opt_in: false,
+        variation_nonce: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      }),
+    ),
+    deps,
+  );
+  assertEquals(response.status, 429);
+  const envelope = await response.json();
+  assertEquals(envelope.error.category, "subscription_limit_reached");
+  assertEquals(envelope.error.details, {
+    limit: "studio_trial_generation",
+    limit_count: 1,
+    remaining: 0,
+    resets_at: null,
+  });
+});
+
 Deno.test("retry of a failed trial job is not a second trial", async () => {
   const deps = buildDeps();
   const id = await enqueueOne(deps);

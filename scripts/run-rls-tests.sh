@@ -254,6 +254,14 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/54_outfit_edit_rpc.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/55_outfit_generation_quota.sql"
+  test_exit=$?
+fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/56_kyra_atomic_outfit_generation.sql"
+  test_exit=$?
+fi
 set -e
 echo
 

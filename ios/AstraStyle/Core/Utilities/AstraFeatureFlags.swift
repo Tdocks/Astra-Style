@@ -95,6 +95,16 @@ public enum AstraFeatureFlags {
         #endif
     }
 
+    /// Makes mock outfit generation return the documented daily subscription
+    /// limit response for UI coverage. Debug-only and opt-in.
+    public static var simulatesDailyOutfitQuota: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-astra-test-outfit-quota")
+        #else
+        false
+        #endif
+    }
+
     /// Loads a deterministic 125-item photo fixture for closet scrolling
     /// measurements. Debug-only so a launch argument cannot replace live
     /// account data in a distributed build.

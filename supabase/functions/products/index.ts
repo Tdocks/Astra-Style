@@ -340,13 +340,15 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
       return data as { created_at: string };
     },
 
-    hasActivePremiumSubscription: (nowIso) => hasActivePremiumSubscription(supabase, nowIso),
+    hasActivePremiumSubscription: (userID, nowIso) =>
+      hasActivePremiumSubscription(supabase, userID, nowIso),
 
     async countEvaluations(userID) {
       void userID;
       const { count, error } = await supabase
         .from("user_product_evaluations")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userID);
       if (error) return Number.MAX_SAFE_INTEGER;
       return count ?? 0;
     },
@@ -356,6 +358,7 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
       const { data, error } = await supabase
         .from("user_product_evaluations")
         .select("product_candidate_id, created_at")
+        .eq("user_id", userID)
         .order("created_at", { ascending: false })
         .limit(Math.max(limit, UNLOCKS_CANDIDATE_CAP) * 4);
       if (error) {

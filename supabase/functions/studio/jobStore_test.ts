@@ -3,8 +3,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "../_shared/errors.ts";
 import { supabaseJobStore } from "./jobStore.ts";
 
-function fakeClient(errorMessage?: string, retentionExpiry: string | null = null) {
+function fakeClient(
+  errorMessage?: string,
+  retentionExpiry: string | null = null,
+  monthlyQuotaUsage = 1,
+) {
   const calls: Array<[string, ...unknown[]]> = [];
+  let currentTable = "";
   const result = {
     data: {
       id: "job",
@@ -30,23 +35,43 @@ function fakeClient(errorMessage?: string, retentionExpiry: string | null = null
       calls.push(["is", ...args]);
       return builder;
     },
+    gte(...args: unknown[]) {
+      calls.push(["gte", ...args]);
+      return builder;
+    },
+    lt(...args: unknown[]) {
+      calls.push(["lt", ...args]);
+      return builder;
+    },
     update(...args: unknown[]) {
       calls.push(["update", ...args]);
       return builder;
     },
     single() {
-      return Promise.resolve(result);
+      return Promise.resolve(
+        currentTable === "studio_quota_config"
+          ? { data: { premium_monthly_limit: 20 }, error: null }
+          : result,
+      );
     },
     maybeSingle() {
-      return Promise.resolve(result);
+      return Promise.resolve(
+        currentTable === "studio_quota_config"
+          ? { data: { premium_monthly_limit: 20 }, error: null }
+          : result,
+      );
     },
     then(resolve: (value: typeof result) => unknown) {
-      return Promise.resolve(result).then(resolve);
+      const queryResult = currentTable === "studio_allowances"
+        ? { ...result, error: null, count: monthlyQuotaUsage }
+        : result;
+      return Promise.resolve(queryResult).then(resolve);
     },
   };
   const client = {
     from(table: string) {
       calls.push(["from", table]);
+      currentTable = table;
       return builder;
     },
     rpc(name: string, params: unknown) {
@@ -210,5 +235,37 @@ Deno.test("database allowance rejection maps to a safe 429 without leaking SQL",
     AppError,
   );
   assertEquals(error.status, 429);
+  assertEquals(error.category, "subscription_limit_reached");
+  assertEquals(error.details, {
+    limit: "studio_trial_generation",
+    limit_count: 1,
+    remaining: 0,
+    resets_at: null,
+  });
   assertEquals(error.message.includes("studio_trial_exhausted"), false);
+});
+
+Deno.test("monthly allowance rejection returns its configured count and UTC reset", async () => {
+  const { calls, store } = fakeClient("studio_monthly_quota_exhausted", null, 20);
+  const error = await assertRejects(
+    () =>
+      store.insert({
+        userId: "owner",
+        referenceImagePath: "",
+        outfitId: null,
+        promptPayload: {},
+        provider: "mock",
+      }),
+    AppError,
+  );
+  assertEquals(error.category, "subscription_limit_reached");
+  assertEquals(error.details?.limit, "studio_generation_monthly");
+  assertEquals(error.details?.limit_count, 20);
+  assertEquals(error.details?.remaining, 0);
+  assertEquals(new Date(error.details?.resets_at as string).getUTCDate(), 1);
+  assertEquals(calls.some((call) => call[1] === "studio_quota_config"), true);
+  assertEquals(
+    calls.some((call) => call[0] === "eq" && call[1] === "user_id" && call[2] === "owner"),
+    true,
+  );
 });

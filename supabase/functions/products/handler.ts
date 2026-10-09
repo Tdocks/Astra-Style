@@ -146,7 +146,7 @@ export interface ProductsDependencies extends OwnedScoringContextRepository {
   readonly requestID: string;
   /** Server-owned config read only for authenticated scoring routes. */
   readonly readCompatibilityWeights?: () => Promise<CompatibilityWeightsConfig>;
-  readonly hasActivePremiumSubscription?: (nowIso: string) => Promise<boolean>;
+  readonly hasActivePremiumSubscription?: (userID: string, nowIso: string) => Promise<boolean>;
   readonly countEvaluations?: (userID: string) => Promise<number>;
 }
 
@@ -157,11 +157,14 @@ export const UNLOCKS_SCAN_CAP = UNLOCKS_CANDIDATE_CAP * 4;
 
 async function assertPasteQuota(userID: string, deps: ProductsDependencies): Promise<void> {
   if (!deps.hasActivePremiumSubscription || !deps.countEvaluations) return;
-  const premium = await deps.hasActivePremiumSubscription(new Date().toISOString());
+  const premium = await deps.hasActivePremiumSubscription(userID, new Date().toISOString());
   if (premium) return;
   const used = await deps.countEvaluations(userID);
   if (used >= FREE_PASTE_EVALUATE_COUNT) {
     throw morningLoopQuotaError(
+      "paste_product_evaluation_trial",
+      FREE_PASTE_EVALUATE_COUNT,
+      Math.max(0, FREE_PASTE_EVALUATE_COUNT - used),
       "You've used your free product verdict. Upgrade to Astra Style Premium to keep pasting links.",
     );
   }

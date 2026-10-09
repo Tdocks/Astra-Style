@@ -155,6 +155,7 @@ try {
   const afterFirst = await ownRows(owner);
   if (afterFirst.length !== 1) throw new Error("first-run profile row missing or duplicated");
   const firstRow = afterFirst[0];
+  if (!firstRow) throw new Error("first-run profile row missing");
   const persistedFirstAnswers = firstRow.preference_quiz_answers as unknown[];
   if (!Array.isArray(persistedFirstAnswers) || persistedFirstAnswers.length !== 3) {
     throw new Error("first-run answers were not persisted atomically");
@@ -230,6 +231,7 @@ try {
   const ownAfterRefinement = await ownRows(owner);
   if (ownAfterRefinement.length !== 1) throw new Error("refinement changed profile row count");
   const finalRow = ownAfterRefinement[0];
+  if (!finalRow) throw new Error("refinement profile row missing");
   const finalAnswers = finalRow.preference_quiz_answers as Array<Record<string, unknown>>;
   const finalVector = finalRow.preference_vector as Record<string, unknown>;
   const dimensions = finalVector.dimensions as Record<string, unknown>;

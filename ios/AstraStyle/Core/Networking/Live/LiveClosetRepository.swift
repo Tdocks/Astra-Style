@@ -194,6 +194,7 @@ public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWrit
             await drainPendingMutations()
             return created
         } catch {
+            if let limitError = Self.closetLimitError(from: error) { throw limitError }
             try await queueMutation(.create, item: item, images: images)
             // Keep the offline cold-start cache coherent with what the UI
             // just accepted locally — otherwise a relaunch before reconnect
@@ -210,10 +211,25 @@ public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWrit
             await drainPendingMutations()
             return updated
         } catch {
+            if let limitError = Self.closetLimitError(from: error) { throw limitError }
             try await queueMutation(.update, item: item)
             await cache.upsert(item)
             return item
         }
+    }
+
+    private static func closetLimitError(from error: Error) -> FreeTierClosetError? {
+        guard let postgrestError = error as? PostgrestError,
+              postgrestError.code == "PT409",
+              postgrestError.message == "closet_item_limit_reached",
+              let detail = postgrestError.detail?.data(using: .utf8),
+              let payload = try? JSONDecoder().decode(ClosetItemLimitDetail.self, from: detail),
+              payload.limit > 0 else { return nil }
+        return .capReached(limit: payload.limit)
+    }
+
+    private struct ClosetItemLimitDetail: Decodable {
+        let limit: Int
     }
 
     public func archiveItem(id: UUID) async throws {

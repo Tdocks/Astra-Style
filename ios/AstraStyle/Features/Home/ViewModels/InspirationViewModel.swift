@@ -249,7 +249,8 @@ final class InspirationViewModel: Identifiable {
     private func handle(_ error: Error) {
         if let error = error as? AstraError {
             self.error = error.message
-            if error.category == .rateLimited && error.message.contains("free visual") {
+            if error.category == .subscriptionLimitReached,
+               error.quotaDetails?.limit == "studio_trial_generation" {
                 pendingPaywall = .studioQuota
             }
         } else if error is CancellationError {

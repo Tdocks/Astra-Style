@@ -92,10 +92,16 @@ function fakeStore(
     listVisibleMemories: () => Promise.resolve([]),
     listClosetItems: () => Promise.resolve([]),
     listItemsByIds: () => Promise.resolve([]),
+    listProductCandidateCategories: () => Promise.resolve(new Map()),
     listOutfitItemIds: () => Promise.resolve(new Map()),
     getOccasionTitle: () => Promise.resolve(null),
     readWardrobeGraph: () => Promise.resolve("menswear_3_role"),
     insertOutfit: () => Promise.resolve("ffffffff-0000-4000-8000-000000000001"),
+    commitOutfitGeneration: () =>
+      Promise.resolve({
+        outfit_id: "ffffffff-0000-4000-8000-000000000001",
+        source: "kyra_suggested",
+      }),
     listOwnedItemIds: () => Promise.resolve([]),
     getOutfitItemIds: () => Promise.resolve(null),
     insertWornOutfit: () => Promise.resolve("ffffffff-0000-4000-8000-000000000002"),
@@ -291,7 +297,13 @@ Deno.test("P5-KYRA-19: the 4th free-tier conversation today is blocked with an u
   assertEquals(response.status, 429);
   const body = await envelope(response);
   const error = body["error"] as Record<string, unknown>;
-  assertEquals(error["category"], "rate_limited");
+  assertEquals(error["category"], "subscription_limit_reached");
+  assertEquals(error["details"], {
+    limit: "kyra_conversation_daily",
+    limit_count: 3,
+    remaining: 0,
+    resets_at: "2026-08-17T00:00:00.000Z",
+  });
   assert(String(error["message"]).includes("Premium"));
   // Nothing was created or spent.
   assertEquals(recording.threadsCreated.length, 0);
@@ -326,6 +338,204 @@ Deno.test("P5-KYRA-19: premium users are never blocked by the daily limit", asyn
     ),
   );
   assertEquals(response.status, 200);
+});
+
+Deno.test("P5-KYRA-19: the atomic conversation gate admits the third free conversation", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([{ kind: "result", result: { message: goodJson() } }]);
+  let created = 0;
+  const response = await handleKyraRespond(
+    request({ text: "third conversation" }),
+    deps(
+      provider,
+      fakeStore(recording, {
+        createThreadWithDailyLimit: () => {
+          created++;
+          return Promise.resolve({
+            threadID: THREAD,
+            allowed: true,
+            replayed: false,
+            threadDeleted: false,
+            limitCount: 3,
+            remaining: 0,
+            resetsAt: "2026-08-17T00:00:00Z",
+          });
+        },
+      }),
+    ),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(created, 1);
+  assertEquals(provider.requests.length, 1);
+});
+
+Deno.test("builder outfit quota denial is typed and happens before thread or provider work", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([]);
+  let reserveCalls = 0;
+  const response = await handleKyraRespond(
+    request({ text: "Complete this outfit", outfit_builder_completion: true }),
+    {
+      ...deps(provider, fakeStore(recording)),
+      outfitGenerationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: () => {
+          reserveCalls++;
+          return Promise.resolve({
+            allowed: false,
+            remaining: 0,
+            resetsAt: "2026-08-17T00:00:00Z",
+            limitCount: 5,
+            reservation_id: null,
+            replay_payload: null,
+            in_flight: false,
+          });
+        },
+        finish: () => Promise.resolve(),
+      },
+    },
+  );
+  assertEquals(response.status, 429);
+  const body = await envelope(response);
+  const error = body["error"] as Record<string, unknown>;
+  assertEquals(error["category"], "subscription_limit_reached");
+  assertEquals(error["details"], {
+    limit: "outfit_generation_daily",
+    limit_count: 5,
+    remaining: 0,
+    resets_at: "2026-08-17T00:00:00Z",
+  });
+  assertEquals(reserveCalls, 1);
+  assertEquals(recording.threadsCreated.length, 0);
+  assertEquals(recording.userMessages.length, 0);
+  assertEquals(provider.requests.length, 0);
+});
+
+Deno.test("builder reservation is released when Kyra produces no outfit", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([{ kind: "result", result: { message: goodJson() } }]);
+  const finishes: Array<{ succeeded: boolean; result: unknown }> = [];
+  const response = await handleKyraRespond(
+    request({ text: "Complete this outfit", outfit_builder_completion: true }),
+    {
+      ...deps(provider, fakeStore(recording)),
+      outfitGenerationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: () =>
+          Promise.resolve({
+            allowed: true,
+            remaining: 4,
+            resetsAt: "2026-08-17T00:00:00Z",
+            limitCount: 5,
+            reservation_id: "44444444-0000-4000-8000-000000000001",
+            replay_payload: null,
+            in_flight: false,
+          }),
+        finish: (_userID, _reservationID, succeeded, result) => {
+          finishes.push({ succeeded, result });
+          return Promise.resolve();
+        },
+      },
+    },
+  );
+  assertEquals(response.status, 200);
+  assertEquals(finishes, [{ succeeded: false, result: null }]);
+});
+
+Deno.test("create_outfit quota denial on an existing thread returns typed 429", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([{
+    kind: "result",
+    result: {
+      finishReason: "tool_calls",
+      toolCalls: [{
+        id: "builder_call_1",
+        name: "create_outfit",
+        arguments: {
+          item_ids: [
+            PACKET_ITEM,
+            "dddddddd-0000-4000-8000-000000000002",
+            "dddddddd-0000-4000-8000-000000000003",
+          ],
+          occasion_tags: [],
+          reason: "A balanced outfit.",
+        },
+      }],
+    },
+  }]);
+  const rows = [
+    {
+      id: PACKET_ITEM,
+      category: "top",
+      primary_color: "olive",
+      secondary_colors: [],
+      pattern: "solid",
+      material: [],
+      fit: "regular",
+      seasonality: [],
+      formality_score: 40,
+      warmth_score: 35,
+      water_resistance_score: 20,
+      laundry_state: "clean",
+      availability_state: "available",
+    },
+    {
+      id: "dddddddd-0000-4000-8000-000000000002",
+      category: "bottom",
+      primary_color: "navy",
+      secondary_colors: [],
+      pattern: "solid",
+      material: [],
+      fit: "regular",
+      seasonality: [],
+      formality_score: 40,
+      warmth_score: 35,
+      water_resistance_score: 20,
+      laundry_state: "clean",
+      availability_state: "available",
+    },
+    {
+      id: "dddddddd-0000-4000-8000-000000000003",
+      category: "shoes",
+      primary_color: "brown",
+      secondary_colors: [],
+      pattern: "solid",
+      material: [],
+      fit: "regular",
+      seasonality: [],
+      formality_score: 40,
+      warmth_score: 35,
+      water_resistance_score: 20,
+      laundry_state: "clean",
+      availability_state: "available",
+    },
+  ] as ClosetItemMapperRow[];
+  const response = await handleKyraRespond(
+    request({ text: "Create a new outfit", thread_id: THREAD }),
+    {
+      ...deps(provider, fakeStore(recording, { listItemsByIds: () => Promise.resolve(rows) })),
+      outfitGenerationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: () =>
+          Promise.resolve({
+            allowed: false,
+            remaining: 0,
+            resetsAt: "2026-08-17T00:00:00Z",
+            limitCount: 5,
+            reservation_id: null,
+            replay_payload: null,
+            in_flight: false,
+          }),
+        finish: () => Promise.resolve(),
+      },
+    },
+  );
+  assertEquals(response.status, 429);
+  const body = await envelope(response);
+  const error = body["error"] as Record<string, unknown>;
+  assertEquals(error["category"], "subscription_limit_reached");
+  assertEquals((error["details"] as Record<string, unknown>)["limit"], "outfit_generation_daily");
+  assertEquals(provider.requests.length, 1);
 });
 
 Deno.test("P5-KYRA-19: continuing an existing thread does not consume the daily allowance", async () => {

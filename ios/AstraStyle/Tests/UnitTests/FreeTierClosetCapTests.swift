@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Supabase
 import Testing
 @testable import AstraStyle
 
@@ -133,6 +134,47 @@ struct FreeTierClosetCapTests {
         #expect(items.count == FreeTierLimits.maxClosetItems + 1)
     }
 
+    @Test("Guest limit becomes the Free limit on the same live repository")
+    func guestToFreeTransitionUpdatesCapWithoutReinstall() async throws {
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: GuestLimits.maxClosetItems, userID: userID)
+        let entitlement = MutableClosetEntitlement(isPremium: false, isAnonymous: true)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { await entitlement.isPremium },
+            isAnonymous: { await entitlement.isAnonymous }
+        )
+
+        await #expect(throws: FreeTierClosetError.capReached(limit: GuestLimits.maxClosetItems)) {
+            _ = try await repository.createItem(makeItem(userID: userID, name: "Guest limit"), images: [])
+        }
+        await entitlement.setAnonymous(false)
+        for index in (GuestLimits.maxClosetItems + 1)...FreeTierLimits.maxClosetItems {
+            _ = try await repository.createItem(makeItem(userID: userID, name: "Free \(index)"), images: [])
+        }
+        #expect(try await repository.fetchItems().count == FreeTierLimits.maxClosetItems)
+    }
+
+    @Test("Premium expiry changes the same live repository to Free limits")
+    func premiumExpiryUpdatesCapWithoutReinstall() async throws {
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: FreeTierLimits.maxClosetItems, userID: userID)
+        let entitlement = MutableClosetEntitlement(isPremium: true, isAnonymous: false)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { await entitlement.isPremium }
+        )
+
+        _ = try await repository.createItem(makeItem(userID: userID, name: "Premium extra"), images: [])
+        await entitlement.setPremium(false)
+        await #expect(throws: FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)) {
+            _ = try await repository.createItem(makeItem(userID: userID, name: "After expiry"), images: [])
+        }
+        #expect(try await repository.fetchItems().count == FreeTierLimits.maxClosetItems + 1)
+    }
+
     @Test("The free-tier wrapper forwards the server-owned scan unlock count")
     func scanUnlockCountPassesThroughWrapper() async throws {
         let base = MockClosetRepository(items: [])
@@ -168,9 +210,160 @@ struct FreeTierClosetCapTests {
         #expect(replacement.name == "Replacement")
     }
 
+    @Test("A free account at its cap cannot restore an archived item")
+    func restoreIsBlockedAtCapAndArchivedDataRemains() async throws {
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: FreeTierLimits.maxClosetItems, userID: userID)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { false }
+        )
+        let seededItems = try await base.fetchItems()
+        let archived = try #require(seededItems.first)
+        try await base.archiveItem(id: archived.id)
+        let fillers = makeItem(userID: userID, name: "Over-cap restoration fixture")
+        _ = try await base.createItem(fillers, images: [])
+
+        var restore = try await base.fetchItem(id: archived.id)
+        restore.archivedAt = nil
+        await #expect(throws: FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)) {
+            _ = try await repository.updateItem(restore)
+        }
+
+        #expect(try await base.fetchItem(id: archived.id).isArchived)
+    }
+
+    @Test("Existing active items remain editable after Premium lapses above the cap")
+    func editingExistingOverCapItemRemainsAllowed() async throws {
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: FreeTierLimits.maxClosetItems + 1, userID: userID)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { false }
+        )
+        let seededItems = try await base.fetchItems()
+        let original = try #require(seededItems.first)
+        var edited = original
+        edited.name = "Still editable"
+
+        let saved = try await repository.updateItem(edited)
+        #expect(saved.name == "Still editable")
+        #expect(try await base.fetchItems().count == FreeTierLimits.maxClosetItems + 1)
+    }
+
+    @Test("An anonymous guest uses the 10-item cap when restoring")
+    func guestRestoreUsesGuestCap() async throws {
+        let userID = UUID()
+        let base = MockClosetRepository(items: [])
+        try await seed(base, count: GuestLimits.maxClosetItems, userID: userID)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { false },
+            isAnonymous: { true }
+        )
+        let seededItems = try await base.fetchItems()
+        let archived = try #require(seededItems.first)
+        try await base.archiveItem(id: archived.id)
+        _ = try await base.createItem(makeItem(userID: userID, name: "Guest replacement"), images: [])
+        var restore = try await base.fetchItem(id: archived.id)
+        restore.archivedAt = nil
+
+        await #expect(throws: FreeTierClosetError.capReached(limit: GuestLimits.maxClosetItems)) {
+            _ = try await repository.updateItem(restore)
+        }
+    }
+
     @Test("An expired subscription fixture resolves as non-premium for the cap")
     func expiredSubscriptionFixtureIsNotEntitled() {
         let subscription = Subscription(userID: UUID(), status: .expired)
         #expect(subscription.isEntitledToPremium == false)
+    }
+}
+
+private actor MutableClosetEntitlement {
+    private(set) var isPremium: Bool
+    private(set) var isAnonymous: Bool
+
+    init(isPremium: Bool, isAnonymous: Bool) {
+        self.isPremium = isPremium
+        self.isAnonymous = isAnonymous
+    }
+
+    func setPremium(_ value: Bool) { isPremium = value }
+    func setAnonymous(_ value: Bool) { isAnonymous = value }
+}
+
+@Suite("Concurrent closet server quota errors")
+struct ClosetServerQuotaErrorTests {
+    private actor RejectingClosetWriter: ClosetWriting {
+        let error: PostgrestError
+
+        init(limit: Int) {
+            error = PostgrestError(
+                detail: #"{"limit":\#(limit),"active_count":\#(limit)}"#,
+                code: "PT409",
+                message: "closet_item_limit_reached"
+            )
+        }
+
+        func fetch(id: UUID) async throws -> ClosetItem? { nil }
+        func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem { throw error }
+        func update(_ item: ClosetItem) async throws -> ClosetItem { throw error }
+        func archive(id: UUID) async throws {}
+    }
+
+    private func makeRepository(
+        ownerID: UUID,
+        limit: Int
+    ) -> (LiveClosetRepository, InMemoryOfflineMutationQueue) {
+        let queue = InMemoryOfflineMutationQueue()
+        let repository = LiveClosetRepository(
+            apiClient: AstraAPIClient(environment: .preview),
+            offlineQueue: queue,
+            supabase: AstraSupabaseClientFactory.previewClient,
+            writer: RejectingClosetWriter(limit: limit),
+            cache: InMemoryClosetItemCache(),
+            currentUserID: { ownerID }
+        )
+        return (repository, queue)
+    }
+
+    private func item(ownerID: UUID) -> ClosetItem {
+        ClosetItem(id: UUID(), userID: ownerID, name: "Quota fixture", category: .top)
+    }
+
+    @Test("A concurrent create rejection is typed and never queued offline")
+    func serverCreateCapRejectionDoesNotEnterOfflineQueue() async throws {
+        let owner = UUID()
+        let (repository, queue) = makeRepository(ownerID: owner, limit: FreeTierLimits.maxClosetItems)
+
+        await #expect(throws: FreeTierClosetError.capReached(limit: FreeTierLimits.maxClosetItems)) {
+            _ = try await repository.createItem(item(ownerID: owner), images: [])
+        }
+
+        #expect(await queue.pendingMutations().isEmpty)
+    }
+
+    @Test("A concurrent restore rejection is typed and never queued offline")
+    func serverRestoreCapRejectionDoesNotEnterOfflineQueue() async throws {
+        let owner = UUID()
+        let original = item(ownerID: owner)
+        var restored = ClosetItem(
+            id: original.id,
+            userID: owner,
+            name: original.name,
+            category: original.category,
+            archivedAt: .now.addingTimeInterval(-60)
+        )
+        restored.archivedAt = nil
+        let (repository, queue) = makeRepository(ownerID: owner, limit: GuestLimits.maxClosetItems)
+
+        await #expect(throws: FreeTierClosetError.capReached(limit: GuestLimits.maxClosetItems)) {
+            _ = try await repository.updateItem(restored)
+        }
+
+        #expect(await queue.pendingMutations().isEmpty)
     }
 }

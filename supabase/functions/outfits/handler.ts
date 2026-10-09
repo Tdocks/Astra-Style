@@ -76,6 +76,12 @@ import type { ScorableItem } from "../_shared/scoring/types.ts";
 import type { PreferenceContext, WeatherContext } from "../_shared/scoring/types.ts";
 import { loadOwnedPreferenceCoWearContext } from "../_shared/scoring/ownedScoringContext.ts";
 import { resolveTargetFormality } from "./scoringContext.ts";
+import {
+  OutfitGenerationInFlightError,
+  OutfitQuotaExceededError,
+  requestFingerprint,
+  requestUuid,
+} from "./quota.ts";
 
 export interface ClosetRepository {
   /**
@@ -143,6 +149,33 @@ export interface HandlerDeps {
   now: () => Date;
   /** Server-owned config read only after caller authentication. */
   readCompatibilityWeights?: () => Promise<CompatibilityWeightsConfig>;
+  /** Production wires service-role reads/RPCs; tests inject deterministic behavior. */
+  generationQuota?: {
+    isPremium(userId: string, now: Date): Promise<boolean>;
+    reserve(
+      userId: string,
+      requestId: string,
+      fingerprint: string,
+      now: Date,
+    ): Promise<
+      {
+        allowed: boolean;
+        remaining: number;
+        resetsAt: string;
+        limitCount: number;
+        reservation_id: string | null;
+        replay_payload: unknown;
+        in_flight: boolean;
+      }
+    >;
+    finish(
+      userId: string,
+      reservationId: string,
+      succeeded: boolean,
+      result: unknown,
+      now: Date,
+    ): Promise<void>;
+  };
   insertWear?: (row: {
     user_id: string;
     outfit_id: string;
@@ -185,6 +218,7 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
 
   let requestId = resolveRequestId(req);
   const logger = createLogger(requestId);
+  let reservedQuota: { owner: string; id: string } | undefined;
 
   try {
     if (req.method !== "POST") {
@@ -219,6 +253,33 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
     const body = parseGenerateOutfitsBody(envelope.body, deps.now());
+    if (!deps.generationQuota) throw serverError("Generation allowance is unavailable.");
+    const isPremium = await deps.generationQuota.isPremium(userId, deps.now());
+    if (!isPremium) {
+      const stableRequestID = requestUuid(requestId);
+      const fingerprint = await requestFingerprint(body);
+      const quota = await deps.generationQuota.reserve(
+        userId,
+        stableRequestID,
+        fingerprint,
+        deps.now(),
+      );
+      if (quota.replay_payload) {
+        const replay = quota.replay_payload as ScoredOutfitEnvelope[];
+        return jsonResponse(replay, { status: 200, requestId, extraHeaders: CORS_HEADERS });
+      }
+      if (quota.in_flight) throw new OutfitGenerationInFlightError();
+      if (!quota.allowed) {
+        throw new OutfitQuotaExceededError({
+          limit: "outfit_generation_daily",
+          limit_count: quota.limitCount,
+          remaining: quota.remaining,
+          resets_at: quota.resetsAt,
+        });
+      }
+      if (!quota.reservation_id) throw serverError("Couldn't reserve the generation allowance.");
+      reservedQuota = { owner: userId, id: quota.reservation_id };
+    }
     const weightConfig = await deps.readCompatibilityWeights?.() ?? {
       weights: DEFAULT_WEIGHTS,
       version: 1,
@@ -257,6 +318,17 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
       )
     );
 
+    if (reservedQuota) {
+      await deps.generationQuota.finish(
+        reservedQuota.owner,
+        reservedQuota.id,
+        payload.length > 0,
+        payload.length > 0 ? payload : null,
+        deps.now(),
+      );
+      reservedQuota = undefined;
+    }
+
     const latencyMs = deps.now().getTime() - startedAtMs;
     // 5 & 6. Log request id + latency; only safe, non-content fields.
     logger.info("outfits_generate.success", {
@@ -271,6 +343,27 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
 
     return jsonResponse(payload, { status: 200, requestId, extraHeaders: CORS_HEADERS });
   } catch (err) {
+    if (reservedQuota && deps.generationQuota) {
+      try {
+        await deps.generationQuota.finish(
+          reservedQuota.owner,
+          reservedQuota.id,
+          false,
+          null,
+          deps.now(),
+        );
+      } catch {
+        logger.error("outfits_generate.quota_release_failed", { owner_id: reservedQuota.owner });
+        return handleOutfitsError(
+          serverError("Couldn't release the generation allowance. Please try again."),
+          "outfits_generate",
+          logger,
+          requestId,
+          startedAtMs,
+          deps,
+        );
+      }
+    }
     return handleOutfitsError(err, "outfits_generate", logger, requestId, startedAtMs, deps);
   }
 }

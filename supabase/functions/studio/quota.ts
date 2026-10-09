@@ -9,6 +9,7 @@ import {
   serverError,
 } from "../_shared/errors.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
+import { isPremiumSubscriptionEntitled } from "../_shared/subscriptionEntitlement.ts";
 
 export function quotaPeriod(now: Date): { start: string; reset: string } {
   return {
@@ -17,13 +18,29 @@ export function quotaPeriod(now: Date): { start: string; reset: string } {
   };
 }
 
+export type StudioQuotaLimit = "studio_trial_generation" | "studio_generation_monthly";
+
+export function studioQuotaExceededError(
+  limit: StudioQuotaLimit,
+  limitCount: number,
+  remaining: number,
+  resetsAt: string | null,
+  message: string,
+): AppError {
+  return new AppError("subscription_limit_reached", 429, message, undefined, {
+    limit,
+    limit_count: limitCount,
+    remaining,
+    resets_at: resetsAt,
+  });
+}
+
 export async function readQuota(client: SupabaseClient, userID: string, now: Date) {
   const { data: subscriptions, error: subscriptionError } = await client.from("subscriptions")
     .select("status,expires_at").eq("user_id", userID);
   if (subscriptionError) throw serverError("Couldn't load your preview allowance.");
   const premium = (subscriptions ?? []).some((s) =>
-    ["trialing", "active", "in_grace_period", "in_billing_retry"].includes(s.status) &&
-    (s.expires_at === null || Date.parse(s.expires_at) > now.getTime())
+    isPremiumSubscriptionEntitled(s.status, s.expires_at, now)
   );
   const period = quotaPeriod(now);
   let limit = 1;

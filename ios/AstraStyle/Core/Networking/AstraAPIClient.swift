@@ -229,6 +229,9 @@ public final class AstraAPIClient: @unchecked Sendable {
             throw serverEnvelopeError()
                 ?? AstraError.validation("The request was invalid.", requestID: requestID)
         case 429:
+            if let error = serverEnvelopeError(), error.category == .subscriptionLimitReached {
+                throw error
+            }
             throw AstraError.rateLimited(requestID: requestID)
         case 500..<600:
             throw serverEnvelopeError()

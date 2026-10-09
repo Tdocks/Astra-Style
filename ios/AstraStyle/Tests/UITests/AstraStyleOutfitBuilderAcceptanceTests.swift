@@ -21,8 +21,9 @@ final class OutfitBuilderAcceptanceUITests: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: timeout), "Never appeared: \(description)")
     }
 
-    private func launchMockMain() {
+    private func launchMockMain(extraArguments: [String] = []) {
         app.launchArguments += ["-astra-reset-state", "-astra-mock-backend", "-astra-skip-onboarding"]
+        app.launchArguments += extraArguments
         app.launch()
         awaitElement(app.chromeTabBar, "Main tab bar under mock backend")
     }
@@ -95,5 +96,25 @@ final class OutfitBuilderAcceptanceUITests: XCTestCase {
         save.tap()
         XCTAssertTrue(app.buttons["outfitBuilder.visualize"].waitForExistence(timeout: timeout))
         XCTAssertTrue(app.buttons["outfitBuilder.refineWithKyra"].exists)
+    }
+
+    func testDailyQuotaShowsUpgradeAndResetDetails() throws {
+        launchMockMain(extraArguments: ["-astra-test-outfit-quota"])
+        let closetDoor = app.buttons["home.style.fromCloset"]
+        awaitElement(closetDoor, "Closet outfit entry point")
+        closetDoor.tap()
+
+        let generate = app.buttons["outfitBuilder.generateRecommendations"]
+        awaitElement(generate, "Outfit builder generation action")
+        generate.tap()
+
+        let quotaNotice = app.descendants(matching: .any)
+            .matching(identifier: "outfitBuilder.generationQuota")
+            .firstMatch
+        awaitElement(quotaNotice, "Daily quota and reset details")
+        let upgrade = app.buttons["outfitBuilder.generationQuotaUpgrade"]
+        awaitElement(upgrade, "Upgrade action for outfit generation")
+        upgrade.tap()
+        awaitElement(app.descendants(matching: .any)["paywall.hero"], "Outfit generation upgrade paywall")
     }
 }

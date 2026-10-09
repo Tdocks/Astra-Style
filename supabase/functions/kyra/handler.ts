@@ -101,7 +101,15 @@ import { applyGuardrails } from "./guardrails.ts";
 import { buildToolRegistry, type ToolExecution, type ToolRegistry } from "./tools/registry.ts";
 import type { SearchClosetRow } from "./tools/searchCloset.ts";
 import type { NewOutfitRecord } from "./tools/createOutfit.ts";
+import type { AtomicOutfitCommit } from "./outfitQuota.ts";
 import type { ExistingMemoryRow } from "./tools/savePreference.ts";
+import { OutfitGenerationInFlightError, OutfitQuotaExceededError } from "../outfits/quota.ts";
+import {
+  createOutfitQuotaIdentity,
+  type OutfitGenerationQuotaOperations,
+  replayResultFromQuota,
+  type ReservedBuilderOutfitQuota,
+} from "./outfitQuota.ts";
 
 // ---------------------------------------------------------------------------
 // Store interface — one seam, implemented over Supabase in store.ts
@@ -124,6 +132,22 @@ export interface HistoryMessageRow {
 export interface KyraStore {
   // Threads + messages
   createThread(userId: string, title: string): Promise<string>;
+  createThreadWithDailyLimit?(
+    userId: string,
+    title: string,
+    limit: number,
+    now: Date,
+    requestID: string,
+    fingerprint: string,
+  ): Promise<{
+    threadID: string | null;
+    allowed: boolean;
+    replayed: boolean;
+    threadDeleted: boolean;
+    limitCount: number;
+    remaining: number;
+    resetsAt: string;
+  }>;
   threadExists(threadId: string): Promise<boolean>;
   /** Threads this user created at/after `sinceIso` — the daily-gate counter. */
   countThreadsCreatedSince(userId: string, sinceIso: string): Promise<number>;
@@ -143,7 +167,7 @@ export interface KyraStore {
   listRecentMessages(threadId: string, limit: number): Promise<HistoryMessageRow[]>;
 
   // Subscription tier (P5-KYRA-19)
-  hasActivePremiumSubscription(nowIso: string): Promise<boolean>;
+  hasActivePremiumSubscription(userID: string, nowIso: string): Promise<boolean>;
 
   // Context-packet sources
   loadStyleProfile(): Promise<StyleProfileSourceRow | null>;
@@ -157,11 +181,15 @@ export interface KyraStore {
   // Tool backends
   listClosetItems(): Promise<SearchClosetRow[]>;
   listItemsByIds(ids: readonly string[]): Promise<ClosetItemMapperRow[]>;
+  listProductCandidateCategories(
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, string | null>>;
   listOutfitItemIds(outfitIds: readonly string[]): Promise<ReadonlyMap<string, string[]>>;
   getOccasionTitle(occasionId: string): Promise<string | null>;
   /** ADR 0019 product graph — menswear when unread. */
   readWardrobeGraph(): Promise<"menswear_3_role" | "womenswear">;
   insertOutfit(userId: string, record: NewOutfitRecord): Promise<string>;
+  commitOutfitGeneration(input: AtomicOutfitCommit): Promise<Record<string, unknown>>;
   listOwnedItemIds(ids: readonly string[]): Promise<string[]>;
   getOutfitItemIds(outfitId: string): Promise<string[] | null>;
   insertWornOutfit(userId: string, itemIds: readonly string[], wornDate: string): Promise<string>;
@@ -229,6 +257,8 @@ export interface HandlerDeps {
   readonly analyzeProduct?: AnalyzeProductDeps;
   readonly authClient: AuthClient;
   readonly store: KyraStore;
+  /** Production must wire the shared durable `/outfits/generate` allowance. */
+  readonly outfitGenerationQuota?: OutfitGenerationQuotaOperations;
   readonly provider: StylistReasoningProvider;
   /** The shared per-isolate burst limiter (see the header on the two shapes). */
   readonly rateLimiter: RateLimiter;
@@ -251,6 +281,23 @@ const HISTORY_LIMIT = 12;
 const FEEDBACK_FETCH_LIMIT = 8;
 const OCCASION_FETCH_WINDOW_DAYS = 60;
 const TOOL_RETRY_BACKOFF_MS = 250;
+
+class KyraConversationLimitError extends AppError {
+  constructor(limitCount: number, remaining: number, resetsAt: string) {
+    super(
+      "subscription_limit_reached",
+      429,
+      `You've used your ${limitCount} Kyra conversations for today. Upgrade to Astra Style Premium for unlimited conversations with Kyra.`,
+      undefined,
+      {
+        limit: "kyra_conversation_daily",
+        limit_count: limitCount,
+        remaining,
+        resets_at: resetsAt,
+      },
+    );
+  }
+}
 
 // The wire shape of the assistant `kyra_messages` row — decodes into Swift's
 // `KyraMessage` (id/thread_id/role/content/structured_payload/model_metadata/
@@ -313,12 +360,13 @@ async function executeToolWithRetry(
   ctx: TurnContext,
   name: string,
   args: Record<string, unknown>,
+  toolCallID?: string,
 ): Promise<Record<string, unknown>> {
   // docs/06 §6: one automatic retry with backoff for transient failures.
   // Domain outcomes come back as structured results and never throw
   // (tools/registry.ts); a THROW here is infrastructure.
   try {
-    return await ctx.registry.execute(name, args);
+    return await ctx.registry.execute(name, args, toolCallID);
   } catch (firstError) {
     ctx.logger.warn("kyra_respond.tool_error", {
       tool: name,
@@ -327,7 +375,7 @@ async function executeToolWithRetry(
     });
     await ctx.deps.sleep(TOOL_RETRY_BACKOFF_MS);
     try {
-      return await ctx.registry.execute(name, args);
+      return await ctx.registry.execute(name, args, toolCallID);
     } catch (secondError) {
       ctx.logger.error("kyra_respond.tool_failed", {
         tool: name,
@@ -383,7 +431,28 @@ async function runToolLoop(
       toolCalls: result.toolCalls.map((call) => ({ ...call })),
     });
     for (const call of result.toolCalls) {
-      const outcome = await executeToolWithRetry(ctx, call.name, call.arguments);
+      const outcome = await executeToolWithRetry(ctx, call.name, call.arguments, call.id);
+      if (outcome["error"] === "OUTFIT_GENERATION_LIMIT_REACHED") {
+        const details = outcome["details"];
+        if (details === null || typeof details !== "object" || Array.isArray(details)) {
+          throw serverError("Couldn't check your outfit generation allowance.");
+        }
+        const quotaDetails = details as Record<string, unknown>;
+        if (
+          typeof quotaDetails["limit_count"] !== "number" ||
+          typeof quotaDetails["remaining"] !== "number" ||
+          typeof quotaDetails["resets_at"] !== "string"
+        ) throw serverError("Couldn't check your outfit generation allowance.");
+        throw new OutfitQuotaExceededError({
+          limit: "outfit_generation_daily",
+          limit_count: quotaDetails["limit_count"],
+          remaining: quotaDetails["remaining"],
+          resets_at: quotaDetails["resets_at"],
+        });
+      }
+      if (outcome["error"] === "OUTFIT_GENERATION_IN_FLIGHT") {
+        throw new OutfitGenerationInFlightError();
+      }
       const execution: ToolExecution = { name: call.name, args: call.arguments, result: outcome };
       localTrace.push(execution);
       ctx.globalTrace.push(execution);
@@ -827,6 +896,23 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
 
   let requestId = resolveRequestId(req);
   const logger = createLogger(requestId);
+  let builderQuota: ReservedBuilderOutfitQuota | null = null;
+
+  const releaseBuilderQuota = async () => {
+    if (!builderQuota || builderQuota.settled || !builderQuota.reservationID) return;
+    try {
+      await deps.outfitGenerationQuota?.finish(
+        builderQuota.userID,
+        builderQuota.reservationID,
+        false,
+        null,
+        deps.now(),
+      );
+    } catch {
+      logger.warn("kyra_respond.outfit_quota_release_failed", {});
+    }
+    builderQuota.settled = true;
+  };
 
   try {
     if (req.method !== "POST") {
@@ -863,6 +949,8 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
     logger.adoptRequestId(requestId);
     const body: KyraRespondRequestBody = parseKyraRespondBody(envelope.body);
 
+    const now = deps.now();
+
     const inspirationAttachments = body.attachments.filter((attachment) =>
       attachment.type === "studio_inspiration"
     );
@@ -880,16 +968,14 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       if (!inspirationImageURL) throw notFound("No available Studio inspiration was found.");
     }
 
-    const now = deps.now();
-
     // 2b. P5-KYRA-19: the per-day, per-tier conversation gate. A
     // "conversation" is a thread; only STARTING one consumes the allowance
     // (continuing an allowed thread is part of the same conversation).
     // Counted durably in Postgres — see the file header for why the shared
     // in-memory limiter is the wrong shape and would quietly lie here.
     const isNewConversation = body.threadId === undefined;
-    if (isNewConversation) {
-      const premium = await deps.store.hasActivePremiumSubscription(now.toISOString());
+    if (isNewConversation && !deps.store.createThreadWithDailyLimit) {
+      const premium = await deps.store.hasActivePremiumSubscription(userId, now.toISOString());
       if (!premium) {
         const startedToday = await deps.store.countThreadsCreatedSince(
           userId,
@@ -901,19 +987,66 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
             kind: "daily_conversation_limit",
             limit: deps.config.freeDailyConversationLimit,
           });
-          return errorResponse(
-            new AppError(
-              "rate_limited",
-              429,
-              `You've used your ${deps.config.freeDailyConversationLimit} Kyra conversations ` +
-                "for today. Upgrade to Astra Style Premium for unlimited conversations with " +
-                "Kyra.",
-            ),
-            requestId,
-            CORS_HEADERS,
+          const resetsAt = new Date(Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate() + 1,
+          )).toISOString();
+          throw new KyraConversationLimitError(
+            deps.config.freeDailyConversationLimit,
+            0,
+            resetsAt,
           );
         }
       }
+    }
+
+    // The outfit builder is a generation surface even though it enters
+    // through chat. Reserve before creating a thread, storing user text, or
+    // calling a provider so an outfit-denied retry cannot leave paid work or
+    // an orphan conversation behind.
+    if (body.outfitBuilderCompletion && deps.outfitGenerationQuota) {
+      const identity = await createOutfitQuotaIdentity(requestId, {
+        kind: "kyra.builder.create_outfit",
+        text: body.text,
+        locked_item_ids: body.lockedClosetItemIDs,
+      }, "builder");
+      const premium = await deps.outfitGenerationQuota.isPremium(userId, now);
+      let reservationID: string | null = null;
+      let replayResult: Record<string, unknown> | null = null;
+      if (!premium) {
+        const reservation = await deps.outfitGenerationQuota.reserve(
+          userId,
+          identity.requestID,
+          identity.fingerprint,
+          now,
+        );
+        replayResult = replayResultFromQuota(reservation.replay_payload);
+        if (!replayResult && reservation.in_flight) throw new OutfitGenerationInFlightError();
+        if (!replayResult && !reservation.allowed) {
+          throw new OutfitQuotaExceededError({
+            limit: "outfit_generation_daily",
+            limit_count: reservation.limitCount,
+            remaining: reservation.remaining,
+            resets_at: reservation.resetsAt,
+          });
+        }
+        if (!replayResult) {
+          if (!reservation.reservation_id) {
+            throw serverError("Couldn't reserve an outfit generation.");
+          }
+          reservationID = reservation.reservation_id;
+        }
+      }
+      builderQuota = {
+        ...identity,
+        userID: userId,
+        premium,
+        reservationID,
+        replayResult,
+        used: false,
+        settled: replayResult !== null,
+      };
     }
 
     // 4. Resolve the thread. RLS makes someone else's thread indistinguishable
@@ -926,7 +1059,32 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       }
       threadId = body.threadId;
     } else {
-      threadId = await deps.store.createThread(userId, threadTitleFrom(body.text));
+      const title = threadTitleFrom(body.text);
+      if (deps.store.createThreadWithDailyLimit) {
+        const threadIdentity = await createOutfitQuotaIdentity(requestId, {
+          kind: "kyra.create_thread",
+          text: body.text,
+        }, "thread");
+        const created = await deps.store.createThreadWithDailyLimit(
+          userId,
+          title,
+          deps.config.freeDailyConversationLimit,
+          now,
+          threadIdentity.requestID,
+          threadIdentity.fingerprint,
+        );
+        if (created.threadDeleted) throw notFound("This conversation was removed.");
+        if (!created.allowed || !created.threadID) {
+          throw new KyraConversationLimitError(
+            created.limitCount,
+            created.remaining,
+            created.resetsAt,
+          );
+        }
+        threadId = created.threadID;
+      } else {
+        threadId = await deps.store.createThread(userId, title);
+      }
     }
 
     // History is read BEFORE the new user message is inserted, so the turn's
@@ -1038,7 +1196,14 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       },
       createOutfit: {
         listItemsByIds: (ids) => deps.store.listItemsByIds(ids),
+        listProductCandidateCategories: (ids) => deps.store.listProductCandidateCategories(ids),
         insertOutfit: (record) => deps.store.insertOutfit(userId, record),
+        commitOutfitGeneration: (input) => deps.store.commitOutfitGeneration(input),
+        generationQuota: deps.outfitGenerationQuota,
+        quotaUserID: userId,
+        outerRequestID: requestId,
+        now: deps.now,
+        reservedBuilderQuota: builderQuota ?? undefined,
         readWardrobeGraph: () => deps.store.readWardrobeGraph(),
         lockedItemIDs: body.lockedClosetItemIDs,
         allowProductCandidates: !body.outfitBuilderCompletion,
@@ -1153,6 +1318,7 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
     ];
 
     const outcome = await orchestrateTurn(ctx, baseMessages);
+    await releaseBuilderQuota();
 
     // Honest memory proposals + guardrail enforcement.
     const withProposals: KyraStructuredResponse = {
@@ -1319,6 +1485,7 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
 
     return jsonResponse(payload, { status: 200, requestId, extraHeaders: CORS_HEADERS });
   } catch (err) {
+    await releaseBuilderQuota();
     const latencyMs = deps.now().getTime() - startedAtMs;
     const appError = err instanceof AppError ? err : serverError();
     if (err instanceof AppError) {

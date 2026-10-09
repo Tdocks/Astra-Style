@@ -80,6 +80,145 @@ Deno.test("persists a real outfit with items, score, and kyra_suggested source",
   assertEquals(record.compatibilityScore, result["compatibility_score"]);
 });
 
+Deno.test("free Kyra generations atomically persist and replay the exact committed outfit", async () => {
+  const captured: NewOutfitRecord[] = [];
+  let reservationCalls = 0;
+  let commitCalls = 0;
+  const identities: Array<{ requestID: string; fingerprint: string }> = [];
+  const original = deps(captured);
+  const result = await executeCreateOutfit(
+    parseCreateOutfitArgs({
+      item_ids: [TOP, BOTTOM, SHOES],
+      reason: "A balanced outfit.",
+      occasion_tags: ["daily"],
+    }),
+    {
+      ...original,
+      quotaUserID: "aaaaaaaa-0000-4000-8000-000000000001",
+      outerRequestID: "request-stable-for-replay",
+      toolCallID: "call-stable-for-replay",
+      generationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: (_userID, requestID, fingerprint) => {
+          identities.push({ requestID, fingerprint });
+          reservationCalls++;
+          if (reservationCalls === 1) {
+            return Promise.resolve({
+              allowed: true,
+              remaining: 4,
+              resetsAt: "2026-10-10T00:00:00Z",
+              limitCount: 5,
+              reservation_id: "44444444-0000-4000-8000-000000000001",
+              replay_payload: null,
+              in_flight: false,
+            });
+          }
+          return Promise.resolve({
+            allowed: true,
+            remaining: 4,
+            resetsAt: "2026-10-10T00:00:00Z",
+            limitCount: 5,
+            reservation_id: "44444444-0000-4000-8000-000000000001",
+            replay_payload: [{ outfit_id: NEW_OUTFIT, source: "kyra_suggested" }],
+            in_flight: false,
+          });
+        },
+        finish: () => Promise.resolve(),
+      },
+      commitOutfitGeneration: (input) => {
+        commitCalls++;
+        captured.push(input.record);
+        assertEquals(input.reservationID, "44444444-0000-4000-8000-000000000001");
+        return Promise.resolve({ outfit_id: NEW_OUTFIT, source: "kyra_suggested" });
+      },
+      insertOutfit: () => Promise.reject(new Error("non-atomic insert must not be used")),
+    },
+  );
+  const replay = await executeCreateOutfit(
+    parseCreateOutfitArgs({
+      item_ids: [TOP, BOTTOM, SHOES],
+      reason: "A balanced outfit.",
+      occasion_tags: ["daily"],
+    }),
+    {
+      ...original,
+      quotaUserID: "aaaaaaaa-0000-4000-8000-000000000001",
+      outerRequestID: "request-stable-for-replay",
+      toolCallID: "call-stable-for-replay",
+      generationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: (_userID, requestID, fingerprint) => {
+          identities.push({ requestID, fingerprint });
+          reservationCalls++;
+          return Promise.resolve({
+            allowed: true,
+            remaining: 4,
+            resetsAt: "2026-10-10T00:00:00Z",
+            limitCount: 5,
+            reservation_id: "44444444-0000-4000-8000-000000000001",
+            replay_payload: [{ outfit_id: NEW_OUTFIT, source: "kyra_suggested" }],
+            in_flight: false,
+          });
+        },
+        finish: () => Promise.resolve(),
+      },
+      commitOutfitGeneration: (input) => {
+        commitCalls++;
+        captured.push(input.record);
+        return Promise.resolve({ outfit_id: NEW_OUTFIT, source: "kyra_suggested" });
+      },
+      insertOutfit: () => Promise.reject(new Error("non-atomic insert must not be used")),
+    },
+  );
+  assertEquals(result["outfit_id"], NEW_OUTFIT);
+  assertEquals(replay["outfit_id"], NEW_OUTFIT);
+  assertEquals(commitCalls, 1);
+  assertEquals(captured.length, 1);
+  assertEquals(identities.length, 2);
+  assertEquals(identities[1], identities[0]);
+});
+
+Deno.test("failed atomic outfit persistence releases its reserved generation slot", async () => {
+  const captured: NewOutfitRecord[] = [];
+  const finishes: boolean[] = [];
+  let failed = false;
+  try {
+    await executeCreateOutfit(
+      parseCreateOutfitArgs({ item_ids: [TOP, BOTTOM, SHOES], reason: "A complete look." }),
+      {
+        ...deps(captured),
+        quotaUserID: "aaaaaaaa-0000-4000-8000-000000000001",
+        outerRequestID: "failed-atomic-request",
+        toolCallID: "failed-atomic-call",
+        generationQuota: {
+          isPremium: () => Promise.resolve(false),
+          reserve: () =>
+            Promise.resolve({
+              allowed: true,
+              remaining: 4,
+              resetsAt: "2026-10-10T00:00:00Z",
+              limitCount: 5,
+              reservation_id: "44444444-0000-4000-8000-000000000002",
+              replay_payload: null,
+              in_flight: false,
+            }),
+          finish: (_userID, _reservationID, succeeded) => {
+            finishes.push(succeeded);
+            return Promise.resolve();
+          },
+        },
+        commitOutfitGeneration: () => Promise.reject(new Error("database unavailable")),
+        insertOutfit: () => Promise.reject(new Error("non-atomic insert must not be used")),
+      },
+    );
+  } catch {
+    failed = true;
+  }
+  assert(failed);
+  assertEquals(finishes, [false]);
+  assertEquals(captured, []);
+});
+
 Deno.test("an unowned/unknown item id fails with ITEM_NOT_FOUND, nothing persisted", async () => {
   const captured: NewOutfitRecord[] = [];
   const missing = "00000000-0000-4000-8000-00000000dead";
@@ -106,7 +245,10 @@ Deno.test("a product-candidate slot may cover a missing role (complete-the-look)
   const captured: NewOutfitRecord[] = [];
   const result = await executeCreateOutfit(
     parseCreateOutfitArgs({ item_ids: [TOP, BOTTOM], product_candidate_ids: [PRODUCT] }),
-    deps(captured),
+    {
+      ...deps(captured),
+      listProductCandidateCategories: () => Promise.resolve(new Map([[PRODUCT, "shoes"]])),
+    },
   );
   assertEquals(result["outfit_id"], NEW_OUTFIT);
   const record = captured[0]!;

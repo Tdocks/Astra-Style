@@ -63,10 +63,10 @@ lands data layers, protocols, and models long before the screens that use them.
 | 4 — Outfit intelligence | 26 | 21 | 5 | 0 |
 | 5 — Kyra | 22 | 20 | 2 | 0 |
 | 6 — Studio and commerce | 25 | 22 | 3 | 0 |
-| 7 — Monetization and hardening | 36 | 8 | 23 | 5 |
-| **Total** | **179** | **123** | **51** | **5** |
+| 7 — Monetization and hardening | 36 | 10 | 21 | 5 |
+| **Total** | **179** | **125** | **49** | **5** |
 
-Read that table carefully before drawing a conclusion from it. 123 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 125 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -398,14 +398,14 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 
 # PHASE 7 — MONETIZATION AND HARDENING
 
-**8 Done · 23 Partial · 5 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. The App Store Server Notifications V2 endpoint and reconciliation schema are deployed, and Supabase has the Apple verification roots, app ID, bundle ID, and Production/Sandbox notification URLs. TestFlight build 10 is approved for external testing and the public join link is available. Signed notification and sandbox purchase acceptance remain open; counsel inputs remain open.
+**10 Done · 21 Partial · 5 Not started.** Packing is honest on Home and through Kyra. Paywall at the 30-item closet cap; `POST /subscriptions/sync` persists `original_transaction_id`. Wear This, Daily Brief, and paste-evaluate stay ungated. The App Store Server Notifications V2 endpoint and reconciliation schema are deployed, and Supabase has the Apple verification roots, app ID, bundle ID, and Production/Sandbox notification URLs. TestFlight build 10 is approved for external testing and the public join link is available. Signed notification and sandbox purchase acceptance remain open; counsel inputs remain open.
 
 | Ticket | Status | Evidence |
 |---|---|---|
 | P7-SUB-01 | Partial | Migration + RLS done; `AstraProductID` defines both product IDs client-side. App Store Connect configuration is not demonstrable in-repo — that component is Unverifiable. |
 | P7-SUB-02 | Partial | `LiveStoreKitPurchasing` (`Features/Subscription/StoreKitPurchasing.swift`) purchases via StoreKit 2 and rejects unverified transactions. Sandbox purchase on a device is Unverifiable here. |
 | P7-SUB-03 | Partial | `subscriptions/sync` verifies StoreKit JWS and the deployed `app-store/webhook` verifies Apple V2 notifications, checks account-token binding, and orders state by signed date. Reconciliation migrations, Apple verification configuration, and matching Production/Sandbox URLs in App Store Connect are deployed. A signed Apple test-notification acceptance and sandbox purchase/renewal/cancellation checks remain; the existing In-App Purchase API private key is not available in this local checkout to request the signed test. |
-| P7-SUB-04 | Partial | Closet 30-item cap is `FreeTierCappedClosetRepository` (guest 10). Kyra 3/day and Studio one Visualize trial present `PaywallView`. Daily Brief generate (3) and paste extract+evaluate (1) use `morningLoopQuotaError`; `PaywallContext.dailyBrief` / `.pasteEvaluate`. **Wear This is ungated**: `POST /outfits/record-wear` has no entitlement/count branch, and client tests assert a transport 429 never becomes a paywall. |
+| P7-SUB-04 | Done | Shared status/expiry checks, server-enforced active closet caps (guest 10 / Free 30 / Premium unlimited), durable outfit generation allowance, atomic Kyra conversation admission/retry, and Studio trial/monthly limits are deployed. Exact typed limits preserve editors and separate traffic throttles from upgrades; verified Apple grace deadlines remain entitled until expiry. 1,076 backend tests, SQL groups 1–56, 90 selected native tests and hosted cap/replay/denial checks passed. See `docs/acceptance/2026-10-09-subscription-limits-acceptance.md` for provisional five-request outfit policy, unchanged legacy trial limitations, and device purchase gates. |
 | P7-SUB-05 | Partial | `PaywallView` from `PaywallContext`. Localized StoreKit prices when offerings load. Legal links shown; `AstraLegal.isPublished` is true. |
 | P7-SUB-06 | Partial | `ios/Config/AstraStyle.storekit` checked in and wired on the AstraStyle scheme. Restore calls `AppStore.sync` then `syncTransaction`. |
 | P7-SUB-07 | Partial | Purchase and restore call `LiveSubscriptionRepository.syncTransaction`. Entitlement is the server row, not local StoreKit. |
@@ -430,7 +430,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P7-INFRA-03 | Partial | `ImageDownsampling` uses ImageIO thumbnails, and `ClosetGridTile` requests the grid-size decode; `AstraRemoteImageLoaderTests.testResolverProvidedFileURLLoadsThroughSharedImageDecoder`, `ClosetImageByteCacheTests` and `LiveClosetImageURLResolverOwnershipTests` cover local-file decoding, bounded owner-scoped byte caching/prefetch, eviction, cancellation/invalidation and account isolation. The cache still downloads the original object bytes before downsampling; no network/asset-request inspection proves the grid avoids full-resolution transfers, and no 100+ item extended-scroll memory bound or representative-device measurement is documented. Those performance/device acceptance checks remain open. |
 | P7-INFRA-04 | Partial | CI enforces zero-warnings-in-own-code via a scoped build-log grep. No per-dependency purpose/licence documentation (there is one dependency, `supabase-swift`). |
 | P7-INFRA-05 | Partial | README/setup material is present. `docs/acceptance/2026-10-09-app-store-submission-draft.md` now contains proposed listing copy, a source-cross-checked but provisional App Privacy worksheet, seven screenshot storyboards, and dependency purpose/license inventory. No screenshots have been captured; support/contact and legal entity details, counsel-cleared policy and provider/retention disclosures, final nutrition-label answers, and locked Fastlane/XcodeGen tool versions remain release gates. |
-| P7-TEST-01 | Partial | `SubscriptionEntitlementTests` covers active/grace/trialing/non-entitled by status. Free-tier-at-limit, guest-cap and expired-mid-session cases are absent because that gating logic doesn't exist (P7-SUB-04). |
+| P7-TEST-01 | Done | `SubscriptionEntitlementTests`, `FreeTierClosetCapTests`, API error mapping and outfit/Kyra/Studio gate tests cover exact Free limits, entitled Premium bypass, expiry reverting to Free, guest cap and same-wrapper guest-to-Free/Premium-to-Free transitions without reinstall. SQL tests 55–56 add authoritative owner/expiry/replay boundaries and simultaneous admission probes; 90 selected native tests passed. See the subscription-limits acceptance record. |
 | P7-TEST-02 | Not started | `authLifecycle()` is a deliberate placeholder, `.disabled()` with the reason stated. |
 | P7-TEST-03 | Not started | `storeKitSandboxPurchase()` is a deliberate placeholder, `.disabled()` with the reason stated. |
 | P7-TEST-04 | Partial | `AstraStyleUITests.testCompleteOnboarding` now walks the mock-backed introduction, wardrobe graph, identity selection, optional-step skips and Style DNA through to Home; it passed on iPhone 17 Pro Simulator with build 17 on 2026-10-08. It is not an `XCTSkip`. The ticket's persisted `onboarding_completed_at` assertion and a confirmed CI pass remain open. |

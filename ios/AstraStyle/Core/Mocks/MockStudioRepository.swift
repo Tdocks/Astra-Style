@@ -13,6 +13,7 @@ public actor MockStudioRepository: StudioRepository {
     private var generations: [UUID: StudioGeneration] = [:]
     private var submittedGenerationRequest: StudioGenerationRequest?
     private var submittedGenerationRequests: [StudioGenerationRequest] = []
+    private var startGenerationError: AstraError?
 
     public func lastGenerationRequest() -> StudioGenerationRequest? { submittedGenerationRequest }
     public func generationRequests() -> [StudioGenerationRequest] { submittedGenerationRequests }
@@ -28,6 +29,7 @@ public actor MockStudioRepository: StudioRepository {
     private var pendingDeletionCount = 0
 
     public func setPendingImageDeletionCount(_ count: Int) { pendingDeletionCount = max(0, count) }
+    public func setStartGenerationError(_ error: AstraError?) { startGenerationError = error }
     public func fetchPendingImageDeletionCount() async throws -> Int { pendingDeletionCount }
 
     public init(quotaExhausted: Bool = false, monthlyQuotaExhausted: Bool = false, failFirstGeneration: Bool = false, pendingImageDeletionCount: Int = 0, referencePhotoPath: String? = nil, chatPreviewID: UUID? = nil) {
@@ -154,6 +156,10 @@ public actor MockStudioRepository: StudioRepository {
     }
 
     public func startGeneration(_ request: StudioGenerationRequest) async throws -> StudioGeneration {
+        if let startGenerationError {
+            self.startGenerationError = nil
+            throw startGenerationError
+        }
         submittedGenerationRequest = request
         submittedGenerationRequests.append(request)
         guard request.inspirationMode != nil || request.hasUserConsent else {
@@ -163,10 +169,18 @@ public actor MockStudioRepository: StudioRepository {
             throw AstraError.validation("Those consent terms are out of date. Read them again before generating.")
         }
         if monthlyQuotaExhausted {
-            throw AstraError.rateLimited("You've used your monthly preview allowance. It resets on the first day of next month (UTC).")
+            throw AstraError(
+                category: .subscriptionLimitReached,
+                message: "You've used your monthly preview allowance. It resets on the first day of next month (UTC).",
+                quotaDetails: AstraQuotaDetails(limit: "studio_generation_monthly", limitCount: 20, remaining: 0, resetsAt: monthlyQuotaResetsAt.ISO8601Format())
+            )
         }
         if quotaExhausted {
-            throw AstraError.rateLimited("You've used your free visual estimate. Upgrade to Astra Style Premium for more.")
+            throw AstraError(
+                category: .subscriptionLimitReached,
+                message: "You've used your free visual estimate. Upgrade to Astra Style Premium for more.",
+                quotaDetails: AstraQuotaDetails(limit: "studio_trial_generation", limitCount: 1, remaining: 0, resetsAt: nil)
+            )
         }
         let generation = StudioGeneration(
             id: UUID(),
@@ -230,7 +244,11 @@ public actor MockStudioRepository: StudioRepository {
         }
         if let existing = try await fetchHiResExport(sourceID: sourceID) { return existing }
         guard !quotaExhausted, !monthlyQuotaExhausted else {
-            throw AstraError.rateLimited("You've used your monthly Studio render allowance. Try again after it resets.")
+            throw AstraError(
+                category: .subscriptionLimitReached,
+                message: "You've used your monthly Studio render allowance. Try again after it resets.",
+                quotaDetails: AstraQuotaDetails(limit: "studio_generation_monthly", limitCount: 20, remaining: 0, resetsAt: monthlyQuotaResetsAt.ISO8601Format())
+            )
         }
         let mode: String?
         if case .object(let payload)? = source.promptPayload, case .string(let value)? = payload["mode"] {

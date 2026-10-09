@@ -161,7 +161,9 @@ final class MonthlyReviewViewModel {
                 clearReviewForOwnerChange()
                 return
             }
-            setGenerationFailure(error.message, threadID: context.threadID, rateLimited: error.category == .rateLimited, previous: context.previous)
+            let quotaReached = error.category == .subscriptionLimitReached
+                && error.quotaDetails?.limit == "kyra_conversation_daily"
+            setGenerationFailure(error.message, threadID: context.threadID, rateLimited: quotaReached, previous: context.previous)
         } catch {
             setGenerationFailure("Kyra couldn't prepare the review. Check your connection and try again.", threadID: context.threadID, rateLimited: false, previous: context.previous)
         }

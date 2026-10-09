@@ -1,6 +1,34 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AppError, badRequest, serverError } from "../_shared/errors.ts";
+import { quotaPeriod, studioQuotaExceededError } from "./quota.ts";
 import type { StudioGenerationRow, StudioJobStore, StudioStatus } from "./handler.ts";
+
+async function monthlyQuotaError(
+  supabase: SupabaseClient,
+  userID: string,
+  message: string,
+): Promise<AppError> {
+  const now = new Date();
+  const period = quotaPeriod(now);
+  const [configuration, usage] = await Promise.all([
+    supabase.from("studio_quota_config")
+      .select("premium_monthly_limit").eq("singleton", true).single(),
+    supabase.from("studio_allowances").select("id", { count: "exact", head: true })
+      .eq("user_id", userID).is("released_at", null)
+      .gte("created_at", period.start).lt("created_at", period.reset),
+  ]);
+  if (configuration.error || !configuration.data || usage.error || usage.count === null) {
+    return serverError("Couldn't load your preview allowance.");
+  }
+  const limitCount = configuration.data.premium_monthly_limit;
+  return studioQuotaExceededError(
+    "studio_generation_monthly",
+    limitCount,
+    Math.max(0, limitCount - usage.count),
+    period.reset,
+    message,
+  );
+}
 
 function mapRow(data: Record<string, unknown>): StudioGenerationRow {
   return {
@@ -34,9 +62,9 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
         p_consent_terms_version: consent.termsVersion || null,
       }).single();
       if (error?.message?.includes("studio_monthly_quota_exhausted")) {
-        throw new AppError(
-          "rate_limited",
-          429,
+        throw await monthlyQuotaError(
+          supabase,
+          userId,
           "You've used your monthly Studio render allowance. It resets on the first day of next month (UTC).",
         );
       }
@@ -89,16 +117,18 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
         },
       ).single();
       if (error?.message?.includes("studio_monthly_quota_exhausted")) {
-        throw new AppError(
-          "rate_limited",
-          429,
+        throw await monthlyQuotaError(
+          supabase,
+          row.userId,
           "You've used your monthly preview allowance. It resets on the first day of next month (UTC).",
         );
       }
       if (error?.message?.includes("studio_trial_exhausted")) {
-        throw new AppError(
-          "rate_limited",
-          429,
+        throw studioQuotaExceededError(
+          "studio_trial_generation",
+          1,
+          0,
+          null,
           "You've used your free visual estimate. Upgrade to Astra Style Premium for more.",
         );
       }

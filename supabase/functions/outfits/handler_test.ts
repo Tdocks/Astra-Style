@@ -158,6 +158,20 @@ function buildDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     closetRepository: recordingClosetRepository(),
     rateLimiter: createRateLimiter({ limit: 1000, windowMs: 60_000 }),
     now: () => new Date("2026-07-28T12:00:00Z"),
+    generationQuota: {
+      isPremium: () => Promise.resolve(true),
+      reserve: () =>
+        Promise.resolve({
+          allowed: true,
+          remaining: 4,
+          resetsAt: "2026-07-29T00:00:00.000Z",
+          limitCount: 5,
+          reservation_id: "11111111-1111-4111-8111-111111111111",
+          replay_payload: null,
+          in_flight: false,
+        }),
+      finish: () => Promise.resolve(),
+    },
     ...overrides,
   };
 }
@@ -662,4 +676,243 @@ Deno.test("record-wear rate limit returns the exact Retry-After reset", async ()
   );
   assertEquals(response.status, 429);
   assertEquals(response.headers.get("Retry-After"), "23");
+});
+
+Deno.test("P7-SUB-04 free generation limit is a structured quota, not traffic rate limiting", async () => {
+  let closetReads = 0;
+  const dependencies = buildDeps({
+    generationQuota: {
+      isPremium: () => Promise.resolve(false),
+      reserve: () =>
+        Promise.resolve({
+          allowed: false,
+          remaining: 0,
+          resetsAt: "2026-07-29T00:00:00.000Z",
+          limitCount: 5,
+          reservation_id: null,
+          replay_payload: null,
+          in_flight: false,
+        }),
+      finish: () => Promise.resolve(),
+    },
+    closetRepository: {
+      ...recordingClosetRepository(),
+      listCandidateItems: () => {
+        closetReads += 1;
+        return Promise.resolve([]);
+      },
+    },
+  });
+  const response = await handleGenerateOutfits(
+    requestFor("generate", VALID_GENERATE_ENVELOPE, {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+    }),
+    dependencies,
+  );
+  const body = await response.json();
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), null);
+  assertEquals(body.error.category, "subscription_limit_reached");
+  assertEquals(body.error.details, {
+    limit: "outfit_generation_daily",
+    limit_count: 5,
+    remaining: 0,
+    resets_at: "2026-07-29T00:00:00.000Z",
+  });
+  assertEquals(closetReads, 0);
+});
+
+Deno.test("P7-SUB-04 commits only non-empty success and releases failed/empty generation", async () => {
+  const outcomes: Array<{ succeeded: boolean; result: unknown }> = [];
+  const response = await handleGenerateOutfits(
+    requestFor("generate", VALID_GENERATE_ENVELOPE, {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+    }),
+    buildDeps({
+      generationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: () =>
+          Promise.resolve({
+            allowed: true,
+            remaining: 4,
+            resetsAt: "2026-07-29T00:00:00.000Z",
+            limitCount: 5,
+            reservation_id: "11111111-1111-4111-8111-111111111111",
+            replay_payload: null,
+            in_flight: false,
+          }),
+        finish: (_owner, _id, succeeded, result) => {
+          outcomes.push({ succeeded, result });
+          return Promise.resolve();
+        },
+      },
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(outcomes.length, 1);
+  const outcome = outcomes[0];
+  assert(outcome);
+  assertEquals(outcome.succeeded, true);
+  assert(Array.isArray(outcome.result));
+});
+
+Deno.test("P7-SUB-04 premium bypass and committed request replay do not reserve twice", async () => {
+  let reserveCalls = 0;
+  const base = buildDeps({
+    generationQuota: {
+      isPremium: () => Promise.resolve(true),
+      reserve: () => {
+        reserveCalls += 1;
+        return Promise.resolve({
+          allowed: true,
+          remaining: 4,
+          resetsAt: "2026-07-29T00:00:00.000Z",
+          limitCount: 5,
+          reservation_id: "11111111-1111-4111-8111-111111111111",
+          replay_payload: null,
+          in_flight: false,
+        });
+      },
+      finish: () => Promise.resolve(),
+    },
+  });
+  let response = await handleGenerateOutfits(
+    requestFor("generate", VALID_GENERATE_ENVELOPE, {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+    }),
+    base,
+  );
+  assertEquals(response.status, 200);
+  assertEquals(reserveCalls, 0);
+  const replay = [{
+    id: "cached",
+    name: "Saved result",
+    reason: "A deterministic replay",
+    item_ids: [TOP_A],
+    compatibility_score: 0.8,
+  }];
+  const replayDependencies = buildDeps({
+    generationQuota: {
+      isPremium: () => Promise.resolve(false),
+      reserve: () => {
+        reserveCalls += 1;
+        return Promise.resolve({
+          allowed: true,
+          remaining: 0,
+          resetsAt: "2026-07-29T00:00:00.000Z",
+          limitCount: 5,
+          reservation_id: "11111111-1111-4111-8111-111111111111",
+          replay_payload: replay,
+          in_flight: false,
+        });
+      },
+      finish: () => Promise.resolve(),
+    },
+  });
+  const replayRequest = {
+    ...VALID_GENERATE_ENVELOPE,
+    request_id: "11111111-1111-4111-8111-111111111111",
+  };
+  response = await handleGenerateOutfits(
+    requestFor("generate", replayRequest, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    replayDependencies,
+  );
+  const body = await response.json();
+  assertEquals(response.status, 200);
+  assertEquals(body.data, replay);
+  assertEquals(reserveCalls, 1);
+});
+
+Deno.test("P7-SUB-04 same request in flight is not misreported as exhausted quota", async () => {
+  const response = await handleGenerateOutfits(
+    requestFor("generate", VALID_GENERATE_ENVELOPE, {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+    }),
+    buildDeps({
+      generationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: () =>
+          Promise.resolve({
+            allowed: false,
+            remaining: 0,
+            resetsAt: "2026-07-29T00:00:00.000Z",
+            limitCount: 5,
+            reservation_id: "11111111-1111-4111-8111-111111111111",
+            replay_payload: null,
+            in_flight: true,
+          }),
+        finish: () => Promise.resolve(),
+      },
+    }),
+  );
+  const body = await response.json();
+  assertEquals(response.status, 409);
+  assertEquals(body.error.category, "server");
+});
+
+Deno.test("P7-SUB-04 releases an in-flight reservation after recommendation failure", async () => {
+  const outcomes: boolean[] = [];
+  const repository = recordingClosetRepository();
+  repository.listCandidateItems = () => Promise.reject(new Error("simulated closet failure"));
+  const response = await handleGenerateOutfits(
+    requestFor("generate", VALID_GENERATE_ENVELOPE, {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+    }),
+    buildDeps({
+      closetRepository: repository,
+      generationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: () =>
+          Promise.resolve({
+            allowed: true,
+            remaining: 4,
+            resetsAt: "2026-07-29T00:00:00.000Z",
+            limitCount: 5,
+            reservation_id: "11111111-1111-4111-8111-111111111111",
+            replay_payload: null,
+            in_flight: false,
+          }),
+        finish: (_owner, _id, succeeded) => {
+          outcomes.push(succeeded);
+          return Promise.resolve();
+        },
+      },
+    }),
+  );
+  assertEquals(response.status, 500);
+  assertEquals(outcomes, [false]);
+});
+
+Deno.test("P7-SUB-04 an empty result releases quota instead of consuming one generation", async () => {
+  const outcomes: boolean[] = [];
+  const emptyCloset = recordingClosetRepository();
+  emptyCloset.listCandidateItems = () => Promise.resolve([]);
+  const response = await handleGenerateOutfits(
+    requestFor("generate", VALID_GENERATE_ENVELOPE, {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+    }),
+    buildDeps({
+      closetRepository: emptyCloset,
+      generationQuota: {
+        isPremium: () => Promise.resolve(false),
+        reserve: () =>
+          Promise.resolve({
+            allowed: true,
+            remaining: 4,
+            resetsAt: "2026-07-29T00:00:00.000Z",
+            limitCount: 5,
+            reservation_id: "11111111-1111-4111-8111-111111111111",
+            replay_payload: null,
+            in_flight: false,
+          }),
+        finish: (_owner, _id, succeeded) => {
+          outcomes.push(succeeded);
+          return Promise.resolve();
+        },
+      },
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).data, []);
+  assertEquals(outcomes, [false]);
 });

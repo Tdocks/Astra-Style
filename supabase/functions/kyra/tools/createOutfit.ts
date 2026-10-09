@@ -38,6 +38,13 @@ import {
   type WardrobeGraphId,
 } from "../../_shared/scoring/wardrobeGraph.ts";
 import { isUUID } from "../../_shared/validation.ts";
+import {
+  type AtomicOutfitCommit,
+  createOutfitQuotaIdentity,
+  type OutfitGenerationQuotaOperations,
+  replayResultFromQuota,
+  type ReservedBuilderOutfitQuota,
+} from "../outfitQuota.ts";
 
 export interface NewOutfitRecord {
   readonly name: string | null;
@@ -55,8 +62,19 @@ export interface NewOutfitRecord {
 
 export interface CreateOutfitDeps {
   listItemsByIds(ids: readonly string[]): Promise<ClosetItemMapperRow[]>;
+  listProductCandidateCategories?(
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, string | null>>;
   /** Inserts the outfit and its items; returns the new outfit id. */
   insertOutfit(record: NewOutfitRecord): Promise<string>;
+  /** Atomic persistence+quota transaction, supplied by the live store. */
+  commitOutfitGeneration?(input: AtomicOutfitCommit): Promise<Record<string, unknown>>;
+  readonly generationQuota?: OutfitGenerationQuotaOperations;
+  readonly quotaUserID?: string;
+  readonly outerRequestID?: string;
+  readonly toolCallID?: string;
+  readonly now?: () => Date;
+  readonly reservedBuilderQuota?: ReservedBuilderOutfitQuota;
   readWardrobeGraph(): Promise<WardrobeGraphId>;
   /** IDs fixed by the authenticated builder context, never model supplied. */
   readonly lockedItemIDs?: readonly string[];
@@ -131,13 +149,12 @@ export function parseCreateOutfitArgs(raw: Record<string, unknown>): CreateOutfi
  */
 function coversMinimumRoles(
   items: readonly ScorableItem[],
-  productSlotCount: number,
+  productSlotRoles: readonly string[],
   graph: WardrobeGraphId,
 ): boolean {
-  const roles = new Set(items.map((item) => item.role));
+  const roles = new Set([...items.map((item) => item.role), ...productSlotRoles]);
   for (const set of requiredRoleSetsForGeneration(graph)) {
-    const missing = set.filter((role) => !roles.has(role)).length;
-    if (missing <= productSlotCount) return true;
+    if (set.every((role) => roles.has(role))) return true;
   }
   return false;
 }
@@ -190,9 +207,21 @@ export async function executeCreateOutfit(
     return requiredIDs.includes(id) || !lockedRoles.has(rowsById.get(id)!.category);
   });
   const finalIDs = [...new Set([...selectedIDs, ...requiredIDs])];
-  if (finalIDs.length > 12) {
+  if (finalIDs.length + args.productCandidateIds.length > 12) {
     return { error: "TOO_MANY_ITEMS", detail: "An outfit can contain at most twelve owned items." };
   }
+
+  const productCategories =
+    args.productCandidateIds.length > 0 && deps.listProductCandidateCategories
+      ? await deps.listProductCandidateCategories(args.productCandidateIds)
+      : new Map<string, string | null>();
+  if (
+    deps.listProductCandidateCategories &&
+    args.productCandidateIds.some((id) => !productCategories.has(id))
+  ) return { error: "PRODUCT_NOT_FOUND" };
+  const productRoles = args.productCandidateIds.map((id) =>
+    productCategories.get(id) ?? "accessory"
+  );
 
   const scorable: ScorableItem[] = [];
   for (const id of finalIDs) {
@@ -200,7 +229,7 @@ export async function executeCreateOutfit(
     if (item !== null) scorable.push(item);
   }
   const wardrobeGraph = parseWardrobeGraph(await deps.readWardrobeGraph());
-  if (!coversMinimumRoles(scorable, args.productCandidateIds.length, wardrobeGraph)) {
+  if (!coversMinimumRoles(scorable, productRoles, wardrobeGraph)) {
     return { error: "MINIMUM_ROLES_NOT_MET" };
   }
 
@@ -229,22 +258,20 @@ export async function executeCreateOutfit(
     items.push({
       closetItemId: null,
       productCandidateId: productId,
-      role: "accessory",
+      role: productCategories.get(productId) ?? "accessory",
       sortOrder: sortOrder++,
     });
   }
 
-  const outfitId = await deps.insertOutfit({
+  const record: NewOutfitRecord = {
     name: args.name ?? null,
     occasionTags: args.occasionTags,
     compatibilityScore: score.score,
     source: "kyra_suggested",
     description: args.reason ?? null,
     items,
-  });
-
-  return {
-    outfit_id: outfitId,
+  };
+  const result: Record<string, unknown> = {
     compatibility_score: score.score,
     // See the header: the enum has no "kyra_draft"; this is what was written.
     source: "kyra_suggested",
@@ -252,4 +279,106 @@ export async function executeCreateOutfit(
     unmeasured: [...score.degraded],
     item_ids: finalIDs,
   };
+  return await persistOutfitWithQuota(args, deps, record, result);
+}
+
+async function persistOutfitWithQuota(
+  args: CreateOutfitArgs,
+  deps: CreateOutfitDeps,
+  record: NewOutfitRecord,
+  result: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const quota = deps.generationQuota;
+  const userID = deps.quotaUserID;
+  const outerRequestID = deps.outerRequestID;
+  const now = deps.now?.() ?? new Date();
+  if (!quota || !userID || !outerRequestID || !deps.commitOutfitGeneration) {
+    const outfitId = await deps.insertOutfit(record);
+    return { ...result, outfit_id: outfitId, source: "kyra_suggested" };
+  }
+
+  let operation = deps.reservedBuilderQuota ?? null;
+  if (operation?.used) {
+    return {
+      error: "OUTFIT_GENERATION_IN_FLIGHT",
+      detail: "This builder request already completed an outfit.",
+    };
+  }
+  if (!operation) {
+    const identity = await createOutfitQuotaIdentity(outerRequestID, {
+      kind: "kyra.create_outfit",
+      args,
+      locked_item_ids: deps.lockedItemIDs ?? [],
+      allow_product_candidates: deps.allowProductCandidates !== false,
+      require_reason: deps.requireReason === true,
+    }, deps.toolCallID ?? "conversation");
+    const premium = await quota.isPremium(userID, now);
+    let reservationID: string | null = null;
+    let replayResult: Record<string, unknown> | null = null;
+    if (!premium) {
+      const reservation = await quota.reserve(
+        userID,
+        identity.requestID,
+        identity.fingerprint,
+        now,
+      );
+      replayResult = replayResultFromQuota(reservation.replay_payload);
+      if (!replayResult && reservation.in_flight) {
+        return { error: "OUTFIT_GENERATION_IN_FLIGHT" };
+      }
+      if (!replayResult && !reservation.allowed) {
+        return {
+          error: "OUTFIT_GENERATION_LIMIT_REACHED",
+          details: {
+            limit: "outfit_generation_daily",
+            limit_count: reservation.limitCount,
+            remaining: reservation.remaining,
+            resets_at: reservation.resetsAt,
+          },
+        };
+      }
+      if (!replayResult) {
+        if (!reservation.reservation_id) throw new Error("Quota reservation did not return an ID.");
+        reservationID = reservation.reservation_id;
+      }
+    }
+    operation = {
+      ...identity,
+      userID,
+      premium,
+      reservationID,
+      replayResult,
+      used: false,
+      settled: replayResult !== null,
+    };
+  }
+
+  operation.used = true;
+  if (operation.replayResult) return operation.replayResult;
+
+  try {
+    const committed = await deps.commitOutfitGeneration({
+      userID,
+      requestID: operation.requestID,
+      fingerprint: operation.fingerprint,
+      reservationID: operation.reservationID,
+      record,
+      result,
+      lockedItemIDs: deps.lockedItemIDs ?? [],
+      allowProductCandidates: deps.allowProductCandidates !== false,
+      now,
+    });
+    operation.settled = true;
+    return committed;
+  } catch (error) {
+    if (operation.reservationID) {
+      try {
+        await quota.finish(userID, operation.reservationID, false, null, now);
+      } catch {
+        // Preserve the original atomic RPC failure; a committed reservation
+        // makes finish(false) a no-op, while a rolled-back write is released.
+      }
+    }
+    throw error;
+  }
 }

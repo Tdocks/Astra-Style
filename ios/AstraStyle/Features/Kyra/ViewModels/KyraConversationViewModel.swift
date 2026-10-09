@@ -391,7 +391,8 @@ public final class KyraConversationViewModel {
     private func markSendFailed(entryID: UUID, error: AstraError) {
         guard let index = entries.firstIndex(where: { $0.id == entryID }) else { return }
         entries[index].sendFailure = error
-        if error.category == .rateLimited {
+        if error.category == .subscriptionLimitReached,
+           error.quotaDetails?.limit == "kyra_conversation_daily" {
             pendingPaywall = .kyraDailyLimit
         }
     }

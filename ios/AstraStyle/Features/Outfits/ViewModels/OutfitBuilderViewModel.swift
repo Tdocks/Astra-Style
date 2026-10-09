@@ -68,6 +68,7 @@ public final class OutfitBuilderViewModel {
     public private(set) var recommendations: [OutfitRecommendation] = []
     public private(set) var isLoadingRecommendations = false
     public private(set) var recommendationError: String?
+    public private(set) var generationQuota: AstraQuotaDetails?
     public private(set) var selectedRecommendationID: UUID?
 
     // MARK: - Dependencies
@@ -248,8 +249,7 @@ extension OutfitBuilderViewModel {
         guard !isLoadingRecommendations, !isSaving, !isRegenerating, askKyraState != .working else { return }
         isLoadingRecommendations = true
         recommendationError = nil
-        recommendations = []
-        selectedRecommendationID = nil
+        generationQuota = nil
         defer { isLoadingRecommendations = false }
 
         do {
@@ -268,14 +268,17 @@ extension OutfitBuilderViewModel {
                     weatherSnapshot: context.weatherSnapshot
                 )
             )
-            recommendations = Array(response.filter { recommendation in
+            let ownedRecommendations = Array(response.filter { recommendation in
                 !recommendation.itemIDs.isEmpty && recommendation.itemIDs.allSatisfy(ownedIDs.contains)
             }.prefix(3))
-            if recommendations.isEmpty {
+            if ownedRecommendations.isEmpty {
                 recommendationError = "There aren't enough closet pieces for an outfit yet. Add or scan a few more items and try again."
+            } else {
+                recommendations = ownedRecommendations
+                selectedRecommendationID = nil
             }
         } catch let error as AstraError {
-            recommendationError = error.message
+            if !handleGenerationQuota(error) { recommendationError = error.message }
         } catch {
             recommendationError = "Couldn't build outfit ideas right now. Try again."
         }
@@ -294,6 +297,13 @@ extension OutfitBuilderViewModel {
         recommendationError = nil
     }
 
+    private func handleGenerationQuota(_ error: AstraError) -> Bool {
+        guard error.category == .subscriptionLimitReached,
+              error.quotaDetails?.limit == "outfit_generation_daily" else { return false }
+        generationQuota = error.quotaDetails
+        return true
+    }
+
     // MARK: - Regenerate (lock + regenerate unlocked slots, P4-OUTFIT-08)
 
     /// Re-ranks and applies the top result to every UNLOCKED slot only.
@@ -309,7 +319,7 @@ extension OutfitBuilderViewModel {
         isRegenerating = true
         defer { isRegenerating = false }
         actionError = nil
-        kyraReason = nil
+        generationQuota = nil
         do {
             let lockedItemIDs = slots.compactMap { $0.isLocked ? $0.item?.id : nil }
             let recommendations: [OutfitRecommendation]
@@ -332,9 +342,10 @@ extension OutfitBuilderViewModel {
                 )
             }
             guard let top = recommendations.first else { return }
+            kyraReason = nil
             applyToUnlockedSlots(top)
         } catch let error as AstraError {
-            actionError = error
+            if !handleGenerationQuota(error) { actionError = error }
         } catch {
             actionError = AstraError(category: .unknown, message: error.localizedDescription)
         }

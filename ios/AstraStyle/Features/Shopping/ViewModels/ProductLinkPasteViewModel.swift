@@ -47,8 +47,8 @@ public final class ProductLinkPasteViewModel {
         do {
             let candidate = try await shoppingRepository.extractProduct(from: url)
             return candidate.id
-        } catch let error as AstraError where error.category == .rateLimited {
-            pendingPaywall = .pasteEvaluate
+        } catch let error as AstraError where error.category == .subscriptionLimitReached {
+            submitError = error
             return nil
         } catch let error as AstraError {
             submitError = error

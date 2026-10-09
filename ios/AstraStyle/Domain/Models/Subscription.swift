@@ -44,13 +44,19 @@ public struct Subscription: Codable, Hashable, Sendable {
         case environment
     }
 
-    /// Entitlement check used to gate premium features (spec §16). Treats
-    /// grace period as still-entitled, matching common StoreKit guidance so
-    /// a billing hiccup doesn't immediately lock the user out.
+    /// Entitlement check used to gate premium features (spec §16). Uses the
+    /// reconciled expiry on every read so stale active status cannot extend
+    /// the Premium bypass after the subscription expires.
     public var isEntitledToPremium: Bool {
+        isEntitledToPremium(at: .now)
+    }
+
+    public func isEntitledToPremium(at date: Date) -> Bool {
         switch status {
-        case .trialing, .active, .inGracePeriod: true
-        case .inBillingRetry, .expired, .revoked, .cancelled: false
+        case .trialing, .active, .inGracePeriod:
+            expiresAt.map { $0 > date } ?? true
+        case .inBillingRetry, .expired, .revoked, .cancelled:
+            false
         }
     }
 }

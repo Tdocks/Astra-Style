@@ -82,8 +82,10 @@ export async function handleAppStoreWebhook(
 
   const originalTransactionId = required(transaction.originalTransactionId);
   const productId = required(transaction.productId);
-  const expiresAt = millisecondsToISO(transaction.expiresDate);
-  if (!expiresAt) throw badRequest("Apple subscription is missing its expiration date.");
+  const transactionExpiresAt = millisecondsToISO(transaction.expiresDate);
+  if (!transactionExpiresAt) {
+    throw badRequest("Apple subscription is missing its expiration date.");
+  }
   if (!PREMIUM_PRODUCT_IDS.includes(productId as typeof PREMIUM_PRODUCT_IDS[number])) {
     return "ignored";
   }
@@ -102,12 +104,19 @@ export async function handleAppStoreWebhook(
     }
   }
 
+  const status = subscriptionStatus(
+    notification,
+    transaction,
+    renewalInfo,
+    transactionExpiresAt,
+    deps.now(),
+  );
   const state: PendingWebhookState = {
     originalTransactionId,
     notificationUUID,
     productId,
-    status: subscriptionStatus(notification, transaction, renewalInfo, expiresAt, deps.now()),
-    expiresAt,
+    status,
+    expiresAt: effectiveExpiration(status, renewalInfo, transactionExpiresAt, deps.now()),
     environment,
     signedAt: notificationSignedAt,
   };
@@ -159,6 +168,23 @@ function subscriptionStatus(
     return "in_billing_retry";
   }
   return new Date(expiresAt) > now ? "active" : "expired";
+}
+
+function effectiveExpiration(
+  status: string,
+  renewalInfo: VerifiedRenewalInfo | undefined,
+  transactionExpiresAt: string,
+  now: Date,
+): string {
+  if (status !== "in_grace_period") return transactionExpiresAt;
+  const gracePeriodExpiresAt = millisecondsToISO(renewalInfo?.gracePeriodExpiresDate);
+  // `subscriptionStatus` only returns in_grace_period when the verified
+  // renewal expiry is valid and future. Keep this guard fail-closed in case
+  // that contract changes later.
+  if (!gracePeriodExpiresAt || new Date(gracePeriodExpiresAt) <= now) {
+    throw badRequest("Apple's grace period is missing its verified expiration date.");
+  }
+  return gracePeriodExpiresAt;
 }
 
 function required(value: string | undefined): string {

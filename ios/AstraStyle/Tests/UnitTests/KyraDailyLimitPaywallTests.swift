@@ -10,8 +10,8 @@ import Testing
 @Suite("Kyra daily limit paywall")
 @MainActor
 struct KyraDailyLimitPaywallTests {
-    @Test("A 429 on send sets pendingPaywall to kyraDailyLimit")
-    func rateLimitPresentsPaywall() async {
+    @Test("A typed daily quota sets pendingPaywall to kyraDailyLimit")
+    func quotaPresentsPaywall() async {
         let model = KyraConversationViewModel(
             threadID: nil,
             kyraRepository: CappedKyraRepository(),
@@ -27,13 +27,39 @@ struct KyraDailyLimitPaywallTests {
         await model.sendDraft()
         #expect(model.pendingPaywall == .kyraDailyLimit)
     }
+
+    @Test("A traffic throttle does not present the subscription paywall")
+    func trafficThrottleDoesNotPresentPaywall() async {
+        let model = KyraConversationViewModel(
+            threadID: nil,
+            kyraRepository: CappedKyraRepository(error: .rateLimited()),
+            outfitRepository: MockOutfitRepository(),
+            closetRepository: MockClosetRepository(),
+            shoppingRepository: MockShoppingRepository(),
+            imageURLResolver: MockClosetImageURLResolver(),
+            networkMonitor: StaticNetworkReachabilityMonitor(offline: false),
+            analyticsClient: NoOpAnalyticsClient()
+        )
+        await model.onAppear()
+        model.draftText = "What should I wear tonight?"
+        await model.sendDraft()
+        #expect(model.pendingPaywall == nil)
+    }
 }
 
 private final class CappedKyraRepository: KyraRepository, @unchecked Sendable {
+    private let error: AstraError
+
+    init(error: AstraError = AstraError(
+        category: .subscriptionLimitReached,
+        message: "Daily Kyra limit reached.",
+        quotaDetails: AstraQuotaDetails(limit: "kyra_conversation_daily", limitCount: 3, remaining: 0, resetsAt: "2026-10-10T00:00:00Z")
+    )) {
+        self.error = error
+    }
+
     func send(threadID: UUID?, message: KyraOutgoingMessage) async throws -> KyraMessage {
-        throw AstraError.rateLimited(
-            "You've used your 3 Kyra conversations for today. Upgrade to Astra Style Premium for unlimited conversations with Kyra."
-        )
+        throw error
     }
     func fetchThreads() async throws -> [KyraThread] { [] }
     func fetchMessages(threadID: UUID) async throws -> [KyraMessage] { [] }

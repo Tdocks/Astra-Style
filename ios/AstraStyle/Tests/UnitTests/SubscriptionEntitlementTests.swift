@@ -24,6 +24,31 @@ struct SubscriptionEntitlementTests {
         #expect(subscription.isEntitledToPremium)
     }
 
+    @Test("Billing retry is not entitled even before its expiry")
+    func billingRetryIsNotEntitled() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let subscription = Subscription(
+            userID: UUID(),
+            status: .inBillingRetry,
+            expiresAt: now.addingTimeInterval(60)
+        )
+        #expect(!subscription.isEntitledToPremium(at: now))
+        #expect(!subscription.isEntitledToPremium(at: now.addingTimeInterval(60)))
+    }
+
+    @Test("Active status does not grant Premium after the server expiry")
+    func activeStatusExpiresMidSession() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let subscription = Subscription(
+            userID: UUID(),
+            status: .active,
+            expiresAt: now.addingTimeInterval(60)
+        )
+        #expect(subscription.isEntitledToPremium(at: now))
+        #expect(!subscription.isEntitledToPremium(at: now.addingTimeInterval(60)))
+        #expect(!subscription.isEntitledToPremium(at: now.addingTimeInterval(120)))
+    }
+
     /// `trialing` is a real member of the Postgres `subscription_status` type
     /// and was missing from the Swift enum entirely. A user mid-trial is
     /// paying-equivalent and must have full access; treating them as
@@ -36,7 +61,12 @@ struct SubscriptionEntitlementTests {
 
     @Test(
         "Non-entitled statuses correctly report no access",
-        arguments: [SubscriptionStatus.inBillingRetry, .expired, .revoked, .cancelled]
+        arguments: [
+            SubscriptionStatus.expired,
+            .revoked,
+            .cancelled,
+            .inBillingRetry
+        ]
     )
     func nonEntitledStatusesAreNotEntitled(status: SubscriptionStatus) {
         let subscription = Subscription(userID: UUID(), status: status)

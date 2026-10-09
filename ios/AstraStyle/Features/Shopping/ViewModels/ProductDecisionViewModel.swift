@@ -140,8 +140,9 @@ public final class ProductDecisionViewModel {
                 return
             }
             state = .failed(error)
-        } catch let error as AstraError where error.category == .rateLimited {
-            pendingPaywall = .pasteEvaluate
+        } catch let error as AstraError where error.category == .subscriptionLimitReached {
+            // Paste evaluation's one-time trial allowance is an inline
+            // limit state, not a paywall (ADR-0017).
             state = .failed(error)
         } catch let error as AstraError {
             state = .failed(error)

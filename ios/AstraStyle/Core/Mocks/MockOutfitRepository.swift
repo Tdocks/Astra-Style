@@ -23,12 +23,15 @@ public actor MockOutfitRepository: OutfitRepository {
     private var feedbackEntries: [StyleFeedback] = []
     public private(set) var outfitGenerationCount = 0
     private let failsOutfitGeneration: Bool
+    private let outfitGenerationError: AstraError?
 
     public init(
         failsOutfitGeneration: Bool = false,
-        shopTheLookCandidateFixture: Bool = false
+        shopTheLookCandidateFixture: Bool = false,
+        outfitGenerationError: AstraError? = nil
     ) {
         self.failsOutfitGeneration = failsOutfitGeneration
+        self.outfitGenerationError = outfitGenerationError
         var seededOutfits = [SampleData.heroOutfit: SampleData.heroOutfitItems()]
         for outfit in SampleData.alternativeOutfits {
             seededOutfits[outfit] = []
@@ -79,6 +82,7 @@ public actor MockOutfitRepository: OutfitRepository {
 
     public func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation] {
         outfitGenerationCount += 1
+        if let outfitGenerationError { throw outfitGenerationError }
         if failsOutfitGeneration {
             throw AstraError.network("Outfit suggestions are unavailable.")
         }

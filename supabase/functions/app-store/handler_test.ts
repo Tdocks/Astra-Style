@@ -45,12 +45,30 @@ Deno.test("a verified notification arriving before first sync is queued", async 
   assertEquals(store.deletedExpiredBefore, "2026-07-02T12:00:00.000Z");
 });
 
+Deno.test("a failed renewal queues Apple's verified grace expiry", async () => {
+  const store = memoryStore(false);
+  const result = await handleAppStoreWebhook("notification-jws", {
+    store,
+    verifier: verifierFor({
+      notification: { notificationType: "DID_FAIL_TO_RENEW" },
+      transaction: { expiresDate: Date.parse("2026-09-29T12:00:00.000Z") },
+      renewal: { gracePeriodExpiresDate: Date.parse("2026-10-10T12:00:00.000Z") },
+    }),
+    now: () => NOW,
+  });
+
+  assertEquals(result, "queued");
+  assertEquals(store.pending[0]?.status, "in_grace_period");
+  assertEquals(store.pending[0]?.expiresAt, "2026-10-10T12:00:00.000Z");
+});
+
 Deno.test("a failed renewal inside its grace period preserves access", async () => {
   const store = memoryStore(true);
   const result = await handleAppStoreWebhook("notification-jws", {
     store,
     verifier: verifierFor({
       notification: { notificationType: "DID_FAIL_TO_RENEW" },
+      transaction: { expiresDate: Date.parse("2026-09-29T12:00:00.000Z") },
       renewal: { gracePeriodExpiresDate: Date.parse("2026-10-10T12:00:00.000Z") },
     }),
     now: () => NOW,
@@ -58,6 +76,45 @@ Deno.test("a failed renewal inside its grace period preserves access", async () 
 
   assertEquals(result, "updated");
   assertEquals(store.row?.status, "in_grace_period");
+  assertEquals(store.row?.expires_at, "2026-10-10T12:00:00.000Z");
+});
+
+Deno.test("billing retry without a verified grace period keeps the paid expiry", async () => {
+  const store = memoryStore(true);
+  await handleAppStoreWebhook("notification-jws", {
+    store,
+    verifier: verifierFor({
+      notification: { notificationType: "DID_FAIL_TO_RENEW" },
+      transaction: { expiresDate: Date.parse("2026-09-29T12:00:00.000Z") },
+    }),
+    now: () => NOW,
+  });
+
+  assertEquals(store.row?.status, "in_billing_retry");
+  assertEquals(store.row?.expires_at, "2026-09-29T12:00:00.000Z");
+});
+
+Deno.test("expired and revoked notifications never extend through renewal grace data", async () => {
+  for (const notificationType of ["EXPIRED", "REVOKE"] as const) {
+    const store = memoryStore(true);
+    await handleAppStoreWebhook("notification-jws", {
+      store,
+      verifier: verifierFor({
+        notification: { notificationType },
+        transaction: {
+          expiresDate: Date.parse("2026-09-29T12:00:00.000Z"),
+          ...(notificationType === "REVOKE"
+            ? { revocationDate: Date.parse("2026-09-29T11:00:00.000Z") }
+            : {}),
+        },
+        renewal: { gracePeriodExpiresDate: Date.parse("2026-10-10T12:00:00.000Z") },
+      }),
+      now: () => NOW,
+    });
+
+    assertEquals(store.row?.status, notificationType === "REVOKE" ? "revoked" : "expired");
+    assertEquals(store.row?.expires_at, "2026-09-29T12:00:00.000Z");
+  }
 });
 
 Deno.test("notification and transaction environments must match", async () => {

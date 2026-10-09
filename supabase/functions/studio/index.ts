@@ -33,6 +33,7 @@ import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.t
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { serverError } from "../_shared/errors.ts";
+import { hasActivePremiumSubscription } from "../_shared/premium.ts";
 import type {
   ImageGenerationProvider,
   StudioGarment,
@@ -282,29 +283,10 @@ function depsFor(req: Request) {
     generateRateLimiter,
     statusRateLimiter,
     now: () => new Date(),
-    hasActivePremiumSubscription: (nowIso: string) =>
-      hasActivePremiumSubscription(supabase, nowIso),
+    hasActivePremiumSubscription: (userID: string, nowIso: string) =>
+      hasActivePremiumSubscription(supabase, userID, nowIso),
     freeStudioTrialGenerations: 1,
   };
-}
-
-const PREMIUM_STATUSES = new Set(["trialing", "active", "in_grace_period", "in_billing_retry"]);
-
-async function hasActivePremiumSubscription(
-  supabase: SupabaseClient,
-  nowIso: string,
-): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("subscriptions")
-    .select("status, expires_at");
-  if (error) {
-    return false;
-  }
-  const rows = (data ?? []) as Array<{ status: string; expires_at: string | null }>;
-  return rows.some((row) =>
-    PREMIUM_STATUSES.has(row.status) &&
-    (row.expires_at === null || row.expires_at > nowIso)
-  );
 }
 
 Deno.serve(createRouter("studio", [

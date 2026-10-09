@@ -29,7 +29,6 @@ public struct OutfitBuilderView: View {
     public init(viewModel: OutfitBuilderViewModel) {
         _viewModel = State(wrappedValue: viewModel)
     }
-
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AstraSpacing.xl) {
@@ -125,81 +124,9 @@ public struct OutfitBuilderView: View {
     }
 
     private var recommendationsSection: some View {
-        VStack(alignment: .leading, spacing: AstraSpacing.md) {
-            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                Text("Outfits from your closet")
-                    .astraText(.title2)
-                    .foregroundStyle(AstraColor.textPrimary)
-                Text("Get three ideas using pieces you already own, then choose one to edit.")
-                    .astraText(.callout)
-                    .foregroundStyle(AstraColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button {
-                Task { await viewModel.generateClosetRecommendations() }
-            } label: {
-                if viewModel.isLoadingRecommendations {
-                    ProgressView().tint(AstraColor.accentChampagneAccessible)
-                } else {
-                    Text(viewModel.recommendations.isEmpty ? "Get three outfit ideas" : "Try three new ideas")
-                }
-            }
-            .buttonStyle(.astraSecondary)
-            .disabled(viewModel.isLoadingRecommendations)
-            .accessibilityIdentifier("outfitBuilder.generateRecommendations")
-
-            if let recommendationError = viewModel.recommendationError {
-                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
-                    Text(recommendationError)
-                        .astraText(.body)
-                        .foregroundStyle(AstraColor.textSecondary)
-                        .accessibilityIdentifier("outfitBuilder.recommendationError")
-                    Button("Try again") {
-                        Task { await viewModel.generateClosetRecommendations() }
-                    }
-                    .buttonStyle(.astraTertiary)
-                    .accessibilityIdentifier("outfitBuilder.retryRecommendations")
-                }
-            }
-
-            ForEach(viewModel.recommendations) { recommendation in
-                recommendationCard(recommendation)
-            }
+        OutfitBuilderRecommendationsSection(viewModel: viewModel) {
+            router.presentModal(.paywall(context: .outfitGenerationLimit))
         }
-        .padding(.horizontal, AstraSpacing.pagePadding)
-    }
-
-    private func recommendationCard(_ recommendation: OutfitRecommendation) -> some View {
-        let ownedItems = recommendation.itemIDs.compactMap { id in viewModel.closetItems.first { $0.id == id } }
-        let isSelected = viewModel.selectedRecommendationID == recommendation.id
-        return AstraCard {
-            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-                Text(recommendation.name)
-                    .astraText(.headline)
-                    .foregroundStyle(AstraColor.textPrimary)
-                if !recommendation.reason.isEmpty {
-                    Text(recommendation.reason)
-                        .astraText(.caption)
-                        .foregroundStyle(AstraColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Text(ownedItems.map(\.name).joined(separator: " · "))
-                    .astraText(.caption)
-                    .foregroundStyle(AstraColor.textMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("outfitBuilder.recommendationItems.\(recommendation.id.uuidString.lowercased())")
-                Button(isSelected ? "Selected for editing" : "Choose this outfit") {
-                    viewModel.selectRecommendation(recommendation)
-                }
-                .buttonStyle(.astraTertiary)
-                .disabled(isSelected)
-                .accessibilityIdentifier("outfitBuilder.chooseRecommendation.\(recommendation.id.uuidString.lowercased())")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("outfitBuilder.recommendation.\(recommendation.id.uuidString.lowercased())")
     }
 
     private var nameField: some View {
@@ -328,8 +255,131 @@ public struct OutfitBuilderView: View {
     }
 }
 
+private struct OutfitBuilderRecommendationsSection: View {
+    let viewModel: OutfitBuilderViewModel
+    let onUpgrade: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.md) {
+            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                Text("Outfits from your closet")
+                    .astraText(.title2)
+                    .foregroundStyle(AstraColor.textPrimary)
+                Text("Get three ideas using pieces you already own, then choose one to edit.")
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                Task { await viewModel.generateClosetRecommendations() }
+            } label: {
+                if viewModel.isLoadingRecommendations {
+                    ProgressView().tint(AstraColor.accentChampagneAccessible)
+                } else {
+                    Text(viewModel.recommendations.isEmpty ? "Get three outfit ideas" : "Try three new ideas")
+                }
+            }
+            .buttonStyle(.astraSecondary)
+            .disabled(viewModel.isLoadingRecommendations)
+            .accessibilityIdentifier("outfitBuilder.generateRecommendations")
+
+            if let quota = viewModel.generationQuota {
+                OutfitGenerationQuotaNotice(quota: quota, onUpgrade: onUpgrade)
+            }
+
+            if let recommendationError = viewModel.recommendationError {
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    Text(recommendationError)
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .accessibilityIdentifier("outfitBuilder.recommendationError")
+                    Button("Try again") {
+                        Task { await viewModel.generateClosetRecommendations() }
+                    }
+                    .buttonStyle(.astraTertiary)
+                    .accessibilityIdentifier("outfitBuilder.retryRecommendations")
+                }
+            }
+
+            ForEach(viewModel.recommendations) { recommendation in
+                recommendationCard(recommendation)
+            }
+        }
+        .padding(.horizontal, AstraSpacing.pagePadding)
+    }
+
+    private func recommendationCard(_ recommendation: OutfitRecommendation) -> some View {
+        let ownedItems = recommendation.itemIDs.compactMap { id in viewModel.closetItems.first { $0.id == id } }
+        let isSelected = viewModel.selectedRecommendationID == recommendation.id
+        return AstraCard {
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                Text(recommendation.name)
+                    .astraText(.headline)
+                    .foregroundStyle(AstraColor.textPrimary)
+                if !recommendation.reason.isEmpty {
+                    Text(recommendation.reason)
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(ownedItems.map(\.name).joined(separator: " · "))
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("outfitBuilder.recommendationItems.\(recommendation.id.uuidString.lowercased())")
+                Button(isSelected ? "Selected for editing" : "Choose this outfit") {
+                    viewModel.selectRecommendation(recommendation)
+                }
+                .buttonStyle(.astraTertiary)
+                .disabled(isSelected)
+                .accessibilityIdentifier("outfitBuilder.chooseRecommendation.\(recommendation.id.uuidString.lowercased())")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("outfitBuilder.recommendation.\(recommendation.id.uuidString.lowercased())")
+    }
+}
+
 extension ClothingCategory: Identifiable {
     public var id: String { rawValue }
+}
+
+// MARK: - Subscription limit
+
+private struct OutfitGenerationQuotaNotice: View {
+    let quota: AstraQuotaDetails
+    let onUpgrade: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+            Text(notice)
+                .astraText(.body)
+                .foregroundStyle(AstraColor.textSecondary)
+                .accessibilityIdentifier("outfitBuilder.generationQuota")
+            Button("Explore Premium", action: onUpgrade)
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("outfitBuilder.generationQuotaUpgrade")
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var notice: String {
+        let count = quota.limitCount ?? 5
+        let reset = quota.resetsAt.flatMap(Self.formattedResetDate) ?? "tomorrow"
+        return String(
+            localized: "You've used your \(count) outfit ideas for today. Your limit resets \(reset).",
+            comment: "Shown when the daily free outfit generation allowance is exhausted"
+        )
+    }
+
+    private static func formattedResetDate(_ value: String) -> String? {
+        let withFractionalSeconds = ISO8601DateFormatter()
+        withFractionalSeconds.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = withFractionalSeconds.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        return date?.formatted(date: .omitted, time: .shortened)
+    }
 }
 
 // MARK: - Error state

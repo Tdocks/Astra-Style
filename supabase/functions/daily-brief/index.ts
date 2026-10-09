@@ -227,12 +227,14 @@ function generateRoute(req: Request): Promise<Response> {
     scorer,
     rateLimiter,
     now: () => new Date(),
-    hasActivePremiumSubscription: (nowIso) => hasActivePremiumSubscription(supabase, nowIso),
+    hasActivePremiumSubscription: (userID, nowIso) =>
+      hasActivePremiumSubscription(supabase, userID, nowIso),
     async countBriefs(userId) {
       void userId;
       const { count, error } = await supabase
         .from("daily_briefs")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId);
       if (error) return Number.MAX_SAFE_INTEGER;
       return count ?? 0;
     },

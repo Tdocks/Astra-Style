@@ -119,7 +119,7 @@ export interface HandlerDeps {
   scorer: OutfitScorer;
   rateLimiter: RateLimiter;
   now: () => Date;
-  hasActivePremiumSubscription?: (nowIso: string) => Promise<boolean>;
+  hasActivePremiumSubscription?: (userID: string, nowIso: string) => Promise<boolean>;
   countBriefs?: (userId: string) => Promise<number>;
 }
 
@@ -282,12 +282,15 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
     }
 
     const premium = deps.hasActivePremiumSubscription
-      ? await deps.hasActivePremiumSubscription(deps.now().toISOString())
+      ? await deps.hasActivePremiumSubscription(userId, deps.now().toISOString())
       : true;
     if (!premium && !refreshingMeasuredContext) {
       const used = deps.countBriefs ? await deps.countBriefs(userId) : 0;
       if (used >= FREE_DAILY_BRIEF_COUNT) {
         throw morningLoopQuotaError(
+          "daily_brief_trial_generation",
+          FREE_DAILY_BRIEF_COUNT,
+          Math.max(0, FREE_DAILY_BRIEF_COUNT - used),
           "You've used your free Daily Briefs. Upgrade to Astra Style Premium for a full brief every morning.",
         );
       }

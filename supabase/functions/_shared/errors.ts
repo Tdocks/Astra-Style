@@ -23,7 +23,8 @@ export type ErrorCategory =
   | "validation"
   | "server"
   | "provider"
-  | "rate_limited";
+  | "rate_limited"
+  | "subscription_limit_reached";
 
 /** Thrown by any layer of a function to signal a specific, typed failure. */
 export class AppError extends Error {
@@ -32,12 +33,14 @@ export class AppError extends Error {
   readonly status: number;
   /** Retry hint for 429 responses produced by a rate limiter. */
   readonly retryAfterSeconds?: number;
+  readonly details?: Record<string, unknown>;
 
   constructor(
     category: ErrorCategory,
     status: number,
     message: string,
     retryAfterSeconds?: number,
+    details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "AppError";
@@ -46,6 +49,7 @@ export class AppError extends Error {
     if (retryAfterSeconds !== undefined && Number.isFinite(retryAfterSeconds)) {
       this.retryAfterSeconds = Math.max(1, Math.ceil(retryAfterSeconds));
     }
+    if (details !== undefined) this.details = details;
   }
 }
 
@@ -79,7 +83,7 @@ export function notFound(message = "Not found."): AppError {
 /** Wire shape of a successful or failed response body. */
 export interface ResponseEnvelope<T> {
   data: T | null;
-  error: { category: ErrorCategory; message: string } | null;
+  error: { category: ErrorCategory; message: string; details?: Record<string, unknown> } | null;
   request_id: string | null;
 }
 
@@ -105,7 +109,11 @@ export function errorResponse(
 ): Response {
   const body: ResponseEnvelope<never> = {
     data: null,
-    error: { category: err.category, message: err.message },
+    error: {
+      category: err.category,
+      message: err.message,
+      ...(err.details ? { details: err.details } : {}),
+    },
     request_id: requestId,
   };
   return new Response(JSON.stringify(body), {

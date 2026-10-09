@@ -47,6 +47,7 @@ public struct AstraResponseEnvelope<Payload: Decodable & Sendable>: Decodable, S
 public struct AstraServerErrorPayload: Decodable, Sendable {
     public let category: String
     public let message: String
+    public let details: AstraQuotaDetails?
 
     public func asAstraError(statusCode: Int?, requestID: String?) -> AstraError {
         let mappedCategory: AstraError.Category
@@ -56,9 +57,16 @@ public struct AstraServerErrorPayload: Decodable, Sendable {
         case "validation": mappedCategory = .validation
         case "provider": mappedCategory = .provider
         case "rate_limited": mappedCategory = .rateLimited
+        case "subscription_limit_reached": mappedCategory = .subscriptionLimitReached
         default: mappedCategory = .server
         }
-        return AstraError(category: mappedCategory, message: message, underlyingStatusCode: statusCode, requestID: requestID)
+        return AstraError(
+            category: mappedCategory,
+            message: message,
+            underlyingStatusCode: statusCode,
+            requestID: requestID,
+            quotaDetails: details
+        )
     }
 }
 
