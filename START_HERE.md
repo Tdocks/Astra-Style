@@ -25,18 +25,20 @@ current brief.
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 26 (2026-10-08)
+## Current internal release — build 27 (2026-10-08)
 
-Version **1.0.0 (26)** is VALID and IN_BETA_TESTING in Internal
-(build ID `10d90f34-93ed-4818-b2ce-9508fb360010`), with group membership
-and en-US testing notes verified. Includes guest-local path safeguards,
-laundry/wear insight refresh, optional scanner fallback wiring, cutout reuse,
-save/dismissal cleanup guards and offline garment/photo record preservation.
-Closet v20 and the reservation ledger are deployed. Server background-removal
-fallback remains disabled pending provider setup and acceptance. Ambiguous-save
-reconciliation, offline image rendering, hosted account-link interruption,
-real-device and full accessibility acceptance remain open.
-External review is unsubmitted; the public group still uses build 11.
+Version **1.0.0 (27)** is VALID and IN_BETA_TESTING in Internal
+(build ID `b460317e-1ace-4b5b-95f1-397c45cb97cf`), with group membership
+and en-US testing notes verified. Includes offline closet archive/laundry
+queueing, surfaced durable enqueue failures, scanner save retry IDs, Home
+manual-selection fallback and Fahrenheit context, owned inspiration-image
+Kyra conversation context, and photo-reference export round trips.
+Seventy focused native tests passed. Hosted export pagination/owner isolation
+and invalid-image authorization checks passed. Scanner restart recovery,
+offline remote photo bytes and reopened-chat visual context are newer work.
+Server background-removal fallback remains disabled. Real-device/provider,
+full accessibility and legal acceptance remain open. External review is
+unsubmitted; the public group still uses build 11.
 
 ## Previous internal release — build 24 (2026-10-08)
 
