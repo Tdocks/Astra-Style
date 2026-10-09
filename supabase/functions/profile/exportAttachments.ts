@@ -19,13 +19,18 @@ export function extractExportedStorageReferences(
 
   const paths = new Set<string>();
   const add = (candidate: unknown, pattern: RegExp): void => {
-    if (typeof candidate === "string" && pattern.test(candidate)) paths.add(candidate);
+    if (typeof candidate === "string" && pattern.test(candidate)) {
+      paths.add(candidate);
+    }
   };
   const rows = (table: string): Record<string, unknown>[] => (tables[table] ?? []).filter(isRecord);
 
   for (const row of rows("profiles")) {
     if (row["id"] !== owner) continue;
-    add(row["avatar_storage_path"], new RegExp(`^users/${owner}/avatars/${UUID}\\.jpg$`));
+    add(
+      row["avatar_storage_path"],
+      new RegExp(`^users/${owner}/avatars/${UUID}\\.jpg$`),
+    );
   }
 
   // Current scanner uploads use a flat UUID filename; older documented paths
@@ -36,14 +41,21 @@ export function extractExportedStorageReferences(
   const closetCutout = new RegExp(
     `^users/${owner}/closet/(?:${UUID}-cutout|${UUID})\\.png$`,
   );
+  const closetThumbnail = new RegExp(
+    `^users/${owner}/closet/(?:${UUID}/)?${UUID}(?:-cutout)?\\.thumb\\.(?:jpg|png)$`,
+  );
   for (const row of rows("closet_item_images")) {
     if (row["user_id"] !== owner) continue;
     add(row["storage_path"], closetSource);
     add(row["background_removed_path"], closetCutout);
+    add(row["thumbnail_storage_path"], closetThumbnail);
+    add(row["background_removed_thumbnail_path"], closetThumbnail);
   }
 
   const referencePath = new RegExp(`^users/${owner}/references/${UUID}\\.jpg$`);
-  const studioResultPath = new RegExp(`^users/${owner}/studio/${UUID}/result\\.png$`);
+  const studioResultPath = new RegExp(
+    `^users/${owner}/studio/${UUID}/result\\.png$`,
+  );
   for (const row of rows("studio_generations")) {
     if (row["user_id"] !== owner) continue;
     add(row["reference_image_path"], referencePath);

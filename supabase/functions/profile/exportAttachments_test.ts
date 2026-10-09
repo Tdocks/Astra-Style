@@ -15,6 +15,10 @@ Deno.test("extracts deterministic unique owner paths for supported photo rows", 
       storage_path: `users/${OWNER}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg`,
       background_removed_path:
         `users/${OWNER}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb-cutout.png`,
+      thumbnail_storage_path:
+        `users/${OWNER}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.thumb.jpg`,
+      background_removed_thumbnail_path:
+        `users/${OWNER}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb-cutout.thumb.png`,
     }],
     studio_generations: [{
       user_id: OWNER,
@@ -24,9 +28,12 @@ Deno.test("extracts deterministic unique owner paths for supported photo rows", 
   };
 
   const result = extractExportedStorageReferences(tables, OWNER);
-  assertEquals(result, [...result].sort((a, b) => a.path.localeCompare(b.path)));
-  assertEquals(result.length, 5);
-  assertEquals(new Set(result.map((item) => item.path)).size, 5);
+  assertEquals(
+    result,
+    [...result].sort((a, b) => a.path.localeCompare(b.path)),
+  );
+  assertEquals(result.length, 7);
+  assertEquals(new Set(result.map((item) => item.path)).size, 7);
   assertEquals(result.every((item) => item.bucket === "user-content"), true);
 });
 
@@ -41,6 +48,22 @@ Deno.test("includes legacy nested closet paths and deduplicates references", () 
   }, OWNER);
 
   assertEquals(result, [{ bucket: "user-content", path }]);
+});
+
+Deno.test("exports only canonical owner-scoped thumbnail sibling paths", () => {
+  const source = `users/${OWNER}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg`;
+  const thumb = `users/${OWNER}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.thumb.jpg`;
+  const result = extractExportedStorageReferences({
+    closet_item_images: [{
+      user_id: OWNER,
+      storage_path: source,
+      thumbnail_storage_path: thumb,
+      background_removed_thumbnail_path:
+        `users/${OTHER}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb-cutout.thumb.png`,
+    }],
+  }, OWNER);
+
+  assertEquals(result.map((item) => item.path), [source, thumb]);
 });
 
 Deno.test("includes on-device cutouts stored under their own UUID PNG path", () => {
