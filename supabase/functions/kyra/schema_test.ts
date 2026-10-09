@@ -198,3 +198,27 @@ Deno.test("kyraResponseSchema names every required top-level field", () => {
     "confidence",
   ]);
 });
+
+Deno.test("builder fields are additive, bounded, and unavailable to generic chat", () => {
+  const base = { text: "Finish the outfit", attachments: [] };
+  const legacy = parseKyraRespondBody(base);
+  assertEquals(legacy.lockedClosetItemIDs, []);
+  assertEquals(legacy.outfitBuilderCompletion, false);
+  assertEquals(
+    parseKyraRespondBody({
+      ...base,
+      locked_closet_item_ids: [VALID_UUID],
+      outfit_builder_completion: true,
+    }).lockedClosetItemIDs,
+    [VALID_UUID],
+  );
+  assertThrows(() => parseKyraRespondBody({ ...base, locked_closet_item_ids: [VALID_UUID] }));
+  assertThrows(() => parseKyraRespondBody({ ...base, outfit_builder_completion: "true" }));
+  assertThrows(() =>
+    parseKyraRespondBody({
+      ...base,
+      locked_closet_item_ids: [VALID_UUID, VALID_UUID],
+      outfit_builder_completion: true,
+    })
+  );
+});

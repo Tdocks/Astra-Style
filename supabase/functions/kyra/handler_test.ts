@@ -4,6 +4,7 @@ import type {
   StylistCompletionResult,
 } from "../_shared/providers/stylistReasoning.ts";
 import { ProviderError } from "../_shared/providers/types.ts";
+import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
 import { handleKyraRespond, type HandlerDeps, type KyraStore } from "./handler.ts";
 import type { PackingRepository } from "../packing/plan.ts";
 
@@ -1100,4 +1101,73 @@ Deno.test("preview proposals with unavailable items, consent or resolution canno
     assertEquals(recording.assistantMessages[0]?.structuredPayload.cards, []);
     assert(!recording.assistantMessages[0]?.content.includes("uses one preview"));
   }
+});
+
+Deno.test("handler binds builder locks and owned-only policy from the authenticated request", async () => {
+  const recording = emptyRecording();
+  const top = "00000000-0000-4000-8000-000000000101";
+  const bottom = "00000000-0000-4000-8000-000000000102";
+  const shoes = "00000000-0000-4000-8000-000000000103";
+  const competingTop = "00000000-0000-4000-8000-000000000104";
+  const rows: ClosetItemMapperRow[] = [
+    top,
+    competingTop,
+    bottom,
+    shoes,
+  ].map((id, index) => ({
+    id,
+    category: index < 2 ? "top" : index === 2 ? "bottom" : "shoes",
+    primary_color: "navy",
+    secondary_colors: [],
+    pattern: "solid",
+    material: [],
+    fit: "regular",
+    seasonality: [],
+    formality_score: 50,
+    warmth_score: 40,
+    water_resistance_score: 20,
+    laundry_state: "clean",
+    availability_state: "available",
+  }));
+  const inserted: Array<{ items: readonly { closetItemId: string | null; role: string }[] }> = [];
+  const store = fakeStore(recording, {
+    listItemsByIds: (ids) => Promise.resolve(rows.filter((row) => ids.includes(row.id))),
+    insertOutfit: (_ownerID, record) => {
+      inserted.push(record);
+      return Promise.resolve("ffffffff-0000-4000-8000-000000000091");
+    },
+  });
+  const provider = scriptedProvider([
+    {
+      kind: "result",
+      result: {
+        finishReason: "tool_calls",
+        toolCalls: [{
+          id: "builder_call",
+          name: "create_outfit",
+          arguments: {
+            item_ids: [competingTop, bottom, shoes],
+            reason: "The locked top anchors the look.",
+          },
+        }],
+      },
+    },
+    { kind: "result", result: { message: goodJson() } },
+  ]);
+
+  const response = await handleKyraRespond(
+    request({
+      text: "Finish the outfit.",
+      locked_closet_item_ids: [top],
+      outfit_builder_completion: true,
+    }),
+    deps(provider, store),
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(inserted.length, 1);
+  assertEquals(
+    inserted[0]?.items.filter((item) => item.role === "top").map((item) => item.closetItemId),
+    [top],
+  );
 });

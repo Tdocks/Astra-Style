@@ -58,6 +58,11 @@ export interface CreateOutfitDeps {
   /** Inserts the outfit and its items; returns the new outfit id. */
   insertOutfit(record: NewOutfitRecord): Promise<string>;
   readWardrobeGraph(): Promise<WardrobeGraphId>;
+  /** IDs fixed by the authenticated builder context, never model supplied. */
+  readonly lockedItemIDs?: readonly string[];
+  /** Builder completion cannot introduce products the user does not own. */
+  readonly allowProductCandidates?: boolean;
+  readonly requireReason?: boolean;
 }
 
 export interface CreateOutfitArgs {
@@ -141,21 +146,56 @@ export async function executeCreateOutfit(
   args: CreateOutfitArgs,
   deps: CreateOutfitDeps,
 ): Promise<Record<string, unknown>> {
-  if (args.itemIds.length === 0) {
+  if (deps.allowProductCandidates === false && args.productCandidateIds.length > 0) {
+    return {
+      error: "OWNED_ITEMS_ONLY",
+      detail: "Builder completion can use owned closet items only.",
+    };
+  }
+  if (deps.requireReason && !args.reason?.trim()) {
+    return {
+      error: "REASON_REQUIRED",
+      detail: "Provide a short styling reason for the completed outfit.",
+    };
+  }
+
+  const requiredIDs = deps.lockedItemIDs ?? [];
+  const requestedIDs = [...new Set([...args.itemIds, ...requiredIDs])];
+  if (requestedIDs.length > 12) {
+    return { error: "TOO_MANY_ITEMS", detail: "An outfit can contain at most twelve owned items." };
+  }
+  if (requestedIDs.length === 0) {
     return { error: "ITEM_NOT_FOUND", detail: "item_ids must name at least one closet item." };
   }
 
-  const rows = await deps.listItemsByIds(args.itemIds);
+  const rows = await deps.listItemsByIds(requestedIDs);
   const rowsById = new Map(rows.map((row) => [row.id, row]));
-  const missingIds = args.itemIds.filter((id) => !rowsById.has(id));
+  const missingIds = requestedIDs.filter((id) => !rowsById.has(id));
   if (missingIds.length > 0) {
     // An id the caller does not own resolves to nothing under RLS —
     // deliberately indistinguishable from one that does not exist.
     return { error: "ITEM_NOT_FOUND", missing_item_ids: missingIds };
   }
 
+  // Locked slots are authoritative. Discard any conflicting model garment
+  // for the same role before scoring or persistence; fail closed if the
+  // authenticated builder context itself has duplicate locked roles.
+  const lockedRoles = new Set<string>();
+  for (const id of requiredIDs) {
+    const role = rowsById.get(id)!.category;
+    if (lockedRoles.has(role)) return { error: "CONFLICTING_LOCKED_ROLES" };
+    lockedRoles.add(role);
+  }
+  const selectedIDs = args.itemIds.filter((id) => {
+    return requiredIDs.includes(id) || !lockedRoles.has(rowsById.get(id)!.category);
+  });
+  const finalIDs = [...new Set([...selectedIDs, ...requiredIDs])];
+  if (finalIDs.length > 12) {
+    return { error: "TOO_MANY_ITEMS", detail: "An outfit can contain at most twelve owned items." };
+  }
+
   const scorable: ScorableItem[] = [];
-  for (const id of args.itemIds) {
+  for (const id of finalIDs) {
     const item = mapClosetItemRowToScorableItem(rowsById.get(id)!);
     if (item !== null) scorable.push(item);
   }
@@ -165,7 +205,6 @@ export async function executeCreateOutfit(
   }
 
   const score = scoreOutfit(scorable, { wardrobeGraph });
-
   const items: Array<{
     closetItemId: string | null;
     productCandidateId: string | null;
@@ -173,7 +212,7 @@ export async function executeCreateOutfit(
     sortOrder: number;
   }> = [];
   let sortOrder = 0;
-  for (const id of args.itemIds) {
+  for (const id of finalIDs) {
     const row = rowsById.get(id)!;
     items.push({
       closetItemId: id,
@@ -211,5 +250,6 @@ export async function executeCreateOutfit(
     source: "kyra_suggested",
     reason: args.reason ?? null,
     unmeasured: [...score.degraded],
+    item_ids: finalIDs,
   };
 }

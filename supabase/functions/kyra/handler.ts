@@ -1040,6 +1040,9 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         listItemsByIds: (ids) => deps.store.listItemsByIds(ids),
         insertOutfit: (record) => deps.store.insertOutfit(userId, record),
         readWardrobeGraph: () => deps.store.readWardrobeGraph(),
+        lockedItemIDs: body.lockedClosetItemIDs,
+        allowProductCandidates: !body.outfitBuilderCompletion,
+        requireReason: body.outfitBuilderCompletion,
       },
       getWeather: { weatherSnapshot: body.weatherSnapshot, now: deps.now },
       getSchedule: {

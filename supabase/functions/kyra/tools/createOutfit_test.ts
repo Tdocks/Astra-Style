@@ -10,6 +10,7 @@ import {
 const TOP = "00000000-0000-4000-8000-000000000001";
 const BOTTOM = "00000000-0000-4000-8000-000000000002";
 const SHOES = "00000000-0000-4000-8000-000000000003";
+const COMPETING_TOP = "00000000-0000-4000-8000-000000000004";
 const PRODUCT = "22222222-0000-4000-8000-000000000001";
 const NEW_OUTFIT = "33333333-0000-4000-8000-000000000001";
 
@@ -31,9 +32,17 @@ function mapperRow(id: string, category: string): ClosetItemMapperRow {
   };
 }
 
-const ROWS = [mapperRow(TOP, "top"), mapperRow(BOTTOM, "bottom"), mapperRow(SHOES, "shoes")];
+const ROWS = [
+  mapperRow(TOP, "top"),
+  mapperRow(BOTTOM, "bottom"),
+  mapperRow(SHOES, "shoes"),
+  mapperRow(COMPETING_TOP, "top"),
+];
 
-function deps(captured: NewOutfitRecord[]): CreateOutfitDeps {
+function deps(
+  captured: NewOutfitRecord[],
+  lockedItemIDs: readonly string[] = [],
+): CreateOutfitDeps {
   return {
     listItemsByIds: (ids) => Promise.resolve(ROWS.filter((row) => ids.includes(row.id))),
     insertOutfit: (record) => {
@@ -41,6 +50,7 @@ function deps(captured: NewOutfitRecord[]): CreateOutfitDeps {
       return Promise.resolve(NEW_OUTFIT);
     },
     readWardrobeGraph: () => Promise.resolve("menswear_3_role"),
+    lockedItemIDs,
   };
 }
 
@@ -110,4 +120,43 @@ Deno.test("empty item_ids is rejected before any read", async () => {
   const captured: NewOutfitRecord[] = [];
   const result = await executeCreateOutfit(parseCreateOutfitArgs({}), deps(captured));
   assertEquals(result["error"], "ITEM_NOT_FOUND");
+});
+
+Deno.test("builder preserves the locked garment over a conflicting model role", async () => {
+  const captured: NewOutfitRecord[] = [];
+  const result = await executeCreateOutfit(
+    parseCreateOutfitArgs({
+      item_ids: [COMPETING_TOP, BOTTOM, SHOES],
+      reason: "The locked top anchors the look.",
+    }),
+    { ...deps(captured, [TOP]), allowProductCandidates: false, requireReason: true },
+  );
+  assertEquals(result["item_ids"], [BOTTOM, SHOES, TOP]);
+  assertEquals(
+    captured[0]?.items.filter((item) => item.role === "top").map((item) => item.closetItemId),
+    [TOP],
+  );
+});
+
+Deno.test("builder rejects duplicate locked roles, product slots, and missing reasons", async () => {
+  const captured: NewOutfitRecord[] = [];
+  const duplicateRoles = await executeCreateOutfit(
+    parseCreateOutfitArgs({ item_ids: [BOTTOM, SHOES], reason: "Keep the locks." }),
+    { ...deps(captured, [TOP, COMPETING_TOP]), requireReason: true },
+  );
+  const product = await executeCreateOutfit(
+    {
+      ...parseCreateOutfitArgs({ item_ids: [TOP, BOTTOM, SHOES], reason: "Reason." }),
+      productCandidateIds: [PRODUCT],
+    },
+    { ...deps(captured), allowProductCandidates: false, requireReason: true },
+  );
+  const noReason = await executeCreateOutfit(
+    parseCreateOutfitArgs({ item_ids: [TOP, BOTTOM, SHOES] }),
+    { ...deps(captured), allowProductCandidates: false, requireReason: true },
+  );
+  assertEquals(duplicateRoles["error"], "CONFLICTING_LOCKED_ROLES");
+  assertEquals(product["error"], "OWNED_ITEMS_ONLY");
+  assertEquals(noReason["error"], "REASON_REQUIRED");
+  assertEquals(captured, []);
 });

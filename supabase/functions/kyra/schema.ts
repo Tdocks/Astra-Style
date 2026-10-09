@@ -83,6 +83,9 @@ export interface KyraRespondRequestBody {
   readonly weatherSnapshot: WeatherSnapshot | null;
   /** Count and locally inferred formality only; event details stay on device. */
   readonly scheduleSnapshot: KyraScheduleSnapshot | null;
+  /** Builder-only required items. Absent on older/generic chat clients. */
+  readonly lockedClosetItemIDs: string[];
+  readonly outfitBuilderCompletion: boolean;
 }
 
 export interface WeatherSnapshot {
@@ -218,6 +221,18 @@ function parseAttachments(raw: unknown): KyraAttachment[] {
   });
 }
 
+/** Parses the authenticated builder's fixed closet IDs, never arbitrary paths. */
+function parseLockedClosetItemIDs(raw: unknown): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw) || raw.length > 12 || !raw.every(isUUID)) {
+    throw badRequest("body.locked_closet_item_ids must contain at most twelve UUIDs.");
+  }
+  if (new Set(raw).size !== raw.length) {
+    throw badRequest("body.locked_closet_item_ids must not contain duplicates.");
+  }
+  return raw;
+}
+
 /** Parses and validates the `body` object of `POST /kyra/respond`. */
 export function parseKyraRespondBody(rawBody: unknown): KyraRespondRequestBody {
   if (!isRecord(rawBody)) {
@@ -227,12 +242,23 @@ export function parseKyraRespondBody(rawBody: unknown): KyraRespondRequestBody {
   if (text === undefined || text.trim().length === 0) {
     throw badRequest("body.text must be a non-empty string.");
   }
+  const lockedClosetItemIDs = parseLockedClosetItemIDs(rawBody["locked_closet_item_ids"]);
+  const rawBuilderCompletion = rawBody["outfit_builder_completion"];
+  if (rawBuilderCompletion !== undefined && typeof rawBuilderCompletion !== "boolean") {
+    throw badRequest("body.outfit_builder_completion must be a boolean.");
+  }
+  const outfitBuilderCompletion = rawBuilderCompletion === true;
+  if (lockedClosetItemIDs.length > 0 && !outfitBuilderCompletion) {
+    throw badRequest("Locked closet items are only valid for builder completion.");
+  }
   return {
     threadId: optionalUUID(rawBody["thread_id"], "body.thread_id"),
     text: text.trim(),
     attachments: parseAttachments(rawBody["attachments"]),
     weatherSnapshot: parseWeatherSnapshot(rawBody["weather_snapshot"]),
     scheduleSnapshot: parseScheduleSnapshot(rawBody["schedule_snapshot"]),
+    lockedClosetItemIDs,
+    outfitBuilderCompletion,
   };
 }
 
