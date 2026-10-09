@@ -57,6 +57,17 @@ struct ReceiptCaptureViewModelTests {
         #expect(await repository.uploadedPaths.isEmpty)
     }
 
+    @Test("An ambiguous dollar currency never inherits the device currency")
+    func ambiguousCurrency() async throws {
+        let model = ReceiptCaptureViewModel(recognizer: MockLabelTextRecognizer(lines: ["Example Shop", "Total $50.00"]), repository: MockClosetRepository(), currentUserID: { SampleData.userID })
+        await model.recognize(try imageData())
+        let form = try #require(model.form)
+        #expect(form.pricePaid == Decimal(50))
+        #expect(form.currency.isEmpty)
+        form.currency = "CAD"
+        #expect(form.currency == "CAD")
+    }
+
     @Test("Unreadable text keeps the manual form available")
     func emptyTextCanBeEdited() async throws {
         let model = ReceiptCaptureViewModel(recognizer: MockLabelTextRecognizer(), repository: MockClosetRepository(), currentUserID: { SampleData.userID })

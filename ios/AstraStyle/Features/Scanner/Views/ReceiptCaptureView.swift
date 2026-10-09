@@ -10,6 +10,23 @@ struct ReceiptCaptureView: View {
     @State private var loadError: String?
     @Environment(\.dismiss) private var dismiss
 
+    private func receiptForm(_ form: ClosetItemFormViewModel) -> some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.md) {
+            Text("Confirm currency").astraText(.headline)
+            Text("A dollar sign can mean several currencies. Enter the three-letter code for this purchase, such as USD or CAD.")
+                .astraText(.caption)
+            TextField("Currency code", text: Binding(
+                get: { form.currency },
+                set: { form.currency = String($0.uppercased().filter(\.isLetter).prefix(3)) }
+            ))
+            .textInputAutocapitalization(.characters)
+            .autocorrectionDisabled()
+            .astraText(.body)
+            .accessibilityIdentifier("scanner.receipt.currency")
+            ClosetItemFormView(viewModel: form)
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AstraSpacing.lg) {
@@ -39,7 +56,7 @@ struct ReceiptCaptureView: View {
                         if let onDone { onDone() } else { dismiss() }
                     }.buttonStyle(.astraPrimary)
                 } else if let form = viewModel.form {
-                    ClosetItemFormView(viewModel: form)
+                    receiptForm(form)
                 }
             }
             .padding(AstraSpacing.pagePadding)

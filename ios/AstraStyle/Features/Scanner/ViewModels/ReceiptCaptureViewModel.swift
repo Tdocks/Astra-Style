@@ -46,7 +46,7 @@ final class ReceiptCaptureViewModel {
             model.retailer = result.retailer ?? ""
             model.pricePaid = result.total
             model.purchaseDate = result.date
-            if let currency = result.currency { model.currency = currency }
+            if result.total != nil { model.currency = result.currency ?? "" }
             model.showsMoreDetails = true
             model.onSaved = { [weak self] item in self?.savedItem = item }
             form = model
