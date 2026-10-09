@@ -29,6 +29,10 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         return found
     }
 
+}
+
+@MainActor
+extension PersonalStyleFeatureUITests {
     func testReceiptCaptureIsReachableFromCloset() throws {
         launchMockMain()
         app.tapChromeTab("Closet")
@@ -439,5 +443,26 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         ]
         app.launch()
         awaitElement(app.chromeTabBar, "Main tab bar under mock backend")
+    }
+}
+
+@MainActor
+extension PersonalStyleFeatureUITests {
+    func testMirrorCaptureIsReachableFromCloset() throws {
+        launchMockMain()
+        app.tapChromeTab("Closet")
+        let scan = app.buttons["closet.header.scan"]
+        awaitElement(scan, "Closet scan menu")
+        scan.tap()
+        let mirror = app.buttons["Mirror photo"]
+        awaitElement(mirror, "Mirror mode")
+        mirror.tap()
+        awaitElement(app.navigationBars["Mirror photo"], "Mirror capture screen")
+        awaitElement(app.buttons["Choose photo"], "Mirror photo import")
+        awaitElement(app.buttons["Take mirror photo"], "Mirror camera action")
+        let save = app.buttons["Save private reference"]
+        save.scrollIntoView(in: app)
+        awaitElement(save, "Reference save action")
+        XCTAssertFalse(save.isEnabled, "Saving must require a photo and permission")
     }
 }
