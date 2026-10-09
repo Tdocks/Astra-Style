@@ -53,7 +53,12 @@ export function parseEnvelope(raw: unknown): { requestId?: string; body: unknown
   return { requestId, body: raw["body"] };
 }
 
-export type KyraAttachmentType = "photo" | "product_link" | "closet_item" | "outfit";
+export type KyraAttachmentType =
+  | "photo"
+  | "product_link"
+  | "closet_item"
+  | "outfit"
+  | "studio_inspiration";
 
 export interface KyraAttachment {
   readonly type: KyraAttachmentType;
@@ -99,6 +104,7 @@ const ATTACHMENT_TYPES: ReadonlySet<string> = new Set([
   "product_link",
   "closet_item",
   "outfit",
+  "studio_inspiration",
 ]);
 
 /**
@@ -193,7 +199,7 @@ function parseAttachments(raw: unknown): KyraAttachment[] {
     const type = entry["type"];
     if (typeof type !== "string" || !ATTACHMENT_TYPES.has(type)) {
       throw badRequest(
-        `body.attachments[${index}].type must be one of photo, product_link, closet_item, outfit.`,
+        `body.attachments[${index}].type must be one of photo, product_link, closet_item, outfit, studio_inspiration.`,
       );
     }
     const value = entry["value"];
@@ -202,7 +208,10 @@ function parseAttachments(raw: unknown): KyraAttachment[] {
     }
     // Closet-item / outfit references must be resolvable ids; a photo path
     // or product URL is opaque here and validated where it is used.
-    if ((type === "closet_item" || type === "outfit") && !isUUID(value)) {
+    if (
+      (type === "closet_item" || type === "outfit" || type === "studio_inspiration") &&
+      !isUUID(value)
+    ) {
       throw badRequest(`body.attachments[${index}].value must be a UUID for type ${type}.`);
     }
     return { type: type as KyraAttachmentType, value };

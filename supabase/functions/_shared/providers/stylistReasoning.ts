@@ -44,6 +44,8 @@ export interface StylistToolDefinition {
 export interface StylistMessage {
   readonly role: "system" | "user" | "assistant" | "tool";
   readonly content: string;
+  /** Astra-authorized image references; adapters translate these to their native input format. */
+  readonly images?: ReadonlyArray<{ readonly url: string }>;
   /** Present when `role === "tool"`. */
   readonly toolCallId?: string;
   readonly toolCalls?: ReadonlyArray<

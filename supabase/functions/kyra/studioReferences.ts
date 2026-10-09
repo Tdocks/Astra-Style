@@ -8,6 +8,71 @@ export interface StudioReferenceReads {
   hasCurrentConsentReceipt(path: string, termsVersion: string): Promise<boolean>;
 }
 
+export interface CompletedInspirationRow {
+  readonly id: string;
+  readonly user_id: string;
+  readonly status: string;
+  readonly deleted_at: string | null;
+  readonly result_image_path: string | null;
+  readonly prompt_payload: unknown;
+}
+
+export interface StudioInspirationReads {
+  generation(id: string): Promise<CompletedInspirationRow | null>;
+  signedImageURL(path: string): Promise<string | null>;
+}
+
+/** Resolve only an owned, live completed inspiration result to a short-lived image URL. */
+export async function resolveCompletedStudioInspiration(
+  userID: string,
+  generationID: string,
+  reads: StudioInspirationReads,
+  expectedStorageOrigin: string,
+): Promise<{ readonly imageURL: string } | null> {
+  if (!isUUID(userID) || !isUUID(generationID)) return null;
+  const generation = await reads.generation(generationID);
+  const mode = isRecord(generation?.prompt_payload) ? generation.prompt_payload["mode"] : null;
+  const expectedPath =
+    `users/${userID.toLowerCase()}/studio/${generationID.toLowerCase()}/result.png`;
+  if (
+    !generation || generation.id.toLowerCase() !== generationID.toLowerCase() ||
+    generation.user_id.toLowerCase() !== userID.toLowerCase() ||
+    generation.status !== "complete" || generation.deleted_at !== null ||
+    (mode !== "inspiration" && mode !== "closet_inspiration") ||
+    generation.result_image_path !== expectedPath
+  ) return null;
+
+  const imageURL = await reads.signedImageURL(generation.result_image_path);
+  if (!imageURL) return null;
+  let parsedURL: URL;
+  try {
+    parsedURL = new URL(imageURL);
+  } catch {
+    return null;
+  }
+  let expectedOrigin: string;
+  try {
+    expectedOrigin = new URL(expectedStorageOrigin).origin;
+  } catch {
+    return null;
+  }
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(parsedURL.pathname);
+  } catch {
+    return null;
+  }
+  const expectedObjectURLPath = `/storage/v1/object/sign/user-content/${expectedPath}`;
+  return parsedURL.protocol === "https:" && parsedURL.origin === expectedOrigin &&
+      decodedPath === expectedObjectURLPath && parsedURL.searchParams.has("token")
+    ? { imageURL: parsedURL.toString() }
+    : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** A stored filename UUID is the existing reference-photo identity (ADR 0026).
  * A current saved profile path and server-accepted consent receipt are both
  * required. No storage URL or arbitrary path supplied by a model is trusted.
@@ -48,6 +113,30 @@ export function buildStudioReferenceReads(
         .limit(1);
       if (error) throw serverError("Couldn't verify this photo's Studio consent.");
       return (data?.length ?? 0) > 0;
+    },
+  };
+}
+
+export function buildStudioInspirationReads(
+  supabase: SupabaseClient,
+  userID: string,
+): StudioInspirationReads {
+  return {
+    async generation(id) {
+      const { data, error } = await supabase.from("studio_generations")
+        .select("id,user_id,status,deleted_at,result_image_path,prompt_payload")
+        .eq("id", id).eq("user_id", userID).is("deleted_at", null).maybeSingle();
+      if (error) throw serverError("Couldn't verify this Studio image.");
+      return data as CompletedInspirationRow | null;
+    },
+    async signedImageURL(path) {
+      const { data, error } = await supabase.storage.from("user-content").createSignedUrl(
+        path,
+        300,
+      );
+      if (error) return null;
+      const url = data?.signedUrl;
+      return typeof url === "string" ? url : null;
     },
   };
 }

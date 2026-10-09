@@ -41,7 +41,10 @@ No service-role key. RLS with the caller's own JWT covers every table this funct
   "body": {
     "thread_id": null,
     "text": "What should I wear tonight?",
-    "attachments": [{ "type": "closet_item", "value": "<uuid>" }],
+    "attachments": [
+      { "type": "closet_item", "value": "<uuid>" },
+      { "type": "studio_inspiration", "value": "<studio-generation-uuid>" }
+    ],
     "weather_snapshot": { "temperature_high": 21, "temperature_low": 12, "condition": "rain" }
   }
 }
@@ -52,6 +55,15 @@ No service-role key. RLS with the caller's own JWT covers every table this funct
 by design (`daily-brief/README.md`); the `get_weather` tool reads this snapshot or honestly reports
 unavailable. The shipped iOS `KyraRespondBody` does not send it yet; the field is accepted now so
 the client can add it without a server change.
+
+`studio_inspiration` is optional and accepts only a Studio generation UUID (one per message),
+never a storage path or URL. The function verifies that the caller owns a completed, undeleted
+`inspiration` or `closet_inspiration` generation with its canonical result path, then creates a
+five-minute signed URL through the caller-scoped Storage client. Only that URL is passed to the
+stylist provider as image input; it is not written to message text or the context packet. Missing,
+deleted, incomplete, wrong-mode, or unavailable results return 404. The native caller should attach
+the same generation UUID on follow-up turns that still refer to that image; message history stores
+text only.
 
 ## Response
 

@@ -345,6 +345,52 @@ Deno.test("missing Authorization is 401 before any work happens", async () => {
   assertEquals(provider.requests.length, 0);
 });
 
+Deno.test("studio inspiration attachment is owner-resolved and sent as image input", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([{ kind: "result", result: { message: goodJson() } }]);
+  const generationID = "99999999-9999-4999-8999-999999999999";
+  const signedURL =
+    "https://project.supabase.co/storage/v1/object/sign/user-content/result.png?token=secret";
+  const response = await handleKyraRespond(
+    request({
+      text: "Help me refine this generated look.",
+      attachments: [{ type: "studio_inspiration", value: generationID }],
+    }),
+    {
+      ...deps(provider, fakeStore(recording)),
+      resolveStudioInspiration: (userID, id) => {
+        assertEquals(userID, USER);
+        assertEquals(id, generationID);
+        return Promise.resolve(signedURL);
+      },
+    },
+  );
+  assertEquals(response.status, 200);
+  const firstRequest = provider.requests[0];
+  const userMessage = firstRequest?.messages.find((message) => message.role === "user");
+  assertEquals(userMessage?.images, [{ url: signedURL }]);
+  assertEquals(JSON.stringify(firstRequest?.contextPacket).includes(generationID), true);
+  assertEquals(recording.userMessages[0]?.content.includes(signedURL), false);
+});
+
+Deno.test("unavailable Studio inspiration references are rejected before conversation creation", async () => {
+  const recording = emptyRecording();
+  const provider = scriptedProvider([]);
+  const response = await handleKyraRespond(
+    request({
+      text: "Help me refine this generated look.",
+      attachments: [{ type: "studio_inspiration", value: "99999999-9999-4999-8999-999999999999" }],
+    }),
+    {
+      ...deps(provider, fakeStore(recording)),
+      resolveStudioInspiration: () => Promise.resolve(null),
+    },
+  );
+  assertEquals(response.status, 404);
+  assertEquals(recording.threadsCreated, []);
+  assertEquals(provider.requests, []);
+});
+
 Deno.test("docs/09 §2.1: confidence below threshold retries on Terra; Terra's answer is used outright", async () => {
   const recording = emptyRecording();
   const provider = scriptedProvider([

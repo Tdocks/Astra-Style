@@ -125,7 +125,18 @@ export class LiveStylistProvider implements StylistReasoningProvider {
           );
         }
       } else {
-        input.push({ role: message.role, content: message.content });
+        input.push({
+          role: message.role,
+          content: message.images?.length
+            ? [
+              { type: "input_text", text: message.content },
+              ...message.images.map((image) => ({
+                type: "input_image",
+                image_url: image.url,
+              })),
+            ]
+            : message.content,
+        });
       }
     }
     const body: Record<string, unknown> = {

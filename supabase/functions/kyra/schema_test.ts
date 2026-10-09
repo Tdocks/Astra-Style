@@ -37,11 +37,13 @@ Deno.test("parseKyraRespondBody parses thread, attachments, weather", () => {
     attachments: [
       { type: "closet_item", value: OTHER_UUID },
       { type: "product_link", value: "https://example.com/shirt" },
+      { type: "studio_inspiration", value: VALID_UUID },
     ],
     weather_snapshot: { temperature_high: 21, temperature_low: 12, condition: "rain" },
   });
   assertEquals(parsed.threadId, VALID_UUID);
-  assertEquals(parsed.attachments.length, 2);
+  assertEquals(parsed.attachments.length, 3);
+  assertEquals(parsed.attachments[2], { type: "studio_inspiration", value: VALID_UUID });
   assertEquals(parsed.weatherSnapshot, {
     temperatureHigh: 21,
     temperatureLow: 12,
@@ -56,6 +58,17 @@ Deno.test("parseKyraRespondBody rejects a non-UUID closet_item attachment", () =
       parseKyraRespondBody({
         text: "hi",
         attachments: [{ type: "closet_item", value: "not-a-uuid" }],
+      }),
+    AppError,
+  );
+});
+
+Deno.test("parseKyraRespondBody rejects arbitrary Studio image paths", () => {
+  assertThrows(
+    () =>
+      parseKyraRespondBody({
+        text: "What do you think of this look?",
+        attachments: [{ type: "studio_inspiration", value: "users/me/studio/result.png" }],
       }),
     AppError,
   );

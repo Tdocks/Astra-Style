@@ -46,7 +46,12 @@ import { handleKyraRespond, type KyraConfig } from "./handler.ts";
 import { buildProductServices } from "./productServices.ts";
 import { buildStudioConfirmationStore } from "./studioConfirmations.ts";
 import { buildStudioPreviewServices } from "./studioServices.ts";
-import { buildStudioReferenceReads, listConsentedStudioReferenceIDs } from "./studioReferences.ts";
+import {
+  buildStudioInspirationReads,
+  buildStudioReferenceReads,
+  listConsentedStudioReferenceIDs,
+  resolveCompletedStudioInspiration,
+} from "./studioReferences.ts";
 import { CURRENT_STUDIO_CONSENT_TERMS_VERSION } from "../studio/schema.ts";
 import { buildKyraStore } from "./store.ts";
 import { LiveStylistProvider } from "./liveStylistProvider.ts";
@@ -165,6 +170,15 @@ function kyraRespondRoute(req: Request): Promise<Response> {
   return handleKyraRespond(req, {
     authClient: supabase,
     store: buildKyraStore(supabase),
+    resolveStudioInspiration: async (userID, generationID) => {
+      const reference = await resolveCompletedStudioInspiration(
+        userID,
+        generationID,
+        buildStudioInspirationReads(supabase, userID),
+        env.supabaseUrl,
+      );
+      return reference?.imageURL ?? null;
+    },
     analyzeProduct: buildProductServices(env, authorizationHeader, supabase),
     studio: {
       confirmations: buildStudioConfirmationStore(createServiceRoleClient(env)),

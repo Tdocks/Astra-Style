@@ -214,6 +214,11 @@ export interface KyraStudioServices {
 
 export interface HandlerDeps {
   readonly studio?: KyraStudioServices;
+  /** Resolves an owner-verified completed Studio inspiration to a short-lived private image URL. */
+  readonly resolveStudioInspiration?: (
+    userID: string,
+    generationID: string,
+  ) => Promise<string | null>;
   readonly analyzeProduct?: AnalyzeProductDeps;
   readonly authClient: AuthClient;
   readonly store: KyraStore;
@@ -840,6 +845,23 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
     logger.adoptRequestId(requestId);
     const body: KyraRespondRequestBody = parseKyraRespondBody(envelope.body);
 
+    const inspirationAttachments = body.attachments.filter((attachment) =>
+      attachment.type === "studio_inspiration"
+    );
+    if (inspirationAttachments.length > 1) {
+      throw badRequest("Attach one Studio inspiration image per message.");
+    }
+    let inspirationImageURL: string | null = null;
+    if (inspirationAttachments.length === 1) {
+      const attachment = inspirationAttachments[0];
+      const resolveInspiration = deps.resolveStudioInspiration;
+      if (!attachment || !resolveInspiration) {
+        throw notFound("No available Studio inspiration was found.");
+      }
+      inspirationImageURL = await resolveInspiration(userId, attachment.value);
+      if (!inspirationImageURL) throw notFound("No available Studio inspiration was found.");
+    }
+
     const now = deps.now();
 
     // 2b. P5-KYRA-19: the per-day, per-tier conversation gate. A
@@ -1064,7 +1086,11 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
             JSON.stringify(studioProposal.selection),
         }]
         : []),
-      { role: "user", content: body.text },
+      {
+        role: "user",
+        content: body.text,
+        ...(inspirationImageURL ? { images: [{ url: inspirationImageURL }] } : {}),
+      },
     ];
 
     const outcome = await orchestrateTurn(ctx, baseMessages);

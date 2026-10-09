@@ -96,6 +96,43 @@ Deno.test("terra tier selects the terra model", async () => {
   assertEquals(captured[0]!["model"], "model-terra");
 });
 
+Deno.test("authorized Studio inspiration references become native image input", async () => {
+  const captured: Array<Record<string, unknown>> = [];
+  const live = provider(
+    () =>
+      okResponse({
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: "{}" }] }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }),
+    captured,
+  );
+  await live.complete(
+    request({
+      messages: [{
+        role: "user",
+        content: "Please help me refine this flat lay.",
+        images: [{
+          url:
+            "https://project.supabase.co/storage/v1/object/sign/user-content/users/u/studio/g/result.png?token=x",
+        }],
+      }],
+    }),
+    CTX,
+  );
+
+  const input = captured[0]?.["input"] as Array<Record<string, unknown>>;
+  const userMessage = input.find((entry) => entry["role"] === "user");
+  assertEquals(userMessage?.["content"], [
+    { type: "input_text", text: "Please help me refine this flat lay." },
+    {
+      type: "input_image",
+      image_url:
+        "https://project.supabase.co/storage/v1/object/sign/user-content/users/u/studio/g/result.png?token=x",
+    },
+  ]);
+});
+
 Deno.test("vendor tool_calls parse into Astra-shaped tool calls with JSON arguments", async () => {
   const captured: Array<Record<string, unknown>> = [];
   const live = provider(
