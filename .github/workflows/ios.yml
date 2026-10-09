@@ -251,12 +251,15 @@ jobs:
           set -o pipefail
           # See the build step for why warnings-as-errors is not passed as a
           # build setting. The log-scan step covers test target sources too.
+          # Performance measurements run separately on a controlled simulator
+          # or physical device; shared CI runners cannot establish §20 targets.
           xcodebuild test \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination "id=$ASTRA_SIM_ID" \
             -skipMacroValidation \
             -parallel-testing-enabled NO \
+            -skip-testing:AstraStyleUITests/PerformanceAcceptanceUITests \
             -collect-test-diagnostics never \
             -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
