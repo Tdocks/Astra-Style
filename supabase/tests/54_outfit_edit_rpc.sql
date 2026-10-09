@@ -64,7 +64,7 @@ begin
       '[{"closet_item_id":"d3400000-0000-4000-8000-000000000011","role":"top","sort_order":0}]'
     );
     raise exception 'stale edit unexpectedly succeeded';
-  exception when serialization_failure then
+  exception when sqlstate 'PT409' then
     null;
   end;
   if (select name from public.outfits where id='d3400000-0000-4000-8000-000000000031') <> 'Updated look' then
