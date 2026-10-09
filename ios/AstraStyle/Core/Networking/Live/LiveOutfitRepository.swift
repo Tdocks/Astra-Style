@@ -341,19 +341,21 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
 
 }
 
-private struct GenerateOutfitsBody: Encodable, Sendable {
+struct GenerateOutfitsBody: Encodable, Sendable {
     let occasionID: UUID?
     let naturalLanguageRequest: String?
     let lockedClosetItemIDs: [UUID]
     let excludedClosetItemIDs: [UUID]
     let desiredCount: Int
+    let weatherContext: OutfitWeatherContext?
 
-    init(_ request: OutfitGenerationRequest) {
+    init(_ request: OutfitGenerationRequest, now: Date = .now) {
         occasionID = request.occasionID
         naturalLanguageRequest = request.naturalLanguageRequest
         lockedClosetItemIDs = request.lockedClosetItemIDs
         excludedClosetItemIDs = request.excludedClosetItemIDs
         desiredCount = request.desiredCount
+        weatherContext = OutfitWeatherContext.make(from: request.weatherSnapshot, now: now)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -362,5 +364,6 @@ private struct GenerateOutfitsBody: Encodable, Sendable {
         case lockedClosetItemIDs = "locked_closet_item_ids"
         case excludedClosetItemIDs = "excluded_closet_item_ids"
         case desiredCount = "desired_count"
+        case weatherContext = "weather_context"
     }
 }

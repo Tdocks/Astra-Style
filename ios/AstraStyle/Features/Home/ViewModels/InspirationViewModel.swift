@@ -23,11 +23,15 @@ final class InspirationViewModel: Identifiable {
     private var context = ""
     private var adjustments: [String] = []
     private let container: AppContainer
+    private let weatherService: WeatherService
 
-    init(closetOnly: Bool, container: AppContainer) {
+    init(closetOnly: Bool, container: AppContainer, weatherService: WeatherService? = nil) {
         self.closetOnly = closetOnly
         self.container = container
+        self.weatherService = weatherService ?? container.weatherService
     }
+
+    private var weatherSnapshot: WeatherSnapshot?
 
     var canGenerate: Bool {
         !isPreparing && !isGenerating && !context.isEmpty && (!closetOnly || (!selectedItemIDs.isEmpty && selectedItemIDs.count <= 12))
@@ -51,8 +55,9 @@ final class InspirationViewModel: Identifiable {
                 }
             }
             var summary: [String] = []
-            if container.weatherService.currentAuthorization() == .authorized,
-               let weather = try? await container.weatherService.currentSnapshot() {
+            if weatherService.currentAuthorization() == .authorized,
+               let weather = try? await weatherService.currentSnapshot() {
+                weatherSnapshot = weather
                 // `WeatherSnapshot` is populated in Fahrenheit by
                 // `LiveWeatherService`; keep the unit truthful in the prompt
                 // sent to both image generation and contextual Kyra chat.
@@ -88,7 +93,8 @@ final class InspirationViewModel: Identifiable {
         do {
             let request = OutfitGenerationRequest(
                 naturalLanguageRequest: String(("What should I wear today? Use only my closet. " + context).prefix(500)),
-                desiredCount: 1
+                desiredCount: 1,
+                weatherSnapshot: weatherSnapshot
             )
             let recommendations = try await container.outfitRepository.generateOutfits(request)
             selectedItemIDs = Set(recommendations.first?.itemIDs ?? [])

@@ -352,6 +352,96 @@ extension PersonalStyleFeatureUITests {
         XCTAssertTrue(share.isEnabled)
     }
 
+    func testStudioHighResolutionExportConfirmationAndRecoveryDark() throws {
+        try highResolutionExportConfirmationAndRecovery(lightAccessibility: false)
+    }
+
+    func testStudioHighResolutionExportConfirmationAndRecoveryLightAccessibility() throws {
+        try highResolutionExportConfirmationAndRecovery(lightAccessibility: true)
+    }
+
+    private func highResolutionExportConfirmationAndRecovery(lightAccessibility: Bool) throws {
+        app.launchArguments += ["-astra-test-reference-photo"]
+        if lightAccessibility {
+            app.launchArguments += ["-astra-theme", "light", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        } else {
+            app.launchArguments += ["-astra-theme", "dark"]
+        }
+        launchMockMain()
+        app.tapChromeTab("Studio")
+        let sourceIdentifier = openPhotoSourceEstimate()
+        confirmHighResolutionExport(lightAccessibility: lightAccessibility)
+        assertHighResolutionChildAndReopen(sourceIdentifier: sourceIdentifier, lightAccessibility: lightAccessibility)
+    }
+
+    private func openPhotoSourceEstimate() -> String {
+        let sourceCard = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")
+        ).firstMatch
+        awaitElement(sourceCard, "Completed photo-source estimate")
+        sourceCard.scrollIntoView(in: app)
+        let sourceIdentifier = sourceCard.identifier
+        sourceCard.tap()
+        return sourceIdentifier
+    }
+
+    private func confirmHighResolutionExport(lightAccessibility: Bool) {
+        let export = app.buttons["studio.detail.exportHiRes"]
+        export.scrollIntoView(in: app)
+        awaitElement(export, "High-resolution export action")
+        XCTAssertTrue(export.isHittable, "The export action must remain reachable at the selected text size")
+        export.tap()
+
+        let firstConfirmation = app.alerts["Export a high-resolution estimate?"]
+        awaitElement(firstConfirmation, "Credit and photo-consent confirmation")
+        XCTAssertTrue(firstConfirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "remaining Premium Studio renders")).firstMatch.exists)
+        XCTAssertTrue(firstConfirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "process the original photo again")).firstMatch.exists)
+        XCTAssertTrue(firstConfirmation.buttons["Agree and export"].exists)
+
+        if !lightAccessibility {
+            let confirmationScreenshot = XCTAttachment(screenshot: app.screenshot())
+            confirmationScreenshot.name = "Studio high-resolution confirmation dark"
+            confirmationScreenshot.lifetime = .keepAlways
+            add(confirmationScreenshot)
+
+            firstConfirmation.buttons["Cancel"].tap()
+            XCTAssertFalse(app.staticTexts["High resolution export"].waitForExistence(timeout: 1))
+            export.scrollIntoView(in: app)
+            export.tap()
+            let secondConfirmation = app.alerts["Export a high-resolution estimate?"]
+            awaitElement(secondConfirmation, "Confirmation after cancel")
+            XCTAssertTrue(
+                secondConfirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "one of your 17 remaining")).firstMatch.exists,
+                "Cancelling must not reserve a render"
+            )
+            secondConfirmation.buttons["Agree and export"].tap()
+        } else {
+            XCTAssertTrue(firstConfirmation.buttons["Agree and export"].isHittable)
+            firstConfirmation.buttons["Agree and export"].tap()
+        }
+    }
+
+    private func assertHighResolutionChildAndReopen(sourceIdentifier: String, lightAccessibility: Bool) {
+        let childTitle = app.staticTexts["High resolution export"]
+        awaitElement(childTitle, "Accepted high-resolution child")
+        let image = app.descendants(matching: .any)["studio.detail.exportHiRes.image"]
+        awaitElement(image, "Completed high-resolution image")
+        XCTAssertGreaterThanOrEqual(app.descendants(matching: .any).matching(identifier: "studio.visualEstimateDisclosure").count, 2,
+                                    "Both source and child images must retain the visual-estimate disclosure")
+
+        let resultScreenshot = XCTAttachment(screenshot: app.screenshot())
+        resultScreenshot.name = lightAccessibility ? "Studio high-resolution export light accessibility" : "Studio high-resolution export dark"
+        resultScreenshot.lifetime = .keepAlways
+        add(resultScreenshot)
+
+        app.navigationBars["Estimate"].buttons.element(boundBy: 0).tap()
+        let originalCard = app.buttons[sourceIdentifier]
+        awaitElement(originalCard, "Original estimate remains in the gallery")
+        originalCard.tap()
+        awaitElement(childTitle, "Recovered child when reopening the source detail")
+        XCTAssertFalse(app.buttons["studio.detail.exportHiRes"].exists, "A recovered lineage must not offer a second charged export")
+    }
+
     func testStudioEditImageDescription() throws { try editImageDescription() }
 
     func testStudioEditImageDescriptionLightAccessibility() throws {

@@ -18,19 +18,61 @@ public struct OutfitGenerationRequest: Sendable {
     public var lockedClosetItemIDs: [UUID]
     public var excludedClosetItemIDs: [UUID]
     public var desiredCount: Int
+    public var weatherSnapshot: WeatherSnapshot?
 
     public init(
         occasionID: UUID? = nil,
         naturalLanguageRequest: String? = nil,
         lockedClosetItemIDs: [UUID] = [],
         excludedClosetItemIDs: [UUID] = [],
-        desiredCount: Int = 3
+        desiredCount: Int = 3,
+        weatherSnapshot: WeatherSnapshot? = nil
     ) {
         self.occasionID = occasionID
         self.naturalLanguageRequest = naturalLanguageRequest
         self.lockedClosetItemIDs = lockedClosetItemIDs
         self.excludedClosetItemIDs = excludedClosetItemIDs
         self.desiredCount = desiredCount
+        self.weatherSnapshot = weatherSnapshot
+    }
+}
+
+/// Minimal, privacy-preserving weather context sent to outfit generation.
+/// `observedAt` comes from WeatherKit and is freshness-checked before encode.
+struct OutfitWeatherContext: Encodable, Sendable {
+    let temperatureCelsius: Double
+    let precipitationChance: Double
+    let observedAt: Date
+    let season: Season?
+
+    enum CodingKeys: String, CodingKey {
+        case temperatureCelsius = "temperature_celsius"
+        case precipitationChance = "precipitation_chance"
+        case observedAt = "observed_at"
+        case season
+    }
+
+    static func make(from snapshot: WeatherSnapshot?, now: Date) -> OutfitWeatherContext? {
+        guard let snapshot,
+              let temperature = snapshot.temperatureCelsius,
+              temperature.isFinite, (-90...65).contains(temperature),
+              let precipitation = snapshot.precipitationChance,
+              precipitation.isFinite, (0...1).contains(precipitation),
+              let observedAt = snapshot.observedAt else { return nil }
+
+        let age = now.timeIntervalSince(observedAt)
+        guard age <= 2 * 60 * 60, age >= -5 * 60 else { return nil }
+
+        let validSeason: Season? = switch snapshot.season {
+        case .spring, .summer, .fall, .winter: snapshot.season
+        default: nil
+        }
+        return OutfitWeatherContext(
+            temperatureCelsius: temperature,
+            precipitationChance: precipitation,
+            observedAt: observedAt,
+            season: validSeason
+        )
     }
 }
 

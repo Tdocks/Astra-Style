@@ -16,6 +16,7 @@ public actor MockStudioRepository: StudioRepository {
     private var collectionSaveFailures = 0
     private let quotaExhausted: Bool
     private let monthlyQuotaExhausted: Bool
+    private let monthlyQuotaResetsAt: Date
     private var failFirstGeneration: Bool
     private var retryCount = 0
     private var pendingDeletionCount = 0
@@ -26,6 +27,7 @@ public actor MockStudioRepository: StudioRepository {
     public init(quotaExhausted: Bool = false, monthlyQuotaExhausted: Bool = false, failFirstGeneration: Bool = false, pendingImageDeletionCount: Int = 0, referencePhotoPath: String? = nil, chatPreviewID: UUID? = nil) {
         self.quotaExhausted = quotaExhausted
         self.monthlyQuotaExhausted = monthlyQuotaExhausted
+        self.monthlyQuotaResetsAt = Self.nextUTCMonthBoundary(after: .now)
         self.failFirstGeneration = failFirstGeneration
         self.pendingDeletionCount = max(0, pendingImageDeletionCount)
         if let chatPreviewID {
@@ -118,11 +120,26 @@ public actor MockStudioRepository: StudioRepository {
 
     public func fetchQuota() async throws -> StudioQuota {
         let used = monthlyQuotaExhausted ? 20 : generations.count
-        return StudioQuota(premium: true, limit: 20, used: used, remaining: max(0, 20 - used), resetsAt: Calendar.current.date(byAdding: .month, value: 1, to: .now))
+        return StudioQuota(premium: true, limit: 20, used: used, remaining: max(0, 20 - used), resetsAt: monthlyQuotaResetsAt)
     }
 
     public func fetchGenerations() async throws -> [StudioGeneration] {
         Array(generations.values).sorted { $0.createdAt > $1.createdAt }
+    }
+
+    public func fetchHiResExport(sourceID: UUID) async throws -> StudioGeneration? {
+        guard let source = generations[sourceID], source.userID == SampleData.userID else { return nil }
+        return generations.values
+            .filter { generation in
+                guard generation.userID == source.userID,
+                      case .object(let payload)? = generation.promptPayload,
+                      case .string(let lineageSourceID)? = payload["hi_res_source_generation_id"] else { return false }
+                return lineageSourceID == sourceID.uuidString.lowercased() && !generation.isDeleted
+            }
+            .sorted {
+                $0.createdAt == $1.createdAt ? $0.id.uuidString > $1.id.uuidString : $0.createdAt > $1.createdAt
+            }
+            .first
     }
 
     public func fetchGeneration(id: UUID) async throws -> StudioGeneration {
@@ -186,13 +203,69 @@ public actor MockStudioRepository: StudioRepository {
         retryCount += 1
         generation.status = .queued
         generation.errorMessage = nil
-        generation.promptPayload = .object(["is_retryable_failure": .bool(false)])
+        if case .object(var payload)? = generation.promptPayload,
+           payload["resolution"] == .string("hi_res") {
+            payload["is_retryable_failure"] = .bool(false)
+            generation.promptPayload = .object(payload)
+        } else {
+            generation.promptPayload = .object(["is_retryable_failure": .bool(false)])
+        }
         generations[id] = generation
         return generation
     }
 
+    public func exportHiRes(sourceID: UUID, consent: StudioConsentAttestation?) async throws -> StudioGeneration {
+        guard let source = generations[sourceID], source.userID == SampleData.userID,
+              source.status == .complete, !source.isDeleted, source.resultImagePath != nil else {
+            throw AstraError.validation("This estimate is no longer available for high-resolution export.")
+        }
+        if let existing = try await fetchHiResExport(sourceID: sourceID) { return existing }
+        guard !quotaExhausted, !monthlyQuotaExhausted else {
+            throw AstraError.rateLimited("You've used your monthly Studio render allowance. Try again after it resets.")
+        }
+        let mode: String?
+        if case .object(let payload)? = source.promptPayload, case .string(let value)? = payload["mode"] {
+            mode = value
+        } else {
+            mode = nil
+        }
+        let requiresPhotoConsent = !source.referenceImagePath.isEmpty &&
+            mode != "inspiration" && mode != "closet_inspiration"
+        if requiresPhotoConsent,
+           consent?.acknowledged != true || consent?.termsVersion != StudioConsentTerms.currentVersion {
+            throw AstraError.validation("Confirm the current photo-consent terms before exporting again.")
+        }
+        var payload: [String: AstraJSONValue]
+        if case .object(let sourcePayload)? = source.promptPayload {
+            payload = sourcePayload
+        } else {
+            payload = [:]
+        }
+        payload["resolution"] = .string("hi_res")
+        payload["hi_res_source_generation_id"] = .string(sourceID.uuidString.lowercased())
+        payload["is_retryable_failure"] = .bool(false)
+        let childID = UUID()
+        let child = StudioGeneration(
+            id: childID,
+            userID: source.userID,
+            referenceImagePath: source.referenceImagePath,
+            outfitID: source.outfitID,
+            promptPayload: .object(payload),
+            status: .queued,
+            provider: "preview-provider"
+        )
+        generations[child.id] = child
+        return child
+    }
+
     public func retryCountValue() -> Int {
         retryCount
+    }
+
+    private static func nextUTCMonthBoundary(after date: Date) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar.dateInterval(of: .month, for: date)?.end ?? date
     }
 
     public func deleteGeneration(id: UUID) async throws {

@@ -171,7 +171,7 @@ struct StudioGenerationDetailView: View {
 
     private func highResolutionChildSection(_ child: StudioGeneration) -> some View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-            Text("High-resolution export")
+            Text("High resolution export")
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)
             Text(statusCopy(child.status))

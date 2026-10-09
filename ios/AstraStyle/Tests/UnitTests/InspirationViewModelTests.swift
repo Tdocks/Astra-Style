@@ -60,4 +60,39 @@ struct InspirationViewModelTests {
             #expect(error is AstraError)
         }
     }
+
+    @Test("Inspiration does not fetch weather before permission is granted")
+    func weatherPermissionGate() async {
+        for authorization in [WeatherLocationAuthorization.denied, .notDetermined] {
+            let weather = CountingWeatherService(authorization: authorization)
+            let model = InspirationViewModel(closetOnly: false, container: .preview(), weatherService: weather)
+
+            await model.prepare()
+
+            #expect(weather.snapshotCalls == 0)
+            #expect(model.chatPrompt.contains("Weather unavailable"))
+        }
+    }
+}
+
+private final class CountingWeatherService: WeatherService, @unchecked Sendable {
+    private let lock = NSLock()
+    private let authorization: WeatherLocationAuthorization
+    private var calls = 0
+
+    init(authorization: WeatherLocationAuthorization) {
+        self.authorization = authorization
+    }
+
+    var snapshotCalls: Int {
+        lock.withLock { calls }
+    }
+
+    func currentAuthorization() -> WeatherLocationAuthorization { authorization }
+    func requestLocationPermissionIfNeeded() async -> Bool { false }
+
+    func currentSnapshot() async throws -> WeatherSnapshot {
+        lock.withLock { calls += 1 }
+        return SampleData.weatherSnapshot
+    }
 }

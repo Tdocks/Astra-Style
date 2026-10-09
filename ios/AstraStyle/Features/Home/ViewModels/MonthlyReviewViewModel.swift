@@ -52,10 +52,9 @@ final class MonthlyReviewViewModel {
         async let scoreTask = closetRepository.fetchWardrobeScoreSnapshot()
         let (allItems, wears, scoreSnapshot) = try await (itemsTask, wearsTask, scoreTask)
         let scoreHistory = await saveScoreSnapshot(scoreSnapshot.score, monthStart: interval.start)
-        async let evaluationsTask = shoppingRepository.fetchEvaluations(from: interval.start, to: end)
-        async let purchasesTask = shoppingRepository.fetchPurchased()
-        let evaluations = (try? await evaluationsTask) ?? []
-        let purchases = (try? await purchasesTask) ?? []
+        let purchases = try await shoppingRepository.fetchPurchases(from: interval.start, to: interval.end)
+        let purchaseIDs = Set(purchases.map(\.productCandidateID))
+        let evaluations = try await shoppingRepository.fetchLatestEvaluations(candidateIDs: purchaseIDs)
         return MonthlyReviewData(
             interval: interval,
             items: allItems.filter { !$0.isArchived },
@@ -120,7 +119,7 @@ final class MonthlyReviewViewModel {
     }
 
     private func bestEvaluation(in data: MonthlyReviewData) -> ProductEvaluation? {
-        let purchaseIDs = Set(data.purchases.map(\.id))
+        let purchaseIDs = Set(data.purchases.map(\.productCandidateID))
         return data.evaluations
             .filter { purchaseIDs.contains($0.productCandidateID) }
             .max {
@@ -204,7 +203,7 @@ private struct MonthlyReviewData {
     let items: [ClosetItem]
     let wears: [OutfitWear]
     let evaluations: [ProductEvaluation]
-    let purchases: [ProductCandidate]
+    let purchases: [ProductPurchase]
     let score: WardrobeScore?
     let previousVersatilityScore: Int?
     let didSaveScoreSnapshot: Bool

@@ -36,6 +36,13 @@ public protocol ShoppingRepository: Sendable {
 
     /// Product evaluations made during an inclusive date range.
     func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation]
+
+    /// Tracked purchase events in the half-open interval `[from, to)`.
+    func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase]
+
+    /// The most recent evaluation for each requested candidate, regardless
+    /// of evaluation date. Used to attribute current decisions to purchases.
+    func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation]
     func addToWishlist(candidateID: UUID) async throws
     func removeFromWishlist(candidateID: UUID) async throws
 
@@ -46,4 +53,6 @@ public protocol ShoppingRepository: Sendable {
 
 public extension ShoppingRepository {
     func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation] { [] }
+    func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase] { [] }
+    func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] { [] }
 }

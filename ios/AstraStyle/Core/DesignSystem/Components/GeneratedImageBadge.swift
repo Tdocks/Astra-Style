@@ -22,6 +22,9 @@ public struct GeneratedImageBadge: View {
         Label {
             Text("Visual Estimate")
                 .astraText(.micro)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
         } icon: {
             // A plain dot, matching the badge in the design language. This
             // label states a limitation — that the image is an approximation —
@@ -31,6 +34,10 @@ public struct GeneratedImageBadge: View {
                 .frame(width: 5, height: 5)
         }
         .foregroundStyle(AstraColor.textPrimary)
+        // Keep the pill narrower than a typical detail image at accessibility
+        // sizes so its label wraps with visible trailing room instead of
+        // touching or crossing the capsule edge.
+        .frame(maxWidth: 260, alignment: .leading)
         .padding(.horizontal, AstraSpacing.sm)
         .padding(.vertical, AstraSpacing.xxs)
         .background(.ultraThinMaterial, in: Capsule(style: .continuous))

@@ -100,6 +100,103 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
         }
     }
 
+    public func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase] {
+        guard from < to else { throw AstraError.validation("That purchase period is invalid.") }
+        struct Row: Decodable, Sendable {
+            let productCandidateID: UUID
+            let purchasedAt: Date
+            enum CodingKeys: String, CodingKey {
+                case productCandidateID = "product_candidate_id"
+                case purchasedAt = "purchased_at"
+            }
+        }
+        let owner = try await shoppingUserID()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let lowerBound = formatter.string(from: from)
+        let upperBound = formatter.string(from: to)
+        do {
+            let purchases = try await Self.collectPurchasePages { offset, limit in
+                let rows: [Row] = try await supabase.from("wishlist_items")
+                    .select("product_candidate_id, purchased_at")
+                    .eq("user_id", value: owner)
+                    .gte("purchased_at", value: lowerBound)
+                    .lt("purchased_at", value: upperBound)
+                    // Candidate ID breaks timestamp ties, giving offset
+                    // pagination a deterministic order across pages.
+                    .order("purchased_at", ascending: false)
+                    .order("product_candidate_id", ascending: true)
+                    .range(from: offset, to: offset + limit - 1)
+                    .execute()
+                    .value
+                return rows.map { ProductPurchase(productCandidateID: $0.productCandidateID, purchasedAt: $0.purchasedAt) }
+            }
+            try await verifyActiveShoppingOwner(owner)
+            return purchases
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.network("Couldn't load purchases for this month.")
+        }
+    }
+
+    /// Collects every stable page. Exposed internally so pagination can be
+    /// tested without a live Supabase session or database.
+    static func collectPurchasePages(
+        pageSize: Int = 500,
+        fetchPage: @Sendable (Int, Int) async throws -> [ProductPurchase]
+    ) async throws -> [ProductPurchase] {
+        guard pageSize > 0 else { throw AstraError.validation("That purchase page is invalid.") }
+        var purchases: [ProductPurchase] = []
+        var offset = 0
+        while true {
+            try Task.checkCancellation()
+            let page = try await fetchPage(offset, pageSize)
+            purchases.append(contentsOf: page)
+            if page.count < pageSize { return purchases }
+            offset += page.count
+        }
+    }
+
+    public func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] {
+        guard !candidateIDs.isEmpty else { return [] }
+        let owner = try await shoppingUserID()
+        let candidateChunks = candidateIDs.sorted { $0.uuidString < $1.uuidString }.chunked(into: 100)
+        var latestByCandidate: [UUID: ProductEvaluation] = [:]
+        do {
+            for candidateChunk in candidateChunks {
+                var offset = 0
+                while true {
+                    try Task.checkCancellation()
+                    let rows: [ProductEvaluation] = try await supabase.from("user_product_evaluations")
+                        .select()
+                        .eq("user_id", value: owner)
+                        .in("product_candidate_id", values: candidateChunk)
+                        .order("created_at", ascending: false)
+                        .order("id", ascending: false)
+                        .range(from: offset, to: offset + 499)
+                        .execute()
+                        .value
+                    for evaluation in rows where latestByCandidate[evaluation.productCandidateID] == nil {
+                        latestByCandidate[evaluation.productCandidateID] = evaluation
+                    }
+                    if rows.count < 500 { break }
+                    offset += rows.count
+                }
+            }
+            try await verifyActiveShoppingOwner(owner)
+            return latestByCandidate.values.sorted { $0.productCandidateID.uuidString < $1.productCandidateID.uuidString }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.network("Couldn't load the latest shopping evaluations.")
+        }
+    }
+
     public func addToWishlist(candidateID: UUID) async throws {
         guard let userID = try? await supabase.auth.session.user.id else {
             throw AstraError.auth("Sign in to save items.")
@@ -183,6 +280,26 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
                     ? "Couldn't load purchased items."
                     : "Couldn't load your saved items."
             )
+        }
+    }
+
+    private func shoppingUserID() async throws -> UUID {
+        do { return try await supabase.auth.session.user.id } catch {
+            throw AstraError.auth("Sign in again to load your shopping history.")
+        }
+    }
+
+    private func verifyActiveShoppingOwner(_ expectedOwnerID: UUID) async throws {
+        guard try await shoppingUserID() == expectedOwnerID else {
+            throw AstraError.auth("Your account changed while loading shopping history.")
+        }
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map { start in
+            Array(self[start..<Swift.min(start + size, count)])
         }
     }
 }

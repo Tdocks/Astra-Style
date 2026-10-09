@@ -13,10 +13,13 @@ public actor MockShoppingRepository: ShoppingRepository {
     private var unlocks: [ProductUnlock]
     private var wishlist: Set<UUID> = []
     private var purchased: Set<UUID> = []
+    private var purchaseDates: [UUID: Date] = [:]
     private var evaluationOverride: ProductEvaluation?
     private var evaluations: [ProductEvaluation] = []
     private var extractError: AstraError?
     private var evaluateError: AstraError?
+    private var purchaseHistoryError: AstraError?
+    private var evaluationHistoryError: AstraError?
 
     public init() {
         catalog = [
@@ -76,6 +79,28 @@ public actor MockShoppingRepository: ShoppingRepository {
         evaluateError = error
     }
 
+    public func setPurchaseHistoryError(_ error: AstraError?) {
+        purchaseHistoryError = error
+    }
+
+    public func setEvaluationHistoryError(_ error: AstraError?) {
+        evaluationHistoryError = error
+    }
+
+    public func seedCandidate(_ candidate: ProductCandidate) {
+        if !catalog.contains(where: { $0.id == candidate.id }) { catalog.append(candidate) }
+    }
+
+    public func seedPurchase(candidateID: UUID, purchasedAt: Date) {
+        purchased.insert(candidateID)
+        wishlist.remove(candidateID)
+        purchaseDates[candidateID] = purchasedAt
+    }
+
+    public func seedEvaluation(_ evaluation: ProductEvaluation) {
+        evaluations.append(evaluation)
+    }
+
     public func extractProduct(from url: URL) async throws -> ProductCandidate {
         if let extractError { throw extractError }
         if let existing = catalog.first(where: { $0.canonicalURL == url }) {
@@ -121,6 +146,34 @@ public actor MockShoppingRepository: ShoppingRepository {
         evaluations.filter { $0.createdAt >= from && $0.createdAt <= to }
     }
 
+    public func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase] {
+        if let purchaseHistoryError { throw purchaseHistoryError }
+        guard from < to else { throw AstraError.validation("That purchase period is invalid.") }
+        return purchaseDates.compactMap { candidateID, purchasedAt in
+            guard purchasedAt >= from, purchasedAt < to else { return nil }
+            return ProductPurchase(productCandidateID: candidateID, purchasedAt: purchasedAt)
+        }.sorted {
+            $0.purchasedAt == $1.purchasedAt
+                ? $0.productCandidateID.uuidString < $1.productCandidateID.uuidString
+                : $0.purchasedAt > $1.purchasedAt
+        }
+    }
+
+    public func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] {
+        if let evaluationHistoryError { throw evaluationHistoryError }
+        let matching = evaluations.enumerated()
+            .filter { candidateIDs.contains($0.element.productCandidateID) }
+            .sorted {
+                if $0.element.createdAt != $1.element.createdAt { return $0.element.createdAt > $1.element.createdAt }
+                return $0.offset > $1.offset
+            }
+        var seen: Set<UUID> = []
+        return matching.compactMap { _, evaluation in
+            guard seen.insert(evaluation.productCandidateID).inserted else { return nil }
+            return evaluation
+        }
+    }
+
     public func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {
         guard let candidate = catalog.first(where: { $0.id == id }) else {
             throw AstraError.server("Couldn't load that product.")
@@ -156,5 +209,6 @@ public actor MockShoppingRepository: ShoppingRepository {
     public func markPurchased(candidateID: UUID) async throws {
         purchased.insert(candidateID)
         wishlist.remove(candidateID)
+        purchaseDates[candidateID] = .now
     }
 }
