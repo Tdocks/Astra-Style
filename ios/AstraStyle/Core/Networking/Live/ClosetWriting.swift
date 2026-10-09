@@ -86,7 +86,7 @@ struct SupabaseClosetWriter: ClosetWriting {
 
     func update(_ item: ClosetItem) async throws -> ClosetItem {
         try await supabase.from("closet_items")
-            .update(item)
+            .update(ClosetItemUpdatePayload(item: item))
             .eq("id", value: item.id)
             .select()
             .single()

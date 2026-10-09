@@ -84,7 +84,6 @@ public struct KyraConversationView: View {
                 }
             }
         }
-        .accessibilityIdentifier("kyra.conversation")
     }
 
     @ViewBuilder

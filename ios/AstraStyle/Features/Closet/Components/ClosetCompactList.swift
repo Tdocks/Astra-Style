@@ -44,17 +44,20 @@ import SwiftUI
 struct ClosetCompactList: View {
     private let items: [ClosetItem]
     private let imageURL: (ClosetItem) -> URL?
+    private let fallbackImageURL: (ClosetItem) -> URL?
     private let onRowVisible: (ClosetItem) -> Void
     private let onRowTap: (ClosetItem) -> Void
 
     init(
         items: [ClosetItem],
         imageURL: @escaping (ClosetItem) -> URL?,
+        fallbackImageURL: @escaping (ClosetItem) -> URL? = { _ in nil },
         onRowVisible: @escaping (ClosetItem) -> Void,
         onRowTap: @escaping (ClosetItem) -> Void
     ) {
         self.items = items
         self.imageURL = imageURL
+        self.fallbackImageURL = fallbackImageURL
         self.onRowVisible = onRowVisible
         self.onRowTap = onRowTap
     }
@@ -78,6 +81,7 @@ struct ClosetCompactList: View {
                 ClosetCompactListRow(
                     item: item,
                     imageURL: imageURL(item),
+                    fallbackImageURL: fallbackImageURL(item),
                     onVisible: { onRowVisible(item) },
                     onTap: { onRowTap(item) }
                 )
@@ -92,6 +96,7 @@ struct ClosetCompactList: View {
 private struct ClosetCompactListRow: View {
     let item: ClosetItem
     let imageURL: URL?
+    let fallbackImageURL: URL?
     /// Called each time the row comes on screen, exactly as
     /// `ClosetGridTile.onVisible` is — the view model turns a screenful of
     /// these into one signing request.
@@ -155,6 +160,7 @@ private struct ClosetCompactListRow: View {
     private var thumbnail: some View {
         AstraRemoteImage(
             url: imageURL,
+            fallbackURL: fallbackImageURL,
             aspectRatio: ClosetGridMetrics.tileAspectRatio,
             thumbnail: .listRowThumbnail,
             // `AstraRadius.card` (18 pt) on a 56 pt thumbnail is very

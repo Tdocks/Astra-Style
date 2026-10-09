@@ -64,7 +64,10 @@ struct HomeDestinationView: View {
                     month: month,
                     closetRepository: container.closetRepository,
                     outfitRepository: container.outfitRepository,
-                    shoppingRepository: container.shoppingRepository
+                    shoppingRepository: container.shoppingRepository,
+                    kyraRepository: container.kyraRepository,
+                    summaryCache: container.monthlyReviewSummaryCache,
+                    currentOwnerID: { await container.sessionStore.currentUserID() }
                 )
             )
         case .productDecision(let candidateID):

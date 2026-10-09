@@ -64,6 +64,7 @@ import UIKit
 /// broken. Neither state ever shows one.
 public struct AstraRemoteImage: View {
     private let url: URL?
+    private let fallbackURL: URL?
     private let aspectRatio: CGFloat
     private let thumbnail: ImageDownsampling.ThumbnailSize?
     private let cornerRadius: CGFloat
@@ -100,6 +101,7 @@ public struct AstraRemoteImage: View {
     ///     garment rather than announcing a placeholder.
     public init(
         url: URL?,
+        fallbackURL: URL? = nil,
         aspectRatio: CGFloat,
         thumbnail: ImageDownsampling.ThumbnailSize? = nil,
         cornerRadius: CGFloat = AstraSpacing.cardRadius,
@@ -108,6 +110,7 @@ public struct AstraRemoteImage: View {
         accessibilityDescription: String
     ) {
         self.url = url
+        self.fallbackURL = fallbackURL
         self.aspectRatio = aspectRatio
         self.thumbnail = thumbnail
         self.cornerRadius = cornerRadius
@@ -137,7 +140,7 @@ public struct AstraRemoteImage: View {
             // the task down when the view disappears and restarts it when
             // the URL changes, which is what keeps a fast scroll from
             // leaving dozens of in-flight downloads behind it.
-            .task(id: url) { await load() }
+            .task(id: ImageTaskIdentifier(primary: url, fallback: fallbackURL)) { await load() }
     }
 
     @ViewBuilder
@@ -188,6 +191,7 @@ public struct AstraRemoteImage: View {
 
         let fetched = await AstraRemoteImageLoader.load(
             url: url,
+            fallbackURL: fallbackURL,
             maxPixelSize: maxPixelSize,
             scale: displayScale
         )
@@ -207,34 +211,96 @@ public struct AstraRemoteImage: View {
 
 }
 
+private struct ImageTaskIdentifier: Equatable {
+    let primary: URL?
+    let fallback: URL?
+}
+
 /// Shared fetch/decode seam for remote and resolver-provided local file URLs.
 /// URLSession supports both HTTP(S) and file URLs; the latter lets cached
 /// closet bytes use exactly the same downsampling path as signed URLs.
 enum AstraRemoteImageLoader {
+    struct Response: Sendable {
+        let data: Data
+        let statusCode: Int?
+    }
+
+    private enum FetchResult {
+        case image(UIImage)
+        case missing
+        case unavailable
+    }
+
     /// Nonisolated so transfer and image decode stay off the main actor.
-    static func load(url: URL, maxPixelSize: CGFloat?, scale: CGFloat) async -> UIImage? {
+    static func load(
+        url: URL,
+        fallbackURL: URL? = nil,
+        maxPixelSize: CGFloat?,
+        scale: CGFloat,
+        fetchData: (@Sendable (URL) async throws -> Response)? = nil
+    ) async -> UIImage? {
+        switch await loadOnce(url: url, maxPixelSize: maxPixelSize, scale: scale, fetchData: fetchData) {
+        case .image(let image):
+            return image
+        case .missing:
+            guard let fallbackURL else { return nil }
+            if case .image(let image) = await loadOnce(
+                url: fallbackURL,
+                maxPixelSize: maxPixelSize,
+                scale: scale,
+                fetchData: fetchData
+            ) {
+                return image
+            }
+            return nil
+        case .unavailable:
+            return nil
+        }
+    }
+
+    private static func loadOnce(
+        url: URL,
+        maxPixelSize: CGFloat?,
+        scale: CGFloat,
+        fetchData: (@Sendable (URL) async throws -> Response)?
+    ) async -> FetchResult {
         do {
-            let data: Data
-            if url.isFileURL {
-                data = try Data(contentsOf: url, options: .mappedIfSafe)
+            let response: Response
+            if let fetchData {
+                response = try await fetchData(url)
+            } else if url.isFileURL {
+                response = Response(data: try Data(contentsOf: url, options: .mappedIfSafe), statusCode: nil)
             } else {
-                let (responseData, response) = try await URLSession.shared.data(from: url)
-                if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                    return nil
-                }
-                data = responseData
+                let (data, urlResponse) = try await URLSession.shared.data(from: url)
+                let statusCode = (urlResponse as? HTTPURLResponse)?.statusCode
+                response = Response(data: data, statusCode: statusCode)
+            }
+            if let statusCode = response.statusCode, !(200..<300).contains(statusCode) {
+                return isMissingObject(statusCode: statusCode, body: response.data) ? .missing : .unavailable
             }
             // A signed URL that has expired comes back as a well-formed 400
             // with a JSON body, which `UIImage(data:)` would turn into nil
             // several lines later and with no explanation. Network status is
             // checked before decode; local files have no HTTP response.
-            guard let maxPixelSize else { return UIImage(data: data) }
-            return ImageDownsampling.downsample(data: data, to: maxPixelSize, scale: scale)
+            let image = maxPixelSize.map {
+                ImageDownsampling.downsample(data: response.data, to: $0, scale: scale)
+            } ?? UIImage(data: response.data)
+            return image.map(FetchResult.image) ?? .unavailable
         } catch {
             // Includes `URLError.cancelled`; the caller distinguishes that
             // case with `Task.isCancelled` rather than by inspecting errors.
-            return nil
+            return .unavailable
         }
+    }
+
+    private static func isMissingObject(statusCode: Int, body: Data) -> Bool {
+        if statusCode == 404 { return true }
+        guard statusCode == 400,
+              let payload = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            return false
+        }
+        return String(describing: payload["statusCode"] ?? "") == "404" &&
+            (payload["error"] as? String) == "not_found"
     }
 }
 

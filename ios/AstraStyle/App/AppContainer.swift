@@ -75,6 +75,7 @@ public final class AppContainer {
 
     public let outfitRepository: OutfitRepository
     public let kyraRepository: KyraRepository
+    public let monthlyReviewSummaryCache: MonthlyReviewSummaryCaching
     public let studioRepository: StudioRepository
     public let studioEstimateExporter: StudioEstimateExporting
     public let shoppingRepository: ShoppingRepository
@@ -118,6 +119,7 @@ public final class AppContainer {
         closetImageURLResolver: ClosetImageURLResolving,
         outfitRepository: OutfitRepository,
         kyraRepository: KyraRepository,
+        monthlyReviewSummaryCache: MonthlyReviewSummaryCaching = InMemoryMonthlyReviewSummaryCache(),
         studioRepository: StudioRepository,
         studioEstimateExporter: StudioEstimateExporting = LiveStudioEstimateExporter(),
         shoppingRepository: ShoppingRepository,
@@ -145,6 +147,7 @@ public final class AppContainer {
         self.closetImageURLResolver = closetImageURLResolver
         self.outfitRepository = outfitRepository
         self.kyraRepository = kyraRepository
+        self.monthlyReviewSummaryCache = monthlyReviewSummaryCache
         self.studioRepository = studioRepository
         self.studioEstimateExporter = studioEstimateExporter
         self.shoppingRepository = shoppingRepository
@@ -270,6 +273,15 @@ extension AppContainer {
         )
     }
 
+    private static func makeLiveAuthRepository(_ dependencies: LiveContainerDependencies) -> LiveAuthRepository {
+        LiveAuthRepository(
+            apiClient: dependencies.apiClient,
+            sessionStore: dependencies.sessionStore,
+            weatherCache: dependencies.weatherService,
+            monthlyReviewCache: SwiftDataMonthlyReviewSummaryCache(modelContainer: dependencies.modelContainer)
+        )
+    }
+
     private static func makeLiveContainer(_ dependencies: LiveContainerDependencies) -> AppContainer {
         let sessionStore = dependencies.sessionStore
         let drainClosetMutations = dependencies.drainClosetMutations
@@ -292,12 +304,13 @@ extension AppContainer {
         )
         return AppContainer(
             sessionStore: dependencies.sessionStore,
-            authRepository: LiveAuthRepository(apiClient: dependencies.apiClient, sessionStore: dependencies.sessionStore, weatherCache: dependencies.weatherService),
+            authRepository: makeLiveAuthRepository(dependencies),
             profileRepository: profileRepository,
             closetRepository: dependencies.closetRepository,
             closetImageURLResolver: dependencies.closetImageURLResolver,
             outfitRepository: outfitRepository,
             kyraRepository: makeLiveKyraRepository(dependencies),
+            monthlyReviewSummaryCache: SwiftDataMonthlyReviewSummaryCache(modelContainer: dependencies.modelContainer),
             studioRepository: LiveStudioRepository(apiClient: dependencies.apiClient),
             shoppingRepository: LiveShoppingRepository(
                 apiClient: dependencies.apiClient,
@@ -465,7 +478,13 @@ extension AppContainer {
         AppContainer(
             sessionStore: dependencies.sessionStore,
             authRepository: MockAuthRepository(sessionStore: dependencies.sessionStore),
-            profileRepository: MockProfileRepository(bodyProfile: dependencies.referenceBody, studioRepository: dependencies.studioRepository),
+            profileRepository: MockProfileRepository(
+                bodyProfile: dependencies.referenceBody,
+                studioRepository: dependencies.studioRepository,
+                initialDNAGenerationFailures: ProcessInfo.processInfo.arguments.contains(
+                    "-astra-test-taste-refinement-dna-fail-once"
+                ) ? 1 : 0
+            ),
             closetRepository: dependencies.closetRepository,
             closetImageURLResolver: dependencies.closetImageURLResolver,
             outfitRepository: dependencies.outfitRepository,

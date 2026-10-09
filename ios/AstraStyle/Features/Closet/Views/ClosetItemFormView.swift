@@ -274,6 +274,7 @@ private extension ClosetItemFormView {
                     select: { viewModel.pattern = $0 }
                 )
                 materialField
+                careInstructionsField
                 secondaryColorField
                 ClosetMultiChoiceChips(
                     label: String(localized: "Seasons", comment: "Closet form field label"),
@@ -391,6 +392,10 @@ private extension ClosetItemFormView {
                 add: { viewModel.toggleMaterial($0); materialDraft = "" }
             )
         }
+    }
+
+    var careInstructionsField: some View {
+        ClosetCareInstructionsField(careInstructions: $viewModel.careInstructions)
     }
 
     var secondaryColorField: some View {

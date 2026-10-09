@@ -326,7 +326,8 @@ public extension OnboardingDraft {
             // different imagery is re-scored against the imagery that build has,
             // instead of carrying a number computed from comparisons that no
             // longer exist.
-            preferenceVector: engine.vector(from: quizAnswers)
+            preferenceVector: engine.vector(from: quizAnswers),
+            preferenceQuizAnswers: quizAnswers.isEmpty ? nil : quizAnswers
         )
     }
 

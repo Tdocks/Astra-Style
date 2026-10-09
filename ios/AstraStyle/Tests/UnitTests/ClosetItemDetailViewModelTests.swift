@@ -95,6 +95,39 @@ struct ClosetItemDetailViewModelTests {
         #expect(detail.heroImage == nil)
     }
 
+    @Test("Item insights report the real count of owner-scoped saved outfits")
+    func savedOutfitCountComesFromInsights() async throws {
+        let item = makeItem()
+        let outfitIDs = [UUID(), UUID(), UUID()]
+        let insights = ClosetItemInsights(
+            redundancyScore: 0,
+            similarItems: [],
+            pairings: [],
+            savedOutfitIds: outfitIDs,
+            replacementReason: nil,
+            missingRedundancyInputs: []
+        )
+        let repository = StubClosetRepository(item: item, insights: insights)
+        let viewModel = makeViewModel(item: item, repository: repository)
+
+        await viewModel.onAppear()
+
+        #expect(viewModel.insights?.savedOutfitIds.count == 3)
+        #expect(viewModel.insightsError == nil)
+    }
+
+    @Test("Unavailable saved-outfit insights do not masquerade as zero outfits")
+    func unavailableOutfitCountRemainsUnavailable() async throws {
+        let item = makeItem()
+        let repository = StubClosetRepository(item: item)
+        let viewModel = makeViewModel(item: item, repository: repository)
+
+        await viewModel.onAppear()
+
+        #expect(viewModel.insights == nil)
+        #expect(viewModel.insightsError != nil)
+    }
+
     @Test("A failure to sign the photo URLs degrades the photographs only — every field still renders, because a Storage outage says nothing about the garment")
     func imageSigningFailureStillLoadsTheItem() async throws {
         let item = makeItem()
@@ -455,18 +488,18 @@ struct ClosetItemDetailCopyTests {
     @Test("The unfilled-detail count reflects the optional §6.15 fields that are genuinely blank, which is what keeps omitted rows from hiding an empty record")
     func unfilledDetailCountTracksBlankFields() {
         let sparse = ClosetItem(id: UUID(), userID: UUID(), name: "Unknown jacket", category: .outerwear)
-        // 14 optional fields, none filled.
-        #expect(ClosetItemDetailCopy.unfilledDetailCount(for: sparse) == 14)
+        // 15 optional fields, including owner-entered care notes, none filled.
+        #expect(ClosetItemDetailCopy.unfilledDetailCount(for: sparse) == 15)
 
         // The fixture fills brand, subcategory and primary colour.
-        #expect(ClosetItemDetailCopy.unfilledDetailCount(for: makeItem()) == 11)
+        #expect(ClosetItemDetailCopy.unfilledDetailCount(for: makeItem()) == 12)
     }
 
     @Test("An empty string counts as unfilled, so a brand saved as whitespace-free emptiness does not read as a completed field")
     func emptyStringsCountAsUnfilled() {
         var item = makeItem()
         item.brand = ""
-        #expect(ClosetItemDetailCopy.unfilledDetailCount(for: item) == 12)
+        #expect(ClosetItemDetailCopy.unfilledDetailCount(for: item) == 13)
     }
 }
 
@@ -488,6 +521,7 @@ private actor StubClosetRepository: ClosetRepository {
     private let markWornError: Error?
     private let laundryError: Error?
     private let archiveError: Error?
+    private let insights: ClosetItemInsights?
 
     private(set) var fetchItemCallCount = 0
     private(set) var markWornCallCount = 0
@@ -501,7 +535,8 @@ private actor StubClosetRepository: ClosetRepository {
         fetchError: Error? = nil,
         markWornError: Error? = nil,
         laundryError: Error? = nil,
-        archiveError: Error? = nil
+        archiveError: Error? = nil,
+        insights: ClosetItemInsights? = nil
     ) {
         self.item = item
         self.images = images
@@ -509,10 +544,16 @@ private actor StubClosetRepository: ClosetRepository {
         self.markWornError = markWornError
         self.laundryError = laundryError
         self.archiveError = archiveError
+        self.insights = insights
     }
 
     func fetchItems() async throws -> [ClosetItem] {
         item.isArchived ? [] : [item]
+    }
+
+    func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {
+        guard let insights else { throw AstraError.server("Insights unavailable") }
+        return insights
     }
 
     func fetchItem(id: UUID) async throws -> ClosetItem {

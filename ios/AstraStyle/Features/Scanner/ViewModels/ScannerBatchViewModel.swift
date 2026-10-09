@@ -280,7 +280,7 @@ public final class ScannerBatchViewModel {
         for (index, candidate) in candidates.enumerated() {
             do {
                 let path = try await dependencies.closetRepository
-                    .uploadCapturedImage(candidate.capture.prepared.data)
+                    .uploadClosetCaptureImage(candidate.capture.prepared.data)
                 uploaded.append(Uploaded(
                     id: candidate.id,
                     capture: candidate.capture,

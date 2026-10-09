@@ -92,17 +92,31 @@ struct GuestAuthTests {
         #expect(GuestLocalImageStore.jpegData(for: path) == data)
     }
 
+    @Test("Guest thumbnail is stored beside its source and removed with it")
+    func guestThumbnailLifecycle() throws {
+        let owner = UUID()
+        let source = try GuestLocalImageStore.save(Data([0xFF, 0xD8, 0xFF, 0xD9]), userID: owner)
+        let thumbBytes = Data([1, 2, 3, 4])
+        let thumbPath = try GuestLocalImageStore.saveThumbnail(thumbBytes, for: source, userID: owner)
+        #expect(GuestLocalImageStore.fileURL(for: thumbPath) != nil)
+        #expect(GuestLocalImageStore.jpegData(for: thumbPath) == thumbBytes)
+        try GuestLocalImageStore.delete(source)
+        #expect(GuestLocalImageStore.jpegData(for: source) == nil)
+        #expect(GuestLocalImageStore.jpegData(for: thumbPath) == nil)
+    }
+
     @Test("Migration finds a local cutout after its source is already remote")
     func migrationFindsCutoutOnly() {
         let owner = UUID()
         let path = "guest-local/\(owner.uuidString.lowercased())/22222222-2222-4222-8222-222222222222.png"
         let image = ClosetItemImage(id: UUID(), closetItemID: UUID(), imageType: .front,
                                     storagePath: "users/remote.jpg", backgroundRemovedPath: path)
-        let fields = GuestImageMigrationPaths.localFields(for: image, ownerID: owner)
+        let fields = GuestImageMigrationPaths.localImages(for: image, ownerID: owner)
         #expect(fields.count == 1)
-        #expect(fields.first?.0 == "background_removed_path")
-        #expect(fields.first?.1 == path)
-        #expect(GuestImageMigrationPaths.localFields(for: image, ownerID: UUID()).isEmpty)
+        #expect(fields.first?.sourceField == "background_removed_path")
+        #expect(fields.first?.sourcePath == path)
+        #expect(fields.first?.thumbnailField == "background_removed_thumbnail_path")
+        #expect(GuestImageMigrationPaths.localImages(for: image, ownerID: UUID()).isEmpty)
     }
 
     @Test("Local photo resolution rejects traversal and malformed filenames")

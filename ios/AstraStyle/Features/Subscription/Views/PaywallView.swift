@@ -54,22 +54,25 @@ struct PaywallView: View {
     }
 
     private var hero: some View {
-        ZStack(alignment: .bottomLeading) {
-            AstraMarble()
-                .frame(height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
-            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                Text(viewModel.headline)
-                    .astraText(.title2)
-                    .foregroundStyle(AstraColor.textOnAccent)
-                Text(viewModel.subhead)
-                    .astraText(.callout)
-                    .foregroundStyle(AstraColor.textOnAccent)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(AstraSpacing.md)
+        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+            Text(viewModel.headline)
+                .astraText(.title2)
+                .foregroundStyle(AstraColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(viewModel.subhead)
+                .astraText(.callout)
+                .foregroundStyle(AstraColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(AstraSpacing.md)
+        .frame(maxWidth: .infinity, minHeight: 180, alignment: .bottomLeading)
+        .background {
+            AstraMarble()
+                .clipShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
+        }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("paywall.hero")
+        .astraOnMarble()
     }
 
     private var plans: some View {

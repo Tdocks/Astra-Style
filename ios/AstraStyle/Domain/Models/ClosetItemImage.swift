@@ -15,6 +15,11 @@ public struct ClosetItemImage: Identifiable, Codable, Hashable, Sendable {
     public var imageType: ClosetImageType
     public var storagePath: String
     public var backgroundRemovedPath: String?
+    /// Small owner-private display rendition. `nil` on legacy rows; closet
+    /// grids do not substitute a remote original for a missing thumbnail.
+    public var thumbnailStoragePath: String?
+    /// PNG rendition of a transparent cutout, when a cutout is available.
+    public var backgroundRemovedThumbnailPath: String?
     public var isPrimary: Bool
 
     /// Free-form server analysis output (detected category confidence,
@@ -28,6 +33,8 @@ public struct ClosetItemImage: Identifiable, Codable, Hashable, Sendable {
         imageType: ClosetImageType,
         storagePath: String,
         backgroundRemovedPath: String? = nil,
+        thumbnailStoragePath: String? = nil,
+        backgroundRemovedThumbnailPath: String? = nil,
         isPrimary: Bool = false,
         analysisMetadata: AstraJSONValue? = nil
     ) {
@@ -36,6 +43,8 @@ public struct ClosetItemImage: Identifiable, Codable, Hashable, Sendable {
         self.imageType = imageType
         self.storagePath = storagePath
         self.backgroundRemovedPath = backgroundRemovedPath
+        self.thumbnailStoragePath = thumbnailStoragePath
+        self.backgroundRemovedThumbnailPath = backgroundRemovedThumbnailPath
         self.isPrimary = isPrimary
         self.analysisMetadata = analysisMetadata
     }
@@ -46,6 +55,8 @@ public struct ClosetItemImage: Identifiable, Codable, Hashable, Sendable {
         case imageType = "image_type"
         case storagePath = "storage_path"
         case backgroundRemovedPath = "background_removed_path"
+        case thumbnailStoragePath = "thumbnail_storage_path"
+        case backgroundRemovedThumbnailPath = "background_removed_thumbnail_path"
         case isPrimary = "is_primary"
         case analysisMetadata = "analysis_metadata"
     }
@@ -71,5 +82,39 @@ public struct ClosetItemImage: Identifiable, Codable, Hashable, Sendable {
 
     public var displayStoragePath: String {
         backgroundRemovedPath ?? storagePath
+    }
+
+    /// The grid-size path, falling back to the existing source/cutout on
+    /// legacy rows. `AstraRemoteImage` decodes that fallback at tile size.
+    public func gridThumbnailStoragePath(preferringCutout: Bool) -> String? {
+        if preferringCutout, let backgroundRemovedPath {
+            return backgroundRemovedThumbnailPath ?? backgroundRemovedPath
+        }
+        return thumbnailStoragePath ?? storagePath
+    }
+
+    /// The full-size path to try once if a known thumbnail object is missing.
+    /// Its URL is signed in the same batch but deliberately not prefetched.
+    public func gridFallbackStoragePath(preferringCutout: Bool) -> String? {
+        if preferringCutout, let backgroundRemovedPath {
+            return backgroundRemovedThumbnailPath == nil ? nil : backgroundRemovedPath
+        }
+        return thumbnailStoragePath == nil ? nil : storagePath
+    }
+}
+
+/// Derives the deterministic private-object sibling used for an image's
+/// downsampled rendition. A UUID-based image stem and `.jpg`/`.png` format
+/// are required so arbitrary paths cannot be converted into upload paths.
+public enum ClosetImageVariantPaths {
+    public static func thumbnail(for sourcePath: String) -> String? {
+        guard let slash = sourcePath.lastIndex(of: "/"),
+              let dot = sourcePath.lastIndex(of: "."), dot > slash else { return nil }
+        let stem = String(sourcePath[sourcePath.index(after: slash)..<dot])
+        let ext = String(sourcePath[sourcePath.index(after: dot)...])
+        let uuidStem = stem.hasSuffix("-cutout") ? String(stem.dropLast("-cutout".count)) : stem
+        guard UUID(uuidString: uuidStem) != nil, uuidStem == uuidStem.lowercased(),
+              ext == "jpg" || ext == "png" else { return nil }
+        return String(sourcePath[..<dot]) + ".thumb." + ext
     }
 }

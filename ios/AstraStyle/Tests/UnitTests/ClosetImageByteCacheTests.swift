@@ -51,7 +51,10 @@ final class ClosetImageByteCacheTests: XCTestCase {
 
         XCTAssertTrue(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + image + ".jpg", ownerID: owner))
         XCTAssertTrue(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + image + "-cutout.png", ownerID: owner))
+        XCTAssertTrue(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + image + ".thumb.jpg", ownerID: owner))
+        XCTAssertTrue(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + image + "-cutout.thumb.png", ownerID: owner))
         XCTAssertTrue(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + item + "/" + image + ".png", ownerID: owner))
+        XCTAssertTrue(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + item + "/" + image + ".thumb.png", ownerID: owner))
         XCTAssertFalse(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + "../" + image + ".png", ownerID: owner))
         XCTAssertFalse(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + "nested/other/" + image + ".png", ownerID: owner))
         XCTAssertFalse(ClosetImageByteCache.isOwnedClosetImagePath(ownerPrefix + image + ".gif", ownerID: owner))
@@ -66,15 +69,19 @@ final class ClosetImageByteCacheTests: XCTestCase {
         let peer = UUID()
         let image = UUID().uuidString.lowercased()
         let path = "users/\(owner.uuidString.lowercased())/closet/\(image).png"
+        let thumbnailPath = "users/\(owner.uuidString.lowercased())/closet/\(image).thumb.png"
 
         try await cache.store(Data([1, 2, 3]), ownerID: owner, storagePath: path)
+        try await cache.store(Data([9, 8]), ownerID: owner, storagePath: thumbnailPath)
         try await cache.store(Data([1, 2, 3, 4]), ownerID: owner, storagePath: "users/\(owner.uuidString.lowercased())/closet/\(UUID().uuidString.lowercased()).png")
         let beforeRemoval = await cache.fileURL(ownerID: owner, storagePath: path)
         XCTAssertNotNil(beforeRemoval)
 
         await cache.removeAll(ownerID: owner)
         let afterRemoval = await cache.fileURL(ownerID: owner, storagePath: path)
+        let thumbnailAfterRemoval = await cache.fileURL(ownerID: owner, storagePath: thumbnailPath)
         XCTAssertNil(afterRemoval)
+        XCTAssertNil(thumbnailAfterRemoval)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(peer.uuidString.lowercased()).path))
     }
 

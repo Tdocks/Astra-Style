@@ -1,4 +1,5 @@
 import Foundation
+import Supabase
 
 extension LiveClosetRepository {
     public func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {
@@ -30,6 +31,30 @@ extension LiveClosetRepository {
         }
         guard let path = result.backgroundRemovedPath else { return nil }
         guard path == expected else { throw AstraError.server("That cutout is unavailable.") }
+        guard let thumbnailPath = ClosetImageVariantPaths.thumbnail(for: path) else {
+            try? await supabase.storage.from("user-content").remove(paths: [path])
+            return nil
+        }
+        do {
+            let cutoutBytes = try await supabase.storage.from("user-content").download(path: path)
+            guard try await supabase.auth.session.user.id == session.user.id else {
+                throw AstraError.auth("Your account changed while preparing that photo.")
+            }
+            let thumbnailBytes = try ClosetImageThumbnailer.thumbnailData(from: cutoutBytes)
+            _ = try await supabase.storage.from("user-content").upload(
+                thumbnailPath,
+                data: thumbnailBytes,
+                options: FileOptions(contentType: "image/png", upsert: true)
+            )
+            guard try await supabase.auth.session.user.id == session.user.id else {
+                throw AstraError.auth("Your account changed while preparing that photo.")
+            }
+        } catch {
+            // Server-produced cutouts are optional presentation assets. Do not
+            // keep one whose small display variant could not be verified.
+            try? await supabase.storage.from("user-content").remove(paths: [path, thumbnailPath])
+            return nil
+        }
         return path
     }
 }

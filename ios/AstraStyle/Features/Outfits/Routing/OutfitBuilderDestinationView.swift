@@ -47,7 +47,9 @@ struct OutfitBuilderDestinationView: View {
                         profileRepository: container.profileRepository,
                         weatherService: container.weatherService,
                         calendarService: container.calendarService
-                    )
+                    ),
+                    kyraRepository: container.kyraRepository,
+                    currentOwnerID: { await container.sessionStore.currentUserID() }
                 )
             )
 

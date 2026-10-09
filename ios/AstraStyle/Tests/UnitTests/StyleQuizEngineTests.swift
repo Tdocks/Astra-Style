@@ -417,3 +417,52 @@ struct StyleQuizEngineSequencingTests {
         }
     }
 }
+
+@Suite("Style quiz — full Profile refinement")
+struct StyleQuizRefinementEngineTests {
+    @Test("First-run default stays three while explicit refinement exhausts catalog")
+    func firstRunAndRefinementHaveSeparateLengths() throws {
+        let dimensions = StyleDimension.allCases
+        let quizCatalog = try catalog((0..<16).map { index in
+            QuizPairSpec(
+                "pair-" + String(index),
+                nil,
+                [(dimensions[index % dimensions.count].rawValue, 1)]
+            )
+        })
+        let firstRun = StyleQuizEngine(catalog: quizCatalog)
+        let refinement = StyleQuizEngine(catalog: quizCatalog, session: .fullRefinement)
+
+        #expect(firstRun.comparisonCount == 3)
+        #expect(refinement.comparisonCount == 16)
+        #expect(refinement.comparisons.contains { $0.probedDimensions.contains(.silhouette) })
+    }
+
+    @Test("Refinement never early-stops before all catalog choices are answered")
+    func refinementRequiresEveryAnswer() throws {
+        let quizCatalog = try catalog((0..<16).map { index in
+            let axis = StyleDimension.allCases[index % StyleDimension.allCases.count]
+            return QuizPairSpec("pair-\(index)", nil, [(axis.rawValue, 1)])
+        })
+        let engine = StyleQuizEngine(catalog: quizCatalog, session: .fullRefinement)
+        var answers: [StylePreferenceQuizAnswer] = []
+        for pair in engine.comparisons.prefix(12) {
+            answers = try #require(engine.recording(
+                pairID: pair.id,
+                optionID: StyleQuizPair.noPreferenceOptionID,
+                into: answers
+            ))
+        }
+        #expect(engine.nextComparison(given: answers) != nil)
+        #expect(!engine.isFinished(given: answers))
+        for pair in engine.comparisons.dropFirst(12) {
+            answers = try #require(engine.recording(
+                pairID: pair.id,
+                optionID: StyleQuizPair.noPreferenceOptionID,
+                into: answers
+            ))
+        }
+        #expect(engine.isFinished(given: answers))
+        #expect(engine.vector(from: answers).dimensions.count == StyleDimension.allCases.count)
+    }
+}

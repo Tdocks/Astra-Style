@@ -109,6 +109,7 @@ final class InspirationViewModel: Identifiable {
                 inspirationContext: context,
                 inspirationInstructions: String(adjustments.joined(separator: "; then ").suffix(1500)),
                 adHocItemIDs: closetOnly ? Array(selectedItemIDs).sorted { $0.uuidString < $1.uuidString } : [],
+                variationNonce: lastCompletedJob == nil ? nil : UUID(),
                 hasUserConsent: false
             )
             let initial = try await container.studioRepository.startGeneration(request)

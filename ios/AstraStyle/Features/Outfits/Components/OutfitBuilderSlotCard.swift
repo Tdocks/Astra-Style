@@ -23,11 +23,12 @@ struct OutfitBuilderSlotCard: View {
     let slot: OutfitBuilderSlot
     let onTap: () -> Void
     let onToggleLock: () -> Void
+    @State private var didRecognizeLongPress = false
 
     private static let cardWidth: CGFloat = 132
 
     var body: some View {
-        Button(action: onTap) {
+        Button(action: handleTap) {
             VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                 HStack {
                     Text(slot.category.displayName)
@@ -66,7 +67,13 @@ struct OutfitBuilderSlotCard: View {
             .contentShape(RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
         }
         .buttonStyle(.plain)
-        .onLongPressGesture(perform: onToggleLock)
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.6)
+                .onEnded { _ in
+                    didRecognizeLongPress = true
+                    onToggleLock()
+                }
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(accessibilityLabel))
         .accessibilityHint(Text(accessibilityHint))
@@ -113,6 +120,14 @@ struct OutfitBuilderSlotCard: View {
         slot.isLocked
             ? String(localized: "Unlock", comment: "VoiceOver action: unlocks an outfit builder slot")
             : String(localized: "Lock", comment: "VoiceOver action: locks an outfit builder slot so regenerate leaves it alone")
+    }
+
+    private func handleTap() {
+        guard didRecognizeLongPress else {
+            onTap()
+            return
+        }
+        didRecognizeLongPress = false
     }
 }
 

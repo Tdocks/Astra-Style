@@ -39,6 +39,20 @@ import UIKit
 struct OnboardingQuizView: View {
     @Binding var draft: OnboardingDraft
     let engine: StyleQuizEngine
+    var onAnswer: ((String, String) -> Void)?
+    var onUndo: (() -> Void)?
+
+    init(
+        draft: Binding<OnboardingDraft>,
+        engine: StyleQuizEngine,
+        onAnswer: ((String, String) -> Void)? = nil,
+        onUndo: (() -> Void)? = nil
+    ) {
+        _draft = draft
+        self.engine = engine
+        self.onAnswer = onAnswer
+        self.onUndo = onUndo
+    }
 
     private var currentPair: StyleQuizPair? {
         engine.nextComparison(given: draft.quizAnswers)
@@ -244,6 +258,7 @@ struct OnboardingQuizView: View {
     private var undoButton: some View {
         Button(String(localized: "Undo last choice", comment: "Style quiz: revert the previous answer")) {
             draft.quizAnswers = engine.undoingLastAnswer(in: draft.quizAnswers)
+            onUndo?()
             AstraHaptics.selection()
         }
         .buttonStyle(.astraTertiary)
@@ -260,6 +275,7 @@ struct OnboardingQuizView: View {
             into: draft.quizAnswers
         ) else { return }
         draft.quizAnswers = updated
+        onAnswer?(pair.id, optionID)
         AstraHaptics.selection()
     }
 }

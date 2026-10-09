@@ -127,6 +127,16 @@ public final class LiveKyraRepository: KyraRepository, @unchecked Sendable {
 
     public func send(threadID: UUID?, message: KyraOutgoingMessage) async throws -> KyraMessage {
         let ownerID = try await authenticatedOwnerID()
+        return try await send(threadID: threadID, message: message, expectedOwnerID: ownerID)
+    }
+
+    public func send(
+        threadID: UUID?,
+        message: KyraOutgoingMessage,
+        expectedOwnerID: UUID
+    ) async throws -> KyraMessage {
+        let ownerID = try await authenticatedOwnerID()
+        try Self.validateActiveOwner(expected: expectedOwnerID, actual: ownerID)
         // Read-only and never prompts. The same WeatherService instance feeds
         // Home, so Kyra cannot answer from a different forecast. When location
         // is unavailable the body sends null and the server tool says so.
@@ -236,6 +246,8 @@ struct KyraRespondBody: Encodable, Sendable {
     let attachments: [AttachmentBody]
     let weatherSnapshot: WeatherSnapshot?
     let scheduleSnapshot: ScheduleSnapshot?
+    let lockedClosetItemIDs: [UUID]
+    let outfitBuilderCompletion: Bool
 
     init(
         threadID: UUID?,
@@ -248,6 +260,8 @@ struct KyraRespondBody: Encodable, Sendable {
         self.attachments = message.attachments.map(AttachmentBody.init)
         self.weatherSnapshot = weatherSnapshot
         self.scheduleSnapshot = scheduleSnapshot
+        self.lockedClosetItemIDs = message.lockedClosetItemIDs
+        self.outfitBuilderCompletion = message.isOutfitBuilderCompletion
     }
 
     enum CodingKeys: String, CodingKey {
@@ -256,6 +270,8 @@ struct KyraRespondBody: Encodable, Sendable {
         case attachments
         case weatherSnapshot = "weather_snapshot"
         case scheduleSnapshot = "schedule_snapshot"
+        case lockedClosetItemIDs = "locked_closet_item_ids"
+        case outfitBuilderCompletion = "outfit_builder_completion"
     }
 
     struct AttachmentBody: Encodable, Sendable {

@@ -16,6 +16,11 @@ struct ClosetItemInsightsSection: View {
                     .buttonStyle(.astraSecondary)
             }
             if let insights = viewModel.insights {
+                Text("Included in \(AstraQuantityText.count(insights.savedOutfitIds.count, singular: "outfit", plural: "outfits"))")
+                    .astraText(.body)
+                    .accessibilityIdentifier("closet.item.insights.outfitCount")
+            }
+            if let insights = viewModel.insights {
                 Text("Similarity to your closet: \(insights.redundancyScore)/100").astraText(.headline)
                 Text("Higher means this piece is more similar to another active item in the same category and season. Similarity doesn't mean you should remove it.")
                     .astraText(.caption)

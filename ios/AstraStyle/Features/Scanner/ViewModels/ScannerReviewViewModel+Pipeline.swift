@@ -15,7 +15,7 @@ extension ScannerReviewViewModel {
     func upload(data: Data) async -> AstraError? {
         phase = .uploading
         do {
-            let path = try await closetRepository.uploadCapturedImage(data)
+            let path = try await closetRepository.uploadClosetCaptureImage(data)
             storagePath = path
             var draft = draftStore.draft(id: draftID)
             draft?.storagePath = path

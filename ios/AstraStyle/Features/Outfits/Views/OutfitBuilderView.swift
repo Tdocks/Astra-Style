@@ -52,17 +52,6 @@ public struct OutfitBuilderView: View {
             )
         }
         .alert(
-            Text(String(localized: "Ask Kyra to finish", comment: "Title of the Ask Kyra coming-soon alert")),
-            isPresented: askKyraPresented
-        ) {
-            Button(String(localized: "OK", comment: "Dismisses an alert")) { viewModel.dismissAskKyraState() }
-        } message: {
-            Text(String(
-                localized: "Kyra will be able to pick the rest of this look for you soon. For now, fill in each piece yourself.",
-                comment: "Ask Kyra to finish coming-soon message"
-            ))
-        }
-        .alert(
             Text(String(localized: "That didn't work", comment: "Title of the outfit builder generic action-error alert")),
             isPresented: actionErrorPresented,
             presenting: viewModel.actionError
@@ -109,6 +98,19 @@ public struct OutfitBuilderView: View {
 
             OutfitCompatibilityMeterView(breakdown: viewModel.currentCompatibility)
                 .padding(.horizontal, AstraSpacing.pagePadding)
+
+            if let reason = viewModel.kyraReason {
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    Text(String(localized: "Kyra’s suggestion", comment: "Heading for the reason behind a completed outfit"))
+                        .astraText(.headline)
+                        .foregroundStyle(AstraColor.textPrimary)
+                    Text(reason)
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .accessibilityIdentifier("outfitBuilder.kyraReason")
+                }
+                .padding(.horizontal, AstraSpacing.pagePadding)
+            }
 
             actions
                 .padding(.horizontal, AstraSpacing.pagePadding)
@@ -259,19 +261,28 @@ public struct OutfitBuilderView: View {
             .disabled(viewModel.isRegenerating)
             .accessibilityIdentifier("outfitBuilder.regenerate")
 
-            Button(String(localized: "Ask Kyra to finish", comment: "Outfit builder action: let Kyra fill the remaining slots")) {
-                viewModel.askKyraToFinish()
+            Button {
+                Task { await viewModel.askKyraToFinish() }
+            } label: {
+                if viewModel.askKyraState == .working {
+                    ProgressView().tint(AstraColor.accentChampagneAccessible)
+                } else {
+                    Text(String(localized: "Ask Kyra to finish", comment: "Outfit builder action: let Kyra fill the remaining slots"))
+                }
             }
             .buttonStyle(.astraTertiary)
+            .disabled(viewModel.askKyraState == .working)
             .accessibilityIdentifier("outfitBuilder.askKyra")
 
             AstraButton(
-                title: String(localized: "Save as outfit", comment: "Persists the current outfit builder canvas"),
+                title: viewModel.backingOutfitID == nil
+                    ? String(localized: "Save as outfit", comment: "Creates a saved outfit from the builder canvas")
+                    : String(localized: "Save changes", comment: "Updates the existing outfit without creating another outfit"),
                 isLoading: viewModel.isSaving
             ) {
                 Task { await viewModel.save() }
             }
-            .disabled(viewModel.filledItems.isEmpty)
+            .disabled(viewModel.filledItems.isEmpty || viewModel.askKyraState == .working)
             .accessibilityIdentifier("outfitBuilder.save")
 
             if let savedOutfit = viewModel.savedOutfit {
@@ -305,15 +316,6 @@ public struct OutfitBuilderView: View {
         .padding(.horizontal, AstraSpacing.pagePadding)
         .accessibilityElement()
         .accessibilityLabel(Text(String(localized: "Loading your closet", comment: "Accessibility label for the outfit builder loading state")))
-    }
-
-    private var askKyraPresented: Binding<Bool> {
-        Binding(
-            get: { viewModel.askKyraState == .comingSoon },
-            set: { isPresented in
-                if !isPresented { viewModel.dismissAskKyraState() }
-            }
-        )
     }
 
     private var actionErrorPresented: Binding<Bool> {

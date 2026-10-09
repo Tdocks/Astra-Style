@@ -35,6 +35,10 @@ public actor InMemoryClosetItemCache: ClosetItemCaching {
         itemsByID[item.id] = item
     }
 
+    public func removeAll(for userID: UUID) async throws {
+        itemsByID = itemsByID.filter { $0.value.userID != userID }
+    }
+
     public func archive(id: UUID, for userID: UUID, archivedAt: Date) async {
         guard var item = itemsByID[id], item.userID == userID else { return }
         item.archivedAt = archivedAt

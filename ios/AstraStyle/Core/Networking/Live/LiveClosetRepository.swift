@@ -31,7 +31,7 @@
 import Foundation
 import Supabase
 
-public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWriting, @unchecked Sendable {
+public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWriting, ClosetItemCachePurging, @unchecked Sendable {
     // Internal, not private: `LiveClosetRepository+Scan` is an extension in
     // another file, and Swift's `private` is file-scoped.
     let apiClient: AstraAPIClient
@@ -98,6 +98,13 @@ public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWrit
         self.cache = cache
         self.currentUserID = currentUserID
         self.activeItemsFetcher = activeItemsFetcher
+    }
+
+    public func purgeCachedClosetItems(ownerID: UUID) async throws {
+        // Account deletion signs the session out before local purge. The
+        // explicit owner key captured before deletion is therefore the
+        // authority here; the cache filters both item and care sidecar rows.
+        try await cache.removeAll(for: ownerID)
     }
 
     public func fetchItems() async throws -> [ClosetItem] {
@@ -271,22 +278,26 @@ public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWrit
             throw AstraError.server("Couldn't find guest photos to move into your account.")
         }
         for row in rows {
-            // Commit each field separately: a retry must also find cutout-only rows.
-            let paths = GuestImageMigrationPaths.localFields(for: row, ownerID: session.user.id)
-            for (field, localPath) in paths {
-                guard let data = GuestLocalImageStore.jpegData(for: localPath), !data.isEmpty else {
+            // Move an original/cutout and its thumbnail as one metadata update.
+            // uploadCapturedImage creates the remote sibling thumbnail.
+            let localImages = GuestImageMigrationPaths.localImages(for: row, ownerID: session.user.id)
+            for image in localImages {
+                guard let data = GuestLocalImageStore.jpegData(for: image.sourcePath), !data.isEmpty else {
                     throw AstraError.server("A closet photo is missing from this device.")
                 }
-                let remotePath = try await uploadCaptured(imageData: data)
+                let remotePath = try await uploadClosetCaptureImage(data)
+                guard let remoteThumbnail = ClosetImageVariantPaths.thumbnail(for: remotePath) else {
+                    throw AstraError.server("A closet photo thumbnail could not be prepared.")
+                }
                 guard try await supabase.auth.session.user.id == session.user.id else {
                     throw AstraError.auth("Your account changed while moving closet photos.")
                 }
                 do {
                     try await supabase.from("closet_item_images")
-                        .update([field: remotePath])
+                        .update([image.sourceField: remotePath, image.thumbnailField: remoteThumbnail])
                         .eq("id", value: row.id)
                         .eq("user_id", value: owner)
-                        .eq(field, value: localPath)
+                        .eq(image.sourceField, value: image.sourcePath)
                         .select("id")
                         .single()
                         .execute()
@@ -294,9 +305,11 @@ public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWrit
                     // Keep local bytes on an ambiguous response; don't delete a possibly linked upload.
                     throw AstraError.server("Couldn't attach that photo to your closet after linking.")
                 }
+                if let localThumbnail = ClosetImageVariantPaths.thumbnail(for: image.sourcePath) {
+                    try? GuestLocalImageStore.delete(localThumbnail)
+                }
+                try? GuestLocalImageStore.delete(image.sourcePath)
             }
-            // The source and cutout may reference the same local file.
-            for (_, localPath) in paths { try? GuestLocalImageStore.delete(localPath) }
         }
     }
 

@@ -48,13 +48,11 @@
 //  concludes the app lost, whereas a blank field behind a closed section
 //  is just a field he has not needed yet.
 //
-//  TWO §6.15 FIELDS ARE ABSENT ON PURPOSE. "Care instructions" has no
-//  property on `ClosetItem` and no column in `closet_items`; adding a
-//  `CodingKeys` entry without a migration is exactly what
-//  `scripts/check_column_drift.py` exists to fail, and it would fail
-//  silently at runtime rather than loudly (see that script's header).
-//  "Outfit count" is derived from `outfit_items`, which is Phase 4, and is
-//  not an editable field in any case. Neither is invented here.
+//  CARE INSTRUCTIONS ARE OPTIONAL OWNER-ENTERED TEXT. They are stored as
+//  `care_instructions` and are never guessed from material because fabric
+//  alone cannot establish a garment's cleaning requirements. Outfit count
+//  is read from the existing owner-scoped saved-outfit insights response;
+//  it is derived data, not an editable field.
 //
 //  THE FREE-TIER CAP IS NOT AN ERROR AND IS NOT A DISMISSAL. See
 //  `capReachedDoesNotCloseTheForm` in this file's tests and the note on
@@ -146,6 +144,7 @@ public final class ClosetItemFormViewModel {
     public var secondaryColors: [String]
     public var pattern: GarmentPattern?
     public var material: [String]
+    public var careInstructions: String
     public var seasonality: [Season]
     public var laundryState: LaundryState
     public var availabilityState: AvailabilityState
@@ -220,6 +219,7 @@ public final class ClosetItemFormViewModel {
         secondaryColors = item?.secondaryColors ?? []
         pattern = item?.pattern
         material = item?.material ?? []
+        careInstructions = item?.careInstructions ?? ""
         seasonality = item?.seasonality ?? []
         laundryState = item?.laundryState ?? .clean
         availabilityState = item?.availabilityState ?? .available
@@ -590,6 +590,7 @@ private extension ClosetItemFormViewModel {
             secondaryColors: cleanedSecondaryColors,
             pattern: pattern,
             material: cleanedMaterial,
+            careInstructions: Self.nilIfBlank(careInstructions),
             size: Self.nilIfBlank(size),
             fit: fit,
             condition: condition,
@@ -627,6 +628,7 @@ private extension ClosetItemFormViewModel {
         item.secondaryColors = cleanedSecondaryColors
         item.pattern = pattern
         item.material = cleanedMaterial
+        item.careInstructions = Self.nilIfBlank(careInstructions)
         item.size = Self.nilIfBlank(size)
         item.fit = fit
         item.condition = condition
@@ -669,6 +671,7 @@ private extension ClosetItemFormViewModel {
         !item.secondaryColors.isEmpty
             || item.pattern != nil
             || !item.material.isEmpty
+            || item.careInstructions?.isEmpty == false
             || !item.seasonality.isEmpty
             || item.purchaseDate != nil
             || item.pricePaid != nil

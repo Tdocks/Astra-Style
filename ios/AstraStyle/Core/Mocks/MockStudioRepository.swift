@@ -12,8 +12,10 @@ import Foundation
 public actor MockStudioRepository: StudioRepository {
     private var generations: [UUID: StudioGeneration] = [:]
     private var submittedGenerationRequest: StudioGenerationRequest?
+    private var submittedGenerationRequests: [StudioGenerationRequest] = []
 
     public func lastGenerationRequest() -> StudioGenerationRequest? { submittedGenerationRequest }
+    public func generationRequests() -> [StudioGenerationRequest] { submittedGenerationRequests }
     private var lookbooks: [UUID: StudioLookbook] = [:]
     private var savedGenerationIDs: [UUID: [UUID]] = [:]
     private var collectionSaveFailures = 0
@@ -21,6 +23,7 @@ public actor MockStudioRepository: StudioRepository {
     private let monthlyQuotaExhausted: Bool
     private let monthlyQuotaResetsAt: Date
     private var failFirstGeneration: Bool
+    private var failNextGenerationAttempt = false
     private var retryCount = 0
     private var pendingDeletionCount = 0
 
@@ -152,6 +155,7 @@ public actor MockStudioRepository: StudioRepository {
 
     public func startGeneration(_ request: StudioGenerationRequest) async throws -> StudioGeneration {
         submittedGenerationRequest = request
+        submittedGenerationRequests.append(request)
         guard request.inspirationMode != nil || request.hasUserConsent else {
             throw AstraError.validation("Please confirm you have permission to use this photo before generating a preview.")
         }
@@ -178,8 +182,9 @@ public actor MockStudioRepository: StudioRepository {
 
     public func fetchStatus(generationID: UUID) async throws -> StudioGeneration {
         guard var generation = generations[generationID] else { throw AstraError.server("That generation couldn't be found.") }
-        if failFirstGeneration {
+        if failFirstGeneration || failNextGenerationAttempt {
             failFirstGeneration = false
+            failNextGenerationAttempt = false
             generation.status = .failed
             generation.errorMessage = "The preview service could not finish."
             generation.promptPayload = .object(["is_retryable_failure": .bool(true)])
@@ -264,6 +269,10 @@ public actor MockStudioRepository: StudioRepository {
 
     public func retryCountValue() -> Int {
         retryCount
+    }
+
+    public func failNextGeneration() {
+        failNextGenerationAttempt = true
     }
 
     private static func nextUTCMonthBoundary(after date: Date) -> Date {

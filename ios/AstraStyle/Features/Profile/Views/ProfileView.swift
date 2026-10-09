@@ -46,6 +46,7 @@ public struct ProfileView: View {
                 )
                 styleDNARow
                 preferencesRow
+                tasteRefinementRow
                 profileNavigationRow(
                     title: String(localized: "Notifications", comment: "Profile notifications settings row"),
                     subtitle: String(localized: "Choose which style and closet reminders you receive.", comment: "Profile notifications subtitle"),
@@ -133,6 +134,15 @@ public struct ProfileView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(identifier)
+    }
+
+    private var tasteRefinementRow: some View {
+        profileNavigationRow(
+            title: "Refine your taste",
+            subtitle: "Compare the full set of reference looks to sharpen all eight Style DNA dimensions.",
+            identifier: "profile.tasteRefinementRow",
+            route: .tasteRefinement
+        )
     }
 
     private var appearanceRow: some View {

@@ -51,6 +51,7 @@ import SwiftUI
 struct ClosetColorSpectrum: View {
     private let items: [ClosetItem]
     private let imageURL: (ClosetItem) -> URL?
+    private let fallbackImageURL: (ClosetItem) -> URL?
     private let onTileVisible: (ClosetItem) -> Void
     private let onTileTap: (ClosetItem) -> Void
 
@@ -59,11 +60,13 @@ struct ClosetColorSpectrum: View {
     init(
         items: [ClosetItem],
         imageURL: @escaping (ClosetItem) -> URL?,
+        fallbackImageURL: @escaping (ClosetItem) -> URL? = { _ in nil },
         onTileVisible: @escaping (ClosetItem) -> Void,
         onTileTap: @escaping (ClosetItem) -> Void
     ) {
         self.items = items
         self.imageURL = imageURL
+        self.fallbackImageURL = fallbackImageURL
         self.onTileVisible = onTileVisible
         self.onTileTap = onTileTap
     }
@@ -85,6 +88,7 @@ struct ClosetColorSpectrum: View {
                         ClosetGridTile(
                             item: item,
                             imageURL: imageURL(item),
+                            fallbackImageURL: fallbackImageURL(item),
                             onVisible: { onTileVisible(item) },
                             onTap: { onTileTap(item) }
                         )

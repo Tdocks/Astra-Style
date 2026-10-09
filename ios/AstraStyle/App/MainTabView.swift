@@ -249,9 +249,7 @@ struct MainTabView: View {
             PaywallView(
                 viewModel: PaywallViewModel(
                     context: context,
-                    purchasing: LiveStoreKitPurchasing(appAccountTokenProvider: {
-                        await container.sessionStore.currentUserID()
-                    }),
+                    purchasing: paywallPurchasing(),
                     subscriptionRepository: container.subscriptionRepository
                 )
             )
@@ -284,6 +282,31 @@ struct MainTabView: View {
                 )
             )
         }
+    }
+
+    private func paywallPurchasing() -> any StoreKitPurchasing {
+        #if DEBUG
+        if AstraFeatureFlags.usesMockBackend {
+            return MockStoreKitPurchasing(
+                offerings: [
+                    PaywallOffering(
+                        id: .monthly,
+                        displayName: "Premium Monthly (Test)",
+                        displayPrice: "TEST ONLY — not billed"
+                    ),
+                    PaywallOffering(
+                        id: .annual,
+                        displayName: "Premium Annual (Test)",
+                        displayPrice: "TEST ONLY — not billed"
+                    )
+                ],
+                purchasePayload: nil
+            )
+        }
+        #endif
+        return LiveStoreKitPurchasing(appAccountTokenProvider: {
+            await container.sessionStore.currentUserID()
+        })
     }
 }
 

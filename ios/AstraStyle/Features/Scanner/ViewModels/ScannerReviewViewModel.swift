@@ -333,7 +333,7 @@ extension ScannerReviewViewModel {
         let result: String?
         if let cutout {
             // Upload failure of a usable device mask is not segmentation failure.
-            result = try? await closetRepository.uploadCapturedImage(cutout)
+            result = try? await closetRepository.uploadClosetCaptureImage(cutout)
         } else if !GuestLocalImageStore.isLocal(source) {
             result = try? await closetRepository.removeBackground(storagePath: source)
         } else {

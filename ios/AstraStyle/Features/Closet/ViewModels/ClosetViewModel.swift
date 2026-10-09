@@ -31,19 +31,19 @@
 //  `ClosetFilterOptions`'s header, which argues that call-site decision
 //  in full.
 //
-//  WHY `fetchWardrobeScore()` IS NOT CALLED. The real score is now served
-//  from the authenticated closet Edge Function and shown in Profile. The
-//  Closet overview keeps its local metrics independent of that heavier
-//  server computation; it must not quietly substitute a local estimate.
+//  WHY VERSATILITY IS A SEPARATE METRIC. The real score is served from the
+//  authenticated closet Edge Function and shown in Profile. The overview
+//  reads only the server's versatility component for its Versatility tile;
+//  `ClosetMetrics` stays a pure local calculation and never substitutes a
+//  local estimate for the server-owned score.
 //
 //  DEGRADE A MODULE, NEVER THE SCREEN. That is what
 //  `AstraError.Category.unimplemented` exists for, and this file applies
 //  the rule where it actually bites today: image resolution. If signing
-//  fails — because the feature is missing, because the user is offline,
-//  because one photograph was deleted — the garments, their names, brands
-//  and counts stay on screen and only the photographs are absent, which
-//  `AstraRemoteImage` already renders as a garment with no picture rather
-//  than as a broken one.
+//  fails — because the feature is missing or the user is offline — the
+//  garments, names, brands and counts stay on screen. A legacy row still
+//  resolves its source/cutout for bounded tile downsampling; a missing known
+//  variant gets one signed original fallback without prefetching it.
 //
 //  `fetchItems()` is deliberately NOT given that treatment. It is the
 //  screen's content, not a module beside it, and mapping "this is not
@@ -96,6 +96,13 @@
 
 import Foundation
 import Observation
+
+public enum ClosetVersatilityMetric: Equatable, Sendable {
+    case loading
+    case score(Int, degraded: Bool)
+    case noData
+    case unavailable
+}
 
 @MainActor
 @Observable
@@ -201,11 +208,12 @@ public final class ClosetViewModel {
     }
 
     public private(set) var state: ViewState = .loading
+    public internal(set) var versatilityMetric: ClosetVersatilityMetric = .loading
 
     /// Independent of `state`. Spec §7 keeps a cached closet viewable
     /// offline, so "offline" is a banner over real content, not a
     /// replacement for it.
-    public private(set) var isOffline = false
+    public internal(set) var isOffline = false
 
     /// The header's search field binds straight to this. Narrowing is
     /// client-side against the already-fetched closet — there is no
@@ -228,16 +236,17 @@ public final class ClosetViewModel {
     /// Resolved, displayable image URLs keyed by `ClosetItem.id`. Absent
     /// means "not resolved yet, or this garment has no photograph" —
     /// `AstraRemoteImage` renders both identically and on purpose.
-    public private(set) var imageURLsByItemID: [UUID: URL] = [:]
+    public internal(set) var imageURLsByItemID: [UUID: URL] = [:]
+    public internal(set) var imageFallbackURLsByItemID: [UUID: URL] = [:]
 
     public private(set) var isRefreshing = false
     public private(set) var isResolvingImages = false
 
     // MARK: - Dependencies
 
-    private let closetRepository: ClosetRepository
-    private let imageURLResolver: ClosetImageURLResolving
-    private let networkMonitor: NetworkReachabilityMonitoring
+    let closetRepository: ClosetRepository
+    let imageURLResolver: ClosetImageURLResolving
+    let networkMonitor: NetworkReachabilityMonitoring
 
     /// Who the garment being added belongs to. A closure rather than a
     /// `SessionStore` because that is how this fact already crosses an
@@ -251,7 +260,7 @@ public final class ClosetViewModel {
     /// one. A `nil` here is not silent: `ClosetItemFormViewModel`'s own
     /// `init` logs a warning the moment an add form is built without a
     /// provider.
-    private let currentUserID: (@Sendable () async -> UUID?)?
+    let currentUserID: (@Sendable () async -> UUID?)?
 
     /// Forwarded to the add form so `closet_item_added` (spec §18) is
     /// logged. Never used by this type — see this file's header.
@@ -269,6 +278,7 @@ public final class ClosetViewModel {
     /// Held rather than fired and forgotten so `awaitPendingImageResolution()`
     /// can be a real guarantee instead of a sleep.
     private var imageResolutionTask: Task<Void, Never>?
+    var wardrobeScoreRequestID = UUID()
 
     public init(
         closetRepository: ClosetRepository,
@@ -288,8 +298,10 @@ public final class ClosetViewModel {
 
     public func onAppear() async {
         isOffline = await networkMonitor.isOffline()
-        guard case .loading = state else { return }
-        await load(showingSkeleton: true)
+        if case .loading = state {
+            await load(showingSkeleton: true)
+        }
+        await refreshVersatilityMetric()
     }
 
     /// Reload after something outside this screen changed the closet.
@@ -307,9 +319,11 @@ public final class ClosetViewModel {
     public func reloadAfterExternalChange() async {
         guard case .loading = state else {
             await load(showingSkeleton: false)
+            await refreshVersatilityMetric()
             return
         }
         await load(showingSkeleton: true)
+        await refreshVersatilityMetric()
     }
 
     /// Pull-to-refresh. Deliberately does NOT drop back to the skeleton:
@@ -321,10 +335,12 @@ public final class ClosetViewModel {
         isRefreshing = true
         defer { isRefreshing = false }
         await load(showingSkeleton: false)
+        await refreshVersatilityMetric()
     }
 
     public func retry() async {
         await load(showingSkeleton: true)
+        await refreshVersatilityMetric()
     }
 
     public func clearSearch() {
@@ -400,6 +416,7 @@ public final class ClosetViewModel {
             guard !items.contains(where: { $0.id == item.id }) else { return }
             items.insert(item, at: 0)
             state = .loaded(items)
+            Task { await self.refreshVersatilityMetric() }
 
         case .loading, .failed:
             // There is nothing on screen to fold into — the closet either
@@ -585,6 +602,10 @@ public final class ClosetViewModel {
         imageURLsByItemID[item.id]
     }
 
+    public func imageFallbackURL(for item: ClosetItem) -> URL? {
+        imageFallbackURLsByItemID[item.id]
+    }
+
     /// Whether the grid renders background-removed cut-outs.
     ///
     /// Owned by the view (`@AppStorage("closet.cutouts")`) and pushed down,
@@ -600,6 +621,7 @@ public final class ClosetViewModel {
         didSet {
             guard prefersCutouts != oldValue else { return }
             imageURLsByItemID.removeAll()
+            imageFallbackURLsByItemID.removeAll()
             attemptedImageItemIDs.removeAll()
         }
     }
@@ -653,59 +675,6 @@ public final class ClosetViewModel {
         }
     }
 
-    /// N path lookups, then exactly one signing request.
-    private func resolveImages(forItemIDs itemIDs: Set<UUID>) async {
-        // Captured as a local so the child tasks below capture the
-        // already-`Sendable` repository rather than this `@MainActor`
-        // view model.
-        let repository = closetRepository
-        // Read once on the main actor, for the same reason `repository` is:
-        // the child tasks below must not touch this view model.
-        let prefersCutouts = self.prefersCutouts
-
-        let pathsByItemID = await withTaskGroup(of: (UUID, String?).self, returning: [UUID: String].self) { group in
-            for itemID in itemIDs {
-                group.addTask {
-                    // One garment's images failing must not take the rest
-                    // of the screenful with it — the tile falls back to
-                    // "no photo", which is what the user would see anyway.
-                    let images = (try? await repository.fetchImages(forItem: itemID)) ?? []
-                    let primary = images.first { $0.isPrimary } ?? images.first
-                    return (itemID, primary?.displayStoragePath(preferringCutout: prefersCutouts))
-                }
-            }
-            var collected: [UUID: String] = [:]
-            for await (itemID, path) in group {
-                if let path {
-                    collected[itemID] = path
-                }
-            }
-            return collected
-        }
-
-        guard !pathsByItemID.isEmpty else { return }
-
-        do {
-            // THE batch call. One request for the whole screenful, not one
-            // per tile — see `ClosetImageURLResolving`'s own header for
-            // why the two-method protocol exists.
-            let signed = try await imageURLResolver.resolve(storagePaths: Array(pathsByItemID.values))
-            for (itemID, path) in pathsByItemID {
-                if let url = signed[path] {
-                    imageURLsByItemID[itemID] = url
-                }
-            }
-        } catch {
-            // Signing failing is not the closet failing to load. The
-            // garments, their names, brands and counts are all still on
-            // screen and still correct; only the photographs are missing,
-            // which the tiles already render honestly. Surface it as the
-            // connectivity condition it almost always is rather than
-            // replacing a working screen with an error page.
-            isOffline = await networkMonitor.isOffline()
-        }
-    }
-
     // MARK: - Loading
 
     private func load(showingSkeleton: Bool) async {
@@ -731,6 +700,7 @@ public final class ClosetViewModel {
         imageResolutionTask?.cancel()
         imageResolutionTask = nil
         imageURLsByItemID.removeAll()
+        imageFallbackURLsByItemID.removeAll()
         attemptedImageItemIDs.removeAll()
         pendingImageItemIDs.removeAll()
     }

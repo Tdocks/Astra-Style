@@ -88,9 +88,27 @@ public enum AstraSchemaV5: VersionedSchema {
     }
 }
 
+/// Optional user-authored closet care notes. This adds a sidecar entity and
+/// leaves all V1–V5 model declarations unchanged.
+public enum AstraSchemaV6: VersionedSchema {
+    public static let versionIdentifier = Schema.Version(6, 0, 0)
+    public static var models: [any PersistentModel.Type] {
+        AstraSchemaV5.models + [PersistedClosetCareInstructions.self]
+    }
+}
+
+/// Cached provider-authored Monthly Review summaries are owner-scoped and
+/// keyed by the exact month and facts revision that Kyra received.
+public enum AstraSchemaV7: VersionedSchema {
+    public static let versionIdentifier = Schema.Version(7, 0, 0)
+    public static var models: [any PersistentModel.Type] {
+        AstraSchemaV6.models + [PersistedMonthlyReviewSummary.self]
+    }
+}
+
 public enum AstraSchemaMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
-        [AstraSchemaV1.self, AstraSchemaV2.self, AstraSchemaV3.self, AstraSchemaV4.self, AstraSchemaV5.self]
+        [AstraSchemaV1.self, AstraSchemaV2.self, AstraSchemaV3.self, AstraSchemaV4.self, AstraSchemaV5.self, AstraSchemaV6.self, AstraSchemaV7.self]
     }
 
     public static var stages: [MigrationStage] {
@@ -98,13 +116,15 @@ public enum AstraSchemaMigrationPlan: SchemaMigrationPlan {
             .lightweight(fromVersion: AstraSchemaV1.self, toVersion: AstraSchemaV2.self),
             .lightweight(fromVersion: AstraSchemaV2.self, toVersion: AstraSchemaV3.self),
             .lightweight(fromVersion: AstraSchemaV3.self, toVersion: AstraSchemaV4.self),
-            .lightweight(fromVersion: AstraSchemaV4.self, toVersion: AstraSchemaV5.self)
+            .lightweight(fromVersion: AstraSchemaV4.self, toVersion: AstraSchemaV5.self),
+            .lightweight(fromVersion: AstraSchemaV5.self, toVersion: AstraSchemaV6.self),
+            .lightweight(fromVersion: AstraSchemaV6.self, toVersion: AstraSchemaV7.self)
         ]
     }
 }
 
 public enum AstraModelContainer {
-    public static let schema = Schema(versionedSchema: AstraSchemaV5.self)
+    public static let schema = Schema(versionedSchema: AstraSchemaV7.self)
 
     /// The production, on-disk container.
     public static func live(storeURL: URL? = nil) throws -> ModelContainer {

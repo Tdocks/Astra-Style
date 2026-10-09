@@ -19,6 +19,9 @@ public struct ClosetItem: Identifiable, Codable, Hashable, Sendable {
     public var secondaryColors: [String]
     public var pattern: GarmentPattern?
     public var material: [String]
+    /// Optional, user-entered garment care notes. This is never inferred
+    /// from material because care labels vary by garment and construction.
+    public var careInstructions: String?
     public var size: String?
     public var fit: ItemFit?
     public var condition: ItemCondition?
@@ -55,6 +58,7 @@ public struct ClosetItem: Identifiable, Codable, Hashable, Sendable {
         secondaryColors: [String] = [],
         pattern: GarmentPattern? = nil,
         material: [String] = [],
+        careInstructions: String? = nil,
         size: String? = nil,
         fit: ItemFit? = nil,
         condition: ItemCondition? = nil,
@@ -86,6 +90,7 @@ public struct ClosetItem: Identifiable, Codable, Hashable, Sendable {
         self.secondaryColors = secondaryColors
         self.pattern = pattern
         self.material = material
+        self.careInstructions = careInstructions
         self.size = size
         self.fit = fit
         self.condition = condition
@@ -119,6 +124,7 @@ public struct ClosetItem: Identifiable, Codable, Hashable, Sendable {
         case secondaryColors = "secondary_colors"
         case pattern
         case material
+        case careInstructions = "care_instructions"
         case size
         case fit
         case condition

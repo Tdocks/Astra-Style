@@ -250,6 +250,9 @@ struct ClosetItemPieceSection: View {
                         value: item.material.joined(separator: ", ")
                     )
                 }
+                if let careInstructions = item.careInstructions, !careInstructions.isEmpty {
+                    ClosetItemFieldRow(label: String(localized: "Care instructions", comment: "User-entered garment care notes"), value: careInstructions)
+                }
                 if let pattern = item.pattern {
                     ClosetItemFieldRow(label: String(localized: "Pattern", comment: "Garment field"), value: pattern.displayName)
                 }
@@ -286,6 +289,7 @@ struct ClosetItemPieceSection: View {
         item.brand?.isEmpty == false
             || !colorNames.isEmpty
             || !item.material.isEmpty
+            || item.careInstructions?.isEmpty == false
             || item.pattern != nil
             || item.size?.isEmpty == false
             || item.fit != nil
@@ -302,9 +306,8 @@ struct ClosetItemPieceSection: View {
 /// sentences that make a man do something about a garment, and hiding them
 /// would hide the screen's only real prompt.
 ///
-/// Outfit count is missing from this group and from this build. It needs
-/// `outfit_items`, which is Phase 4; a "0 outfits" row today would be a
-/// confident zero for a table that does not exist.
+/// Outfit count is shown in the insights section once the owner-scoped
+/// saved-outfit lookup completes; this group is reserved for wear state.
 struct ClosetItemWearSection: View {
     let item: ClosetItem
     let isUpdatingLaundryState: Bool

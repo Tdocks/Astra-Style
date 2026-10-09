@@ -101,7 +101,6 @@ extension PersonalStyleFeatureUITests {
         awaitElement(app.navigationBars["Monthly Review"], "Monthly Review screen")
         awaitElement(app.staticTexts["New pieces"], "Monthly Review item count")
         awaitElement(app.staticTexts["Looks worn"], "Monthly Review wear count")
-        awaitElement(app.staticTexts["Your challenge"], "Monthly Review next-month challenge")
         awaitElement(
             app.descendants(matching: .any)["monthlyReview.versatility"],
             "Recorded month-over-month versatility change"
@@ -112,14 +111,26 @@ extension PersonalStyleFeatureUITests {
             "Monthly Review should compare the seeded current score with its prior-month baseline"
         )
 
-        let reflect = app.buttons["monthlyReview.askKyra"]
-        reflect.scrollIntoView(in: app)
-        awaitElement(reflect, "Talk this through with Kyra action")
-        reflect.tap()
+        let author = app.buttons["monthlyReview.generateKyraReview"]
+        author.scrollIntoView(in: app)
+        awaitElement(author, "Generate the provider-authored monthly review")
+        author.tap()
+        let summary = app.descendants(matching: .any)["monthlyReview.kyraSummary"]
+        awaitElement(summary, "Kyra-authored Monthly Review")
+        XCTAssertTrue(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Your month included the recorded looks"))
+                .firstMatch.exists,
+            "The review should display the structured Kyra response"
+        )
+
+        let continueWithKyra = app.buttons["monthlyReview.continueWithKyra"]
+        continueWithKyra.scrollIntoView(in: app)
+        awaitElement(continueWithKyra, "Continue the authored review in Kyra")
+        continueWithKyra.tap()
 
         awaitElement(
             app.descendants(matching: .any)["kyra.message.user"].firstMatch,
-            "Monthly facts sent to Kyra"
+            "Monthly review history reopened in Kyra"
         )
         awaitElement(
             app.descendants(matching: .any)["kyra.message.assistant"].firstMatch,

@@ -51,16 +51,124 @@ struct MonthlyReviewView: View {
                 value: snapshot.versatilitySummary,
                 identifier: "monthlyReview.versatility"
             )
-            section("Next priority", value: snapshot.nextPriority)
-            section("Your challenge", value: snapshot.challenge)
+            kyraReview
+        }
+    }
+
+    @ViewBuilder
+    private var kyraReview: some View {
+        switch viewModel.authoredReviewState {
+        case .ready:
             Button {
-                router.startAskKyra(initialPrompt: snapshot.kyraPrompt, autoSend: true)
+                Task { await viewModel.generateAuthoredReview() }
             } label: {
-                Label("Talk this through with Kyra", systemImage: "bubble.left")
+                Label("Ask Kyra to write this review", systemImage: "text.quote")
                     .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
             }
             .buttonStyle(.astraSecondary)
-            .accessibilityIdentifier("monthlyReview.askKyra")
+            .accessibilityIdentifier("monthlyReview.generateKyraReview")
+        case .generating(let previous):
+            HStack(spacing: AstraSpacing.sm) {
+                ProgressView().tint(AstraColor.accentChampagne)
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    if let previous {
+                        Text("Kyra's review").astraText(.headline).foregroundStyle(AstraColor.textPrimary)
+                        Text(previous.message).astraText(.body).foregroundStyle(AstraColor.textSecondary)
+                        Text("Refreshing with this month's recorded facts…").astraText(.caption).foregroundStyle(AstraColor.textMuted)
+                    } else {
+                        Text("Kyra is preparing your review…")
+                            .astraText(.body).foregroundStyle(AstraColor.textSecondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(AstraSpacing.md)
+            .accessibilityIdentifier("monthlyReview.kyraLoading")
+        case .generated(let authored):
+            VStack(alignment: .leading, spacing: AstraSpacing.md) {
+                section(
+                    "Kyra's review",
+                    value: authored.message,
+                    detail: authored.cacheSaved ? "Saved for this month's recorded facts." : "This review is available now, but could not be saved for next time.",
+                    identifier: "monthlyReview.kyraSummary"
+                )
+                if authored.cacheSaved {
+                    Button {
+                        Task { await viewModel.refreshAuthoredReview() }
+                    } label: {
+                        Label("Refresh with Kyra", systemImage: "arrow.clockwise")
+                            .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("monthlyReview.refreshKyraReview")
+                } else {
+                    Button {
+                        Task { await viewModel.saveGeneratedReview() }
+                    } label: {
+                        Label("Save review for next time", systemImage: "square.and.arrow.down")
+                            .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("monthlyReview.saveKyraReview")
+                }
+                Button {
+                    router.startAskKyra(threadID: authored.threadID)
+                } label: {
+                    Label("Continue with Kyra", systemImage: "bubble.left")
+                        .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("monthlyReview.continueWithKyra")
+            }
+        case .failed(let message, _, let rateLimited):
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                Text(message).astraText(.body).foregroundStyle(AstraColor.textSecondary)
+                if rateLimited {
+                    Button("See Premium plans") {
+                        router.presentModal(.paywall(context: .kyraDailyLimit))
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("monthlyReview.kyraPaywall")
+                } else {
+                    Button("Try Kyra again") {
+                        Task { await viewModel.generateAuthoredReview() }
+                    }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("monthlyReview.retryKyraReview")
+                }
+            }
+            .accessibilityIdentifier("monthlyReview.kyraFailure")
+        case .refreshFailed(let message, let previous, let rateLimited):
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                section("Kyra's review", value: previous.message, detail: "Saved review · refresh did not complete.", identifier: "monthlyReview.kyraSummary")
+                Text(message).astraText(.body).foregroundStyle(AstraColor.textSecondary)
+                if rateLimited {
+                    Button("See Premium plans") { router.presentModal(.paywall(context: .kyraDailyLimit)) }
+                        .buttonStyle(.astraSecondary)
+                        .accessibilityIdentifier("monthlyReview.kyraPaywall")
+                } else {
+                    Button("Try refresh again") { Task { await viewModel.refreshAuthoredReview() } }
+                        .buttonStyle(.astraSecondary)
+                        .accessibilityIdentifier("monthlyReview.retryKyraReview")
+                }
+                Button {
+                    router.startAskKyra(threadID: previous.threadID)
+                } label: {
+                    Label("Continue with Kyra", systemImage: "bubble.left")
+                        .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("monthlyReview.continueWithKyra")
+            }
+            .accessibilityIdentifier("monthlyReview.kyraRefreshFailure")
+        case .cacheUnavailable(let message):
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                Text(message).astraText(.body).foregroundStyle(AstraColor.textSecondary)
+                Button("Check saved review again") { Task { await viewModel.load() } }
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("monthlyReview.retrySavedReview")
+            }
+            .accessibilityIdentifier("monthlyReview.savedReviewUnavailable")
         }
     }
 

@@ -351,18 +351,6 @@ struct ClosetViewModelTests {
         #expect(failing.state.hasSearchableContent == false)
     }
 
-    @Test("The wardrobe score is never requested, because the endpoint behind it cannot succeed and a permanent error is not a metric")
-    func theWardrobeScoreEndpointIsNeverCalled() async throws {
-        let repository = StubClosetRepository(items: mixedCloset())
-        let viewModel = makeViewModel(repository: repository)
-
-        await viewModel.onAppear()
-        await viewModel.refresh()
-
-        let wardrobeScoreCallCount = await repository.fetchWardrobeScoreCallCount
-        #expect(wardrobeScoreCallCount == 0)
-    }
-
 }
 
 // MARK: - The §6.14 integration: metrics, filter panel, and the search seam
@@ -780,6 +768,7 @@ private actor StubClosetRepository: ClosetRepository {
         fetchWardrobeScoreCallCount += 1
         throw AstraError.unimplemented("Your wardrobe score isn't ready yet.")
     }
+
 }
 
 /// Counts single versus batch resolution so "one request for a screenful"

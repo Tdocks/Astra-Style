@@ -11,8 +11,11 @@ import Foundation
 public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     private var items: [UUID: ClosetItem]
     private let previewBatchFailureIndex: Int?
+    private let imagesByItemID: [UUID: [ClosetItemImage]]
     private var monthlyVersatilityScores: [String: Int] = [:]
     private var scanUnlockCountResults: [UUID: ScanUnlockCountResult] = [:]
+    private var wardrobeScoreSnapshot: WardrobeScoreSnapshot?
+    private var wardrobeScoreError: AstraError?
 
     /// Capture paths this mock has handed out and not yet been asked to
     /// delete — the in-memory stand-in for objects sitting in
@@ -32,9 +35,14 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     ///   successful while making the five-image batch the scan flow is
     ///   designed around show four successes and one failure. Pass `nil` for
     ///   an all-successful batch.
-    public init(items: [ClosetItem] = SampleData.closetItems, previewBatchFailureIndex: Int? = 3) {
+    public init(
+        items: [ClosetItem] = SampleData.closetItems,
+        previewBatchFailureIndex: Int? = 3,
+        imagesByItemID: [UUID: [ClosetItemImage]] = [:]
+    ) {
         self.items = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         self.previewBatchFailureIndex = previewBatchFailureIndex
+        self.imagesByItemID = imagesByItemID
         if let currentMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start,
            let previousMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) {
             monthlyVersatilityScores[DateFormatter.astraDay.string(from: previousMonth)] = max(
@@ -70,7 +78,8 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     }
 
     public func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] {
-        [
+        if let images = imagesByItemID[itemID] { return images }
+        return [
             ClosetItemImage(id: UUID(), closetItemID: itemID, imageType: .front, storagePath: "preview/\(itemID.uuidString)-front.jpg", isPrimary: true)
         ]
     }
@@ -207,7 +216,25 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     }
 
     public func fetchWardrobeScore() async throws -> WardrobeScore {
-        SampleData.wardrobeScore
+        if let wardrobeScoreError { throw wardrobeScoreError }
+        if let score = wardrobeScoreSnapshot?.score { return score }
+        return SampleData.wardrobeScore
+    }
+
+    public func fetchWardrobeScoreSnapshot() async throws -> WardrobeScoreSnapshot {
+        if let wardrobeScoreError { throw wardrobeScoreError }
+        return wardrobeScoreSnapshot ?? WardrobeScoreSnapshot(
+            score: SampleData.wardrobeScore,
+            activeItemCount: items.values.filter { !$0.isArchived }.count
+        )
+    }
+
+    public func setWardrobeScoreSnapshot(_ snapshot: WardrobeScoreSnapshot?) {
+        wardrobeScoreSnapshot = snapshot
+    }
+
+    public func setWardrobeScoreError(_ error: AstraError?) {
+        wardrobeScoreError = error
     }
 
     public func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int? {

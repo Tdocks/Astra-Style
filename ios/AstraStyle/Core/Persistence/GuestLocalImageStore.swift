@@ -26,6 +26,16 @@ public enum GuestLocalImageStore: Sendable {
         return pathPrefix + userID.uuidString.lowercased() + "/" + name
     }
 
+    public static func saveThumbnail(_ data: Data, for sourcePath: String, userID: UUID) throws -> String {
+        let ownerPrefix = pathPrefix + userID.uuidString.lowercased() + "/"
+        guard sourcePath.hasPrefix(ownerPrefix), let thumbnailPath = ClosetImageVariantPaths.thumbnail(for: sourcePath),
+              let fileURL = fileURL(for: thumbnailPath) else {
+            throw AstraError.auth("That closet photo belongs to a different account.")
+        }
+        try data.write(to: fileURL, options: .atomic)
+        return thumbnailPath
+    }
+
     public static func fileURL(for storagePath: String) -> URL? {
         guard isLocal(storagePath) else { return nil }
         let relative = String(storagePath.dropFirst(pathPrefix.count))
@@ -33,15 +43,31 @@ public enum GuestLocalImageStore: Sendable {
         guard parts.count == 2, let userID = UUID(uuidString: parts[0]),
               parts[0] == userID.uuidString.lowercased() else { return nil }
         let filename = parts[1].split(separator: ".", omittingEmptySubsequences: false).map(String.init)
-        guard filename.count == 2, let imageID = UUID(uuidString: filename[0]),
-              filename[0] == imageID.uuidString.lowercased(),
-              ["jpg", "png"].contains(filename[1]) else { return nil }
+        let stem: String
+        let ext: String
+        switch filename.count {
+        case 2:
+            stem = filename[0]
+            ext = filename[1]
+        case 3 where filename[1] == "thumb":
+            stem = filename[0]
+            ext = filename[2]
+        default:
+            return nil
+        }
+        guard let imageID = UUID(uuidString: stem), stem == imageID.uuidString.lowercased(),
+              ["jpg", "png"].contains(ext) else { return nil }
         return try? directoryURL(userID: userID).appendingPathComponent(parts[1])
     }
 
     public static func delete(_ storagePath: String) throws {
         guard let url = fileURL(for: storagePath) else { return }
         try? FileManager.default.removeItem(at: url)
+        if !storagePath.contains(".thumb."),
+           let thumbnailPath = ClosetImageVariantPaths.thumbnail(for: storagePath),
+           let thumbnailURL = fileURL(for: thumbnailPath) {
+            try? FileManager.default.removeItem(at: thumbnailURL)
+        }
     }
 
     /// Original image bytes for a local path, or `nil` if the file is gone.
@@ -79,12 +105,37 @@ enum CapturedImageUploadFormat {
 }
 
 enum GuestImageMigrationPaths {
-    static func localFields(for image: ClosetItemImage, ownerID: UUID) -> [(String, String)] {
+    struct LocalImage {
+        let sourceField: String
+        let sourcePath: String
+        let thumbnailField: String
+    }
+
+    private struct Candidate {
+        let sourceField: String
+        let sourcePath: String?
+        let thumbnailField: String
+    }
+
+    static func localImages(
+        for image: ClosetItemImage,
+        ownerID: UUID
+    ) -> [LocalImage] {
         let prefix = GuestLocalImageStore.pathPrefix + ownerID.uuidString.lowercased() + "/"
-        return [("storage_path", Optional(image.storagePath)),
-                ("background_removed_path", image.backgroundRemovedPath)].compactMap { field, path in
-            guard let path, path.hasPrefix(prefix), GuestLocalImageStore.fileURL(for: path) != nil else { return nil }
-            return (field, path)
+        let candidates = [
+            Candidate(sourceField: "storage_path", sourcePath: image.storagePath, thumbnailField: "thumbnail_storage_path"),
+            Candidate(sourceField: "background_removed_path", sourcePath: image.backgroundRemovedPath, thumbnailField: "background_removed_thumbnail_path")
+        ]
+        return candidates.compactMap { candidate in
+            guard let path = candidate.sourcePath,
+                  path.hasPrefix(prefix), GuestLocalImageStore.fileURL(for: path) != nil else {
+                return nil
+            }
+            return LocalImage(
+                sourceField: candidate.sourceField,
+                sourcePath: path,
+                thumbnailField: candidate.thumbnailField
+            )
         }
     }
 }

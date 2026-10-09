@@ -25,6 +25,8 @@ extension ScannerReviewViewModel {
             imageType: .front,
             storagePath: sourcePath,
             backgroundRemovedPath: analysis?.normalizedImagePath,
+            thumbnailStoragePath: ClosetImageVariantPaths.thumbnail(for: sourcePath),
+            backgroundRemovedThumbnailPath: analysis?.normalizedImagePath.flatMap(ClosetImageVariantPaths.thumbnail(for:)),
             isPrimary: true
         )
         let previouslyUncertain = saveMayHavePersisted
@@ -46,6 +48,7 @@ extension ScannerReviewViewModel {
 
         if let cutoutPath = await uploadedCutoutPath() {
             image.backgroundRemovedPath = cutoutPath
+            image.backgroundRemovedThumbnailPath = ClosetImageVariantPaths.thumbnail(for: cutoutPath)
             record.images = [image]
             do {
                 try await scannerSaveJournal.save(record)

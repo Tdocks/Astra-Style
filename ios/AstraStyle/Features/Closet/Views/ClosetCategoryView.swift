@@ -225,6 +225,7 @@ public struct ClosetCategoryView: View {
             ClosetItemGrid(
                 items: viewModel.items(in: category),
                 imageURL: { viewModel.imageURL(for: $0) },
+                fallbackImageURL: { viewModel.imageFallbackURL(for: $0) },
                 onTileVisible: { viewModel.imageNeeded(for: $0) },
                 onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
             )

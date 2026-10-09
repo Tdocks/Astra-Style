@@ -10,6 +10,12 @@ import Foundation
 
 public actor MockProfileRepository: ProfileRepository {
     private var bodySaveFailures = 0
+    private var styleProfileWriteCount = 0
+    private var dnaGenerationCount = 0
+    private var dnaFailures = 0
+    public func failNextDNAGenerations(_ count: Int) { dnaFailures = max(0, count) }
+    public func styleProfileWrites() -> Int { styleProfileWriteCount }
+    public func dnaGenerations() -> Int { dnaGenerationCount }
     public func failNextBodySaves(_ count: Int) { bodySaveFailures = max(0, count) }
 
     private var profile: Profile
@@ -23,13 +29,15 @@ public actor MockProfileRepository: ProfileRepository {
         styleProfile: StyleProfile? = SampleData.styleProfile,
         bodyProfile: BodyProfile? = SampleData.bodyProfile,
         lifestyleProfile: LifestyleProfile? = SampleData.lifestyleProfile,
-        studioRepository: StudioRepository? = nil
+        studioRepository: StudioRepository? = nil,
+        initialDNAGenerationFailures: Int = 0
     ) {
         self.profile = profile
         self.styleProfile = styleProfile
         self.bodyProfile = bodyProfile
         self.lifestyleProfile = lifestyleProfile
         self.studioRepository = studioRepository
+        self.dnaFailures = max(0, initialDNAGenerationFailures)
     }
 
     public func fetchCurrentProfile() async throws -> Profile { profile }
@@ -42,6 +50,7 @@ public actor MockProfileRepository: ProfileRepository {
     public func fetchStyleProfile() async throws -> StyleProfile? { styleProfile }
 
     public func updateStyleProfile(_ styleProfile: StyleProfile) async throws -> StyleProfile {
+        styleProfileWriteCount += 1
         self.styleProfile = styleProfile
         return styleProfile
     }
@@ -73,6 +82,11 @@ public actor MockProfileRepository: ProfileRepository {
     }
 
     public func generateStyleDNA() async throws -> StyleDNA {
+        dnaGenerationCount += 1
+        if dnaFailures > 0 {
+            dnaFailures -= 1
+            throw AstraError.provider("Style DNA refresh failed.")
+        }
         var generated = SampleData.styleDNA
 
         // The identity is READ BACK from the stored row rather than fixed to

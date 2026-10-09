@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import CryptoKit
 
 @MainActor
 @Observable
@@ -10,34 +11,95 @@ final class MonthlyReviewViewModel {
         case failed(String)
     }
 
+    enum AuthoredReviewState {
+        case ready
+        case generating(previous: AuthoredReview?)
+        case generated(AuthoredReview)
+        case failed(message: String, threadID: UUID?, rateLimited: Bool)
+        case refreshFailed(message: String, previous: AuthoredReview, rateLimited: Bool)
+        case cacheUnavailable(String)
+    }
+
+    struct AuthoredReview {
+        enum Source: Equatable { case cached, provider }
+        let message: String
+        let threadID: UUID
+        let source: Source
+        let cacheSaved: Bool
+    }
+
     private(set) var state: State = .loading
+    private(set) var authoredReviewState: AuthoredReviewState = .ready
     let month: Date
 
     private let closetRepository: ClosetRepository
     private let outfitRepository: OutfitRepository
     private let shoppingRepository: ShoppingRepository
+    private let kyraRepository: KyraRepository
+    private let summaryCache: MonthlyReviewSummaryCaching
+    private let currentOwnerID: @Sendable () async -> UUID?
+    private var loadedOwnerID: UUID?
 
     init(
         month: Date,
         closetRepository: ClosetRepository,
         outfitRepository: OutfitRepository,
-        shoppingRepository: ShoppingRepository
+        shoppingRepository: ShoppingRepository,
+        kyraRepository: KyraRepository,
+        summaryCache: MonthlyReviewSummaryCaching = InMemoryMonthlyReviewSummaryCache(),
+        currentOwnerID: @escaping @Sendable () async -> UUID?
     ) {
         self.month = Calendar.current.dateInterval(of: .month, for: month)?.start ?? month
         self.closetRepository = closetRepository
         self.outfitRepository = outfitRepository
         self.shoppingRepository = shoppingRepository
+        self.kyraRepository = kyraRepository
+        self.summaryCache = summaryCache
+        self.currentOwnerID = currentOwnerID
     }
 
     func load() async {
         state = .loading
+        authoredReviewState = .ready
+        loadedOwnerID = nil
+        guard let ownerID = await currentOwnerID() else {
+            state = .failed("Sign in again to open your Monthly Review.")
+            return
+        }
         guard let interval = Calendar.current.dateInterval(of: .month, for: month) else {
             state = .failed("This month couldn't be opened.")
             return
         }
         do {
-            let data = try await fetchReviewData(interval: interval)
-            state = .loaded(await makeSnapshot(data: data))
+            let snapshot = try await MonthlyReviewSnapshotBuilder(
+                closetRepository: closetRepository,
+                outfitRepository: outfitRepository,
+                shoppingRepository: shoppingRepository,
+                currentOwnerID: currentOwnerID
+            ).build(interval: interval, monthTitle: month.formatted(.dateTime.month(.wide).year()), ownerID: ownerID)
+            try await verifyActiveOwner(ownerID)
+            loadedOwnerID = ownerID
+            state = .loaded(snapshot)
+            do {
+                let cached = try await summaryCache.cached(
+                    ownerID: ownerID,
+                    monthKey: monthKey,
+                    dataRevision: dataRevision(for: snapshot)
+                )
+                try await verifyActiveOwner(ownerID)
+                if let cached {
+                    authoredReviewState = .generated(AuthoredReview(
+                        message: cached.message,
+                        threadID: cached.threadID,
+                        source: .cached,
+                        cacheSaved: true
+                    ))
+                }
+            } catch let error as AstraError where error.category == .auth {
+                clearReviewForOwnerChange()
+            } catch {
+                authoredReviewState = .cacheUnavailable("Your saved review couldn't be checked. Try again before asking Kyra to write another.")
+            }
         } catch let error as AstraError {
             state = .failed(error.message)
         } catch {
@@ -45,173 +107,170 @@ final class MonthlyReviewViewModel {
         }
     }
 
-    private func fetchReviewData(interval: DateInterval) async throws -> MonthlyReviewData {
-        let end = interval.end.addingTimeInterval(-0.001)
-        async let itemsTask = closetRepository.fetchItems()
-        async let wearsTask = outfitRepository.fetchOutfitWears(from: interval.start, to: end)
-        async let scoreTask = closetRepository.fetchWardrobeScoreSnapshot()
-        let (allItems, wears, scoreSnapshot) = try await (itemsTask, wearsTask, scoreTask)
-        let scoreHistory = await saveScoreSnapshot(scoreSnapshot.score, monthStart: interval.start)
-        let purchases = try await shoppingRepository.fetchPurchases(from: interval.start, to: interval.end)
-        let purchaseIDs = Set(purchases.map(\.productCandidateID))
-        let evaluations = try await shoppingRepository.fetchLatestEvaluations(candidateIDs: purchaseIDs)
-        return MonthlyReviewData(
-            interval: interval,
-            items: allItems.filter { !$0.isArchived },
-            wears: wears,
-            evaluations: evaluations,
-            purchases: purchases,
-            score: scoreSnapshot.score,
-            previousVersatilityScore: scoreHistory.previousScore,
-            didSaveScoreSnapshot: scoreHistory.didSave
-        )
+    func generateAuthoredReview() async {
+        await generateAuthoredReview(refresh: false)
     }
 
-    private func saveScoreSnapshot(_ score: WardrobeScore?, monthStart: Date) async -> (previousScore: Int?, didSave: Bool) {
-        guard let score else { return (nil, false) }
+    func refreshAuthoredReview() async {
+        await generateAuthoredReview(refresh: true)
+    }
+
+    func saveGeneratedReview() async {
+        guard case .loaded(let snapshot) = state,
+              case .generated(let review) = authoredReviewState,
+              let ownerID = loadedOwnerID else { return }
         do {
-            let previous = try await closetRepository.captureMonthlyVersatilitySnapshot(
-                monthStart: monthStart,
-                score: score.versatility
-            )
-            return (previous, true)
+            try await verifyActiveOwner(ownerID)
+            try await summaryCache.store(MonthlyReviewSummary(
+                ownerID: ownerID,
+                monthKey: monthKey,
+                dataRevision: dataRevision(for: snapshot),
+                message: review.message,
+                threadID: review.threadID
+            ))
+            try await verifyActiveOwner(ownerID)
+            authoredReviewState = .generated(AuthoredReview(
+                message: review.message,
+                threadID: review.threadID,
+                source: review.source,
+                cacheSaved: true
+            ))
+        } catch let error as AstraError {
+            if error.category == .auth { clearReviewForOwnerChange() }
         } catch {
-            return (nil, false)
+            // Keep the generated text on screen; the user can retry saving
+            // without paying for another Kyra request.
         }
     }
 
-    private func makeSnapshot(data: MonthlyReviewData) async -> MonthlyReviewSnapshot {
-        let newItems = data.items.filter { data.interval.contains($0.createdAt) }
-        let bestEvaluation = bestEvaluation(in: data)
-        let bestPurchase = await fetchBestPurchase(for: bestEvaluation)
-        let underused = underusedItems(in: data)
-        let trendText = versatilitySummary(
-            score: data.score,
-            previousScore: data.previousVersatilityScore,
-            didSave: data.didSaveScoreSnapshot
-        )
-        let challenge = monthlyChallenge(underused: underused, wearCount: data.wears.count)
-        let spendLines = spendSummary(items: data.items, interval: data.interval)
-        return MonthlyReviewSnapshot(
-            monthTitle: month.formatted(.dateTime.month(.wide).year()),
-            newItemCount: newItems.count,
-            trackedSpend: spendLines,
-            wearCount: data.wears.count,
-            uniqueOutfitCount: Set(data.wears.map(\.outfitID)).count,
-            bestPurchase: bestPurchase?.name,
-            bestPurchaseOutfitsUnlocked: bestEvaluation?.outfitsUnlocked,
-            underusedItems: Array(underused.prefix(3)).map(\.name),
-            versatilitySummary: trendText,
-            nextPriority: nextPriority(from: data.score, newItemCount: newItems.count, wearCount: data.wears.count),
-            challenge: challenge
-        )
-    }
-
-    private func spendSummary(items: [ClosetItem], interval: DateInterval) -> [String] {
-        var spendByCurrency: [String: Decimal] = [:]
-        for item in items where item.purchaseDate.map(interval.contains) == true {
-            guard let price = item.pricePaid else { continue }
-            spendByCurrency[item.currency ?? "USD", default: 0] += price
+    private func generateAuthoredReview(refresh: Bool) async {
+        guard case .loaded(let snapshot) = state else { return }
+        guard let ownerID = loadedOwnerID, await currentOwnerID() == ownerID else {
+            clearReviewForOwnerChange()
+            return
         }
-        return spendByCurrency.keys.sorted().map { code in
-            (spendByCurrency[code] ?? 0).formatted(.currency(code: code))
-        }
-    }
-
-    private func bestEvaluation(in data: MonthlyReviewData) -> ProductEvaluation? {
-        let purchaseIDs = Set(data.purchases.map(\.productCandidateID))
-        return data.evaluations
-            .filter { purchaseIDs.contains($0.productCandidateID) }
-            .max {
-                if $0.outfitsUnlocked != $1.outfitsUnlocked {
-                    return $0.outfitsUnlocked < $1.outfitsUnlocked
-                }
-                return $0.compatibilityScore < $1.compatibilityScore
+        guard let context = authoringContext(refresh: refresh) else { return }
+        authoredReviewState = .generating(previous: context.previous)
+        do {
+            let review = try await sendAndCacheReview(snapshot: snapshot, ownerID: ownerID, threadID: context.threadID)
+            authoredReviewState = .generated(review)
+        } catch let error as MonthlyReviewResponseFailure {
+            setGenerationFailure(error.message, threadID: error.threadID, rateLimited: false, previous: context.previous)
+        } catch let error as AstraError {
+            if error.category == .auth {
+                clearReviewForOwnerChange()
+                return
             }
+            setGenerationFailure(error.message, threadID: context.threadID, rateLimited: error.category == .rateLimited, previous: context.previous)
+        } catch {
+            setGenerationFailure("Kyra couldn't prepare the review. Check your connection and try again.", threadID: context.threadID, rateLimited: false, previous: context.previous)
+        }
     }
 
-    private func fetchBestPurchase(for evaluation: ProductEvaluation?) async -> ProductCandidate? {
-        guard let evaluation else { return nil }
-        return try? await shoppingRepository.fetchProductCandidate(id: evaluation.productCandidateID)
+    private func authoringContext(refresh: Bool) -> (previous: AuthoredReview?, threadID: UUID?)? {
+        switch authoredReviewState {
+        case .ready where !refresh:
+            (nil, nil)
+        case .failed(_, let threadID, _) where !refresh:
+            (nil, threadID)
+        case .generated(let existing) where refresh,
+             .refreshFailed(_, let existing, _) where refresh:
+            (existing, existing.threadID)
+        case .generating, .cacheUnavailable, .ready, .failed, .generated, .refreshFailed:
+            nil
+        }
     }
 
-    private func underusedItems(in data: MonthlyReviewData) -> [ClosetItem] {
-        data.items
-            .filter { $0.createdAt < data.interval.start && $0.wearCount <= 1 }
-            .sorted { $0.wearCount == $1.wearCount ? $0.createdAt < $1.createdAt : $0.wearCount < $1.wearCount }
+    private func sendAndCacheReview(
+        snapshot: MonthlyReviewSnapshot,
+        ownerID: UUID,
+        threadID: UUID?
+    ) async throws -> AuthoredReview {
+        let reply = try await kyraRepository.send(
+            threadID: threadID,
+            message: KyraOutgoingMessage(text: snapshot.kyraPrompt),
+            expectedOwnerID: ownerID
+        )
+        try await verifyActiveOwner(ownerID)
+        let summary = reply.structuredPayload?.message.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !summary.isEmpty else {
+            throw MonthlyReviewResponseFailure(message: "Kyra's review didn't include a readable summary. Try again.", threadID: reply.threadID)
+        }
+        guard !hasProviderFallback(reply.modelMetadata) else {
+            throw MonthlyReviewResponseFailure(
+                message: "Kyra couldn't prepare the review just now. Try again when the connection is ready.",
+                threadID: reply.threadID
+            )
+        }
+        let saved = await saveReview(summary, threadID: reply.threadID, snapshot: snapshot, ownerID: ownerID)
+        try await verifyActiveOwner(ownerID)
+        return AuthoredReview(message: summary, threadID: reply.threadID, source: .provider, cacheSaved: saved)
     }
 
-    private func versatilitySummary(score: WardrobeScore?, previousScore: Int?, didSave: Bool) -> String {
-        let trendText: String
-        if let score {
-            if let previousScore {
-                let change = score.versatility - previousScore
-                if change > 0 {
-                    trendText = "Your wardrobe versatility increased by \(change) points, from \(previousScore) to \(score.versatility)."
-                } else if change < 0 {
-                    trendText = "Your wardrobe versatility changed by \(change) points, from \(previousScore) to \(score.versatility)."
-                } else {
-                    trendText = "Your wardrobe versatility held steady at \(score.versatility)."
-                }
-            } else if didSave {
-                trendText = "Your current versatility score is \(score.versatility). This month is your baseline; next month's review can show the change."
-            } else {
-                trendText = "Your current versatility score is \(score.versatility). The monthly comparison couldn't be saved yet."
-            }
+    private func saveReview(_ message: String, threadID: UUID, snapshot: MonthlyReviewSnapshot, ownerID: UUID) async -> Bool {
+        do {
+            try await summaryCache.store(MonthlyReviewSummary(
+                ownerID: ownerID,
+                monthKey: monthKey,
+                dataRevision: dataRevision(for: snapshot),
+                message: message,
+                threadID: threadID
+            ))
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func setGenerationFailure(_ message: String, threadID: UUID?, rateLimited: Bool, previous: AuthoredReview?) {
+        if let previous {
+            authoredReviewState = .refreshFailed(message: message, previous: previous, rateLimited: rateLimited)
         } else {
-            trendText = "Add a few closet pieces before comparing wardrobe versatility."
-        }
-        return trendText
-    }
-
-    private func monthlyChallenge(underused: [ClosetItem], wearCount: Int) -> String {
-        if let first = underused.first {
-            return "Wear \(first.name) in a new combination this month."
-        } else if wearCount == 0 {
-            return "Log your first worn look so next month's review can learn from your real rotation."
-        } else {
-            return "Repeat a favorite look with one small change, then mark it worn."
+            authoredReviewState = .failed(message: message, threadID: threadID, rateLimited: rateLimited)
         }
     }
 
-    private func nextPriority(from score: WardrobeScore?, newItemCount: Int, wearCount: Int) -> String {
-        guard let score else { return "Build a small core wardrobe and record a few worn looks." }
-        let weakest = [
-            (WardrobeScoreComponentName.versatility, score.versatility),
-            (.fitConfidence, score.fitConfidence),
-            (.occasionCoverage, score.occasionCoverage),
-            (.colorCohesion, score.colorCohesion),
-            (.wearUtilization, score.wearUtilization),
-            (.condition, score.condition),
-            (.redundancyControl, score.redundancyControl)
-        ].min { $0.1 < $1.1 }?.0
-        switch weakest {
-        case .versatility: return "Create more combinations from the pieces you already own."
-        case .fitConfidence: return "Add fit notes to the items you reach for most."
-        case .occasionCoverage: return "Fill one gap for an occasion you have coming up."
-        case .colorCohesion: return "Try one new look using your strongest existing colors."
-        case .wearUtilization: return wearCount == 0 ? "Start logging the looks you wear." : "Give overlooked pieces another chance before adding more."
-        case .condition: return "Review care and laundry status for the pieces you wear most."
-        case .redundancyControl: return newItemCount > 0 ? "Pause before buying another piece in a category you just added." : "Choose your next purchase to fill a clear outfit gap."
-        case nil: return "Keep building looks from your existing wardrobe."
+    private func clearReviewForOwnerChange() {
+        loadedOwnerID = nil
+        authoredReviewState = .ready
+        state = .failed("Your account changed. Reopen Monthly Review to load your account's data.")
+    }
+
+    private func verifyActiveOwner(_ expectedOwnerID: UUID) async throws {
+        guard await currentOwnerID() == expectedOwnerID else {
+            throw AstraError.auth("Your account changed while loading Monthly Review.")
         }
     }
+
+    private func hasProviderFallback(_ metadata: AstraJSONValue?) -> Bool {
+        guard case .object(let fields)? = metadata,
+              let reason = fields["fallback_reason"] else { return false }
+        if case .string(let value) = reason { return !value.isEmpty }
+        if case .null = reason { return false }
+        return true
+    }
+
+    private var monthKey: String {
+        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month], from: month)
+        return String(format: "%04d-%02d", components.year ?? 0, components.month ?? 0)
+    }
+
+    private func dataRevision(for snapshot: MonthlyReviewSnapshot) -> String {
+        let bytes = Data(("monthly-review-v1\n" + snapshot.kyraPrompt).utf8)
+        return SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+    }
+
 }
 
-private struct MonthlyReviewData {
-    let interval: DateInterval
-    let items: [ClosetItem]
-    let wears: [OutfitWear]
-    let evaluations: [ProductEvaluation]
-    let purchases: [ProductPurchase]
-    let score: WardrobeScore?
-    let previousVersatilityScore: Int?
-    let didSaveScoreSnapshot: Bool
+private struct MonthlyReviewResponseFailure: Error {
+    let message: String
+    let threadID: UUID
 }
 
-struct MonthlyReviewSnapshot {
+struct MonthlyReviewSnapshot: Sendable {
     let monthTitle: String
     let newItemCount: Int
+    let newItemNames: [String]
     let trackedSpend: [String]
     let wearCount: Int
     let uniqueOutfitCount: Int
@@ -219,18 +278,33 @@ struct MonthlyReviewSnapshot {
     let bestPurchaseOutfitsUnlocked: Int?
     let underusedItems: [String]
     let versatilitySummary: String
-    let nextPriority: String
-    let challenge: String
+    let versatilityScore: Int?
+    let previousVersatilityScore: Int?
 
     var kyraPrompt: String {
         let spendText = trackedSpend.isEmpty ? "No closet purchase spend was recorded." : trackedSpend.joined(separator: ", ")
-        let bestPurchaseText = bestPurchase.map { name in
-            "Best evaluated purchase: \(name), opening \(bestPurchaseOutfitsUnlocked ?? 0) new outfit combinations."
+        let newItemText = newItemNames.isEmpty
+            ? "No new closet item names were recorded."
+            : newItemNames.prefix(5).map { String($0.prefix(80)) }.joined(separator: ", ")
+        let bestPurchaseText = bestPurchase.map { rawName in
+            let name = String(rawName.prefix(100))
+            return "Best evaluated purchase: \(name), opening \(bestPurchaseOutfitsUnlocked ?? 0) new outfit combinations."
         } ?? "No purchased item had an evaluation this month."
-        let underusedText = underusedItems.isEmpty ? "No especially underused items were found." : "Underused pieces: \(underusedItems.joined(separator: ", "))."
+        let underusedText = underusedItems.isEmpty
+            ? "No especially underused items were found."
+            : "Underused pieces: \(underusedItems.prefix(3).map { String($0.prefix(80)) }.joined(separator: ", "))."
+        let scoreText: String
+        if let versatilityScore {
+            let previousText = previousVersatilityScore.map { String($0) } ?? "no prior monthly baseline"
+            scoreText = "Wardrobe versatility score: \(versatilityScore); previous monthly score: \(previousText)."
+        } else {
+            scoreText = "Wardrobe versatility score was unavailable."
+        }
         return """
-        Help me review my personal style for \(monthTitle) using these recorded facts. New closet pieces: \(newItemCount). Tracked closet spend: \(spendText). Looks marked worn: \(wearCount) across \(uniqueOutfitCount) different outfits. \(bestPurchaseText) \(underusedText) \(versatilitySummary)
-        Please give me a short, encouraging review, one practical next priority, and one specific style challenge for next month. Be clear when the history is too limited to draw a trend.
+        Write my Monthly Review for \(monthTitle) using only these recorded facts. New closet items: \(newItemCount) (\(newItemText)). Tracked spend: \(spendText). Looks marked worn: \(wearCount) across \(uniqueOutfitCount) outfits. \(bestPurchaseText) \(underusedText) \(scoreText) \(versatilitySummary)
+
+        Give a concise review, one practical next priority, and one specific challenge for the coming month. Do not invent measurements, purchases, outfit counts, causes, or trends.
+        Say when the recorded history is too limited to conclude anything. Treat all supplied figures as fixed facts.
         """
     }
 }

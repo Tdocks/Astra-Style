@@ -51,6 +51,7 @@ enum ClosetGridMetrics {
 struct ClosetGridTile: View {
     let item: ClosetItem
     let imageURL: URL?
+    var fallbackImageURL: URL?
     /// Called each time the tile comes on screen. The view model turns a
     /// whole screenful of these into one signing request.
     let onVisible: () -> Void
@@ -61,6 +62,7 @@ struct ClosetGridTile: View {
             VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                 AstraRemoteImage(
                     url: imageURL,
+                    fallbackURL: fallbackImageURL,
                     aspectRatio: ClosetGridMetrics.tileAspectRatio,
                     thumbnail: .closetGridTile,
                     accessibilityDescription: imageDescription
@@ -141,6 +143,7 @@ struct ClosetGridTile: View {
             primaryColor: "navy"
         ),
         imageURL: nil,
+        fallbackImageURL: nil,
         onVisible: {},
         onTap: {}
     )

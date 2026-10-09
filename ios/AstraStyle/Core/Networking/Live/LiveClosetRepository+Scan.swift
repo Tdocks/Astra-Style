@@ -90,15 +90,24 @@ extension LiveClosetRepository {
         try await uploadCaptured(imageData: data)
     }
 
+    public func uploadClosetCaptureImage(_ data: Data) async throws -> String {
+        try await uploadCaptured(imageData: data, includeThumbnail: true)
+    }
+
     public func deleteCapturedImage(atPath storagePath: String) async throws {
         let owner = await currentUserID()
         if GuestLocalImageStore.isLocal(storagePath) {
             try GuestLocalImageStore.delete(storagePath)
             return
         }
+        let paths = [storagePath, ClosetImageVariantPaths.thumbnail(for: storagePath)].compactMap { $0 }
         do {
-            _ = try await supabase.storage.from("user-content").remove(paths: [storagePath])
-            if let owner { await ClosetImageByteCache.shared.remove(ownerID: owner, storagePath: storagePath) }
+            _ = try await supabase.storage.from("user-content").remove(paths: paths)
+            if let owner {
+                for path in paths {
+                    await ClosetImageByteCache.shared.remove(ownerID: owner, storagePath: path)
+                }
+            }
         } catch {
             throw AstraError.server("Couldn't remove that photo from your storage.")
         }
@@ -244,22 +253,103 @@ extension LiveClosetRepository {
     /// analysis and a `ClosetItem` exists. Only segments [1] and [2] are
     /// policy-relevant, so this is a valid path under the same convention.
     func uploadCaptured(imageData: Data) async throws -> String {
+        try await uploadCaptured(imageData: imageData, includeThumbnail: false)
+    }
+
+    private func uploadCaptured(imageData: Data, includeThumbnail: Bool) async throws -> String {
+        let format = try CapturedImageUploadFormat.detect(imageData)
+        let thumbnailData = includeThumbnail
+            ? try ClosetImageThumbnailer.thumbnailData(from: imageData)
+            : nil
         do {
             let session = try await supabase.auth.session
             if session.user.isAnonymous {
-                return try GuestLocalImageStore.save(imageData, userID: session.user.id)
+                return try saveGuestCapture(imageData, thumbnailData: thumbnailData, ownerID: session.user.id)
             }
             let userID = session.user.id.uuidString.lowercased()
-            let format = try CapturedImageUploadFormat.detect(imageData)
             let path = "users/\(userID)/closet/\(UUID().uuidString.lowercased()).\(format.fileExtension)"
-            _ = try await supabase.storage
-                .from("user-content")
-                .upload(path, data: imageData, options: FileOptions(contentType: format.contentType))
-            return path
+            return try await uploadRemoteCapture(
+                imageData,
+                thumbnailData: thumbnailData,
+                format: format,
+                path: path,
+                ownerID: session.user.id
+            )
         } catch let error as AstraError {
             throw error
         } catch {
             throw AstraError.network("Couldn't upload that photo. Check your connection and try again.")
+        }
+    }
+
+    private func saveGuestCapture(_ data: Data, thumbnailData: Data?, ownerID: UUID) throws -> String {
+        let path = try GuestLocalImageStore.save(data, userID: ownerID)
+        guard let thumbnailData else { return path }
+        do {
+            _ = try GuestLocalImageStore.saveThumbnail(thumbnailData, for: path, userID: ownerID)
+            return path
+        } catch {
+            try? GuestLocalImageStore.delete(path)
+            throw error
+        }
+    }
+
+    private func uploadRemoteCapture(
+        _ data: Data,
+        thumbnailData: Data?,
+        format: CapturedImageUploadFormat,
+        path: String,
+        ownerID: UUID
+    ) async throws -> String {
+        if let thumbnailData {
+            let transport = ClosetCaptureUploadTransport(
+                currentOwnerID: { await self.currentUserID() },
+                uploadObject: { path, bytes, contentType in
+                    _ = try await self.supabase.storage.from("user-content").upload(
+                        path,
+                        data: bytes,
+                        options: FileOptions(contentType: contentType)
+                    )
+                },
+                removeObjects: { paths in
+                    try? await self.supabase.storage.from("user-content").remove(paths: paths)
+                }
+            )
+            return try await ClosetCaptureUploadPipeline.upload(
+                ClosetCaptureUploadRequest(
+                    sourceData: data,
+                    thumbnailData: thumbnailData,
+                    contentType: format.contentType,
+                    sourcePath: path,
+                    ownerID: ownerID
+                ),
+                transport: transport
+            )
+        }
+
+        return try await uploadOriginalCapture(data, format: format, path: path, ownerID: ownerID)
+    }
+
+    private func uploadOriginalCapture(
+        _ data: Data,
+        format: CapturedImageUploadFormat,
+        path: String,
+        ownerID: UUID
+    ) async throws -> String {
+        do {
+            _ = try await supabase.storage.from("user-content")
+                .upload(path, data: data, options: FileOptions(contentType: format.contentType))
+            try await requireSameOwner(as: ownerID)
+            return path
+        } catch {
+            try? await supabase.storage.from("user-content").remove(paths: [path])
+            throw error
+        }
+    }
+
+    private func requireSameOwner(as ownerID: UUID) async throws {
+        guard try await supabase.auth.session.user.id == ownerID else {
+            throw AstraError.auth("Your account changed while uploading that photo.")
         }
     }
 }

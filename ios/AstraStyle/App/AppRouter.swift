@@ -170,6 +170,7 @@ public enum ProfileRoute: Hashable, Sendable {
     case appearance
     case wardrobeScoreDetail
     case preferences
+    case tasteRefinement
     case notificationSettings
     case subscriptionManagement
     case privacyAndData

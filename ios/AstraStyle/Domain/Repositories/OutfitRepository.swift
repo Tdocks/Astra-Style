@@ -45,6 +45,9 @@ public protocol OutfitRepository: Sendable {
     /// needs real `outfit_items` rows to have anything to join against.
     func saveOutfit(from recommendation: OutfitRecommendation, name: String?, closetItems: [ClosetItem]) async throws -> Outfit
     func updateOutfit(_ outfit: Outfit) async throws -> Outfit
+
+    /// Atomically preserves an existing outfit identity while replacing its owned items.
+    func replaceOutfitItemsAndMetadata(_ outfit: Outfit, items: [ClosetItem]) async throws -> Outfit
     func deleteOutfit(id: UUID) async throws
 
     @discardableResult
@@ -128,6 +131,10 @@ public protocol OutfitRepository: Sendable {
 }
 
 public extension OutfitRepository {
+    func replaceOutfitItemsAndMetadata(_ outfit: Outfit, items: [ClosetItem]) async throws -> Outfit {
+        throw AstraError.unimplemented("Saving outfit edits is not available here.")
+    }
+
     func generateDailyBrief(
         for date: Date,
         regenerate: Bool,

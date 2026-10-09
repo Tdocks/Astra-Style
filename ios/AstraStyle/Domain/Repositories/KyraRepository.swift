@@ -17,6 +17,11 @@ public protocol KyraRepository: Sendable {
     /// structured response (spec §11) — never unparsed prose.
     func send(threadID: UUID?, message: KyraOutgoingMessage) async throws -> KyraMessage
 
+    /// Sends only if the authenticated owner still matches the owner whose
+    /// private context produced the prompt. Used when a review or other
+    /// screen builds a request from asynchronously loaded account data.
+    func send(threadID: UUID?, message: KyraOutgoingMessage, expectedOwnerID: UUID) async throws -> KyraMessage
+
     func fetchMemories() async throws -> [StyleMemory]
 
     /// Confirms a memory Kyra proposed saving mid-conversation
@@ -26,4 +31,15 @@ public protocol KyraRepository: Sendable {
     /// Deletes a style memory the user no longer wants Kyra to use
     /// (spec §6.20 "Allow users to inspect and delete style memories").
     func deleteMemory(id: UUID) async throws
+}
+
+public extension KyraRepository {
+    func send(
+        threadID: UUID?,
+        message: KyraOutgoingMessage,
+        expectedOwnerID: UUID
+    ) async throws -> KyraMessage {
+        _ = expectedOwnerID
+        return try await send(threadID: threadID, message: message)
+    }
 }

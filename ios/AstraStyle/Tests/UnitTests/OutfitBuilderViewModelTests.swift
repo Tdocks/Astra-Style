@@ -28,8 +28,8 @@ struct OutfitBuilderViewModelTests {
 
     // MARK: - Fixtures
 
-    private func item(_ category: ClothingCategory, name: String = "Fixture") -> ClosetItem {
-        ClosetItem(id: UUID(), userID: UUID(), name: name, category: category)
+    func item(_ category: ClothingCategory, name: String = "Fixture", userID: UUID = UUID()) -> ClosetItem {
+        ClosetItem(id: UUID(), userID: userID, name: name, category: category)
     }
 
     // MARK: - Doubles
@@ -39,18 +39,28 @@ struct OutfitBuilderViewModelTests {
     /// `AstraError.unimplemented` rather than silently no-op-ing, so a
     /// test that accidentally exercises an unstubbed path fails loudly
     /// instead of passing on a wrong assumption.
-    private actor StubOutfitRepository: OutfitRepository {
+    actor StubOutfitRepository: OutfitRepository {
         var rankResult: [OutfitRecommendation] = []
         var generationResult: [OutfitRecommendation] = []
         var generationError: AstraError?
+        var loadedOutfit: Outfit?
+        var loadedItems: [OutfitItem] = []
+        var outfitsByID: [UUID: Outfit] = [:]
+        var outfitItemsByID: [UUID: [OutfitItem]] = [:]
+        private(set) var lastReplacedOutfitID: UUID?
+        private(set) var lastReplacementItems: [UUID] = []
         private(set) var lastLockedClosetItemIDs: [UUID] = []
         private(set) var lastGenerationRequest: OutfitGenerationRequest?
         private(set) var savedRecommendations: [OutfitRecommendation] = []
 
         func fetchOutfits() async throws -> [Outfit] { [] }
-        func fetchOutfit(id: UUID) async throws -> Outfit { Outfit(id: id, userID: UUID(), name: "Fixture") }
+        func fetchOutfit(id: UUID) async throws -> Outfit {
+            outfitsByID[id] ?? loadedOutfit ?? Outfit(id: id, userID: UUID(), name: "Fixture")
+        }
         func fetchOutfits(ids: [UUID]) async throws -> [Outfit] { [] }
-        func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem] { [] }
+        func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem] {
+            outfitItemsByID[outfitID] ?? loadedItems
+        }
         func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation] {
             lastGenerationRequest = request
             if let generationError { throw generationError }
@@ -68,6 +78,11 @@ struct OutfitBuilderViewModelTests {
         }
 
         func updateOutfit(_ outfit: Outfit) async throws -> Outfit { outfit }
+        func replaceOutfitItemsAndMetadata(_ outfit: Outfit, items: [ClosetItem]) async throws -> Outfit {
+            lastReplacedOutfitID = outfit.id
+            lastReplacementItems = items.map(\.id)
+            return outfit
+        }
         func deleteOutfit(id: UUID) async throws {}
 
         @discardableResult
@@ -94,6 +109,18 @@ struct OutfitBuilderViewModelTests {
             throw AstraError.unimplemented("not stubbed")
         }
 
+        func setLoadedOutfit(_ outfit: Outfit, items: [OutfitItem]) {
+            loadedOutfit = outfit
+            loadedItems = items
+            outfitsByID[outfit.id] = outfit
+            outfitItemsByID[outfit.id] = items
+        }
+
+        func setOutfit(_ outfit: Outfit, items: [OutfitItem]) {
+            outfitsByID[outfit.id] = outfit
+            outfitItemsByID[outfit.id] = items
+        }
+
         func setRankResult(_ result: [OutfitRecommendation]) {
             rankResult = result
         }
@@ -107,16 +134,62 @@ struct OutfitBuilderViewModelTests {
         }
     }
 
+    actor StubKyraRepository: KyraRepository {
+        let reply: KyraMessage
+        let sendError: AstraError?
+        let onSend: (@Sendable () async -> Void)?
+        private(set) var lastMessage: KyraOutgoingMessage?
+        private(set) var lastExpectedOwnerID: UUID?
+        private(set) var sendCount = 0
+        init(
+            reply: KyraMessage,
+            sendError: AstraError? = nil,
+            onSend: (@Sendable () async -> Void)? = nil
+        ) {
+            self.reply = reply
+            self.sendError = sendError
+            self.onSend = onSend
+        }
+        func fetchThreads() async throws -> [KyraThread] { [] }
+        func fetchMessages(threadID: UUID) async throws -> [KyraMessage] { [] }
+        func send(threadID: UUID?, message: KyraOutgoingMessage) async throws -> KyraMessage {
+            lastMessage = message
+            sendCount += 1
+            await onSend?()
+            if let sendError { throw sendError }
+            return reply
+        }
+        func send(threadID: UUID?, message: KyraOutgoingMessage, expectedOwnerID: UUID) async throws -> KyraMessage {
+            lastExpectedOwnerID = expectedOwnerID
+            return try await send(threadID: threadID, message: message)
+        }
+        func fetchMemories() async throws -> [StyleMemory] { [] }
+        func confirmMemoryProposal(_ proposal: KyraMemoryProposal, sourceMessageID: UUID) async throws -> StyleMemory {
+            throw AstraError.unimplemented("not used")
+        }
+        func deleteMemory(id: UUID) async throws {}
+    }
+
+    actor OwnerState {
+        private(set) var id: UUID?
+        init(_ id: UUID?) { self.id = id }
+        func current() -> UUID? { id }
+        func switchTo(_ id: UUID?) { self.id = id }
+    }
+
     private struct StubGenerationContextProvider: OutfitBuilderGenerationContextProviding {
         let context: OutfitBuilderGenerationContext
         func makeContext() async throws -> OutfitBuilderGenerationContext { context }
     }
 
-    private func makeViewModel(
+    func makeViewModel(
         closet: [ClosetItem],
         repository: StubOutfitRepository = StubOutfitRepository(),
         contextProvider: any OutfitBuilderGenerationContextProviding = EmptyOutfitContextProvider(),
-        startingOutfitID: UUID? = nil
+        startingOutfitID: UUID? = nil,
+        kyraRepository: KyraRepository? = nil,
+        ownerID: UUID? = nil,
+        ownerProvider: (@Sendable () async -> UUID?)? = nil
     ) -> (OutfitBuilderViewModel, StubOutfitRepository) {
         let closetRepository = MockClosetRepository(items: closet)
         let viewModel = OutfitBuilderViewModel(
@@ -124,7 +197,9 @@ struct OutfitBuilderViewModelTests {
             closetRepository: closetRepository,
             compatibilityScorer: LocalCompatibilityScorer(),
             startingOutfitID: startingOutfitID,
-            generationContextProvider: contextProvider
+            generationContextProvider: contextProvider,
+            kyraRepository: kyraRepository,
+            currentOwnerID: ownerProvider ?? { ownerID }
         )
         return (viewModel, repository)
     }
@@ -221,14 +296,21 @@ struct OutfitBuilderViewModelTests {
         #expect(firstReading != secondReading)
     }
 
-    // MARK: - Ask Kyra to finish
-
-    @Test("Ask Kyra to finish is an honest, visible state change, not a silent no-op")
-    func askKyraToFinishIsHonestState() async throws {
-        let (viewModel, _) = makeViewModel(closet: [])
-        #expect(viewModel.askKyraState == .idle)
-        viewModel.askKyraToFinish()
-        #expect(viewModel.askKyraState == .comingSoon)
+    @Test("Saving an edit replaces the rows on the same outfit identity")
+    func saveExistingOutfitPreservesIdentity() async throws {
+        let ownerID = UUID()
+        let top = item(.top, name: "Existing top", userID: ownerID)
+        let bottom = item(.bottom, name: "Replacement bottom", userID: ownerID)
+        let outfitID = UUID()
+        let saved = Outfit(id: outfitID, userID: ownerID, name: "Original", source: .userCreated)
+        let repository = StubOutfitRepository()
+        await repository.setLoadedOutfit(saved, items: [OutfitItem(outfitID: outfitID, closetItemID: top.id, role: .top, sortOrder: 0)])
+        let (viewModel, _) = makeViewModel(closet: [top, bottom], repository: repository, startingOutfitID: outfitID)
+        await viewModel.onAppear()
+        viewModel.selectItem(bottom, for: .bottom)
+        await viewModel.save()
+        #expect(await repository.lastReplacedOutfitID == outfitID)
+        #expect(await repository.lastReplacementItems == [top.id, bottom.id])
     }
 
     // MARK: - Save

@@ -13,17 +13,12 @@
 //  an already-saved `Outfit` (reached from wherever P4-OUTFIT-11/P4-HOME-03
 //  eventually link "Edit") and hydrates the rail from its `outfit_items`.
 //
-//  WHY "SAVE" ALWAYS INSERTS A NEW OUTFIT, EVEN WHEN EDITING ONE. There is
-//  no repository method that rewrites an existing outfit's `outfit_items`
-//  set — `updateOutfit(_:)` only ever touches the `outfits` row's own
-//  columns (name/description/etc.), and `saveOutfit(from:name:closetItems:)`
-//  is a plain `INSERT`, not an upsert (see `LiveOutfitRepository.saveOutfit`'s
-//  own header). Re-using `saveOutfit` for an edit-in-progress with the
-//  ORIGINAL outfit id would collide with that existing row's primary key.
-//  So `save()` always mints a fresh id and inserts a new `outfits` row —
-//  "Save as outfit" is taken at its word. A true in-place edit (replace
-//  `outfit_items` on the same id) is a real gap this ticket does not close;
-//  see this type's `save()` doc.
+//  CREATE VERSUS EDIT. A new canvas persists through `saveOutfit`. A loaded
+//  or Kyra-completed outfit keeps its original identity and calls the
+//  owner-scoped `replace_outfit_items` RPC with the loaded `updated_at`
+//  token. That transaction validates active owned garments and replaces
+//  metadata and child rows atomically; stale editors must reload. Historical
+//  wear rows remain attached to the same outfit ID.
 //
 //  THE LIVE COMPATIBILITY METER'S HONESTY GATE LIVES HERE, NOT IN THE
 //  SCORER. `LocalCompatibilityScorer` will happily score one garment
@@ -47,13 +42,9 @@ public final class OutfitBuilderViewModel {
         case failed(AstraError)
     }
 
-    /// "Ask Kyra to finish" (spec §6.13) is wired to a stub until
-    /// `P5-KYRA-06` ships the real `create_outfit` tool call. `.comingSoon`
-    /// is the honest state spec §22 requires instead of a silent no-op —
-    /// see `askKyraToFinish()`.
     public enum AskKyraState: Equatable {
         case idle
-        case comingSoon
+        case working
     }
 
     public private(set) var loadState: LoadState = .loading
@@ -72,6 +63,7 @@ public final class OutfitBuilderViewModel {
     public private(set) var savedOutfit: Outfit?
     public private(set) var actionError: AstraError?
     public private(set) var askKyraState: AskKyraState = .idle
+    public private(set) var kyraReason: String?
     public let showsClosetRecommendations: Bool
     public private(set) var recommendations: [OutfitRecommendation] = []
     public private(set) var isLoadingRecommendations = false
@@ -81,6 +73,8 @@ public final class OutfitBuilderViewModel {
     // MARK: - Dependencies
 
     private let outfitRepository: OutfitRepository
+    private let kyraRepository: KyraRepository?
+    private let currentOwnerID: @Sendable () async -> UUID?
     private let closetRepository: ClosetRepository
     private let compatibilityScorer: CompatibilityScoring
     private let startingOutfitID: UUID?
@@ -106,9 +100,13 @@ public final class OutfitBuilderViewModel {
         compatibilityScorer: CompatibilityScoring = LocalCompatibilityScorer(),
         analyticsClient: AnalyticsClient = NoOpAnalyticsClient(),
         startingOutfitID: UUID? = nil,
-        generationContextProvider: any OutfitBuilderGenerationContextProviding = EmptyOutfitContextProvider()
+        generationContextProvider: any OutfitBuilderGenerationContextProviding = EmptyOutfitContextProvider(),
+        kyraRepository: KyraRepository? = nil,
+        currentOwnerID: @escaping @Sendable () async -> UUID? = { nil }
     ) {
         self.outfitRepository = outfitRepository
+        self.kyraRepository = kyraRepository
+        self.currentOwnerID = currentOwnerID
         self.closetRepository = closetRepository
         self.compatibilityScorer = compatibilityScorer
         self.analyticsClient = analyticsClient
@@ -138,6 +136,7 @@ public final class OutfitBuilderViewModel {
 
             if let startingOutfitID {
                 let outfit = try await outfitRepository.fetchOutfit(id: startingOutfitID)
+                savedOutfit = outfit
                 let outfitItems = try await outfitRepository.fetchOutfitItems(outfitID: startingOutfitID)
                 outfitName = outfit.name
                 hydrateSlots(from: outfitItems, closetItems: items)
@@ -184,22 +183,29 @@ public final class OutfitBuilderViewModel {
     /// replace" is locked OUT of, per spec §6.13's own pairing of the two
     /// gestures.
     public func selectItem(_ item: ClosetItem, for category: ClothingCategory) {
+        guard askKyraState != .working else { return }
+        guard closetItems.contains(where: { $0.id == item.id && !$0.isArchived }) else { return }
         guard let index = slots.firstIndex(where: { $0.category == category }), !slots[index].isLocked else { return }
         slots[index].item = item
+        kyraReason = nil
         AstraHaptics.selection()
     }
 
     public func clearItem(for category: ClothingCategory) {
+        guard askKyraState != .working else { return }
         guard let index = slots.firstIndex(where: { $0.category == category }), !slots[index].isLocked else { return }
         slots[index].item = nil
+        kyraReason = nil
     }
 
     /// Long-press-to-lock. Refuses to lock an empty slot — there is
     /// nothing there for "regenerate" to preserve, so a lock on it would
     /// be a control with no effect (spec §22).
     public func toggleLock(for category: ClothingCategory) {
+        guard askKyraState != .working else { return }
         guard let index = slots.firstIndex(where: { $0.category == category }), slots[index].item != nil else { return }
         slots[index].isLocked.toggle()
+        kyraReason = nil
         AstraHaptics.selection()
     }
 
@@ -218,6 +224,12 @@ public final class OutfitBuilderViewModel {
 
 }
 
+private struct OutfitBuilderKyraCompletion {
+    let outfit: Outfit
+    let recommendation: OutfitRecommendation
+    let reason: String
+}
+
 // The remaining behaviour (regenerate, Ask Kyra, save) is split into its
 // own extension purely to keep this type under SwiftLint's
 // `type_body_length` ceiling — the same reason `LiveOutfitRepository`
@@ -233,7 +245,7 @@ extension OutfitBuilderViewModel {
     /// or stale server reference is omitted instead of becoming an empty
     /// builder slot that looks like a valid generated outfit.
     public func generateClosetRecommendations() async {
-        guard !isLoadingRecommendations else { return }
+        guard !isLoadingRecommendations, !isSaving, !isRegenerating, askKyraState != .working else { return }
         isLoadingRecommendations = true
         recommendationError = nil
         recommendations = []
@@ -270,10 +282,12 @@ extension OutfitBuilderViewModel {
     }
 
     public func selectRecommendation(_ recommendation: OutfitRecommendation) {
+        guard !isSaving, !isRegenerating, !isLoadingRecommendations, askKyraState != .working else { return }
         guard recommendations.contains(where: { $0.id == recommendation.id }) else { return }
         applyToUnlockedSlots(recommendation)
         outfitName = recommendation.name
         selectedRecommendationID = recommendation.id
+        kyraReason = nil
     }
 
     public func clearRecommendationError() {
@@ -291,10 +305,11 @@ extension OutfitBuilderViewModel {
     /// only unlocked slots") as a client-side guarantee, testable without
     /// depending on the ranking endpoint's own correctness.
     public func regenerate() async {
-        guard !isRegenerating else { return }
+        guard !isRegenerating, !isSaving, !isLoadingRecommendations, askKyraState != .working else { return }
         isRegenerating = true
         defer { isRegenerating = false }
         actionError = nil
+        kyraReason = nil
         do {
             let lockedItemIDs = slots.compactMap { $0.isLocked ? $0.item?.id : nil }
             let recommendations: [OutfitRecommendation]
@@ -347,31 +362,148 @@ extension OutfitBuilderViewModel {
         }
     }
 
-    // MARK: - Ask Kyra to finish (stub until P5-KYRA-06)
+    // MARK: - Ask Kyra to finish (P5-KYRA-06)
 
-    /// Spec §6.13's "Ask Kyra to finish" action, before the real
-    /// `create_outfit` tool call exists. This is a real, reachable state
-    /// change — the view renders `.comingSoon` as an honest "arrives with
-    /// Kyra" message — not a silently absorbed tap (spec §22).
-    public func askKyraToFinish() {
-        askKyraState = .comingSoon
+    /// Requests a durable, owner-validated Kyra completion. No canvas state
+    /// changes until the returned outfit and every item resolve locally.
+    public func askKyraToFinish() async {
+        guard askKyraState != .working, !isSaving, !isRegenerating, !isLoadingRecommendations else { return }
+        guard let kyraRepository else {
+            actionError = AstraError(category: .unimplemented, message: "Kyra outfit completion is unavailable.")
+            return
+        }
+        askKyraState = .working
+        kyraReason = nil
+        actionError = nil
+        defer { askKyraState = .idle }
+        guard let ownerID = await currentOwnerID() else {
+            actionError = AstraError(category: .auth, message: "Sign in again before asking Kyra to finish this outfit.")
+            return
+        }
+        guard closetItems.allSatisfy({ $0.userID == ownerID }) else {
+            actionError = AstraError(category: .auth, message: "Your account changed. Reload your closet before asking Kyra to finish this outfit.")
+            return
+        }
+        let lockedIDs = slots.compactMap { $0.isLocked ? $0.item?.id : nil }
+        let activeOwnedIDs = Set(closetItems.filter { !$0.isArchived }.map(\.id))
+        guard lockedIDs.allSatisfy(activeOwnedIDs.contains) else {
+            actionError = AstraError(category: .validation, message: "A locked closet item is no longer available. Reload your closet and try again.")
+            return
+        }
+        let message = kyraCompletionMessage(lockedIDs: lockedIDs)
+        do {
+            let reply = try await kyraRepository.send(
+                threadID: nil,
+                message: message,
+                expectedOwnerID: ownerID
+            )
+            try Task.checkCancellation()
+            let completion = try await validatedKyraCompletion(
+                reply,
+                ownerID: ownerID,
+                lockedIDs: lockedIDs,
+                activeOwnedIDs: activeOwnedIDs
+            )
+            applyToUnlockedSlots(completion.recommendation)
+            outfitName = completion.outfit.name
+            if backingOutfitID == nil {
+                savedOutfit = completion.outfit
+                backingOutfitID = completion.outfit.id
+            }
+            kyraReason = completion.reason
+        } catch let error as AstraError {
+            actionError = error
+        } catch is CancellationError {
+            // Closing the builder cancels the request without changing its canvas.
+        } catch {
+            actionError = AstraError(category: .unknown, message: "Couldn't finish this outfit. Try again.")
+        }
+    }
+
+    private func kyraCompletionMessage(lockedIDs: [UUID]) -> KyraOutgoingMessage {
+        let labels = slots.compactMap { slot -> String? in
+            guard slot.isLocked, let item = slot.item else { return nil }
+            return "\(item.name) (\(slot.category.rawValue))"
+        }
+        let lockInstruction = labels.isEmpty
+            ? "No pieces are locked."
+            : "Keep these pieces exactly: \(labels.joined(separator: ", "))."
+        return KyraOutgoingMessage(
+            text: "Finish this outfit using only my owned closet items. \(lockInstruction) Return one complete outfit and a short reason.",
+            lockedClosetItemIDs: lockedIDs,
+            isOutfitBuilderCompletion: true
+        )
+    }
+
+    private func validatedKyraCompletion(
+        _ reply: KyraMessage,
+        ownerID: UUID,
+        lockedIDs: [UUID],
+        activeOwnedIDs: Set<UUID>
+    ) async throws -> OutfitBuilderKyraCompletion {
+        guard await currentOwnerID() == ownerID else {
+            throw AstraError(category: .auth, message: "Your account changed while Kyra was finishing this outfit.")
+        }
+        guard let outfitID = reply.structuredPayload?.cards.compactMap({ card -> UUID? in
+            if case .outfit(let id, _, _, _) = card { return id }
+            return nil
+        }).first else {
+            throw AstraError(category: .server, message: "Kyra did not return a completed outfit. Your canvas was left unchanged.")
+        }
+        let outfit = try await outfitRepository.fetchOutfit(id: outfitID)
+        let outfitItems = try await outfitRepository.fetchOutfitItems(outfitID: outfitID)
+        try Task.checkCancellation()
+        guard await currentOwnerID() == ownerID, outfit.userID == ownerID else {
+            throw AstraError(category: .auth, message: "Your account changed while loading Kyra’s outfit.")
+        }
+        guard !outfit.isArchived, outfitItems.allSatisfy({ $0.outfitID == outfitID }) else {
+            throw AstraError(category: .validation, message: "Kyra’s outfit is no longer available. Your canvas was left unchanged.")
+        }
+        let itemIDs = outfitItems.compactMap(\.closetItemID)
+        let closetItemsByID = Dictionary(uniqueKeysWithValues: closetItems.map { ($0.id, $0) })
+        guard outfitItems.allSatisfy({ row in
+                  guard row.productCandidateID == nil,
+                        let id = row.closetItemID,
+                        let item = closetItemsByID[id],
+                        let category = ClothingCategory(rawValue: row.role.rawValue) else { return false }
+                  return item.category == category
+              }),
+              !itemIDs.isEmpty,
+              Set(itemIDs).count == itemIDs.count,
+              itemIDs.allSatisfy(activeOwnedIDs.contains),
+              Set(lockedIDs).isSubset(of: Set(itemIDs)) else {
+            throw AstraError(category: .validation, message: "Kyra’s result did not preserve your locked pieces or referenced an unavailable item. Your canvas was left unchanged.")
+        }
+        let reason = outfit.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !reason.isEmpty else {
+            throw AstraError(category: .server, message: "Kyra completed the outfit without a reason. Your canvas was left unchanged.")
+        }
+        let recommendation = OutfitRecommendation(
+            id: outfit.id,
+            name: outfit.name,
+            reason: reason,
+            compatibilityScore: outfit.compatibilityScore ?? 0,
+            itemIDs: itemIDs,
+            missingProductIDs: []
+        )
+        return OutfitBuilderKyraCompletion(outfit: outfit, recommendation: recommendation, reason: reason)
     }
 
     public func dismissAskKyraState() {
-        askKyraState = .idle
+        kyraReason = nil
     }
 
     // MARK: - Save
 
-    /// Persists the canvas as a new, real `outfits` row (see this file's
-    /// header for why this never updates `startingOutfitID` in place).
+    /// Persists a new canvas or atomically updates its existing outfit. Edits
+    /// keep the original ID and use the loaded optimistic-concurrency token.
     /// Requires at least one filled slot — an entirely empty canvas has
     /// nothing to save, and `AstraButton`'s disabled state on the view
     /// side keeps that from ever reaching here as a live tap in the first
     /// place; the guard is the same rule stated a second time, for callers
     /// other than the button.
     public func save() async {
-        guard !isSaving, !filledItems.isEmpty else { return }
+        guard !isSaving, !isRegenerating, !isLoadingRecommendations, askKyraState != .working, !filledItems.isEmpty else { return }
         isSaving = true
         defer { isSaving = false }
         actionError = nil
@@ -386,7 +518,14 @@ extension OutfitBuilderViewModel {
                 itemIDs: filledItems.map(\.id),
                 missingProductIDs: []
             )
-            let saved = try await outfitRepository.saveOutfit(from: recommendation, name: name, closetItems: closetItems)
+            let saved: Outfit
+            if var existing = savedOutfit, existing.id == backingOutfitID {
+                existing.name = name
+                existing.compatibilityScore = currentCompatibility?.score()
+                saved = try await outfitRepository.replaceOutfitItemsAndMetadata(existing, items: filledItems)
+            } else {
+                saved = try await outfitRepository.saveOutfit(from: recommendation, name: name, closetItems: closetItems)
+            }
             savedOutfit = saved
             backingOutfitID = saved.id
             AstraHaptics.success()

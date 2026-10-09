@@ -12,15 +12,10 @@
 //  `guard !flag` plus `defer`, and protocol-only dependencies so all of
 //  them can be stubbed in a unit test.
 //
-//  TWO FIELDS §6.15 ASKS FOR THAT THIS SCREEN CANNOT SHOW.
-//  * Care instructions. There is no property on `ClosetItem` and no column
-//    on `closet_items` for it. Adding a `CodingKeys` entry here would fail
-//    `scripts/check_column_drift.py` and would decode to nothing at
-//    runtime. It needs a migration; it is not a UI omission, and nothing
-//    on this screen pretends otherwise by rendering an empty "Care" row.
-//  * Outfit count. Needs `outfit_items`, which is Phase 4. Rendering
-//    "0 outfits" today would be a measured-looking zero for a table that
-//    does not exist, which is worse than silence.
+//  OUTFIT COUNT IS READ FROM OWNER-SCOPED SAVED OUTFIT INSIGHTS. It is
+//  withheld while that request is pending or unavailable, rather than
+//  rendering a fabricated zero. Care instructions are optional user text
+//  carried directly on ClosetItem and never inferred from fabric.
 //
 //  WEAR DATA IS REAL, JUST NOT YET FED FROM EVERYWHERE. `wear_count` and
 //  `last_worn_at` are real columns and this screen reads and writes them
@@ -511,6 +506,7 @@ public enum ClosetItemDetailCopy {
             item.size?.isEmpty == false,
             item.fit != nil,
             item.condition != nil,
+            item.careInstructions?.isEmpty == false,
             !item.seasonality.isEmpty,
             item.purchaseDate != nil,
             item.pricePaid != nil,

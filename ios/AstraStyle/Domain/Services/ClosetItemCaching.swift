@@ -32,4 +32,14 @@ public protocol ClosetItemCaching: Sendable {
 
     /// Soft-deletes a cached row scoped to `userID`.
     func archive(id: UUID, for userID: UUID, archivedAt: Date) async
+
+    /// Removes one account's cached item rows and care-note sidecars. A
+    /// throwing purge lets account deletion retain its retry state if disk
+    /// cleanup cannot be confirmed.
+    func removeAll(for userID: UUID) async throws
+}
+
+/// Purges the authenticated closet cache after account deletion.
+public protocol ClosetItemCachePurging: Sendable {
+    func purgeCachedClosetItems(ownerID: UUID) async throws
 }

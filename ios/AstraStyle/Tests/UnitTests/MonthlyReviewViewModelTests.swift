@@ -107,7 +107,6 @@ struct MonthlyReviewViewModelTests {
         }
         #expect(message == "Evaluation history is temporarily unavailable.")
     }
-
     private func snapshot(
         month: Date,
         purchases: [(ProductCandidate, Date)],
@@ -127,16 +126,25 @@ struct MonthlyReviewViewModelTests {
         }
         return result
     }
-
-    private func makeViewModel(month: Date, shopping: MockShoppingRepository) -> MonthlyReviewViewModel {
+    private func makeViewModel(
+        month: Date,
+        shopping: MockShoppingRepository,
+        kyra: KyraRepository = MockKyraRepository(),
+        summaryCache: MonthlyReviewSummaryCaching = InMemoryMonthlyReviewSummaryCache(),
+        closetItems: [ClosetItem] = [],
+        outfitRepository: OutfitRepository = MockOutfitRepository(),
+        currentOwnerID: @escaping @Sendable () async -> UUID? = { SampleData.userID }
+    ) -> MonthlyReviewViewModel {
         MonthlyReviewViewModel(
             month: month,
-            closetRepository: MockClosetRepository(items: []),
-            outfitRepository: MockOutfitRepository(),
-            shoppingRepository: shopping
+            closetRepository: MockClosetRepository(items: closetItems),
+            outfitRepository: outfitRepository,
+            shoppingRepository: shopping,
+            kyraRepository: kyra,
+            summaryCache: summaryCache,
+            currentOwnerID: currentOwnerID
         )
     }
-
     private func candidate(name: String) -> ProductCandidate {
         ProductCandidate(
             id: UUID(),

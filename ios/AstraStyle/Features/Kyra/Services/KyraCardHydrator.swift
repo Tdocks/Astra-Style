@@ -54,7 +54,7 @@ public struct KyraCardHydrator: Sendable {
         var rendered: [KyraRenderedCard] = []
         for card in cards {
             switch card {
-            case .outfit(let outfitID):
+            case .outfit(let outfitID, _, _, _):
                 if closet == nil {
                     closet = try? await closetRepository.fetchItems()
                 }

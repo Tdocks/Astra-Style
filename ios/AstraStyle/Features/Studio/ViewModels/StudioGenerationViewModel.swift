@@ -46,12 +46,7 @@ public final class StudioGenerationViewModel {
     public var selectedPreset: StudioPromptPreset? = .smartCasual {
         didSet {
             guard selectedPreset != oldValue, let selectedPreset else { return }
-            let defaults = selectedPreset.controlDefaults
-            selectedBackground = defaults.background
-            selectedPose = defaults.pose
-            selectedFormality = defaults.formality
-            selectedSeason = defaults.season ?? Self.currentSeason
-            paletteText = defaults.palette.joined(separator: ", ")
+            applyDefaults(for: selectedPreset)
         }
     }
     public var selectedBackground: StudioBackground = .studio
@@ -93,6 +88,25 @@ public final class StudioGenerationViewModel {
         hasGrantedConsent && (existingReferencePath != nil || pendingImageData != nil)
     }
 
+    /// Reapplies every default even when the same preset is already selected,
+    /// which lets an explicit “Use preset” action reset subsequent edits.
+    public func applyPreset(_ preset: StudioPromptPreset) {
+        guard selectedPreset == preset else {
+            selectedPreset = preset
+            return
+        }
+        applyDefaults(for: preset)
+    }
+
+    private func applyDefaults(for preset: StudioPromptPreset) {
+        let defaults = preset.controlDefaults
+        selectedBackground = defaults.background
+        selectedPose = defaults.pose
+        selectedFormality = defaults.formality
+        selectedSeason = defaults.season ?? Self.currentSeason
+        paletteText = defaults.palette.joined(separator: ", ")
+    }
+
     public func onAppear() async {
         guard case .preparing = phase else { return }
         if let body = try? await profileRepository.fetchBodyProfile() {
@@ -130,6 +144,7 @@ public final class StudioGenerationViewModel {
             return
         }
         phase = .generating
+        let isExplicitReroll = generation != nil
         generation = nil
         resultImageURL = nil
         let referenceRevision = referenceSelectionRevision
@@ -156,6 +171,7 @@ public final class StudioGenerationViewModel {
                         .filter { !$0.isEmpty }
                         .prefix(8)
                 ),
+                variationNonce: isExplicitReroll ? UUID() : nil,
                 hasUserConsent: true,
                 consentTermsVersion: StudioConsentTerms.currentVersion
             )

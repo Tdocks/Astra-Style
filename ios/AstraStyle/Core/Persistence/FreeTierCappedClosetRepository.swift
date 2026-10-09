@@ -18,7 +18,7 @@
 
 import Foundation
 
-public struct FreeTierCappedClosetRepository: ClosetRepository {
+public struct FreeTierCappedClosetRepository: ClosetRepository, ClosetItemCachePurging {
     private let base: ClosetRepository
     private let isEntitledToPremium: @Sendable () async -> Bool
     private let isAnonymous: @Sendable () async -> Bool
@@ -61,8 +61,17 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
         try await base.fetchImages(forItem: itemID)
     }
 
+    public func purgeCachedClosetItems(ownerID: UUID) async throws {
+        guard let purger = base as? any ClosetItemCachePurging else { return }
+        try await purger.purgeCachedClosetItems(ownerID: ownerID)
+    }
+
     public func uploadCapturedImage(_ data: Data) async throws -> String {
         try await base.uploadCapturedImage(data)
+    }
+
+    public func uploadClosetCaptureImage(_ data: Data) async throws -> String {
+        try await base.uploadClosetCaptureImage(data)
     }
 
     public func deleteCapturedImage(atPath storagePath: String) async throws {

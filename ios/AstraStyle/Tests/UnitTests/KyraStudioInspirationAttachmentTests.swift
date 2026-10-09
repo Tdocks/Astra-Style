@@ -33,4 +33,25 @@ struct KyraStudioInspirationAttachmentTests {
         #expect(attachment["type"] == "studio_inspiration")
         #expect(attachment["value"]?.lowercased() == generationID.uuidString.lowercased())
     }
+
+    @Test("Outfit builder request carries the expected owner locks and task flag")
+    func outfitBuilderRequestContract() throws {
+        let lockedItemID = UUID()
+        let body = KyraRespondBody(
+            threadID: nil,
+            message: KyraOutgoingMessage(
+                text: "Finish this outfit.",
+                lockedClosetItemIDs: [lockedItemID],
+                isOutfitBuilderCompletion: true
+            ),
+            weatherSnapshot: nil,
+            scheduleSnapshot: nil
+        )
+
+        let encoded = try JSONEncoder().encode(body)
+        let object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        let lockedIDs = object?["locked_closet_item_ids"] as? [String]
+        #expect(lockedIDs?.first?.lowercased() == lockedItemID.uuidString.lowercased())
+        #expect(object?["outfit_builder_completion"] as? Bool == true)
+    }
 }

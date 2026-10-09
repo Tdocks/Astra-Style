@@ -29,6 +29,7 @@ struct ProfileDestinationView: View {
             let cachePurger = container.profileRepository as? any ProfileCachePurging
             let kyraCachePurger = container.kyraRepository as? any KyraHistoryCachePurging
             let shoppingCachePurger = container.shoppingRepository as? any ShoppingEvaluationCachePurging
+            let closetCachePurger = container.closetRepository as? any ClosetItemCachePurging
             AccountDeletionView(
                 viewModel: AccountDeletionViewModel(
                     authRepository: container.authRepository,
@@ -37,6 +38,7 @@ struct ProfileDestinationView: View {
                         try await cachePurger?.purgeLocalProfileCache(ownerID: ownerID)
                         try await kyraCachePurger?.purgeCachedKyraHistory(ownerID: ownerID)
                         try await shoppingCachePurger?.purgeCachedShoppingEvaluations(ownerID: ownerID)
+                        try await closetCachePurger?.purgeCachedClosetItems(ownerID: ownerID)
                     }
                 )
             )
@@ -71,6 +73,14 @@ struct ProfileDestinationView: View {
         case .wardrobeScoreDetail:
             WardrobeScoreDetailView(
                 viewModel: WardrobeScoreViewModel(closetRepository: container.closetRepository)
+            )
+
+        case .tasteRefinement:
+            StyleQuizRefinementView(
+                viewModel: StyleQuizRefinementViewModel(
+                    profileRepository: container.profileRepository,
+                    currentOwnerID: { await container.sessionStore.currentUserID() }
+                )
             )
 
         case .preferences:

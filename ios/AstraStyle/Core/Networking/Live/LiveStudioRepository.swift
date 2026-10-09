@@ -280,6 +280,8 @@ private struct StudioGenerateBody: Encodable, Sendable {
     let formality: FormalityLevel?
     let season: Season?
     let colorPalette: [String]
+    let semanticCacheOptIn: Bool
+    let variationNonce: UUID?
     let consent: StudioConsentAttestation
 
     init(_ request: StudioGenerationRequest) {
@@ -299,6 +301,8 @@ private struct StudioGenerateBody: Encodable, Sendable {
         formality = request.formality
         season = request.season
         colorPalette = request.colorPalette
+        semanticCacheOptIn = request.semanticCacheOptIn
+        variationNonce = request.variationNonce
         consent = StudioConsentAttestation(
             acknowledged: request.hasUserConsent,
             termsVersion: request.consentTermsVersion
@@ -320,6 +324,8 @@ private struct StudioGenerateBody: Encodable, Sendable {
         case formality
         case season
         case colorPalette = "color_palette"
+        case semanticCacheOptIn = "semantic_cache_opt_in"
+        case variationNonce = "variation_nonce"
         case consent
     }
 }

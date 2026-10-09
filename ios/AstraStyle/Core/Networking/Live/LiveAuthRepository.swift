@@ -19,17 +19,20 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
     private let supabase: SupabaseClient
     private let sessionStore: SessionStore
     private let weatherCache: (any WeatherSnapshotCacheInvalidating)?
+    private let monthlyReviewCache: (any MonthlyReviewSummaryCaching)?
 
     public init(
         apiClient: AstraAPIClient,
         sessionStore: SessionStore,
         supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current),
-        weatherCache: (any WeatherSnapshotCacheInvalidating)? = nil
+        weatherCache: (any WeatherSnapshotCacheInvalidating)? = nil,
+        monthlyReviewCache: (any MonthlyReviewSummaryCaching)? = nil
     ) {
         self.apiClient = apiClient
         self.sessionStore = sessionStore
         self.supabase = supabase
         self.weatherCache = weatherCache
+        self.monthlyReviewCache = monthlyReviewCache
     }
 
     public func signInWithApple(identityToken: String, nonce: String) async throws -> AuthSession {
@@ -192,6 +195,7 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
         if let owner {
             await ClosetImageByteCache.shared.removeAll(ownerID: owner)
             await weatherCache?.clearCachedWeather(ownerID: owner)
+            try? await monthlyReviewCache?.removeAll(ownerID: owner)
         }
         try await sessionStore.signOut()
         return status

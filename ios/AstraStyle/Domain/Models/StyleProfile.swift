@@ -66,6 +66,11 @@ public struct StyleProfile: Codable, Hashable, Sendable {
     /// of them.
     public var preferenceVector: StylePreferenceVector
 
+    /// Bounded answer record for the 16-pair Style DNA quiz. Optional so older
+    /// server rows and clients decode unchanged; nil means collected before
+    /// answer persistence existed.
+    public var preferenceQuizAnswers: [StylePreferenceQuizAnswer]?
+
     /// pgvector embedding of the style summary, used server-side for
     /// similarity search. The client treats this as opaque and never
     /// computes with it directly.
@@ -88,6 +93,7 @@ public struct StyleProfile: Codable, Hashable, Sendable {
         accessoryPreference: AccessoryPreference? = nil,
         styleSummary: String? = nil,
         preferenceVector: StylePreferenceVector = .skipped,
+        preferenceQuizAnswers: [StylePreferenceQuizAnswer]? = nil,
         embedding: [Float]? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
@@ -105,6 +111,7 @@ public struct StyleProfile: Codable, Hashable, Sendable {
         self.accessoryPreference = accessoryPreference
         self.styleSummary = styleSummary
         self.preferenceVector = preferenceVector
+        self.preferenceQuizAnswers = preferenceQuizAnswers
         self.embedding = embedding
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -124,6 +131,7 @@ public struct StyleProfile: Codable, Hashable, Sendable {
         case accessoryPreference = "accessory_preference"
         case styleSummary = "style_summary"
         case preferenceVector = "preference_vector"
+        case preferenceQuizAnswers = "preference_quiz_answers"
         case embedding
         case createdAt = "created_at"
         case updatedAt = "updated_at"

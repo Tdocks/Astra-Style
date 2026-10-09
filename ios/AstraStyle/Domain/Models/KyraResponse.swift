@@ -146,15 +146,17 @@ public struct KyraStructuredResponse: Codable, Hashable, Sendable {
 /// server's `{"type": "...", ...}` JSON shape via custom `Codable`.
 ///
 /// NOT a lossless mirror of the wire shape, and deliberately so:
-/// `schema.ts`'s `.outfit` card carries additive `reason`,
-/// `compatibility_score`, and `item_ids` fields ("additive beyond the Swift
-/// decode shape; Codable ignores them" — that file's own comment). Nothing
-/// here reads them, so decode → re-encode of an outfit card drops them; if
-/// a future screen needs the reason text or score, it has to be added as a
-/// stored property and a `CodingKeys` entry here, not assumed to already
-/// survive the round trip.
+/// Outfit cards preserve the server's additive reason, score, and item IDs.
+/// They are optional so older stored messages and ordinary Kyra responses
+/// keep decoding unchanged; consumers still resolve durable outfit data from
+/// the owner-scoped repository before mutating local UI.
 public enum KyraCard: Hashable, Sendable {
-    case outfit(outfitID: UUID)
+    case outfit(
+        outfitID: UUID,
+        reason: String? = nil,
+        compatibilityScore: Double? = nil,
+        itemIDs: [UUID]? = nil
+    )
     case product(productCandidateID: UUID)
     case closetItem(closetItemID: UUID)
     case comparisonTable(ComparisonTable)
@@ -165,6 +167,9 @@ extension KyraCard: Codable {
     private enum CodingKeys: String, CodingKey {
         case type
         case outfitID = "outfit_id"
+        case reason
+        case compatibilityScore = "compatibility_score"
+        case itemIDs = "item_ids"
         case productCandidateID = "product_candidate_id"
         case closetItemID = "closet_item_id"
         case table
@@ -188,7 +193,12 @@ extension KyraCard: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         switch try container.decode(CardType.self, forKey: .type) {
         case .outfit:
-            self = .outfit(outfitID: try container.decode(UUID.self, forKey: .outfitID))
+            self = .outfit(
+                outfitID: try container.decode(UUID.self, forKey: .outfitID),
+                reason: try container.decodeIfPresent(String.self, forKey: .reason),
+                compatibilityScore: try container.decodeIfPresent(Double.self, forKey: .compatibilityScore),
+                itemIDs: try container.decodeIfPresent([UUID].self, forKey: .itemIDs)
+            )
         case .product:
             self = .product(productCandidateID: try container.decode(UUID.self, forKey: .productCandidateID))
         case .closetItem:
@@ -203,9 +213,12 @@ extension KyraCard: Codable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .outfit(let outfitID):
+        case .outfit(let outfitID, let reason, let compatibilityScore, let itemIDs):
             try container.encode(CardType.outfit, forKey: .type)
             try container.encode(outfitID, forKey: .outfitID)
+            try container.encodeIfPresent(reason, forKey: .reason)
+            try container.encodeIfPresent(compatibilityScore, forKey: .compatibilityScore)
+            try container.encodeIfPresent(itemIDs, forKey: .itemIDs)
         case .product(let productCandidateID):
             try container.encode(CardType.product, forKey: .type)
             try container.encode(productCandidateID, forKey: .productCandidateID)

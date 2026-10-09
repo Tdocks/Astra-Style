@@ -380,6 +380,34 @@ extension ClosetItemFormViewModelTests {
         #expect(updated.waterResistanceScore == original.waterResistanceScore)
     }
 
+    @Test("Care notes are user-entered, trimmed, and preserved through editing")
+    func careInstructionsSaveAndClear() async throws {
+        let original = wornItem()
+        let repository = StubClosetRepository()
+        let model = makeEditing(item: original, repository: repository)
+        model.careInstructions = "  Hand wash cold; lay flat to dry.  "
+        await model.submit()
+        let first = try #require(await repository.updated.last)
+        #expect(first.careInstructions == "Hand wash cold; lay flat to dry.")
+
+        let clearing = makeEditing(item: first, repository: repository)
+        clearing.careInstructions = "  \n "
+        await clearing.submit()
+        #expect(await repository.updated.last?.careInstructions == nil)
+    }
+
+    @Test("Legacy closet item payloads without care_instructions still decode")
+    func legacyClosetItemPayloadDecodesWithoutCareInstructions() throws {
+        let item = wornItem()
+        let data = try JSONEncoder().encode(item)
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "care_instructions")
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(ClosetItem.self, from: legacyData)
+        #expect(decoded.id == item.id)
+        #expect(decoded.careInstructions == nil)
+    }
+
     @Test("A wear history survives an edit — resetting wear count to zero would be unrecoverable data loss")
     func wearCountSurvivesAnEdit() async throws {
         let original = wornItem(wearCount: 23)

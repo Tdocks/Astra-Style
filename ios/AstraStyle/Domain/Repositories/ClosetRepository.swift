@@ -29,6 +29,12 @@ public protocol ClosetRepository: Sendable {
     /// retried without discarding the local draft).
     func uploadCapturedImage(_ data: Data) async throws -> String
 
+    /// Uploads a scanner source/cutout together with its deterministic
+    /// on-device thumbnail sibling. Generic caller uploads (for example
+    /// Kyra attachments) keep using `uploadCapturedImage` and do not create
+    /// unreferenced display variants.
+    func uploadClosetCaptureImage(_ data: Data) async throws -> String
+
     /// Deletes a capture that was uploaded but never became a
     /// `ClosetItemImage` — a scan the user retook, closed out of, or whose
     /// analysis failed for good.
@@ -206,6 +212,10 @@ public struct WardrobeScoreSnapshot: Hashable, Sendable {
 }
 
 public extension ClosetRepository {
+    func uploadClosetCaptureImage(_ data: Data) async throws -> String {
+        try await uploadCapturedImage(data)
+    }
+
     func removeBackground(storagePath: String) async throws -> String? { nil }
 
     func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {

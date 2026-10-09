@@ -13,10 +13,20 @@ import Foundation
 public struct KyraOutgoingMessage: Sendable {
     public var text: String
     public var attachments: [Attachment]
+    /// Required builder locks; normal chat messages leave this empty.
+    public var lockedClosetItemIDs: [UUID]
+    public var isOutfitBuilderCompletion: Bool
 
-    public init(text: String, attachments: [Attachment] = []) {
+    public init(
+        text: String,
+        attachments: [Attachment] = [],
+        lockedClosetItemIDs: [UUID] = [],
+        isOutfitBuilderCompletion: Bool = false
+    ) {
         self.text = text
         self.attachments = attachments
+        self.lockedClosetItemIDs = lockedClosetItemIDs
+        self.isOutfitBuilderCompletion = isOutfitBuilderCompletion
     }
 
     public enum Attachment: Sendable {

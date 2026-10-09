@@ -52,20 +52,28 @@ public struct StyleQuizEngine: Sendable {
     public static let minimumComparisonsBeforeEarlyStop =
         StyleQuizCatalog.specifiedComparisonRange.lowerBound
 
-    public let catalog: StyleQuizCatalog
+    public enum Session: Sendable, Equatable {
+        case firstRunSnapshot
+        case fullRefinement
+    }
 
-    /// The comparisons this user will be asked, in order, capped at
-    /// `maximumComparisons`.
+    public let catalog: StyleQuizCatalog
+    public let session: Session
+
+    /// The comparisons this user will be asked, in order. First run remains a
+    /// three-question snapshot; Profile refinement explicitly requests the
+    /// complete catalog and includes dimensions deferred on first run.
     public let comparisons: [StyleQuizPair]
 
-    public init(catalog: StyleQuizCatalog) {
+    public init(catalog: StyleQuizCatalog, session: Session = .firstRunSnapshot) {
         self.catalog = catalog
+        self.session = session
         let eligible = catalog.pairs.filter { pair in
-            !pair.probedDimensions.isSubset(of: Self.deferredFirstRunDimensions)
+            session == .fullRefinement || !pair.probedDimensions.isSubset(of: Self.deferredFirstRunDimensions)
         }
-        self.comparisons = Array(
-            StyleQuizEngine.orderedForCoverage(eligible).prefix(Self.maximumComparisons)
-        )
+        let ordered = Self.orderedForCoverage(eligible)
+        let maximum = session == .firstRunSnapshot ? Self.maximumComparisons : Self.catalogUpperBound
+        self.comparisons = Array(ordered.prefix(maximum))
     }
 
     /// How many comparisons this run contains. The denominator the UI shows.
@@ -259,6 +267,7 @@ public extension StyleQuizEngine {
         let answeredIDs = Set(recognised.map(\.pairID))
         let remaining = comparisons.filter { !answeredIDs.contains($0.id) }
         if remaining.isEmpty { return true }
+        guard session == .firstRunSnapshot else { return false }
         guard recognised.count >= Self.minimumComparisonsBeforeEarlyStop else { return false }
 
         let vector = StylePreferenceInference.vector(

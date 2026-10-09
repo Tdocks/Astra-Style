@@ -17,6 +17,7 @@ struct StudioGenerationView: View {
     @State private var generationTask: Task<Void, Never>?
     @Environment(AppContainer.self) private var container
     @State private var showsPaywall = false
+    @State private var isShowingPresetGallery = false
 
     init(viewModel: StudioGenerationViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -168,6 +169,46 @@ struct StudioGenerationView: View {
     private var generationControls: some View {
         DisclosureGroup("Customize this look") {
             VStack(alignment: .leading, spacing: AstraSpacing.md) {
+                Button {
+                    isShowingPresetGallery = true
+                } label: {
+                    HStack(spacing: AstraSpacing.md) {
+                        Image(systemName: "square.grid.2x2")
+                            .astraIcon(.emphasis)
+                            .foregroundStyle(AstraColor.accentChampagneAccessible)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                            Text("Browse Studio presets")
+                                .astraText(.callout)
+                                .foregroundStyle(AstraColor.textPrimary)
+                            Text(viewModel.selectedPreset?.displayTitle ?? "Custom controls")
+                                .astraText(.caption)
+                                .foregroundStyle(AstraColor.textMuted)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .astraIcon(.disclosure)
+                            .foregroundStyle(AstraColor.textMuted)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(AstraSpacing.md)
+                    .background(AstraColor.surfaceElevated, in: RoundedRectangle(cornerRadius: AstraRadius.card))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AstraRadius.card)
+                            .strokeBorder(AstraColor.divider, lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("studio.presets.browse")
+                .sheet(isPresented: $isShowingPresetGallery) {
+                    StudioPresetGalleryView(selectedPreset: viewModel.selectedPreset) { preset in
+                        if let preset {
+                            viewModel.applyPreset(preset)
+                        }
+                        isShowingPresetGallery = false
+                    }
+                }
+
                 Picker("Style preset", selection: $viewModel.selectedPreset) {
                     Text("No preset").tag(StudioPromptPreset?.none)
                     ForEach(StudioPromptPreset.allCases, id: \.rawValue) { preset in
@@ -208,6 +249,7 @@ struct StudioGenerationView: View {
         }
         .tint(AstraColor.accentChampagneAccessible)
         .astraText(.callout)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("studio.generationControls")
     }
 

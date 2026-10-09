@@ -423,7 +423,7 @@ public struct ClosetView: View {
     /// a grid tile does — reached by id, so a garment the current search
     /// excludes is still reachable from the figure that named it.
     private var metricsRow: some View {
-        ClosetMetricsRow(metrics: viewModel.metrics) { itemID in
+        ClosetMetricsRow(metrics: viewModel.metrics, versatility: viewModel.versatilityMetric) { itemID in
             router.push(ClosetRoute.itemDetail(itemID: itemID))
         }
         .padding(.horizontal, AstraSpacing.pagePadding)
@@ -515,6 +515,7 @@ public struct ClosetView: View {
             ClosetItemGrid(
                 items: viewModel.visibleItems,
                 imageURL: { viewModel.imageURL(for: $0) },
+                fallbackImageURL: { viewModel.imageFallbackURL(for: $0) },
                 onTileVisible: { viewModel.imageNeeded(for: $0) },
                 onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
             )
@@ -523,6 +524,7 @@ public struct ClosetView: View {
             ClosetCompactList(
                 items: viewModel.visibleItems,
                 imageURL: { viewModel.imageURL(for: $0) },
+                fallbackImageURL: { viewModel.imageFallbackURL(for: $0) },
                 onRowVisible: { viewModel.imageNeeded(for: $0) },
                 onRowTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
             )
@@ -531,6 +533,7 @@ public struct ClosetView: View {
             ClosetColorSpectrum(
                 items: viewModel.visibleItems,
                 imageURL: { viewModel.imageURL(for: $0) },
+                fallbackImageURL: { viewModel.imageFallbackURL(for: $0) },
                 onTileVisible: { viewModel.imageNeeded(for: $0) },
                 onTileTap: { router.push(ClosetRoute.itemDetail(itemID: $0.id)) }
             )
@@ -557,6 +560,7 @@ public struct ClosetView: View {
 struct ClosetItemGrid: View {
     let items: [ClosetItem]
     let imageURL: (ClosetItem) -> URL?
+    let fallbackImageURL: (ClosetItem) -> URL?
     let onTileVisible: (ClosetItem) -> Void
     let onTileTap: (ClosetItem) -> Void
 
@@ -568,6 +572,7 @@ struct ClosetItemGrid: View {
                 ClosetGridTile(
                     item: item,
                     imageURL: imageURL(item),
+                    fallbackImageURL: fallbackImageURL(item),
                     onVisible: { onTileVisible(item) },
                     onTap: { onTileTap(item) }
                 )

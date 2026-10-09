@@ -26,6 +26,11 @@ public struct StudioGenerationRequest: Sendable {
     public var formality: FormalityLevel?
     public var season: Season?
     public var colorPalette: [String]
+    /// Explicitly opts this client version into semantic request reuse.
+    /// Older installed clients omit the wire field and keep independent rerolls.
+    public var semanticCacheOptIn: Bool
+    /// Fresh only when a person explicitly asks for another variation.
+    public var variationNonce: UUID?
 
     /// The user must have explicitly consented to processing this specific
     /// reference image (spec §6.17 Safety: "Require user ownership/
@@ -54,6 +59,8 @@ public struct StudioGenerationRequest: Sendable {
         formality: FormalityLevel? = nil,
         season: Season? = nil,
         colorPalette: [String] = [],
+        semanticCacheOptIn: Bool = true,
+        variationNonce: UUID? = nil,
         hasUserConsent: Bool,
         consentTermsVersion: String = StudioConsentTerms.currentVersion
     ) {
@@ -73,6 +80,8 @@ public struct StudioGenerationRequest: Sendable {
         self.formality = formality
         self.season = season
         self.colorPalette = colorPalette
+        self.semanticCacheOptIn = semanticCacheOptIn
+        self.variationNonce = variationNonce
         self.hasUserConsent = hasUserConsent
         self.consentTermsVersion = consentTermsVersion
     }

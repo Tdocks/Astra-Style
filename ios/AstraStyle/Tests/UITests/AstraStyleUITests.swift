@@ -283,7 +283,7 @@ final class AstraStyleUITests: XCTestCase {
         let close = app.buttons["kyra.preview.close"]
         awaitElement(close, "Preview close button")
         close.tap()
-        awaitElement(app.descendants(matching: .any)["kyra.conversation"], "Conversation after closing preview")
+        awaitElement(app.navigationBars["Kyra"], "Conversation after closing preview")
         XCTAssertTrue(preview.exists, "Closing the preview should retain its chat action")
     }
 

@@ -141,6 +141,13 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
     }
 
     public func resolve(storagePaths: [String]) async throws -> [String: URL] {
+        try await resolve(storagePaths: storagePaths, prefetching: Set(storagePaths))
+    }
+
+    public func resolve(
+        storagePaths: [String],
+        prefetching pathsToPrefetch: Set<String>
+    ) async throws -> [String: URL] {
         guard !storagePaths.isEmpty else { return [:] }
         let ownerID = try await authenticatedOwnerID()
         var resolved: [String: URL] = [:]
@@ -160,7 +167,9 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
                     try await verifyOwner(ownerID)
                     if await signatureRevisionIsCurrent(cached, path: path) {
                         resolved[path] = cached.url
-                        prefetch(cached.url, storagePath: path, ownerID: ownerID)
+                        if pathsToPrefetch.contains(path) {
+                            prefetch(cached.url, storagePath: path, ownerID: ownerID)
+                        }
                     } else {
                         cache[path] = nil
                         needsSigning.append(path)
@@ -175,7 +184,7 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
         // (an item appearing in two sections), and signing it twice would
         // waste half the batch on duplicates.
         for chunk in Array(Set(needsSigning)).chunked(into: Self.batchLimit) {
-            for (path, url) in try await sign(chunk, ownerID: ownerID) {
+            for (path, url) in try await sign(chunk, ownerID: ownerID, prefetching: pathsToPrefetch) {
                 resolved[path] = url
             }
         }
@@ -207,7 +216,11 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
 
     // MARK: - Signing
 
-    private func sign(_ paths: [String], ownerID: UUID) async throws -> [String: URL] {
+    private func sign(
+        _ paths: [String],
+        ownerID: UUID,
+        prefetching pathsToPrefetch: Set<String>
+    ) async throws -> [String: URL] {
         guard !paths.isEmpty else { return [:] }
         let results: [SignedURLResult]
         let revisionsBefore = await invalidationRevisions(ownerID: ownerID, paths: paths)
@@ -238,7 +251,9 @@ public actor LiveClosetImageURLResolver: ClosetImageURLResolving {
                   let revision = revisionsAfter[result.path] else { continue }
             signed[result.path] = url
             store(url, for: result.path, ownerID: ownerID, revision: revision)
-            prefetch(url, storagePath: result.path, ownerID: ownerID)
+            if pathsToPrefetch.contains(result.path) {
+                prefetch(url, storagePath: result.path, ownerID: ownerID)
+            }
         }
         return signed
     }

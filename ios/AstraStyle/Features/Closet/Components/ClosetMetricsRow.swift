@@ -64,6 +64,7 @@ enum ClosetMetricsLayout {
 struct ClosetMetricsRow: View {
 
     private let metrics: ClosetMetrics
+    private let versatility: ClosetVersatilityMetric
 
     /// Called with a `ClosetItem.id` when the most-worn or least-worn
     /// metric is tapped. Those two tiles are the only ones that name a
@@ -73,8 +74,13 @@ struct ClosetMetricsRow: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(metrics: ClosetMetrics, onSelectItem: @escaping (UUID) -> Void) {
+    init(
+        metrics: ClosetMetrics,
+        versatility: ClosetVersatilityMetric = .unavailable,
+        onSelectItem: @escaping (UUID) -> Void
+    ) {
         self.metrics = metrics
+        self.versatility = versatility
         self.onSelectItem = onSelectItem
     }
 
@@ -90,9 +96,44 @@ struct ClosetMetricsRow: View {
                 averageCostPerWearTile
                 mostWornTile
                 leastWornTile
+                versatilityTile
             }
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+extension ClosetMetricsRow {
+    private var versatilityTile: some View {
+        metricTile(
+            label: String(localized: "Versatility", comment: "Closet metric label: server-computed wardrobe versatility"),
+            details: versatilityDetails
+        ) {
+            switch versatility {
+            case .loading:
+                state(String(localized: "Loading score", comment: "Wardrobe versatility score is loading"))
+            case .score(let value, _):
+                figure(String(localized: "\(value) out of 100", comment: "Wardrobe versatility score out of 100"))
+            case .noData:
+                state(String(localized: "Add pieces to start", comment: "Wardrobe versatility has no active wardrobe data"))
+            case .unavailable:
+                state(String(localized: "Score unavailable", comment: "Wardrobe versatility could not be loaded"))
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var versatilityDetails: [String] {
+        switch versatility {
+        case .loading, .noData:
+            []
+        case .score(_, degraded: true):
+            [String(localized: "Based on partial wardrobe data.", comment: "Explains a degraded wardrobe versatility score")]
+        case .score(_, degraded: false):
+            [String(localized: "Based on your wardrobe and wear history.", comment: "Explains the inputs used for the wardrobe versatility score")]
+        case .unavailable:
+            [String(localized: "Pull to refresh when you’re back online.", comment: "How to retry a failed wardrobe score read")]
+        }
     }
 }
 

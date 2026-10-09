@@ -54,6 +54,10 @@ public protocol ClosetImageURLResolving: Sendable {
     ///   `resolve(storagePath:)`.
     func resolve(storagePaths: [String]) async throws -> [String: URL]
 
+    /// Resolves fallback paths in the same batch without warming their full
+    /// image bytes. The image view requests this only after a variant 404.
+    func resolve(storagePaths: [String], prefetching pathsToPrefetch: Set<String>) async throws -> [String: URL]
+
     /// Signs only selected display images attached to public, worn looks.
     /// The opaque image ids are checked against the public-look RPC before
     /// Storage issues a short-lived URL; raw paths never reach the client.
@@ -79,6 +83,10 @@ public struct PublicLookImageReference: Codable, Hashable, Sendable {
 }
 
 public extension ClosetImageURLResolving {
+    func resolve(storagePaths: [String], prefetching pathsToPrefetch: Set<String>) async throws -> [String: URL] {
+        try await resolve(storagePaths: storagePaths)
+    }
+
     func resolve(publicLookImages: [PublicLookImageReference]) async throws -> [UUID: URL] {
         [:]
     }

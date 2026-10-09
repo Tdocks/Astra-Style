@@ -476,8 +476,14 @@ public actor ClosetImageByteCache {
 
     private static func isImageFilename(_ filename: String) -> Bool {
         guard let dot = filename.lastIndex(of: ".") else { return false }
-        let stem = String(filename[..<dot])
+        var stem = String(filename[..<dot])
         let ext = String(filename[filename.index(after: dot)...])
+        if stem.hasSuffix(".thumb") {
+            stem = String(stem.dropLast(".thumb".count))
+        }
+        if stem.hasSuffix("-cutout") {
+            stem = String(stem.dropLast("-cutout".count))
+        }
         return UUID(uuidString: stem) != nil && stem == stem.lowercased() && ["jpg", "png"].contains(ext)
     }
 

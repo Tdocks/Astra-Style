@@ -48,6 +48,27 @@ struct StudioGenerationViewModelTests {
         #expect(model.paletteText == "olive")
     }
 
+    @Test("Applying the selected preset again restores its editable defaults")
+    func reapplyingSelectedPresetResetsEdits() {
+        let model = makeModel(studio: MockStudioRepository())
+        model.applyPreset(.vacation)
+        model.selectedBackground = .neutral
+        model.selectedPose = .seated
+        model.selectedFormality = .formal
+        model.selectedSeason = .winter
+        model.paletteText = "olive"
+
+        model.applyPreset(.vacation)
+
+        let defaults = StudioPromptPreset.vacation.controlDefaults
+        #expect(model.selectedPreset == .vacation)
+        #expect(model.selectedBackground == defaults.background)
+        #expect(model.selectedPose == defaults.pose)
+        #expect(model.selectedFormality == defaults.formality)
+        #expect(model.selectedSeason == defaults.season)
+        #expect(model.paletteText == defaults.palette.joined(separator: ", "))
+    }
+
     @Test("Replacing a reference photo requires new consent and uses the replacement")
     func replacementPhotoNeedsConsent() async {
         let studio = MockStudioRepository()
@@ -174,6 +195,45 @@ struct StudioGenerationViewModelTests {
         }
         #expect(model.generation?.status == .complete)
         #expect(model.resultImageURL != nil)
+    }
+
+    @Test("A completed generation gives an explicit reroll a fresh variation nonce")
+    func completedGenerationGetsFreshRerollNonce() async {
+        let studio = MockStudioRepository()
+        let model = makeModel(studio: studio)
+        model.pollInterval = .zero
+        await model.onAppear()
+        model.grantConsent()
+
+        await model.generate()
+        await model.generate()
+
+        let requests = await studio.generationRequests()
+        #expect(requests.count == 2)
+        #expect(requests[0].variationNonce == nil)
+        #expect(requests[1].variationNonce != nil)
+    }
+
+    @Test("Retrying a failed explicit reroll keeps its nonce and does not submit a new request")
+    func failedRerollRetryKeepsNonce() async {
+        let studio = MockStudioRepository()
+        let model = makeModel(studio: studio)
+        model.pollInterval = .zero
+        await model.onAppear()
+        model.grantConsent()
+
+        await model.generate()
+        await studio.failNextGeneration()
+        await model.generate()
+        let failedRequest = await studio.lastGenerationRequest()
+        #expect(failedRequest?.variationNonce != nil)
+
+        await model.retry()
+
+        let requestsAfterRetry = await studio.generationRequests()
+        #expect(requestsAfterRetry.count == 2)
+        #expect(requestsAfterRetry.last?.variationNonce == failedRequest?.variationNonce)
+        #expect(model.phase == .complete)
     }
 
     @Test("Provider retry reuses the failed generation instead of consuming a new trial")

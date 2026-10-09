@@ -242,4 +242,41 @@ struct KyraStructuredResponseDecodingTests {
         let decoded = try decoder.decode(KyraStructuredResponse.self, from: data)
         #expect(decoded == original)
     }
+    @Test("Additive outfit-card metadata decodes and survives re-encoding")
+    func preservesAdditiveOutfitCardMetadata() throws {
+        let outfitID = try #require(UUID(uuidString: "33333333-3333-4333-8333-333333333333"))
+        let topID = try #require(UUID(uuidString: "44444444-4444-4444-8444-444444444444"))
+        let response = try decodeResponse("""
+        {
+          "message": "The locked top anchors this look.",
+          "intent": "daily_outfit",
+          "cards": [{
+            "type": "outfit",
+            "outfit_id": "33333333-3333-4333-8333-333333333333",
+            "reason": "The locked top anchors this look.",
+            "compatibility_score": 84,
+            "item_ids": ["44444444-4444-4444-8444-444444444444"]
+          }],
+          "suggested_actions": [],
+          "memory_proposals": [],
+          "confidence": 0.9
+        }
+        """)
+        guard case .outfit(let decodedID, let reason, let score, let itemIDs) = response.cards.first else {
+            Issue.record("expected an outfit card")
+            return
+        }
+        #expect(decodedID == outfitID)
+        #expect(reason == "The locked top anchors this look.")
+        #expect(score == 84)
+        #expect(itemIDs == [topID])
+
+        let encoded = try encoder.encode(response)
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        let cards = try #require(object["cards"] as? [[String: Any]])
+        #expect(cards.first?["reason"] as? String == reason)
+        #expect(cards.first?["compatibility_score"] as? Double == score)
+        #expect(cards.first?["item_ids"] as? [String] == [topID.uuidString.lowercased()])
+    }
+
 }

@@ -223,16 +223,11 @@ private struct OutfitDetailContent: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xs) {
-            HStack(alignment: .top) {
-                Text(outfit.name)
-                    .astraText(.title1)
-                    .foregroundStyle(AstraColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: AstraSpacing.sm)
-                if let score = outfit.compatibilityScore {
-                    AstraScoreMeter(score: score, title: compatibilityTitle, style: .compact)
-                }
-            }
+            OutfitDetailHeading(
+                name: outfit.name,
+                score: outfit.compatibilityScore,
+                compatibilityTitle: compatibilityTitle
+            )
 
             if let occasionLine = OutfitDetailCopy.occasionLine(outfit.occasionTags) {
                 Text(occasionLine)
