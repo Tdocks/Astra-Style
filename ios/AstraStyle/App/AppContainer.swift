@@ -271,9 +271,10 @@ extension AppContainer {
         let referencePath = ProcessInfo.processInfo.arguments.contains("-astra-test-reference-photo")
             ? "users/\(SampleData.userID.uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg" : nil
         if let referencePath { referenceBody.appearance.referenceSelfiePaths = [referencePath] }
+        let chatPreviewID = ProcessInfo.processInfo.arguments.contains("-astra-test-chat-preview") ? UUID() : nil
         let mockStudioRepository = MockStudioRepository(
             pendingImageDeletionCount: ProcessInfo.processInfo.arguments.contains("-astra-test-pending-image-removal") ? 1 : 0,
-            referencePhotoPath: referencePath
+            referencePhotoPath: referencePath, chatPreviewID: chatPreviewID
         )
         // Preview / `-astra-mock-backend` seeds an active Premium
         // subscription so closet UI tests are not blocked by the free
@@ -294,7 +295,7 @@ extension AppContainer {
             closetRepository: freeTierCappedClosetRepository,
             closetImageURLResolver: MockClosetImageURLResolver(),
             outfitRepository: MockOutfitRepository(),
-            kyraRepository: MockKyraRepository(),
+            kyraRepository: MockKyraRepository(previewGenerationID: chatPreviewID),
             studioRepository: mockStudioRepository,
             studioEstimateExporter: MockStudioEstimateExporter(),
             shoppingRepository: MockShoppingRepository(),

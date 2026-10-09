@@ -78,6 +78,7 @@ public struct KyraConversationView: View {
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Close") { viewModel.clearPendingStudioPreview() }
+                                    .accessibilityIdentifier("kyra.preview.close")
                             }
                         }
                 }

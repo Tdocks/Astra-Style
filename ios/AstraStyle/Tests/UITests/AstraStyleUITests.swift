@@ -284,6 +284,26 @@ final class AstraStyleUITests: XCTestCase {
         )
     }
 
+    func testKyraQueuedPreviewOpensAndReturnsToChat() throws {
+        launchMockMain(extraArguments: ["-astra-test-chat-preview"])
+        let ask = app.descendants(matching: .any)["kyra.ask"]
+        awaitElement(ask, "Ask Kyra")
+        ask.tap()
+        let prompt = app.buttons["What should I wear tonight?"]
+        awaitElement(prompt, "Styling prompt")
+        prompt.tap()
+        let preview = app.buttons["Open preview"]
+        awaitElement(preview, "Queued preview action")
+        preview.tap()
+        awaitElement(app.staticTexts["Visual estimate"], "Studio detail sheet")
+        awaitElement(app.staticTexts["This is a visual estimate, not a photograph."], "Completed preview after status polling")
+        let close = app.buttons["kyra.preview.close"]
+        awaitElement(close, "Preview close button")
+        close.tap()
+        awaitElement(app.descendants(matching: .any)["kyra.conversation"], "Conversation after closing preview")
+        XCTAssertTrue(preview.exists, "Closing the preview should retain its chat action")
+    }
+
     /// Spec §22 "Open paywall and restore purchases". Owner: P7-SUB.
     func testOpenPaywallAndRestorePurchases() throws {
         launchMockMain(extraArguments: ["-astra-audit-paywall", "settingsUpgrade"])

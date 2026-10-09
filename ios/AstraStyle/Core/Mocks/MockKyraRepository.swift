@@ -16,7 +16,9 @@ public actor MockKyraRepository: KyraRepository {
         StyleMemory(id: UUID(), userID: SampleData.userID, memoryType: .fitNote, content: "Runs slightly long in the torso; prefers cropped jacket lengths.", confidence: 0.74)
     ]
 
-    public init() {}
+    private let previewGenerationID: UUID?
+
+    public init(previewGenerationID: UUID? = nil) { self.previewGenerationID = previewGenerationID }
 
     public func fetchThreads() async throws -> [KyraThread] { threads }
 
@@ -41,7 +43,7 @@ public actor MockKyraRepository: KyraRepository {
                 message: "I'd wear the olive knit polo with stone trousers and the suede chukkas.",
                 intent: .dailyOutfit,
                 cards: [.outfit(outfitID: SampleData.heroOutfit.id)],
-                suggestedActions: [
+                suggestedActions: (previewGenerationID.map { [KyraSuggestedAction(id: "studio-preview:\($0.uuidString)", label: "Open preview", kind: .startStudioGeneration)] } ?? []) + [
                     KyraSuggestedAction(id: "wear", label: "Wear This", kind: .wearOutfit),
                     KyraSuggestedAction(id: "alts", label: "See Alternatives", kind: .viewAlternatives)
                 ],

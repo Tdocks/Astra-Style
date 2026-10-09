@@ -384,3 +384,18 @@ visible selected cards and rejection before preparation for missing items,
 missing consented context and high resolution. Lint/type checks passed. Native
 cards already exist in build 21, so this backend change needs no binary upload.
 Full hosted ask/yes/preview generation and sheet UI acceptance remain open.
+
+## Simulator queued-preview sheet acceptance
+
+Added a linked mock chat/job fixture behind `-astra-test-chat-preview` and a
+simulator UI test that opens the server-shaped preview action, waits through
+queued/generating/completed status, closes its sheet and verifies the transcript
+keeps its action. The Close control has a stable accessibility identifier.
+
+The selected simulator UI test passed (`/tmp/astra-kyra-preview-sheet-ui.log`,
+TEST SUCCEEDED; result Test-AstraStyle-2026.10.08_20-39-46--0400.xcresult).
+Strict SwiftLint passed on changed first-party files. This is native routing and
+mock polling acceptance; it does not establish live image-provider/photo fidelity,
+physical-device acceptance or every accessibility layout. Build 21 contains the
+preview flow; these additional mock fixture/test changes are not a new release.
+Hosted ask/yes/preview generation remains open.
