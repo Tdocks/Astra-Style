@@ -85,6 +85,7 @@ Deno.test("saved approval reuses its key across turns and rejects expiry or chan
   const fetcher: typeof fetch = (_input, init) => {
     calls++;
     assertEquals(new Headers(init?.headers).get("Idempotency-Key"), proposalID);
+    assertEquals(new Headers(init?.headers).get("X-Astra-Studio-Confirmation"), proposalID);
     return Promise.resolve(
       Response.json({ data: { id: jobID, user_id: userID, status: "queued" } }),
     );

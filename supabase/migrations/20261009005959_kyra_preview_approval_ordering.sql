@@ -32,6 +32,10 @@ begin
   -- Completed submissions above remain replayable after their approval closes.
   select * into v_confirmation from public.kyra_studio_confirmations
     where id=p_request_key and user_id=p_user_id for update;
+  if p_prompt_payload->>'chat_confirmation_id' is not null and
+    (p_prompt_payload->>'chat_confirmation_id' <> p_request_key::text or v_confirmation.id is null) then
+    raise exception 'studio_confirmation_unavailable';
+  end if;
   if v_confirmation.id is not null and
     (v_confirmation.closed_at is not null or v_confirmation.expires_at<=clock_timestamp()) then
     raise exception 'studio_confirmation_unavailable';

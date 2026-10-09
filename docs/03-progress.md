@@ -539,3 +539,5 @@ TestFlight build 22 archived/exported and uploaded successfully at 20:56:03 loca
 ## 2026-10-08 — Chat preview reservation ordering groundwork
 
 Added a final existing-confirmation closed/expiry check under a row lock in the idempotent enqueue transaction. Full local SQL suite passed, proving cancelled/expired approvals consume no allowance and accepted jobs replay after closure. Migration is not deployed. Concurrent ordering acceptance and explicit missing-confirmation handling remain open. Build 22 upload completed; Apple listing remains pending.
+
+Chat approval ordering follow-up: explicit confirmation-origin marker, missing-record rejection and final row-locked validity checks are deployed in migration 20261009005959, Studio v19 and Kyra v19. Local cancellation-first/submission-first concurrent transactions passed (zero/one allowances respectively); SQL isolation and 203 combined backend tests passed. Hosted consented-photo chat acceptance remains open.

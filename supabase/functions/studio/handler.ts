@@ -387,7 +387,7 @@ async function enqueueGeneration(
   body: GenerateRequestBody,
   userId: string,
   deps: StudioHandlerDeps,
-  submission?: { key: string; hash: string },
+  submission?: { key: string; hash: string; confirmationID: string | null },
 ): Promise<StudioGenerationRow> {
   if (!body.mode) {
     assertConsentCurrent(body.consent);
@@ -464,6 +464,7 @@ async function enqueueGeneration(
     outfitId: body.outfitId ?? null,
     promptPayload: {
       prompt,
+      chat_confirmation_id: submission?.confirmationID ?? null,
       mode: body.mode ?? "reference",
       source_generation_id: body.sourceGenerationId,
       context: body.context,
@@ -575,8 +576,16 @@ export async function handleGenerate(
     logger.adoptRequestId(requestId);
     const body = parseGenerateBody(envelope.body);
     const key = parseSubmissionKey(req.headers.get("Idempotency-Key"));
+    const confirmationID = parseSubmissionKey(req.headers.get("X-Astra-Studio-Confirmation"));
+    if (confirmationID && (body.kind === "retry" || confirmationID !== key)) {
+      throw new AppError(
+        "validation",
+        400,
+        "The preview confirmation must match its submission key.",
+      );
+    }
     const submission = key && body.kind !== "retry"
-      ? { key, hash: await submissionFingerprint(body) }
+      ? { key, hash: await submissionFingerprint(body), confirmationID }
       : undefined;
     if (submission && deps.jobStore.findSubmission) {
       const existing = await deps.jobStore.findSubmission(userId, submission.key, submission.hash);

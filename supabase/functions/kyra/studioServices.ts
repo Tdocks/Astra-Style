@@ -63,6 +63,7 @@ export function buildStudioPreviewServices(
           apikey: env.supabaseAnonKey,
           "Content-Type": "application/json",
           "Idempotency-Key": proposal?.id ?? turn.messageID,
+          ...(proposal ? { "X-Astra-Studio-Confirmation": proposal.id } : {}),
         },
         body: JSON.stringify({ body }),
         signal: AbortSignal.timeout(20_000),
