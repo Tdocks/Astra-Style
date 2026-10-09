@@ -2,8 +2,8 @@
 //  DiscoverDestinationView.swift
 //  AstraStyle
 //
-//  Lookbook detail reuses outfit detail — these are his outfits, not
-//  editorial SKUs. Style guides and brand spotlights stay placeholders.
+//  Lookbooks reuse outfit detail. Editorial guides are local config content;
+//  no brand spotlights are published without an authorized catalog source.
 //
 
 import SwiftUI
@@ -40,15 +40,20 @@ struct DiscoverDestinationView: View {
                     shoppingRepository: container.shoppingRepository
                 )
             )
-        case .styleGuide, .brandSpotlight, .fitGuide:
-            FeaturePlaceholderView(
-                title: String(localized: "Not a lookbook", comment: "Discover editorial placeholder title"),
-                message: String(
-                    localized: "Guides and brand pages are not this cut. Discover is the looks you already own.",
-                    comment: "Discover editorial placeholder"
-                ),
-                systemImage: "book"
-            )
+        case .styleGuide(let slug), .fitGuide(let slug):
+            guideDetail(slug: slug)
+        case .brandSpotlight(let brand):
+            guideDetail(slug: brand)
         }
+    }
+
+    @ViewBuilder
+    private func guideDetail(slug: String) -> some View {
+        DiscoverGuideDetailView(
+            viewModel: DiscoverGuideDetailViewModel(
+                slug: slug,
+                repository: BundleDiscoverEditorialRepository()
+            )
+        )
     }
 }

@@ -243,6 +243,14 @@ extension HomeView {
                 ))
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)
+                if data.shouldLabelWeatherObservation, let observedAt = weather.observedAt {
+                    Text(data.weatherIsLastKnown
+                         ? "Saved forecast · observed \(observedAt.formatted(date: .omitted, time: .shortened))"
+                         : "Forecast observed \(observedAt.formatted(date: .omitted, time: .shortened))")
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textMuted)
+                        .accessibilityIdentifier("home.weather.observation")
+                }
             }
             if let scheduleHeadline = data.schedule?.headline {
                 Text(scheduleHeadline)

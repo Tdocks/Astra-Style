@@ -20,6 +20,7 @@ public final class ShopViewModel {
     }
 
     public private(set) var state: ViewState = .loading
+    public private(set) var recentDecisions: [ProductDecisionSnapshot] = []
 
     private let shoppingRepository: ShoppingRepository
 
@@ -36,7 +37,13 @@ public final class ShopViewModel {
         await load()
     }
 
+    public func historicalDecisionRoute(candidateID: UUID) -> ShopRoute {
+        .historicalDecision(candidateID: candidateID)
+    }
+
     private func load() async {
+        recentDecisions = (try? await shoppingRepository.fetchRecentDecisions(limit: 20))?
+            .filter { $0.candidate != nil } ?? []
         do {
             let items = try await shoppingRepository.fetchCuratedProducts(category: nil)
             state = items.isEmpty ? .empty : .loaded(items)

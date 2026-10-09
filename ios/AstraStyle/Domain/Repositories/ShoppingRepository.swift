@@ -37,6 +37,14 @@ public protocol ShoppingRepository: Sendable {
     /// Product evaluations made during an inclusive date range.
     func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation]
 
+    /// Recent user-visible product decisions; the live repository is
+    /// network-first and may return owner-scoped local snapshots offline.
+    func fetchRecentDecisions(limit: Int) async throws -> [ProductDecisionSnapshot]
+
+    /// Reads local history only. It is used to display a last-evaluated
+    /// snapshot after a fresh evaluation fails for connectivity reasons.
+    func fetchCachedDecision(candidateID: UUID) async throws -> ProductDecisionSnapshot?
+
     /// Tracked purchase events in the half-open interval `[from, to)`.
     func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase]
 
@@ -53,6 +61,8 @@ public protocol ShoppingRepository: Sendable {
 
 public extension ShoppingRepository {
     func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation] { [] }
+    func fetchRecentDecisions(limit: Int) async throws -> [ProductDecisionSnapshot] { [] }
+    func fetchCachedDecision(candidateID: UUID) async throws -> ProductDecisionSnapshot? { nil }
     func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase] { [] }
     func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] { [] }
 }

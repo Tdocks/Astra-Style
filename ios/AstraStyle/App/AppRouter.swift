@@ -160,6 +160,7 @@ public enum DiscoverRoute: Hashable, Sendable {
 /// Destinations pushed on the Shop tab's `NavigationStack`.
 public enum ShopRoute: Hashable, Sendable {
     case productDecision(candidateID: UUID)
+    case historicalDecision(candidateID: UUID)
 }
 
 /// Destinations pushed on the Profile tab's `NavigationStack`.

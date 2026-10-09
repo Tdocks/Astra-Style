@@ -21,6 +21,7 @@ public actor MockOutfitRepository: OutfitRepository {
     /// below, which is an unrelated free-text field on `outfit_wears` —
     /// same word, two different columns on two different tables.
     private var feedbackEntries: [StyleFeedback] = []
+    public private(set) var outfitGenerationCount = 0
     private let failsOutfitGeneration: Bool
 
     public init(failsOutfitGeneration: Bool = false) {
@@ -54,6 +55,7 @@ public actor MockOutfitRepository: OutfitRepository {
     }
 
     public func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation] {
+        outfitGenerationCount += 1
         if failsOutfitGeneration {
             throw AstraError.network("Outfit suggestions are unavailable.")
         }

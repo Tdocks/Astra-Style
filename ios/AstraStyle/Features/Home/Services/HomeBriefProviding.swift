@@ -185,8 +185,9 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
         // Read before either branch below: both the cached-read path and the
         // generate path want it, and reading it once keeps a slow/failing
         // WeatherKit lookup from being attempted twice for one screen load.
-        // Never prompts — see `currentWeatherSnapshotIfAuthorized()`.
-        let weatherSnapshot = await currentWeatherSnapshotIfAuthorized()
+        // Never prompts — see `currentWeatherReadingIfAuthorized()`.
+        let weatherReading = await currentWeatherReadingIfAuthorized()
+        let weatherSnapshot = weatherReading?.snapshot
         let scheduleSnapshot = await todayScheduleSnapshot(userID: profile.id)
         await refreshCalendarReminders(userID: profile.id)
 
@@ -220,6 +221,7 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
             greetingName: profile.greetingName,
             weather: brief.weatherSnapshot,
             schedule: brief.scheduleSnapshot,
+            weatherIsLastKnown: weatherReading?.isLastKnown == true,
             brief: brief,
             primaryOutfit: primaryOutfit,
             primaryOutfitItems: primaryOutfitItems,
@@ -367,9 +369,9 @@ public final class DefaultHomeBriefProvider: HomeBriefProviding {
     /// A `.denied` result also returns nil rather than calling
     /// `currentSnapshot()` — it would only throw, and the caller already
     /// knows the answer from `currentAuthorization()`.
-    private func currentWeatherSnapshotIfAuthorized() async -> WeatherSnapshot? {
+    private func currentWeatherReadingIfAuthorized() async -> WeatherReading? {
         guard weatherService.currentAuthorization() == .authorized else { return nil }
-        return try? await weatherService.currentSnapshot()
+        return try? await weatherService.currentReading()
     }
 }
 

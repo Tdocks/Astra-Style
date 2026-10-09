@@ -9,6 +9,32 @@ import Testing
 
 @Suite("Product decision share is skip/wait only")
 struct ProductDecisionCopyTests {
+    @Test("A nullable catalog retailer does not make the entire shared catalog fail to decode")
+    func nullableRetailerDecodesWithoutFailingCatalogRow() throws {
+        let json = """
+            {
+              "id":"11111111-1111-4111-8111-111111111111",
+              "canonical_url":"https://example.com/item",
+              "retailer":null,
+              "brand":null,
+              "name":"Test item",
+              "category":"top",
+              "price":null,
+              "currency":"USD",
+              "image_url":null,
+              "affiliate_url":null,
+              "availability":{},
+              "attributes":{},
+              "last_checked_at":null,
+              "sponsored":null
+            }
+            """
+        let candidate = try JSONDecoder().decode(ProductCandidate.self, from: Data(json.utf8))
+
+        #expect(candidate.name == "Test item")
+        #expect(candidate.retailer == nil)
+    }
+
     @Test("Skip shares the refusal plus the garment")
     func skipSharesRefusal() {
         #expect(

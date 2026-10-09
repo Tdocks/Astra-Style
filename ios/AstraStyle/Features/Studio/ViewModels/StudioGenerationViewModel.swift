@@ -3,7 +3,7 @@
 //  AstraStyle
 //
 //  Wave E: today's look (or a named outfit) on him, after terms-versioned
-//  consent. No preset mall. Mock provider is the default on the server.
+//  consent, editable presets and explicit provider progress states.
 //
 
 import Foundation
@@ -26,12 +26,39 @@ public final class StudioGenerationViewModel {
     public private(set) var pendingImageData: Data?
     public private(set) var generation: StudioGeneration?
     public private(set) var resultImageURL: URL?
-    public var selectedPreset: StudioPromptPreset? = .smartCasual
+
+    public var progressMessage: String { Self.progressMessage(for: generation?.status) }
+
+    static func progressMessage(for status: StudioGenerationStatus?) -> String {
+        switch status {
+        case nil:
+            String(localized: "Submitting your preview…")
+        case .queued:
+            String(localized: "Your preview is queued. It will start shortly.")
+        case .generating:
+            String(localized: "Creating your outfit preview…")
+        case .complete:
+            String(localized: "Finishing your preview…")
+        case .failed:
+            String(localized: "Checking your preview…")
+        }
+    }
+    public var selectedPreset: StudioPromptPreset? = .smartCasual {
+        didSet {
+            guard selectedPreset != oldValue, let selectedPreset else { return }
+            let defaults = selectedPreset.controlDefaults
+            selectedBackground = defaults.background
+            selectedPose = defaults.pose
+            selectedFormality = defaults.formality
+            selectedSeason = defaults.season ?? Self.currentSeason
+            paletteText = defaults.palette.joined(separator: ", ")
+        }
+    }
     public var selectedBackground: StudioBackground = .studio
     public var selectedPose: StudioPose = .standingFront
     public var selectedFormality: FormalityLevel? = .balanced
     public var selectedSeason: Season? = StudioGenerationViewModel.currentSeason
-    public var paletteText = ""
+    public var paletteText = "navy, cream"
     public var preservesFace = true
     public var preservesBodyProportions = true
     public var preservesHair = true
@@ -47,6 +74,8 @@ public final class StudioGenerationViewModel {
     private let studioRepository: StudioRepository
     private let profileRepository: ProfileRepository
     private let imageURLResolver: ClosetImageURLResolving
+    private var referenceSelectionRevision = 0
+    private var generationReferenceRevision: Int?
 
     public init(
         outfitID: UUID?,
@@ -79,14 +108,19 @@ public final class StudioGenerationViewModel {
 
     public func withdrawConsent() {
         hasGrantedConsent = false
+        if pendingImageData != nil { referenceSelectionRevision += 1 }
         pendingImageData = nil
     }
 
     public func setPendingImage(_ data: Data) {
+        referenceSelectionRevision += 1
+        hasGrantedConsent = false
         pendingImageData = data
     }
 
     public func removePendingImage() {
+        referenceSelectionRevision += 1
+        hasGrantedConsent = false
         pendingImageData = nil
     }
 
@@ -96,9 +130,14 @@ public final class StudioGenerationViewModel {
             return
         }
         phase = .generating
+        generation = nil
         resultImageURL = nil
+        let referenceRevision = referenceSelectionRevision
         do {
             let path = try await resolveReferencePath()
+            guard hasGrantedConsent, referenceRevision == referenceSelectionRevision else {
+                throw AstraError.validation("The photo changed. Confirm permission for the selected photo before generating.")
+            }
             let request = StudioGenerationRequest(
                 referenceImagePath: path,
                 outfitID: outfitID,
@@ -121,6 +160,7 @@ public final class StudioGenerationViewModel {
                 consentTermsVersion: StudioConsentTerms.currentVersion
             )
             let job = try await studioRepository.startGeneration(request)
+            generationReferenceRevision = referenceRevision
             await refreshQuota()
             await completeGeneration(from: job)
         } catch let error as AstraError {
@@ -160,6 +200,10 @@ public final class StudioGenerationViewModel {
 
             let job: StudioGeneration
             if generation.status == .failed {
+                guard hasGrantedConsent, generationReferenceRevision == referenceSelectionRevision else {
+                    phase = .failed(AstraError.validation("Confirm permission for the original photo before retrying, or start a new preview with the selected photo."))
+                    return
+                }
                 guard generation.isRetryableWithoutCharge else {
                     phase = .failed(previousError)
                     return
@@ -233,11 +277,11 @@ public final class StudioGenerationViewModel {
     }
 
     private func resolveReferencePath() async throws -> String {
-        if let existingReferencePath { return existingReferencePath }
-        guard let pendingImageData else {
-            throw AstraError.validation("Add a photo of you first.")
+        if let pendingImageData {
+            return try await profileRepository.uploadReferenceImage(pendingImageData)
         }
-        return try await profileRepository.uploadReferenceImage(pendingImageData)
+        if let existingReferencePath { return existingReferencePath }
+        throw AstraError.validation("Add a photo of you first.")
     }
 
     private static var currentSeason: Season {

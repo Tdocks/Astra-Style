@@ -42,9 +42,14 @@ public final class DiscoverViewModel {
         public var mine: [DiscoverLook]
         public var wornByOthers: [DiscoverLook]
         public var unlocks: [ProductUnlock]
+        public var styleEducation: [DiscoverGuide]
+        public var seasonalGuides: [DiscoverGuide]
+        public var fitGuides: [DiscoverGuide]
+        public var brandSpotlights: [DiscoverGuide]
 
         public var isEmpty: Bool {
-            mine.isEmpty && wornByOthers.isEmpty && unlocks.isEmpty
+            mine.isEmpty && wornByOthers.isEmpty && unlocks.isEmpty &&
+                styleEducation.isEmpty && seasonalGuides.isEmpty && fitGuides.isEmpty && brandSpotlights.isEmpty
         }
     }
 
@@ -63,6 +68,7 @@ public final class DiscoverViewModel {
     private let shoppingRepository: ShoppingRepository
     private let closetRepository: ClosetRepository
     private let profileRepository: ProfileRepository
+    private let editorialRepository: DiscoverEditorialRepository
     private let hydrator: LookHydrator
 
     public init(
@@ -70,12 +76,14 @@ public final class DiscoverViewModel {
         shoppingRepository: ShoppingRepository,
         closetRepository: ClosetRepository,
         profileRepository: ProfileRepository,
-        imageURLResolver: ClosetImageURLResolving
+        imageURLResolver: ClosetImageURLResolving,
+        editorialRepository: DiscoverEditorialRepository = BundleDiscoverEditorialRepository()
     ) {
         self.outfitRepository = outfitRepository
         self.shoppingRepository = shoppingRepository
         self.closetRepository = closetRepository
         self.profileRepository = profileRepository
+        self.editorialRepository = editorialRepository
         self.hydrator = LookHydrator(
             closetRepository: closetRepository,
             imageURLResolver: imageURLResolver
@@ -97,11 +105,15 @@ public final class DiscoverViewModel {
             async let publicTask = outfitRepository.fetchPublicWornLooks()
             async let unlocksTask = shoppingRepository.fetchUnlocks()
             async let closetTask = closetRepository.fetchItems()
+            async let editorialTask = editorialRepository.fetchPublishedGuides()
 
             let mineOutfits = try await mineTask.filter { !$0.isArchived }
             let wornByOthersLooks = (try? await publicTask) ?? []
             let unlocks = rankedGapUnlocks((try? await unlocksTask) ?? [])
             let closet = try await closetTask
+            // Editorial content is additive. A missing/invalid bundle config must
+            // not make private lookbooks or closet recommendations disappear.
+            let guides = (try? await editorialTask) ?? []
 
             async let myItemsTask = outfitItems(for: mineOutfits)
             async let publicGarmentsTask = publicGarments(for: wornByOthersLooks)
@@ -120,7 +132,11 @@ public final class DiscoverViewModel {
             let catalog = Catalog(
                 mine: mineLooks,
                 wornByOthers: othersLooks,
-                unlocks: unlocks
+                unlocks: unlocks,
+                styleEducation: guides.filter { $0.kind == .styleEducation },
+                seasonalGuides: guides.filter { $0.kind == .seasonalGuide },
+                fitGuides: guides.filter { $0.kind == .fitGuide },
+                brandSpotlights: guides.filter { $0.kind == .brandSpotlight }
             )
             state = catalog.isEmpty ? .empty : .loaded(catalog)
             await loadFrame()

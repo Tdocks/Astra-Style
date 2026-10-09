@@ -115,9 +115,125 @@ struct ProductDecisionViewModelTests {
         }
         let mirror = Mirror(reflecting: loaded)
         let labels = Set(mirror.children.compactMap(\.label))
-        #expect(labels == ["candidate", "evaluation"])
+        #expect(labels == ["candidate", "evaluation", "isCachedSnapshot"])
         #expect(!labels.contains("sponsored"))
         #expect(!labels.contains("alternatives"))
+    }
+
+    @Test("Offline opening shows the saved verdict with an explicit stale snapshot marker")
+    func opensCachedEvaluationOffline() async throws {
+        let shopping = MockShoppingRepository()
+        let url = try #require(URL(string: "https://example.com/chino"))
+        let candidate = try await shopping.extractProduct(from: url)
+        let saved = try await shopping.evaluateProduct(candidateID: candidate.id)
+        await shopping.setEvaluateError(AstraError.network("offline"))
+
+        let model = ProductDecisionViewModel(candidateID: candidate.id, shoppingRepository: shopping)
+        await model.onAppear()
+        guard case .loaded(let loaded) = model.state else {
+            Issue.record("expected a cached evaluation, got \(model.state)")
+            return
+        }
+        #expect(loaded.isCachedSnapshot)
+        #expect(loaded.evaluation == saved)
+        #expect(loaded.candidate?.id == candidate.id)
+    }
+
+    @Test("Opening recent history reads the saved snapshot and scores only after explicit refresh")
+    func historicalEntryRequiresOptInToRescore() async throws {
+        let shopping = MockShoppingRepository()
+        let url = try #require(URL(string: "https://example.com/history-coat"))
+        let candidate = try await shopping.extractProduct(from: url)
+        let saved = try await shopping.evaluateProduct(candidateID: candidate.id)
+        let callsBeforeOpeningHistory = await shopping.evaluationCalls
+
+        let model = ProductDecisionViewModel(
+            candidateID: candidate.id,
+            shoppingRepository: shopping,
+            startsInHistoricalMode: true
+        )
+        await model.onAppear()
+
+        let callsAfterOpeningHistory = await shopping.evaluationCalls
+        #expect(callsAfterOpeningHistory == callsBeforeOpeningHistory)
+        guard case .loaded(let historical) = model.state else {
+            Issue.record("expected saved historical decision, got \(model.state)")
+            return
+        }
+        #expect(historical.isCachedSnapshot)
+        #expect(historical.evaluation == saved)
+
+        await model.refreshEvaluation()
+        let callsAfterExplicitRefresh = await shopping.evaluationCalls
+        #expect(callsAfterExplicitRefresh == callsBeforeOpeningHistory + 1)
+        guard case .loaded(let refreshed) = model.state else {
+            Issue.record("expected fresh decision after explicit refresh, got \(model.state)")
+            return
+        }
+        #expect(!refreshed.isCachedSnapshot)
+    }
+
+    @Test("Unavailable history does not evaluate until the user chooses evaluate")
+    func missingHistoryRequiresExplicitEvaluation() async throws {
+        let shopping = MockShoppingRepository()
+        let url = try #require(URL(string: "https://example.com/not-yet-evaluated"))
+        let candidate = try await shopping.extractProduct(from: url)
+        let model = ProductDecisionViewModel(
+            candidateID: candidate.id,
+            shoppingRepository: shopping,
+            startsInHistoricalMode: true
+        )
+        await model.onAppear()
+        #expect(await shopping.evaluationCalls == 0)
+        guard case .failed = model.state else {
+            Issue.record("expected missing-snapshot state")
+            return
+        }
+        await model.refreshEvaluation()
+        #expect(await shopping.evaluationCalls == 1)
+    }
+
+    @Test("Recent decision rows route to the historical destination")
+    func recentDecisionRouteIsHistorical() async throws {
+        let shopping = MockShoppingRepository()
+        let candidate = try await shopping.extractProduct(from: #require(URL(string: "https://example.com/route-coat")))
+        let model = ShopViewModel(shoppingRepository: shopping)
+        #expect(model.historicalDecisionRoute(candidateID: candidate.id) == .historicalDecision(candidateID: candidate.id))
+    }
+
+    @Test("Rate limits never fall back to a stale saved verdict")
+    func rateLimitedEvaluationDoesNotUseCache() async throws {
+        let shopping = MockShoppingRepository()
+        let url = try #require(URL(string: "https://example.com/coat"))
+        let candidate = try await shopping.extractProduct(from: url)
+        _ = try await shopping.evaluateProduct(candidateID: candidate.id)
+        await shopping.setEvaluateError(AstraError.rateLimited())
+
+        let model = ProductDecisionViewModel(candidateID: candidate.id, shoppingRepository: shopping)
+        await model.onAppear()
+        guard case .failed(let error) = model.state else {
+            Issue.record("expected rate-limit state, got \(model.state)")
+            return
+        }
+        #expect(error.category == .rateLimited)
+        #expect(model.pendingPaywall == .pasteEvaluate)
+    }
+
+    @Test("Server failures never fall back to an old decision")
+    func serverFailureDoesNotUseCache() async throws {
+        let shopping = MockShoppingRepository()
+        let url = try #require(URL(string: "https://example.com/boots"))
+        let candidate = try await shopping.extractProduct(from: url)
+        _ = try await shopping.evaluateProduct(candidateID: candidate.id)
+        await shopping.setEvaluateError(AstraError.server("evaluation failed"))
+
+        let model = ProductDecisionViewModel(candidateID: candidate.id, shoppingRepository: shopping)
+        await model.onAppear()
+        guard case .failed(let error) = model.state else {
+            Issue.record("expected server failure state, got \(model.state)")
+            return
+        }
+        #expect(error.category == .server)
     }
 
     @Test("Save for later then mark purchased updates state")

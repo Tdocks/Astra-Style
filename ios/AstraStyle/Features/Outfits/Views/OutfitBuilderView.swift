@@ -22,7 +22,9 @@ public struct OutfitBuilderView: View {
     @State private var viewModel: OutfitBuilderViewModel
     @State private var editingCategory: ClothingCategory?
     @State private var wearFeedbackViewModel: WearFeedbackViewModel?
+    @State private var previewViewModel: InspirationViewModel?
     @Environment(AppRouter.self) private var router
+    @Environment(AppContainer.self) private var container
 
     public init(viewModel: OutfitBuilderViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -229,6 +231,21 @@ public struct OutfitBuilderView: View {
 
     private var actions: some View {
         VStack(spacing: AstraSpacing.sm) {
+            Button("Preview these pieces") {
+                let selectedOwnedIDs = Set(viewModel.filledItems.map(\.id))
+                previewViewModel = InspirationViewModel(
+                    closetOnly: true,
+                    container: container,
+                    initialItemIDs: selectedOwnedIDs
+                )
+            }
+            .buttonStyle(.astraSecondary)
+            .disabled(viewModel.filledItems.isEmpty)
+            .accessibilityIdentifier("outfitBuilder.previewPieces")
+            .sheet(item: $previewViewModel) { model in
+                InspirationView(viewModel: model)
+            }
+
             Button {
                 Task { await viewModel.regenerate() }
             } label: {
@@ -369,5 +386,6 @@ private struct OutfitBuilderErrorView: View {
             )
         )
     }
+    .environment(AppContainer.preview())
     .preferredColorScheme(.dark)
 }

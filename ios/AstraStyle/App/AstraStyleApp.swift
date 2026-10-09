@@ -97,11 +97,11 @@ struct AstraStyleApp: App {
         }
 
         if AstraFeatureFlags.usesMockBackend {
-            // A fresh in-memory identity scopes mock writes to this process
-            // and cannot pollute the real Keychain session.
+            // Match the owner of the in-memory sample profile and garments.
+            // This session never writes to the real Keychain.
             appContainer.sessionStore.adoptInMemory(
                 AuthSession(
-                    userID: UUID(),
+                    userID: SampleData.userID,
                     accessToken: "mock-backend",
                     refreshToken: "mock-backend",
                     expiresAt: .now.addingTimeInterval(3600)

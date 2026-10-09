@@ -76,4 +76,35 @@ final class ProductLinkFlowUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
+
+    func testShopHistoryOpensSavedSnapshotAndRequiresRefreshOptIn() {
+        let options = element("home.moreOptions")
+        options.scrollIntoView(in: app)
+        XCTAssertTrue(options.waitForExistence(timeout: timeout))
+        options.tap()
+        let paste = element("home.pasteLink")
+        XCTAssertTrue(paste.waitForExistence(timeout: timeout))
+        paste.tap()
+        let field = app.textFields["home.productLink.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: timeout))
+        field.tap()
+        field.typeText("https://example.com/products/history-coat")
+        let submit = element("home.productLink.submit")
+        XCTAssertTrue(submit.isEnabled)
+        submit.tap()
+        XCTAssertTrue(element("productDecision.verdict").waitForExistence(timeout: timeout))
+
+        app.tapChromeTab("Shop", timeout: timeout)
+        let historyRow = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "shop.recentDecision.")
+        ).firstMatch
+        XCTAssertTrue(historyRow.waitForExistence(timeout: timeout))
+        historyRow.tap()
+
+        XCTAssertTrue(element("productDecision.cachedSnapshot").waitForExistence(timeout: timeout))
+        XCTAssertTrue(element("productDecision.refreshEvaluation").exists)
+        XCTAssertTrue(app.navigationBars["Past decision"].exists)
+        element("productDecision.refreshEvaluation").tap()
+        XCTAssertTrue(element("productDecision.freshness").waitForExistence(timeout: timeout))
+    }
 }

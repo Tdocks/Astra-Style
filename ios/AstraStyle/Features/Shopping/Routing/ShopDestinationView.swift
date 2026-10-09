@@ -20,6 +20,14 @@ struct ShopDestinationView: View {
                     shoppingRepository: container.shoppingRepository
                 )
             )
+        case .historicalDecision(let candidateID):
+            ProductDecisionView(
+                viewModel: ProductDecisionViewModel(
+                    candidateID: candidateID,
+                    shoppingRepository: container.shoppingRepository,
+                    startsInHistoricalMode: true
+                )
+            )
         }
     }
 }

@@ -3,7 +3,7 @@ import Testing
 @testable import AstraStyle
 
 @MainActor
-@Suite("Studio high-resolution export")
+@Suite("Studio higher-quality export")
 struct StudioHighResolutionExportTests {
     private func source(mode: String = "studio", status: StudioGenerationStatus = .complete) -> StudioGeneration {
         let id = UUID()
@@ -51,7 +51,7 @@ struct StudioHighResolutionExportTests {
         #expect(model.highResolutionChild?.status == .complete)
         #expect(model.highResolutionImageURL != nil)
         guard case .loaded(let stillOriginal) = model.state else {
-            Issue.record("High-resolution child replaced the source estimate")
+            Issue.record("Higher-quality child replaced the source estimate")
             return
         }
         #expect(stillOriginal.id == source.id)
@@ -206,7 +206,7 @@ struct StudioHighResolutionExportTests {
         #expect(try await repo.fetchHiResExport(sourceID: source.id) == nil)
     }
 
-    @Test("A high-resolution child cannot itself be exported again")
+    @Test("A higher-quality child cannot itself be exported again")
     func highResolutionChildIsNotASource() async {
         var child = source()
         child.promptPayload = .object([

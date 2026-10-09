@@ -44,6 +44,7 @@ struct InspirationView: View {
                     if !viewModel.renderedItems.isEmpty {
                         Text("Image based on: " + viewModel.renderedItems.map(\.name).joined(separator: ", "))
                             .astraText(.caption)
+                            .accessibilityIdentifier("home.inspiration.imageBasedOn")
                     }
                     if viewModel.isPreparing || viewModel.isGenerating {
                         ProgressView(viewModel.isPreparing ? "Gathering your style and plans…" : "Creating your look… This can take a minute.")
@@ -104,6 +105,9 @@ struct InspirationView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
             .task { await viewModel.prepare() }
+            .onChange(of: container.sessionStore.currentSession?.userID) { _, _ in
+                viewModel.accountDidChange()
+            }
             .onDisappear { work?.cancel() }
             .onChange(of: viewModel.pendingPaywall) { _, context in showsPaywall = context != nil }
             .sheet(isPresented: $showsPaywall, onDismiss: { viewModel.clearPaywall() }, content: {
@@ -135,6 +139,7 @@ struct InspirationView: View {
             }
             Text(viewModel.items.filter { viewModel.selectedItemIDs.contains($0.id) }.map(\.name).joined(separator: ", "))
                 .astraText(.callout)
+                .accessibilityIdentifier("home.inspiration.selectedItems")
             DisclosureGroup("Choose or swap pieces", isExpanded: $showsPieces) {
             ForEach(viewModel.items) { item in
                 Toggle(item.name, isOn: Binding(

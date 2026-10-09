@@ -79,6 +79,13 @@ struct LiveProfileRepositoryOfflineTests {
 
         await writer.releaseFetch()
         #expect(try await fetchTask.value == cachedProfile)
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(2)
+        while repository.refreshLock.withLock({ !repository.activeRefreshes.isEmpty }), clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(repository.refreshLock.withLock { repository.activeRefreshes.isEmpty })
+        #expect(try await cache.snapshot(for: ownerID)?.profile?.displayName == "Remote")
     }
 
     @Test("Offline edits to all four profile tables survive relaunch and replay from disk")

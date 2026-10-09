@@ -63,7 +63,7 @@ extension StudioGenerationDetailViewModel {
         do {
             let current = try await studioRepository.fetchGeneration(id: source.id)
             guard Self.isEligibleHighResolutionSource(current) else {
-                throw AstraError.validation("This estimate is no longer available for high-resolution export.")
+                throw AstraError.validation("This estimate is no longer available for higher-quality export.")
             }
             state = .loaded(current)
             if let child = try await studioRepository.fetchHiResExport(sourceID: current.id) {
@@ -75,7 +75,7 @@ extension StudioGenerationDetailViewModel {
             let quota = try await studioRepository.fetchQuota()
             highResolutionQuota = quota
             guard quota.premium || highResolutionSubmissionUncertain else {
-                throw AstraError.validation("High-resolution export is a Premium feature.")
+                throw AstraError.validation("Higher-quality export is a Premium feature.")
             }
             guard quota.remaining > 0 || highResolutionSubmissionUncertain else {
                 throw AstraError.rateLimited("Your monthly Studio render allowance is used up. Try again after it resets.")
@@ -105,18 +105,18 @@ extension StudioGenerationDetailViewModel {
             // Keep the source detail usable and expose a retry action; do not
             // silently proceed to a new charge while the lineage is unknown.
             hasCheckedHighResolutionLineage = false
-            highResolutionError = (error as? AstraError)?.message ?? "Couldn't check for an existing high-resolution export. Try again."
+            highResolutionError = (error as? AstraError)?.message ?? "Couldn't check for an existing higher-quality export. Try again."
         }
     }
 
     private func acceptRecoveredHighResolutionChild(_ child: StudioGeneration, ownerID: UUID) async {
         guard child.userID == ownerID else {
-            highResolutionError = "That high-resolution export belongs to another account."
+            highResolutionError = "That higher-quality export belongs to another account."
             return
         }
         guard !child.isDeleted else {
             highResolutionChild = child
-            highResolutionError = "This high-resolution export is no longer available."
+            highResolutionError = "This higher-quality export is no longer available."
             return
         }
         highResolutionSubmissionUncertain = false
@@ -142,11 +142,11 @@ extension StudioGenerationDetailViewModel {
         do {
             let current = try await studioRepository.fetchGeneration(id: source.id)
             guard Self.isEligibleHighResolutionSource(current) else {
-                throw AstraError.validation("This estimate is no longer available for high-resolution export.")
+                throw AstraError.validation("This estimate is no longer available for higher-quality export.")
             }
             let quota = try await studioRepository.fetchQuota()
             guard quota.premium || highResolutionSubmissionUncertain else {
-                throw AstraError.validation("High-resolution export is a Premium feature.")
+                throw AstraError.validation("Higher-quality export is a Premium feature.")
             }
             guard quota.remaining > 0 || highResolutionSubmissionUncertain else {
                 throw AstraError.rateLimited("Your monthly Studio render allowance is used up. Try again after it resets.")
@@ -177,7 +177,7 @@ extension StudioGenerationDetailViewModel {
             }
             highResolutionError = error.message
         } catch {
-            highResolutionError = (error as? AstraError)?.message ?? "Couldn't queue the high-resolution export. Try again."
+            highResolutionError = (error as? AstraError)?.message ?? "Couldn't queue the higher-quality export. Try again."
         }
     }
 
@@ -198,7 +198,7 @@ extension StudioGenerationDetailViewModel {
         } catch is CancellationError {
             return
         } catch {
-            highResolutionError = (error as? AstraError)?.message ?? "Couldn't retry the high-resolution export. Try again."
+            highResolutionError = (error as? AstraError)?.message ?? "Couldn't retry the higher-quality export. Try again."
         }
     }
 
@@ -211,7 +211,7 @@ extension StudioGenerationDetailViewModel {
             let current = try await studioRepository.fetchGeneration(id: child.id)
             guard !current.isDeleted else {
                 highResolutionChild = current
-                highResolutionError = "This high-resolution export is no longer available."
+                highResolutionError = "This higher-quality export is no longer available."
                 return
             }
             highResolutionError = nil
@@ -219,7 +219,7 @@ extension StudioGenerationDetailViewModel {
         } catch let error as AstraError {
             highResolutionError = error.message
         } catch {
-            highResolutionError = "Couldn't check the high-resolution export. Try again."
+            highResolutionError = "Couldn't check the higher-quality export. Try again."
         }
     }
 
@@ -241,7 +241,7 @@ extension StudioGenerationDetailViewModel {
                 }
                 generation = try await studioRepository.fetchStatus(generationID: generation.id)
                 guard !generation.isDeleted else {
-                    highResolutionError = "This high-resolution export is no longer available."
+                    highResolutionError = "This higher-quality export is no longer available."
                     highResolutionChild = generation
                     return
                 }
@@ -255,7 +255,7 @@ extension StudioGenerationDetailViewModel {
         } catch is CancellationError {
             return
         } catch {
-            highResolutionError = (error as? AstraError)?.message ?? "Couldn't load the high-resolution export. Try again."
+            highResolutionError = (error as? AstraError)?.message ?? "Couldn't load the higher-quality export. Try again."
         }
     }
 

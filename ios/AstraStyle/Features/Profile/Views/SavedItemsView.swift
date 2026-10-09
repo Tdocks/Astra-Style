@@ -84,7 +84,7 @@ struct SavedItemsView: View {
                     url: item.imageURL,
                     aspectRatio: 4.0 / 5.0,
                     thumbnail: .listRowThumbnail,
-                    accessibilityDescription: "\(item.name) by \(item.brand ?? item.retailer)"
+                    accessibilityDescription: item.retailerLabel.map { "\(item.name) by \($0)" } ?? item.name
                 )
                 .frame(width: 88)
 
@@ -93,9 +93,11 @@ struct SavedItemsView: View {
                         .astraText(.headline)
                         .foregroundStyle(AstraColor.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(item.brand ?? item.retailer)
-                        .astraText(.callout)
-                        .foregroundStyle(AstraColor.textSecondary)
+                    if let retailerLabel = item.retailerLabel {
+                        Text(retailerLabel)
+                            .astraText(.callout)
+                            .foregroundStyle(AstraColor.textSecondary)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

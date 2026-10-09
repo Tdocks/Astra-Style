@@ -221,6 +221,12 @@ struct EndpointDeploymentMappingTests {
         #expect(AstraEndpoint.batchAnalyzeClosetStatus(id: UUID()).path.hasPrefix("closet/batch-status/"))
     }
 
+    @Test("Kyra provider turns are never automatically retried after ambiguous network failure")
+    func kyraRespondRetryContract() {
+        #expect(AstraEndpoint.kyraRespond.retryPolicy == .none)
+        #expect(!AstraEndpoint.kyraRespond.requiresIdempotencyKey)
+    }
+
     @Test("Studio deletion uses its owned server route and remains safe to retry")
     func studioDeletionContract() {
         let id = UUID()

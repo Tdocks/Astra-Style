@@ -127,6 +127,10 @@ public enum AstraEndpoint: Sendable, Equatable {
             // Enqueue/poll are cheap; status polls are frequent and should
             // not stampede the isolate after a blip.
             .batchJob
+        case .kyraRespond:
+            // A lost response can follow a completed provider call. Until
+            // kyra/respond is idempotent, retry only after an explicit user tap.
+            .none
         default:
             .default
         }

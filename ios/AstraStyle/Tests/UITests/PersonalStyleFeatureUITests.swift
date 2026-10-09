@@ -82,25 +82,10 @@ extension PersonalStyleFeatureUITests {
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
     }
 
-    /// Closet mode exposes the actual selected garments before rendering.
+    /// Home keeps its three recommendations and previews the exact chosen pieces.
     func testHomeClosetBasedOutfit() throws {
         launchMockMain()
-        let closetOutfit = app.buttons["home.style.fromCloset"]
-        closetOutfit.scrollIntoView(in: app)
-        awaitElement(closetOutfit, "Home closet outfit action")
-        closetOutfit.tap()
-        if !app.navigationBars["My closet look"].waitForExistence(timeout: 3) { closetOutfit.tap() }
-        awaitElement(app.navigationBars["My closet look"], "Closet image screen")
-        let picker = app.buttons["Choose or swap pieces"]
-        awaitElement(picker, "Closet garment picker")
-        picker.tap()
-        awaitElement(app.switches.firstMatch, "Owned garment selection")
-        picker.tap()
-        let generate = app.buttons["home.inspiration.generate"]
-        generate.scrollIntoView(in: app)
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
-        generate.tap()
-        awaitElement(app.descendants(matching: .any)["home.inspiration.image"].firstMatch, "Closet estimate")
+        ClosetBasedPreviewUITestDriver(app: app, timeout: timeout).run()
     }
 
     /// Monthly Review reads real mock repository records and sends those facts
@@ -388,11 +373,11 @@ extension PersonalStyleFeatureUITests {
     private func confirmHighResolutionExport(lightAccessibility: Bool) {
         let export = app.buttons["studio.detail.exportHiRes"]
         export.scrollIntoView(in: app)
-        awaitElement(export, "High-resolution export action")
+        awaitElement(export, "Higher-quality export action")
         XCTAssertTrue(export.isHittable, "The export action must remain reachable at the selected text size")
         export.tap()
 
-        let firstConfirmation = app.alerts["Export a high-resolution estimate?"]
+        let firstConfirmation = app.alerts["Export a higher-quality estimate?"]
         awaitElement(firstConfirmation, "Credit and photo-consent confirmation")
         XCTAssertTrue(firstConfirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "remaining Premium Studio renders")).firstMatch.exists)
         XCTAssertTrue(firstConfirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "process the original photo again")).firstMatch.exists)
@@ -400,15 +385,15 @@ extension PersonalStyleFeatureUITests {
 
         if !lightAccessibility {
             let confirmationScreenshot = XCTAttachment(screenshot: app.screenshot())
-            confirmationScreenshot.name = "Studio high-resolution confirmation dark"
+            confirmationScreenshot.name = "Studio higher-quality confirmation dark"
             confirmationScreenshot.lifetime = .keepAlways
             add(confirmationScreenshot)
 
             firstConfirmation.buttons["Cancel"].tap()
-            XCTAssertFalse(app.staticTexts["High resolution export"].waitForExistence(timeout: 1))
+            XCTAssertFalse(app.staticTexts["Higher quality export"].waitForExistence(timeout: 1))
             export.scrollIntoView(in: app)
             export.tap()
-            let secondConfirmation = app.alerts["Export a high-resolution estimate?"]
+            let secondConfirmation = app.alerts["Export a higher-quality estimate?"]
             awaitElement(secondConfirmation, "Confirmation after cancel")
             XCTAssertTrue(
                 secondConfirmation.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "one of your 17 remaining")).firstMatch.exists,
@@ -422,15 +407,15 @@ extension PersonalStyleFeatureUITests {
     }
 
     private func assertHighResolutionChildAndReopen(sourceIdentifier: String, lightAccessibility: Bool) {
-        let childTitle = app.staticTexts["High resolution export"]
-        awaitElement(childTitle, "Accepted high-resolution child")
+        let childTitle = app.staticTexts["Higher quality export"]
+        awaitElement(childTitle, "Accepted higher-quality child")
         let image = app.descendants(matching: .any)["studio.detail.exportHiRes.image"]
-        awaitElement(image, "Completed high-resolution image")
+        awaitElement(image, "Completed higher-quality image")
         XCTAssertGreaterThanOrEqual(app.descendants(matching: .any).matching(identifier: "studio.visualEstimateDisclosure").count, 2,
                                     "Both source and child images must retain the visual-estimate disclosure")
 
         let resultScreenshot = XCTAttachment(screenshot: app.screenshot())
-        resultScreenshot.name = lightAccessibility ? "Studio high-resolution export light accessibility" : "Studio high-resolution export dark"
+        resultScreenshot.name = lightAccessibility ? "Studio higher-quality export light accessibility" : "Studio higher-quality export dark"
         resultScreenshot.lifetime = .keepAlways
         add(resultScreenshot)
 

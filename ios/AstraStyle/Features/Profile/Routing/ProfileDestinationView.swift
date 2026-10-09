@@ -27,12 +27,16 @@ struct ProfileDestinationView: View {
 
         case .accountDeletion:
             let cachePurger = container.profileRepository as? any ProfileCachePurging
+            let kyraCachePurger = container.kyraRepository as? any KyraHistoryCachePurging
+            let shoppingCachePurger = container.shoppingRepository as? any ShoppingEvaluationCachePurging
             AccountDeletionView(
                 viewModel: AccountDeletionViewModel(
                     authRepository: container.authRepository,
                     currentUserID: { await container.sessionStore.currentUserID() },
                     purgeLocalProfileCache: { ownerID in
                         try await cachePurger?.purgeLocalProfileCache(ownerID: ownerID)
+                        try await kyraCachePurger?.purgeCachedKyraHistory(ownerID: ownerID)
+                        try await shoppingCachePurger?.purgeCachedShoppingEvaluations(ownerID: ownerID)
                     }
                 )
             )

@@ -274,7 +274,7 @@ private extension StudioGenerationView {
             VStack(alignment: .leading, spacing: AstraSpacing.sm) {
                 ProgressView()
                     .tint(AstraColor.accentChampagne)
-                Text(String(localized: "Putting the look on you…", comment: "Studio generating"))
+                Text(viewModel.progressMessage)
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)
             }

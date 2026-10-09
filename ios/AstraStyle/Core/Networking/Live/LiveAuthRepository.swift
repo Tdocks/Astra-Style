@@ -18,11 +18,18 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
     private let apiClient: AstraAPIClient
     private let supabase: SupabaseClient
     private let sessionStore: SessionStore
+    private let weatherCache: (any WeatherSnapshotCacheInvalidating)?
 
-    public init(apiClient: AstraAPIClient, sessionStore: SessionStore, supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)) {
+    public init(
+        apiClient: AstraAPIClient,
+        sessionStore: SessionStore,
+        supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current),
+        weatherCache: (any WeatherSnapshotCacheInvalidating)? = nil
+    ) {
         self.apiClient = apiClient
         self.sessionStore = sessionStore
         self.supabase = supabase
+        self.weatherCache = weatherCache
     }
 
     public func signInWithApple(identityToken: String, nonce: String) async throws -> AuthSession {
@@ -173,13 +180,19 @@ public final class LiveAuthRepository: AuthRepository, @unchecked Sendable {
     public func signOut() async throws {
         let owner = supabase.auth.currentSession?.user.id
         try await sessionStore.signOut()
-        if let owner { await ClosetImageByteCache.shared.removeAll(ownerID: owner) }
+        if let owner {
+            await ClosetImageByteCache.shared.removeAll(ownerID: owner)
+            await weatherCache?.clearCachedWeather(ownerID: owner)
+        }
     }
 
     public func deleteAccount() async throws -> AccountDeletionStatus {
         let owner = supabase.auth.currentSession?.user.id
         let status = try await apiClient.send(.deleteAccount, as: AccountDeletionStatus.self)
-        if let owner { await ClosetImageByteCache.shared.removeAll(ownerID: owner) }
+        if let owner {
+            await ClosetImageByteCache.shared.removeAll(ownerID: owner)
+            await weatherCache?.clearCachedWeather(ownerID: owner)
+        }
         try await sessionStore.signOut()
         return status
     }

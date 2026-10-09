@@ -4,8 +4,8 @@
 //
 //  Live-backend stranger path on a connected device: guest → Closet/scan
 //  door → Wear This → Shop/Unlocks → Studio → legal HTTPS → deletion row.
-//  Debug-only launch flags skip onboarding so the tab shell is reachable;
-//  they are ignored in Release / TestFlight.
+//  Explicit ASTRA_RUN_LIVE_SMOKE=1 opt-in only. Debug launch flags skip
+//  onboarding; teardown permanently deletes the anonymous test account.
 //
 
 import XCTest
@@ -14,6 +14,7 @@ import XCTest
 final class PublicCutSmokeUITests: XCTestCase {
     private lazy var app = XCUIApplication()
     private let timeout: TimeInterval = 30
+    private var didStartGuestSession = false
 
     override func setUp() async throws {
         continueAfterFailure = true
@@ -24,7 +25,7 @@ final class PublicCutSmokeUITests: XCTestCase {
             "-astra-skip-onboarding"
         ]
         addUIInterruptionMonitor(withDescription: "System permission") { alert in
-            for title in ["Allow", "Allow While Using App", "Allow Once", "OK", "Continue"] {
+            for title in ["Allow", "Allow While Using App", "Allow Once"] {
                 let button = alert.buttons[title]
                 if button.exists {
                     button.tap()
@@ -35,7 +36,17 @@ final class PublicCutSmokeUITests: XCTestCase {
         }
     }
 
-    func testGuestStrangerPath() {
+    override func tearDown() async throws {
+        if didStartGuestSession {
+            deleteGuestAccountThroughProductUI()
+        }
+        try await super.tearDown()
+    }
+
+    func testGuestStrangerPath() throws {
+        guard ProcessInfo.processInfo.environment["ASTRA_RUN_LIVE_SMOKE"] == "1" else {
+            throw XCTSkip("Live-backend guest smoke is opt-in; use mock UI tests for regular CI.")
+        }
         launchGuestAndReachHome()
         addThreeRoleGarments()
         assertWearThisDoesNotPaywall()
@@ -76,6 +87,7 @@ final class PublicCutSmokeUITests: XCTestCase {
             "Welcome should be back so guest can start"
         )
         app.buttons["welcome.tryWithoutAccount"].tap()
+        didStartGuestSession = true
         XCTAssertTrue(
             app.chromeTabBar.waitForExistence(timeout: 45),
             "Guest + skip-onboarding should land on the tab shell"
@@ -167,8 +179,59 @@ final class PublicCutSmokeUITests: XCTestCase {
         deleteRow.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["accountDeletion.deleteButton"].waitForExistence(timeout: timeout),
-            "Deletion confirmation screen should open (do not confirm)"
+            "Deletion confirmation screen should open for teardown cleanup"
         )
+    }
+
+    /// The smoke test creates a real anonymous account and closet rows. Always
+    /// remove that fixture through the same product flow, including when an
+    /// earlier assertion failed. Account deletion is the owner-authorized
+    /// cleanup path and also cascades the synthetic garments.
+    private func deleteGuestAccountThroughProductUI() {
+        if !app.exists { return }
+        if !app.descendants(matching: .any)["accountDeletion.deleteButton"].exists {
+            tapTab("Profile")
+            let privacyRow = app.descendants(matching: .any)["profile.privacyAndDataRow"]
+            guard privacyRow.waitForExistence(timeout: 8) else {
+                XCTFail("Could not reach privacy settings to clean up the live guest account")
+                return
+            }
+            privacyRow.tap()
+            let deleteRow = app.descendants(matching: .any)["privacyAndData.deleteAccountRow"]
+            guard deleteRow.waitForExistence(timeout: 8) else {
+                XCTFail("Could not reach account deletion to clean up the live guest account")
+                return
+            }
+            deleteRow.tap()
+        }
+
+        let acknowledge = app.descendants(matching: .any)["accountDeletion.acknowledgeToggle"]
+        guard acknowledge.waitForExistence(timeout: 8) else {
+            XCTFail("Account deletion acknowledgment control missing during live fixture cleanup")
+            return
+        }
+        let deleteButton = app.descendants(matching: .any)["accountDeletion.deleteButton"]
+        guard deleteButton.waitForExistence(timeout: 8) else {
+            XCTFail("Account deletion control unavailable during live fixture cleanup")
+            return
+        }
+        if !deleteButton.isEnabled { acknowledge.tap() }
+        guard deleteButton.isEnabled else {
+            XCTFail("Account deletion acknowledgment did not enable cleanup")
+            return
+        }
+        deleteButton.tap()
+        let confirm = app.buttons["Delete Permanently"]
+        guard confirm.waitForExistence(timeout: 8) else {
+            XCTFail("Final account deletion confirmation missing during live fixture cleanup")
+            return
+        }
+        confirm.tap()
+        let started = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "deletion")
+        ).firstMatch
+        XCTAssertTrue(started.waitForExistence(timeout: 30), "Live guest account deletion was not accepted")
+        didStartGuestSession = false
     }
 
     private func tapTab(_ name: String) {

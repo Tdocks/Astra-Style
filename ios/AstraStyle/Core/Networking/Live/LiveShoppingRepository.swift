@@ -19,9 +19,15 @@ import Supabase
 public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendable {
     private let apiClient: AstraAPIClient
     private let supabase: SupabaseClient
+    private let evaluationCache: ShoppingEvaluationCaching?
 
-    public init(apiClient: AstraAPIClient, supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)) {
+    public init(
+        apiClient: AstraAPIClient,
+        evaluationCache: ShoppingEvaluationCaching? = nil,
+        supabase: SupabaseClient = AstraSupabaseClientFactory.make(environment: .current)
+    ) {
         self.apiClient = apiClient
+        self.evaluationCache = evaluationCache
         self.supabase = supabase
     }
 
@@ -29,7 +35,12 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
         struct Body: Encodable, Sendable {
             let url: URL
         }
-        return try await apiClient.send(.extractProduct, body: Body(url: url), as: ProductCandidate.self)
+        let ownerID = try await shoppingUserID()
+        let candidate = try await apiClient.send(.extractProduct, body: Body(url: url), as: ProductCandidate.self)
+        try await verifyActiveShoppingOwner(ownerID)
+        try? await evaluationCache?.store(candidate: candidate, ownerID: ownerID)
+        try await verifyActiveShoppingOwner(ownerID)
+        return candidate
     }
 
     public func evaluateProduct(candidateID: UUID) async throws -> ProductEvaluation {
@@ -37,19 +48,40 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
             let productCandidateID: UUID
             enum CodingKeys: String, CodingKey { case productCandidateID = "product_candidate_id" }
         }
-        return try await apiClient.send(.evaluateProduct, body: Body(productCandidateID: candidateID), as: ProductEvaluation.self)
+        let ownerID = try await shoppingUserID()
+        let evaluation = try await apiClient.send(.evaluateProduct, body: Body(productCandidateID: candidateID), as: ProductEvaluation.self)
+        guard evaluation.userID == ownerID else {
+            throw AstraError.auth("That evaluation belongs to another account.")
+        }
+        try await verifyActiveShoppingOwner(ownerID)
+        let candidate = try await cachedCandidate(candidateID: candidateID, ownerID: ownerID)
+        try? await evaluationCache?.store(evaluation: evaluation, candidate: candidate, ownerID: ownerID)
+        try await verifyActiveShoppingOwner(ownerID)
+        return evaluation
     }
 
     public func fetchProductCandidate(id: UUID) async throws -> ProductCandidate {
+        let ownerID = try await shoppingUserID()
         do {
-            return try await supabase.from("product_candidates")
+            let candidate: ProductCandidate = try await supabase.from("product_candidates")
                 .select()
                 .eq("id", value: id)
                 .single()
                 .execute()
                 .value
+            try? await evaluationCache?.store(candidate: candidate, ownerID: ownerID)
+            try await verifyActiveShoppingOwner(ownerID)
+            return candidate
         } catch {
-            throw AstraError.server("Couldn't load that product.")
+            if Self.isConnectivityFailure(error),
+               let candidate = try await cachedCandidate(candidateID: id, ownerID: ownerID) {
+                try await verifyActiveShoppingOwner(ownerID)
+                return candidate
+            }
+            if let error = error as? AstraError { throw error }
+            throw Self.isConnectivityFailure(error)
+                ? AstraError.network("Couldn't load that product.")
+                : AstraError.server("Couldn't load that product.")
         }
     }
 
@@ -66,8 +98,10 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
     }
 
     public func fetchUnlocks() async throws -> [ProductUnlock] {
+        let ownerID = try await shoppingUserID()
         do {
             let list = try await apiClient.send(.listProductUnlocks, as: ProductUnlockList.self)
+            try await verifyActiveShoppingOwner(ownerID)
             return list.items
         } catch let error as AstraError {
             throw error
@@ -85,19 +119,46 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
     }
 
     public func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation] {
+        guard from <= to else { throw AstraError.validation("That evaluation period is invalid.") }
+        let ownerID = try await shoppingUserID()
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         do {
-            return try await supabase.from("user_product_evaluations")
+            let rows: [ProductEvaluation] = try await supabase.from("user_product_evaluations")
                 .select()
+                .eq("user_id", value: ownerID)
                 .gte("created_at", value: formatter.string(from: from))
                 .lte("created_at", value: formatter.string(from: to))
                 .order("created_at", ascending: false)
+                .order("product_candidate_id", ascending: true)
+                .range(from: 0, to: 999)
                 .execute()
                 .value
+            guard rows.allSatisfy({ $0.userID == ownerID }) else {
+                throw AstraError.auth("A shopping evaluation belongs to another account.")
+            }
+            for evaluation in rows {
+                try? await evaluationCache?.store(evaluation: evaluation, candidate: nil, ownerID: ownerID)
+            }
+            try await verifyActiveShoppingOwner(ownerID)
+            return rows
         } catch {
-            throw AstraError.network("Couldn't load your shopping evaluations.")
+            if Self.isConnectivityFailure(error), let evaluationCache,
+               let cached = try? await evaluationCache.cachedEvaluations(from: from, to: to, ownerID: ownerID) {
+                try await verifyActiveShoppingOwner(ownerID)
+                return cached
+            }
+            if let error = error as? AstraError { throw error }
+            throw Self.isConnectivityFailure(error)
+                ? AstraError.network("Couldn't load your shopping evaluations.")
+                : AstraError.server("Couldn't load your shopping evaluations.")
         }
+    }
+
+    static func isConnectivityFailure(_ error: Error) -> Bool {
+        if let error = error as? AstraError { return error.category == .network }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code != URLError.cancelled.rawValue
     }
 
     public func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase] {
@@ -160,6 +221,168 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
         }
     }
 
+    public func addToWishlist(candidateID: UUID) async throws {
+        guard let userID = try? await supabase.auth.session.user.id else {
+            throw AstraError.auth("Sign in to save items.")
+        }
+        do {
+            try await supabase.from("wishlist_items")
+                .upsert(
+                    WishlistWrite(
+                        userID: userID,
+                        productCandidateID: candidateID,
+                        purchasedAt: nil
+                    ),
+                    onConflict: "user_id,product_candidate_id"
+                )
+                .execute()
+            try await verifyActiveShoppingOwner(userID)
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.server("Couldn't save that item.")
+        }
+    }
+
+    public func removeFromWishlist(candidateID: UUID) async throws {
+        let ownerID = try await shoppingUserID()
+        do {
+            try await supabase.from("wishlist_items")
+                .delete()
+                .eq("user_id", value: ownerID)
+                .eq("product_candidate_id", value: candidateID)
+                .is("purchased_at", value: nil)
+                .execute()
+            try await verifyActiveShoppingOwner(ownerID)
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.server("Couldn't remove that save.")
+        }
+    }
+
+    public func markPurchased(candidateID: UUID) async throws {
+        guard let userID = try? await supabase.auth.session.user.id else {
+            throw AstraError.auth("Sign in to mark an item purchased.")
+        }
+        do {
+            try await supabase.from("wishlist_items")
+                .upsert(
+                    WishlistWrite(
+                        userID: userID,
+                        productCandidateID: candidateID,
+                        purchasedAt: Date()
+                    ),
+                    onConflict: "user_id,product_candidate_id"
+                )
+                .execute()
+            try await verifyActiveShoppingOwner(userID)
+        } catch let error as AstraError {
+            throw error
+        } catch {
+            throw AstraError.server("Couldn't mark that as purchased.")
+        }
+    }
+
+    private func shoppingUserID() async throws -> UUID {
+        do { return try await supabase.auth.session.user.id } catch {
+            throw AstraError.auth("Sign in again to load your shopping history.")
+        }
+    }
+
+    private func verifyActiveShoppingOwner(_ expectedOwnerID: UUID) async throws {
+        try Self.validateActiveOwner(expected: expectedOwnerID, actual: await shoppingUserID())
+    }
+
+    static func validateActiveOwner(expected: UUID, actual: UUID) throws {
+        guard actual == expected else {
+            throw AstraError.auth("Your account changed while loading shopping history.")
+        }
+    }
+}
+
+extension LiveShoppingRepository {
+    public func fetchRecentDecisions(limit: Int) async throws -> [ProductDecisionSnapshot] {
+        guard limit > 0 else { return [] }
+        let ownerID = try await shoppingUserID()
+        do {
+            let selected = try await fetchRecentEvaluationRows(ownerID: ownerID, limit: limit)
+            let candidates = try await fetchCandidates(ids: selected.map(\.productCandidateID))
+            let decisions = selected.map { evaluation in
+                ProductDecisionSnapshot(candidate: candidates[evaluation.productCandidateID], evaluation: evaluation)
+            }
+            for decision in decisions {
+                try? await evaluationCache?.store(
+                    evaluation: decision.evaluation,
+                    candidate: decision.candidate,
+                    ownerID: ownerID
+                )
+            }
+            try await verifyActiveShoppingOwner(ownerID)
+            return decisions
+        } catch {
+            if Self.isConnectivityFailure(error), let evaluationCache,
+               let cached = try? await evaluationCache.cachedRecentDecisions(ownerID: ownerID, limit: min(limit, 50)) {
+                try await verifyActiveShoppingOwner(ownerID)
+                return cached
+            }
+            if let error = error as? AstraError { throw error }
+            throw Self.isConnectivityFailure(error)
+                ? AstraError.network("Couldn't load your recent product decisions.")
+                : AstraError.server("Couldn't load your recent product decisions.")
+        }
+    }
+
+    private func fetchRecentEvaluationRows(ownerID: UUID, limit: Int) async throws -> [ProductEvaluation] {
+        let now = Date()
+        let from = now.addingTimeInterval(-180 * 24 * 60 * 60)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let evaluations: [ProductEvaluation] = try await supabase.from("user_product_evaluations")
+            .select()
+            .eq("user_id", value: ownerID)
+            .gte("created_at", value: formatter.string(from: from))
+            .lte("created_at", value: formatter.string(from: now))
+            .order("created_at", ascending: false)
+            .order("product_candidate_id", ascending: true)
+            .range(from: 0, to: min(min(limit, 25) * 8, 200) - 1)
+            .execute()
+            .value
+        guard evaluations.allSatisfy({ $0.userID == ownerID }) else {
+            throw AstraError.auth("A shopping evaluation belongs to another account.")
+        }
+        var latestByCandidate: [UUID: ProductEvaluation] = [:]
+        for evaluation in evaluations where latestByCandidate[evaluation.productCandidateID] == nil {
+            latestByCandidate[evaluation.productCandidateID] = evaluation
+        }
+        return latestByCandidate.values.sorted { $0.createdAt > $1.createdAt }.prefix(min(limit, 50)).map { $0 }
+    }
+
+    private func fetchCandidates(ids: [UUID]) async throws -> [UUID: ProductCandidate] {
+        var candidatesByID: [UUID: ProductCandidate] = [:]
+        for chunk in ids.chunked(into: 100) {
+            let candidates: [ProductCandidate] = try await supabase.from("product_candidates")
+                .select()
+                .in("id", values: chunk)
+                .execute()
+                .value
+            candidatesByID.merge(candidates.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        }
+        return candidatesByID
+    }
+
+    public func fetchCachedDecision(candidateID: UUID) async throws -> ProductDecisionSnapshot? {
+        let ownerID = try await shoppingUserID()
+        guard let evaluationCache else { return nil }
+        do {
+            let snapshot = try await evaluationCache.cachedDecision(candidateID: candidateID, ownerID: ownerID)
+            try await verifyActiveShoppingOwner(ownerID)
+            return snapshot
+        } catch {
+            throw AstraError.server("Couldn't open that saved product decision.")
+        }
+    }
+
     public func fetchLatestEvaluations(candidateIDs: Set<UUID>) async throws -> [ProductEvaluation] {
         guard !candidateIDs.isEmpty else { return [] }
         let owner = try await shoppingUserID()
@@ -187,65 +410,15 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
                 }
             }
             try await verifyActiveShoppingOwner(owner)
-            return latestByCandidate.values.sorted { $0.productCandidateID.uuidString < $1.productCandidateID.uuidString }
+            let latest = latestByCandidate.values.sorted { $0.productCandidateID.uuidString < $1.productCandidateID.uuidString }
+            return latest
         } catch is CancellationError {
             throw CancellationError()
-        } catch let error as AstraError {
-            throw error
         } catch {
-            throw AstraError.network("Couldn't load the latest shopping evaluations.")
-        }
-    }
-
-    public func addToWishlist(candidateID: UUID) async throws {
-        guard let userID = try? await supabase.auth.session.user.id else {
-            throw AstraError.auth("Sign in to save items.")
-        }
-        do {
-            try await supabase.from("wishlist_items")
-                .upsert(
-                    WishlistWrite(
-                        userID: userID,
-                        productCandidateID: candidateID,
-                        purchasedAt: nil
-                    ),
-                    onConflict: "user_id,product_candidate_id"
-                )
-                .execute()
-        } catch {
-            throw AstraError.server("Couldn't save that item.")
-        }
-    }
-
-    public func removeFromWishlist(candidateID: UUID) async throws {
-        do {
-            try await supabase.from("wishlist_items")
-                .delete()
-                .eq("product_candidate_id", value: candidateID)
-                .is("purchased_at", value: nil)
-                .execute()
-        } catch {
-            throw AstraError.server("Couldn't remove that save.")
-        }
-    }
-
-    public func markPurchased(candidateID: UUID) async throws {
-        guard let userID = try? await supabase.auth.session.user.id else {
-            throw AstraError.auth("Sign in to mark an item purchased.")
-        }
-        do {
-            try await supabase.from("wishlist_items")
-                .upsert(
-                    WishlistWrite(
-                        userID: userID,
-                        productCandidateID: candidateID,
-                        purchasedAt: Date()
-                    ),
-                    onConflict: "user_id,product_candidate_id"
-                )
-                .execute()
-        } catch {
-            throw AstraError.server("Couldn't mark that as purchased.")
+            if let error = error as? AstraError { throw error }
+            throw Self.isConnectivityFailure(error)
+                ? AstraError.network("Couldn't load the latest shopping evaluations.")
+                : AstraError.server("Couldn't load the latest shopping evaluations.")
         }
     }
 
@@ -259,19 +432,26 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
             }
         }
         do {
+            let ownerID = try await shoppingUserID()
             let rows: [Row] = try await supabase.from("wishlist_items")
                 .select("product_candidate_id, purchased_at")
+                .eq("user_id", value: ownerID)
                 .execute()
                 .value
             let ids = rows
                 .filter { purchased ? $0.purchasedAt != nil : $0.purchasedAt == nil }
                 .map(\.productCandidateID)
-            guard !ids.isEmpty else { return [] }
-            return try await supabase.from("product_candidates")
+            guard !ids.isEmpty else {
+                try await verifyActiveShoppingOwner(ownerID)
+                return []
+            }
+            let candidates: [ProductCandidate] = try await supabase.from("product_candidates")
                 .select()
                 .in("id", values: ids)
                 .execute()
                 .value
+            try await verifyActiveShoppingOwner(ownerID)
+            return candidates
         } catch let error as AstraError {
             throw error
         } catch {
@@ -283,16 +463,12 @@ public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendab
         }
     }
 
-    private func shoppingUserID() async throws -> UUID {
-        do { return try await supabase.auth.session.user.id } catch {
-            throw AstraError.auth("Sign in again to load your shopping history.")
-        }
-    }
-
-    private func verifyActiveShoppingOwner(_ expectedOwnerID: UUID) async throws {
-        guard try await shoppingUserID() == expectedOwnerID else {
-            throw AstraError.auth("Your account changed while loading shopping history.")
-        }
+    private func cachedCandidate(candidateID: UUID, ownerID: UUID) async throws -> ProductCandidate? {
+        guard let evaluationCache,
+              let snapshot = try? await evaluationCache.cachedDecision(candidateID: candidateID, ownerID: ownerID)
+        else { return nil }
+        try await verifyActiveShoppingOwner(ownerID)
+        return snapshot.candidate
     }
 }
 
@@ -319,5 +495,11 @@ private struct WishlistWrite: Encodable, Sendable {
         try container.encode(userID, forKey: .userID)
         try container.encode(productCandidateID, forKey: .productCandidateID)
         try container.encode(purchasedAt, forKey: .purchasedAt)
+    }
+}
+
+extension LiveShoppingRepository: ShoppingEvaluationCachePurging {
+    public func purgeCachedShoppingEvaluations(ownerID: UUID) async throws {
+        try await evaluationCache?.removeAll(ownerID: ownerID)
     }
 }

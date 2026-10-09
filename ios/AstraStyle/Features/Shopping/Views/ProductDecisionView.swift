@@ -31,7 +31,9 @@ struct ProductDecisionView: View {
             }
         }
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
-        .navigationTitle(String(localized: "Should you buy this?", comment: "Product decision page title"))
+        .navigationTitle(viewModel.isShowingHistoricalSnapshot
+            ? String(localized: "Past decision", comment: "Historical product decision title")
+            : String(localized: "Should you buy this?", comment: "Product decision page title"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.onAppear() }
         .onChange(of: viewModel.pendingPaywall) { _, context in
@@ -51,7 +53,18 @@ struct ProductDecisionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AstraSpacing.lg) {
                 identity(loaded.candidate)
+                evaluationFreshnessNotice(loaded)
                 scores(loaded.evaluation)
+                if loaded.isCachedSnapshot {
+                    Button {
+                        Task { await viewModel.refreshEvaluation() }
+                    } label: {
+                        Text(String(localized: "Refresh evaluation", comment: "Explicitly requests a fresh product evaluation"))
+                            .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+                    }
+                    .buttonStyle(.astraPrimary)
+                    .accessibilityIdentifier("productDecision.refreshEvaluation")
+                }
                 if viewModel.canOpenSourceURL {
                     AstraButton(
                         title: String(localized: "Open the page you pasted", comment: "Reopens the source URL after buy/consider")
@@ -80,7 +93,16 @@ struct ProductDecisionView: View {
 
     @ViewBuilder
     private var saveActions: some View {
-        if viewModel.isPurchased {
+        if case .loaded(let loaded) = viewModel.state, loaded.isCachedSnapshot {
+            Text(String(
+                localized: "Reconnect to refresh this decision or change saved items.",
+                comment: "Offline cached product decision cannot update wishlist or purchase state"
+            ))
+            .astraText(.caption)
+            .foregroundStyle(AstraColor.textMuted)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("productDecision.offlineActions")
+        } else if viewModel.isPurchased {
             Text(String(localized: "Marked as purchased.", comment: "Product decision purchased state"))
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
@@ -121,16 +143,18 @@ struct ProductDecisionView: View {
                 AstraRemoteImage(
                     url: candidate.imageURL,
                     aspectRatio: 4.0 / 5.0,
-                    accessibilityDescription: "\(candidate.name) by \(candidate.brand ?? candidate.retailer)"
+                    accessibilityDescription: candidate.retailerLabel.map { "\(candidate.name) by \($0)" } ?? candidate.name
                 )
             }
             Text(candidate.name)
                 .astraText(.title2)
                 .foregroundStyle(AstraColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(candidate.retailer)
-                .astraText(.caption)
-                .foregroundStyle(AstraColor.textMuted)
+            if let retailerLabel = candidate.retailerLabel {
+                Text(retailerLabel)
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+            }
             if candidate.isSponsored || candidate.isAffiliateLink {
                 Text(String(
                     localized: "Commercial link. Astra may earn a commission if you buy; the verdict is still based on your wardrobe.",
@@ -181,7 +205,13 @@ struct ProductDecisionView: View {
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
                 .multilineTextAlignment(.center)
-            if error.isRetryable {
+            if viewModel.isHistoricalEntry {
+                Button(String(localized: "Evaluate now", comment: "Explicitly scores a product when a saved history snapshot is unavailable")) {
+                    Task { await viewModel.refreshEvaluation() }
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("productDecision.evaluateHistoricalItem")
+            } else if error.isRetryable {
                 Button(String(localized: "Try Again", comment: "Retries product evaluation")) {
                     Task { await viewModel.retry() }
                 }
@@ -190,6 +220,18 @@ struct ProductDecisionView: View {
         }
         .padding(AstraSpacing.pagePadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func evaluationFreshnessNotice(_ loaded: ProductDecisionViewModel.Loaded) -> some View {
+        let date = loaded.evaluation.createdAt.formatted(date: .abbreviated, time: .shortened)
+        let message = loaded.isCachedSnapshot
+            ? String(localized: "Last evaluated \(date). This is a saved result from then, not a current recommendation.", comment: "Disclosure that a product verdict is a historical snapshot")
+            : String(localized: "Evaluated \(date) against your wardrobe.", comment: "Timestamp for a fresh server product evaluation")
+        return Text(message)
+        .astraText(.caption)
+        .foregroundStyle(AstraColor.textMuted)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier(loaded.isCachedSnapshot ? "productDecision.cachedSnapshot" : "productDecision.freshness")
     }
 
     private func verdictLabel(_ verdict: KyraVerdict) -> String {

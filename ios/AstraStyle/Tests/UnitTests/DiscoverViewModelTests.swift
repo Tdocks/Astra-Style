@@ -23,7 +23,8 @@ struct DiscoverViewModelTests {
             shoppingRepository: shoppingRepository,
             closetRepository: MockClosetRepository(items: []),
             profileRepository: MockProfileRepository(),
-            imageURLResolver: MockClosetImageURLResolver()
+            imageURLResolver: MockClosetImageURLResolver(),
+            editorialRepository: StaticDiscoverEditorialRepository(guides: [])
         )
     }
 
@@ -174,6 +175,87 @@ struct DiscoverViewModelTests {
             return
         }
     }
+
+    @Test("Published guide types fill independent editorial rails")
+    func editorialGuidesFillTheirOwnRails() async {
+        let guides = [
+            guide(id: "fit-shoulder", order: 3, kind: .fitGuide),
+            guide(id: "style-anchor", order: 1, kind: .styleEducation),
+            guide(id: "summer", order: 2, kind: .seasonalGuide),
+            guide(id: "drakes-field-notes", order: 4, kind: .brandSpotlight)
+        ]
+        let model = DiscoverViewModel(
+            outfitRepository: DiscoverOutfitStub(outfits: []),
+            shoppingRepository: EmptyShoppingStub(),
+            closetRepository: MockClosetRepository(items: []),
+            profileRepository: MockProfileRepository(),
+            imageURLResolver: MockClosetImageURLResolver(),
+            editorialRepository: StaticDiscoverEditorialRepository(guides: guides)
+        )
+
+        await model.onAppear()
+
+        guard case .loaded(let catalog) = model.state else {
+            Issue.record("published editorial content should keep Discover useful without a lookbook")
+            return
+        }
+        #expect(catalog.mine.isEmpty)
+        #expect(catalog.wornByOthers.isEmpty)
+        #expect(catalog.unlocks.isEmpty)
+        #expect(catalog.styleEducation.map(\.id) == ["style-anchor"])
+        #expect(catalog.seasonalGuides.map(\.id) == ["summer"])
+        #expect(catalog.fitGuides.map(\.id) == ["fit-shoulder"])
+        #expect(catalog.brandSpotlights.map(\.id) == ["drakes-field-notes"])
+    }
+
+    @Test("Missing editorial config degrades without hiding owned looks")
+    func editorialFailureDoesNotHideLookbooks() async {
+        let look = Outfit(id: UUID(), userID: SampleData.userID, name: "Thursday navy")
+        let model = DiscoverViewModel(
+            outfitRepository: DiscoverOutfitStub(outfits: [look]),
+            shoppingRepository: EmptyShoppingStub(),
+            closetRepository: MockClosetRepository(items: []),
+            profileRepository: MockProfileRepository(),
+            imageURLResolver: MockClosetImageURLResolver(),
+            editorialRepository: StaticDiscoverEditorialRepository(guides: [], shouldFail: true)
+        )
+
+        await model.onAppear()
+
+        guard case .loaded(let catalog) = model.state else {
+            Issue.record("optional editorial read should not block existing Discover content")
+            return
+        }
+        #expect(catalog.mine.map(\.id) == [look.id])
+        #expect(catalog.styleEducation.isEmpty)
+        #expect(catalog.seasonalGuides.isEmpty)
+        #expect(catalog.fitGuides.isEmpty)
+        #expect(catalog.brandSpotlights.isEmpty)
+    }
+}
+
+private func guide(
+    id: String,
+    order: Int,
+    kind: DiscoverEditorialKind,
+    published: Bool = true
+) -> DiscoverGuide {
+    DiscoverGuide(
+        id: id,
+        sortOrder: order,
+        kind: kind,
+        title: "Guide \(id)",
+        summary: "An original practical guide.",
+        readingMinutes: 3,
+        season: nil,
+        sections: [DiscoverGuideSection(heading: "Try this", body: "Make one small adjustment.")],
+        isPublished: published,
+        editorialLabel: kind == .brandSpotlight ? "Editorial · Not sponsored" : nil,
+        isSponsored: kind == .brandSpotlight ? false : nil,
+        sponsorshipDisclosure: nil,
+        sources: kind == .brandSpotlight ? [DiscoverGuideSource(title: "Official source", url: "https://example.com/about")] : nil,
+        reviewedAt: kind == .brandSpotlight ? "2026-10-09T12:00:00Z" : nil
+    )
 }
 
 private func unlock(name: String, outfitsUnlocked: Int, affiliate: Bool = false) -> ProductUnlock {

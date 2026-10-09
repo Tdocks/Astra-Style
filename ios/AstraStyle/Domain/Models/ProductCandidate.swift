@@ -12,7 +12,7 @@ import Foundation
 public struct ProductCandidate: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var canonicalURL: URL
-    public var retailer: String
+    public var retailer: String?
     public var brand: String?
     public var name: String
     public var category: ClothingCategory
@@ -38,7 +38,7 @@ public struct ProductCandidate: Identifiable, Codable, Hashable, Sendable {
     public init(
         id: UUID,
         canonicalURL: URL,
-        retailer: String,
+        retailer: String? = nil,
         brand: String? = nil,
         name: String,
         category: ClothingCategory,
@@ -83,6 +83,8 @@ public struct ProductCandidate: Identifiable, Codable, Hashable, Sendable {
         case lastCheckedAt = "last_checked_at"
         case sponsored
     }
+
+    public var retailerLabel: String? { brand ?? retailer }
 
     /// `true` when an affiliate relationship exists and must be disclosed
     /// per spec §17 "Sponsored products must be labeled."

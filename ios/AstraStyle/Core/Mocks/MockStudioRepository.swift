@@ -11,6 +11,9 @@ import Foundation
 
 public actor MockStudioRepository: StudioRepository {
     private var generations: [UUID: StudioGeneration] = [:]
+    private var submittedGenerationRequest: StudioGenerationRequest?
+
+    public func lastGenerationRequest() -> StudioGenerationRequest? { submittedGenerationRequest }
     private var lookbooks: [UUID: StudioLookbook] = [:]
     private var savedGenerationIDs: [UUID: [UUID]] = [:]
     private var collectionSaveFailures = 0
@@ -148,6 +151,7 @@ public actor MockStudioRepository: StudioRepository {
     }
 
     public func startGeneration(_ request: StudioGenerationRequest) async throws -> StudioGeneration {
+        submittedGenerationRequest = request
         guard request.inspirationMode != nil || request.hasUserConsent else {
             throw AstraError.validation("Please confirm you have permission to use this photo before generating a preview.")
         }

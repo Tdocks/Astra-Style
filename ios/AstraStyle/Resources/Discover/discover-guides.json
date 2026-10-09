@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "one-anchor-at-a-time",
+      "sortOrder": 10,
+      "kind": "style_education",
+      "title": "Build around one anchor",
+      "summary": "A simple way to make an everyday outfit feel considered without adding more pieces.",
+      "readingMinutes": 3,
+      "season": null,
+      "isPublished": true,
+      "sections": [
+        {
+          "heading": "Choose the piece with the strongest point of view",
+          "body": "Start with one garment that sets the direction: a textured overshirt, a clean pair of leather shoes, or trousers with a clear shape. Let the rest of the outfit support that choice instead of competing with it."
+        },
+        {
+          "heading": "Repeat one detail",
+          "body": "A second use of the anchor's color, texture, or formality makes the combination feel connected. A dark belt can echo dark shoes; a soft knit can balance a structured jacket. The echo should be subtle, not a matching set."
+        },
+        {
+          "heading": "Check the whole silhouette",
+          "body": "Before adding accessories, look at the outfit from shoulder to shoe. If one piece is relaxed, keep another line clean so the shape still feels intentional. Remove any item that pulls attention away from the anchor without adding comfort or purpose."
+        }
+      ]
+    },
+    {
+      "id": "color-without-matching",
+      "sortOrder": 20,
+      "kind": "style_education",
+      "title": "Use color without matching",
+      "summary": "Build a calm palette from related neutrals, then add contrast where it helps.",
+      "readingMinutes": 3,
+      "season": null,
+      "isPublished": true,
+      "sections": [
+        {
+          "heading": "Keep the base compact",
+          "body": "Two or three neighboring neutrals are enough for a useful base: navy with grey, olive with stone, or brown with cream. Similar warmth can make different colors feel at home together."
+        },
+        {
+          "heading": "Put contrast near the face or shoes",
+          "body": "A lighter shirt under a dark layer gives the face a clear frame. A darker shoe can ground lighter trousers. These are options, not rules; use the contrast that makes the outfit easier to read."
+        },
+        {
+          "heading": "Let one color lead",
+          "body": "If a brighter color is part of the outfit, use it once and repeat a quieter tone elsewhere. You do not need an exact color match for a palette to feel coherent."
+        }
+      ]
+    },
+    {
+      "id": "warm-weather-breathing-room",
+      "sortOrder": 30,
+      "kind": "seasonal_guide",
+      "title": "Give warm-weather outfits room",
+      "summary": "Use lighter layers and clear proportions when the day is hot or humid.",
+      "readingMinutes": 4,
+      "season": "summer",
+      "isPublished": true,
+      "sections": [
+        {
+          "heading": "Choose one light layer, or none",
+          "body": "A breathable shirt worn open over a simple base can handle changing indoor temperatures. For the hottest part of the day, leave the extra layer at home rather than carrying a piece you will not wear."
+        },
+        {
+          "heading": "Give the fabric some space",
+          "body": "A comfortable amount of ease helps air move and keeps fabric from clinging. Linen, cotton, and lightweight blends behave differently; check how a garment feels in motion, not only how it looks on a hanger."
+        },
+        {
+          "heading": "Keep the shape deliberate",
+          "body": "When the top is relaxed, a clean trouser line can bring balance. When shorts are part of the plan, check their length and rise while standing and sitting so the outfit stays comfortable through the day."
+        }
+      ]
+    },
+    {
+      "id": "changeable-weather-layers",
+      "sortOrder": 40,
+      "kind": "seasonal_guide",
+      "title": "Layer for a changeable day",
+      "summary": "Make temperature swings easier with pieces that work together on their own.",
+      "readingMinutes": 4,
+      "season": "spring-fall",
+      "isPublished": true,
+      "sections": [
+        {
+          "heading": "Start with a comfortable base",
+          "body": "Choose a shirt or knit that feels complete by itself. If the outer layer comes off indoors, the base should still suit the setting."
+        },
+        {
+          "heading": "Add a removable middle layer",
+          "body": "A cardigan, overshirt, or light sweater gives you an adjustment without requiring a full outfit change. Check sleeve volume and shoulder room with the outer layer on."
+        },
+        {
+          "heading": "Finish with weather protection only when needed",
+          "body": "A shell or coat should solve a real forecast problem. If rain is likely, choose a layer that can handle it; if the day is dry, a bulky waterproof piece may add more heat than comfort."
+        }
+      ]
+    },
+    {
+      "id": "fit-through-the-shoulder",
+      "sortOrder": 50,
+      "kind": "fit_guide",
+      "title": "Read the shoulder first",
+      "summary": "A quick check for shirts and jackets before judging the rest of the fit.",
+      "readingMinutes": 3,
+      "season": null,
+      "isPublished": true,
+      "sections": [
+        {
+          "heading": "Find the shoulder seam",
+          "body": "On a set-in sleeve, the seam usually sits close to the point where the shoulder turns into the arm. A dropped-shoulder design is meant to sit lower, so judge it by its intended shape rather than this reference."
+        },
+        {
+          "heading": "Move before deciding",
+          "body": "Reach forward, sit, and lift your arms. The garment should let you move without pulling hard across the back or riding up more than you find comfortable. A mirror check while standing cannot show all of that."
+        },
+        {
+          "heading": "Check the next measurement",
+          "body": "If the shoulder works, look at sleeve length and body length next. Tailoring can adjust some details, but changing a shoulder construction is often more involved."
+        }
+      ]
+    },
+    {
+      "id": "trouser-length-in-motion",
+      "sortOrder": 60,
+      "kind": "fit_guide",
+      "title": "Check trouser length in motion",
+      "summary": "Use the shoe and your movement to decide whether a hem feels right.",
+      "readingMinutes": 3,
+      "season": null,
+      "isPublished": true,
+      "sections": [
+        {
+          "heading": "Try the shoes you will wear",
+          "body": "Different shoes change where a trouser hem lands. Check the length with the intended pair rather than estimating from a different shoe."
+        },
+        {
+          "heading": "Look at the break",
+          "body": "A small fold at the front is one common finish; a cleaner line with little or no fold is another. The rise, leg width, and fabric all affect the result, so there is no single correct amount for everyone."
+        },
+        {
+          "heading": "Walk and sit",
+          "body": "Take a few steps and sit down. The hem should move without dragging or exposing more leg than you intend. If the trousers feel good in motion and the proportions look balanced to you, the length is doing its job."
+        }
+      ]
+    },
+    {
+      "id": "drakes-field-notes",
+      "sortOrder": 70,
+      "kind": "brand_spotlight",
+      "title": "Drake’s: accessories to soft tailoring",
+      "summary": "A short history of the East London label and how its origins in scarves and ties connect to a broader wardrobe today.",
+      "readingMinutes": 3,
+      "season": null,
+      "isPublished": true,
+      "editorialLabel": "Editorial · Not sponsored",
+      "isSponsored": false,
+      "sponsorshipDisclosure": null,
+      "reviewedAt": "2026-10-09T12:00:00Z",
+      "sources": [
+        {
+          "title": "Drake’s — About",
+          "url": "https://www.drakes.com/pages/about"
+        }
+      ],
+      "sections": [
+        {
+          "heading": "From scarves to a wider wardrobe",
+          "body": "Drake’s says it was founded by Michael Drake in East London in 1977, first making scarves, shawls, and plaids before expanding into ties and handkerchiefs. Its official history connects that start in accessories with the label’s later clothing range."
+        },
+        {
+          "heading": "A useful style lens",
+          "body": "The brand describes its current point of view as “relaxed elegance” and lists soft tailoring, knitwear, shirts, outerwear, accessories, and denim. That breadth is useful as a reminder that a tailored jacket can be styled with more relaxed pieces; this is context about the label, not a product endorsement."
+        },
+        {
+          "heading": "Source and independence",
+          "body": "This original Astra editorial note is based on the linked brand history page, reviewed October 9, 2026. Astra created this note independently."
+        }
+      ]
+    },
+    {
+      "id": "todd-snyder-field-notes",
+      "sortOrder": 80,
+      "kind": "brand_spotlight",
+      "title": "Todd Snyder: refining wardrobe staples",
+      "summary": "A brand profile on the label’s stated focus on familiar wardrobe pieces, considered materials, and updated proportions.",
+      "readingMinutes": 3,
+      "season": null,
+      "isPublished": true,
+      "editorialLabel": "Editorial · Not sponsored",
+      "isSponsored": false,
+      "sponsorshipDisclosure": null,
+      "reviewedAt": "2026-10-09T12:00:00Z",
+      "sources": [
+        {
+          "title": "Todd Snyder — About",
+          "url": "https://www.toddsnyder.com/pages/bio"
+        }
+      ],
+      "sections": [
+        {
+          "heading": "A focus on the familiar",
+          "body": "Todd Snyder’s official biography describes the New York-based label as taking essential wardrobe pieces and making them better through materials, proportions, and construction. The brand says Snyder launched his namesake label in 2011."
+        },
+        {
+          "heading": "How to read that point of view",
+          "body": "A design language built around familiar pieces can make the details easier to compare: fabric texture, shoulder shape, rise, and length. This profile describes the label’s own stated approach; it does not claim that its products are better than alternatives."
+        },
+        {
+          "heading": "Source and independence",
+          "body": "This original Astra editorial note is based on the linked brand biography, reviewed October 9, 2026. Astra created this note independently."
+        }
+      ]
+    }
+  ]
+}

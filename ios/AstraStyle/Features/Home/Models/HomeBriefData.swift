@@ -14,6 +14,7 @@ import Foundation
 public struct HomeBriefData: Sendable {
     public var greetingName: String
     public var weather: WeatherSnapshot?
+    public var weatherIsLastKnown: Bool
     public var schedule: ScheduleSnapshot?
     public var brief: DailyBrief
     public var primaryOutfit: Outfit?
@@ -44,6 +45,7 @@ public struct HomeBriefData: Sendable {
         greetingName: String,
         weather: WeatherSnapshot?,
         schedule: ScheduleSnapshot?,
+        weatherIsLastKnown: Bool = false,
         brief: DailyBrief,
         primaryOutfit: Outfit?,
         primaryOutfitItems: [OutfitItem],
@@ -54,6 +56,7 @@ public struct HomeBriefData: Sendable {
     ) {
         self.greetingName = greetingName
         self.weather = weather
+        self.weatherIsLastKnown = weatherIsLastKnown
         self.schedule = schedule
         self.brief = brief
         self.primaryOutfit = primaryOutfit
@@ -95,6 +98,15 @@ public struct HomeBriefData: Sendable {
         guard let owned = closetRoleCounts, let wearable = wearableRoleCounts else { return [] }
         if !wardrobeGraph.missingRoles(in: owned).isEmpty { return [] }
         return wardrobeGraph.missingRoles(in: wearable)
+    }
+
+    /// True only when there is an actual provider observation time to show.
+    /// Last-known readings are labeled even while inside the two-hour request
+    /// window; older persisted readings are labeled by their observation time.
+    public var shouldLabelWeatherObservation: Bool {
+        guard let observedAt = weather?.observedAt else { return false }
+        let age = Date.now.timeIntervalSince(observedAt)
+        return weatherIsLastKnown || age > 2 * 60 * 60 || age < -5 * 60
     }
 
     public var closetItemCount: Int {

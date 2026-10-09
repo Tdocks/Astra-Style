@@ -159,7 +159,11 @@ final class LuxuryAuditUITests: XCTestCase {
         awaitElement(anyElement("shop.catalog"), "Shop catalog")
         capture("72-Shop-Catalog")
         let product = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] %@", "Italian Shearling Jacket")
+            NSPredicate(
+                format: "label CONTAINS[c] %@ AND identifier BEGINSWITH %@",
+                "Italian Shearling Jacket",
+                "shop.catalogProduct."
+            )
         ).firstMatch
         awaitElement(product, "Shop product")
         product.tap()

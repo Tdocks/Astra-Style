@@ -181,7 +181,7 @@ extension AppContainer {
         let apiClient: AstraAPIClient
         let sessionStore: SessionStore
         let analyticsClient: AnalyticsClient
-        let weatherService: WeatherService
+        let weatherService: LiveWeatherService
         let calendarService: CalendarService
         let offlineMutationQueue: OfflineMutationQueue
         let pendingScanQueue: PendingScanQueue
@@ -219,7 +219,7 @@ extension AppContainer {
         let apiClient = AstraAPIClient(environment: environment)
         let sessionStore = SessionStore(apiClient: apiClient)
         let analyticsClient = LiveAnalyticsClient()
-        let weatherService = LiveWeatherService()
+        let weatherService = LiveWeatherService(currentUserID: { await sessionStore.currentUserID() })
         let calendarService = LiveCalendarService()
 
         let offlineMutationQueue = SwiftDataOfflineMutationQueue(modelContainer: modelContainer)
@@ -261,6 +261,15 @@ extension AppContainer {
         ))
     }
 
+    private static func makeLiveKyraRepository(_ dependencies: LiveContainerDependencies) -> LiveKyraRepository {
+        LiveKyraRepository(
+            apiClient: dependencies.apiClient,
+            weatherService: dependencies.weatherService,
+            calendarService: dependencies.calendarService,
+            historyCache: SwiftDataKyraHistoryCache(modelContainer: dependencies.modelContainer)
+        )
+    }
+
     private static func makeLiveContainer(_ dependencies: LiveContainerDependencies) -> AppContainer {
         let sessionStore = dependencies.sessionStore
         let drainClosetMutations = dependencies.drainClosetMutations
@@ -283,18 +292,17 @@ extension AppContainer {
         )
         return AppContainer(
             sessionStore: dependencies.sessionStore,
-            authRepository: LiveAuthRepository(apiClient: dependencies.apiClient, sessionStore: dependencies.sessionStore),
+            authRepository: LiveAuthRepository(apiClient: dependencies.apiClient, sessionStore: dependencies.sessionStore, weatherCache: dependencies.weatherService),
             profileRepository: profileRepository,
             closetRepository: dependencies.closetRepository,
             closetImageURLResolver: dependencies.closetImageURLResolver,
             outfitRepository: outfitRepository,
-            kyraRepository: LiveKyraRepository(
-                apiClient: dependencies.apiClient,
-                weatherService: dependencies.weatherService,
-                calendarService: dependencies.calendarService
-            ),
+            kyraRepository: makeLiveKyraRepository(dependencies),
             studioRepository: LiveStudioRepository(apiClient: dependencies.apiClient),
-            shoppingRepository: LiveShoppingRepository(apiClient: dependencies.apiClient),
+            shoppingRepository: LiveShoppingRepository(
+                apiClient: dependencies.apiClient,
+                evaluationCache: SwiftDataShoppingEvaluationCache(modelContainer: dependencies.modelContainer)
+            ),
             streakRepository: LiveStreakRepository(),
             subscriptionRepository: dependencies.subscriptionRepository,
             weatherService: dependencies.weatherService,

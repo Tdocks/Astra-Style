@@ -21,6 +21,7 @@ public actor MockShoppingRepository: ShoppingRepository {
     private var shouldPauseExtraction = false
     public private(set) var extractionCalls = 0
     private var evaluateError: AstraError?
+    public private(set) var evaluationCalls = 0
     private var purchaseHistoryError: AstraError?
     private var evaluationHistoryError: AstraError?
 
@@ -129,6 +130,7 @@ public actor MockShoppingRepository: ShoppingRepository {
     }
 
     public func evaluateProduct(candidateID: UUID) async throws -> ProductEvaluation {
+        evaluationCalls += 1
         if let evaluateError { throw evaluateError }
         if let evaluationOverride {
             let result = ProductEvaluation(
@@ -161,6 +163,24 @@ public actor MockShoppingRepository: ShoppingRepository {
 
     public func fetchEvaluations(from: Date, to: Date) async throws -> [ProductEvaluation] {
         evaluations.filter { $0.createdAt >= from && $0.createdAt <= to }
+    }
+
+    public func fetchRecentDecisions(limit: Int) async throws -> [ProductDecisionSnapshot] {
+        guard limit > 0 else { return [] }
+        var seen: Set<UUID> = []
+        return evaluations.sorted { $0.createdAt > $1.createdAt }.compactMap { evaluation in
+            guard seen.insert(evaluation.productCandidateID).inserted,
+                  let candidate = catalog.first(where: { $0.id == evaluation.productCandidateID }) else { return nil }
+            return ProductDecisionSnapshot(candidate: candidate, evaluation: evaluation)
+        }.prefix(limit).map { $0 }
+    }
+
+    public func fetchCachedDecision(candidateID: UUID) async throws -> ProductDecisionSnapshot? {
+        guard let evaluation = evaluations.last(where: { $0.productCandidateID == candidateID }) else { return nil }
+        return ProductDecisionSnapshot(
+            candidate: catalog.first(where: { $0.id == candidateID }),
+            evaluation: evaluation
+        )
     }
 
     public func fetchPurchases(from: Date, to: Date) async throws -> [ProductPurchase] {

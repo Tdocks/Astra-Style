@@ -44,4 +44,15 @@ public protocol WeatherService: Sendable {
     /// (spec §21 "Calendar denied" pattern applies symmetrically to
     /// weather).
     func currentSnapshot() async throws -> WeatherSnapshot
+
+    /// Current forecast with local source metadata. Existing conformers inherit
+    /// a live-only implementation; `LiveWeatherService` may return a bounded,
+    /// owner-scoped last-known reading after provider failure.
+    func currentReading() async throws -> WeatherReading
+}
+
+public extension WeatherService {
+    func currentReading() async throws -> WeatherReading {
+        WeatherReading(snapshot: try await currentSnapshot(), source: .live)
+    }
 }

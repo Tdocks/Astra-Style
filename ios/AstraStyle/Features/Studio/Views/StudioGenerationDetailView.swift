@@ -132,7 +132,7 @@ struct StudioGenerationDetailView: View {
         .navigationTitle(String(localized: "Estimate", comment: "Studio generation detail"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.onAppear() }
-        .alert("Export a high-resolution estimate?", isPresented: $showsHighResolutionConfirmation) {
+        .alert("Export a higher-quality estimate?", isPresented: $showsHighResolutionConfirmation) {
             Button("Cancel", role: .cancel) { viewModel.cancelHighResolutionExportConfirmation() }
             Button(viewModel.highResolutionConfirmationActionTitle) {
                 Task {
@@ -155,7 +155,7 @@ struct StudioGenerationDetailView: View {
                 }
             } label: {
                 Label(
-                    viewModel.isPreparingHighResolutionExport ? "Checking allowance…" : "Export high resolution",
+                    viewModel.isPreparingHighResolutionExport ? "Checking allowance…" : "Export higher quality",
                     systemImage: "arrow.up.right"
                 )
             }
@@ -163,7 +163,7 @@ struct StudioGenerationDetailView: View {
             .disabled(viewModel.isPreparingHighResolutionExport || viewModel.isExportingHighResolution)
             .accessibilityIdentifier("studio.detail.exportHiRes")
             if viewModel.isExportingHighResolution {
-                ProgressView("Preparing high-resolution export…")
+                ProgressView("Preparing higher-quality export…")
                     .tint(AstraColor.accentChampagne)
             }
         }
@@ -171,7 +171,7 @@ struct StudioGenerationDetailView: View {
 
     private func highResolutionChildSection(_ child: StudioGeneration) -> some View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
-            Text("High resolution export")
+            Text("Higher quality export")
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)
             Text(statusCopy(child.status))
@@ -190,7 +190,7 @@ struct StudioGenerationDetailView: View {
             }
             if let error = viewModel.highResolutionError {
                 Text(error).astraText(.callout).foregroundStyle(AstraColor.textSecondary)
-                Button(child.isRetryableWithoutCharge ? "Retry high-resolution export" : "Check export status") {
+                Button(child.isRetryableWithoutCharge ? "Retry higher-quality export" : "Check export status") {
                     Task {
                         if child.isRetryableWithoutCharge {
                             await viewModel.retryHighResolutionExport()
@@ -202,7 +202,7 @@ struct StudioGenerationDetailView: View {
                 .buttonStyle(.astraSecondary)
                 .disabled(viewModel.isExportingHighResolution)
             } else if child.isRetryableWithoutCharge {
-                Button("Retry high-resolution export") { Task { await viewModel.retryHighResolutionExport() } }
+                Button("Retry higher-quality export") { Task { await viewModel.retryHighResolutionExport() } }
                     .buttonStyle(.astraSecondary)
                     .disabled(viewModel.isExportingHighResolution)
             }

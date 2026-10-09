@@ -16,6 +16,7 @@ public final class ProductDecisionViewModel {
     public struct Loaded: Sendable {
         public var candidate: ProductCandidate?
         public var evaluation: ProductEvaluation
+        public var isCachedSnapshot: Bool
     }
 
     public enum ViewState: Sendable {
@@ -32,10 +33,23 @@ public final class ProductDecisionViewModel {
 
     private let candidateID: UUID
     private let shoppingRepository: ShoppingRepository
+    private let startsInHistoricalMode: Bool
 
-    public init(candidateID: UUID, shoppingRepository: ShoppingRepository) {
+    public init(
+        candidateID: UUID,
+        shoppingRepository: ShoppingRepository,
+        startsInHistoricalMode: Bool = false
+    ) {
         self.candidateID = candidateID
         self.shoppingRepository = shoppingRepository
+        self.startsInHistoricalMode = startsInHistoricalMode
+    }
+
+    public var isHistoricalEntry: Bool { startsInHistoricalMode }
+
+    public var isShowingHistoricalSnapshot: Bool {
+        guard case .loaded(let loaded) = state else { return startsInHistoricalMode }
+        return loaded.isCachedSnapshot
     }
 
     public func onAppear() async {
@@ -48,10 +62,20 @@ public final class ProductDecisionViewModel {
         await load()
     }
 
+    /// A saved history view never scores automatically. This is the sole
+    /// action that asks the server for a new wardrobe evaluation.
+    public func refreshEvaluation() async {
+        pendingPaywall = nil
+        state = .loading
+        await loadFreshEvaluation()
+    }
+
     /// Buy / consider may reopen the URL he pasted. Skip / wait must not
     /// push a catalog, and they do not get a retailer button.
     public var canOpenSourceURL: Bool {
-        guard case .loaded(let loaded) = state, loaded.candidate != nil else { return false }
+        guard case .loaded(let loaded) = state,
+              !loaded.isCachedSnapshot,
+              loaded.candidate != nil else { return false }
         switch loaded.evaluation.verdict {
         case .buy, .consider:
             return true
@@ -67,7 +91,7 @@ public final class ProductDecisionViewModel {
 
     /// Skip/wait may share the refusal. Buy/consider must not share a CTA.
     public var shareText: String? {
-        guard case .loaded(let loaded) = state else { return nil }
+        guard case .loaded(let loaded) = state, !loaded.isCachedSnapshot else { return nil }
         return ProductDecisionCopy.shareText(
             verdict: loaded.evaluation.verdict,
             garmentName: loaded.candidate?.name
@@ -75,11 +99,47 @@ public final class ProductDecisionViewModel {
     }
 
     private func load() async {
+        if startsInHistoricalMode {
+            await loadSavedSnapshot()
+        } else {
+            await loadFreshEvaluation()
+        }
+    }
+
+    private func loadSavedSnapshot() async {
+        do {
+            guard let snapshot = try await shoppingRepository.fetchCachedDecision(candidateID: candidateID) else {
+                state = .failed(AstraError.network("That saved evaluation is no longer available on this device."))
+                return
+            }
+            state = .loaded(Loaded(
+                candidate: snapshot.candidate,
+                evaluation: snapshot.evaluation,
+                isCachedSnapshot: true
+            ))
+        } catch let error as AstraError {
+            state = .failed(error)
+        } catch {
+            state = .failed(AstraError(category: .unknown, message: error.localizedDescription))
+        }
+    }
+
+    private func loadFreshEvaluation() async {
         do {
             let evaluation = try await shoppingRepository.evaluateProduct(candidateID: candidateID)
             let candidate = try? await shoppingRepository.fetchProductCandidate(id: candidateID)
-            state = .loaded(Loaded(candidate: candidate, evaluation: evaluation))
+            state = .loaded(Loaded(candidate: candidate, evaluation: evaluation, isCachedSnapshot: false))
             await refreshSaveState()
+        } catch let error as AstraError where error.category == .network {
+            if let snapshot = try? await shoppingRepository.fetchCachedDecision(candidateID: candidateID) {
+                state = .loaded(Loaded(
+                    candidate: snapshot.candidate,
+                    evaluation: snapshot.evaluation,
+                    isCachedSnapshot: true
+                ))
+                return
+            }
+            state = .failed(error)
         } catch let error as AstraError where error.category == .rateLimited {
             pendingPaywall = .pasteEvaluate
             state = .failed(error)
@@ -91,6 +151,10 @@ public final class ProductDecisionViewModel {
     }
 
     public func toggleWishlist() async {
+        guard !isShowingCachedSnapshot else {
+            wishlistMessage = String(localized: "Reconnect and refresh the evaluation before changing saved items.")
+            return
+        }
         wishlistMessage = nil
         do {
             if isOnWishlist {
@@ -107,6 +171,10 @@ public final class ProductDecisionViewModel {
     }
 
     public func markPurchased() async {
+        guard !isShowingCachedSnapshot else {
+            wishlistMessage = String(localized: "Reconnect and refresh the evaluation before changing saved items.")
+            return
+        }
         wishlistMessage = nil
         do {
             try await shoppingRepository.markPurchased(candidateID: candidateID)
@@ -127,5 +195,10 @@ public final class ProductDecisionViewModel {
         let bought = (try? await shoppingRepository.fetchPurchased()) ?? []
         isPurchased = bought.contains { $0.id == candidateID }
         isOnWishlist = !isPurchased && saved.contains { $0.id == candidateID }
+    }
+
+    private var isShowingCachedSnapshot: Bool {
+        guard case .loaded(let loaded) = state else { return false }
+        return loaded.isCachedSnapshot
     }
 }

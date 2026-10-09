@@ -6,31 +6,9 @@
 //  local cache and offline-first entities"). Only the entities spec §7
 //  requires to remain viewable offline are cached here: closet items,
 //  outfits, and daily briefs — plus the offline mutation queue itself.
-//  Everything else (Style Studio history, product evaluations) is treated
-//  as network-first and simply not cached.
-//
-//  KYRA THREADS ARE NETWORK-FIRST BY DECISION, NOT BY OMISSION
-//  (P5-KYRA-18). The offline-cache criterion was weighed both ways and
-//  this is the recorded answer. A conversation with Kyra is generative:
-//  everything the screen can do — send, retry, act on a card — needs the
-//  network (spec §7 puts generative features behind connectivity), so a
-//  cached thread is a read-only transcript whose one use is rereading old
-//  advice. And that transcript would misrepresent itself offline: Kyra's
-//  messages carry cards that are ID references (`outfit_id`,
-//  `product_candidate_id` — see `supabase/functions/kyra/schema.ts`)
-//  hydrated at render time, and product candidates/evaluations are
-//  themselves not cached, so an offline transcript renders as prose with
-//  holes where its substance was. Caching the referenced rows too would
-//  mean mirroring most of the shopping domain to keep one modal readable
-//  on the subway — cost far out of proportion to the value. What the
-//  criterion is actually protecting the user from — a message composed
-//  offline being silently lost or silently queued — is handled where the
-//  message is composed: `KyraConversationViewModel` surfaces an explicit
-//  "Kyra needs a connection" state and disables send, rather than
-//  queue-and-hope. Revisit only if reread-offline becomes a real, observed
-//  need; the seam is `KyraRepository`, so a cache slots in behind the
-//  protocol without touching the screen.
-//
+//  Style Studio remains network-first. Server-confirmed Kyra transcripts
+//  and product evaluations are cached only for explicit offline reading;
+//  neither is used to replay requests or create a fresh recommendation.
 
 import Foundation
 import SwiftData
@@ -89,22 +67,44 @@ public enum AstraSchemaV4: VersionedSchema {
     }
 }
 
+/// Owner-scoped Kyra transcripts and dated product-decision snapshots;
+/// V4 stores migrate without changing existing persisted rows.
+public enum AstraSchemaV5: VersionedSchema {
+    public static let versionIdentifier = Schema.Version(5, 0, 0)
+    public static var models: [any PersistentModel.Type] {
+        [
+            PersistedClosetItem.self,
+            PersistedOutfit.self,
+            PersistedDailyBrief.self,
+            PersistedOfflineMutation.self,
+            PersistedPendingScan.self,
+            PersistedScannerSave.self,
+            PersistedProfileSnapshot.self,
+            PersistedKyraThreadListSnapshot.self,
+            PersistedKyraThread.self,
+            PersistedKyraMessage.self,
+            PersistedProductEvaluation.self
+        ]
+    }
+}
+
 public enum AstraSchemaMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
-        [AstraSchemaV1.self, AstraSchemaV2.self, AstraSchemaV3.self, AstraSchemaV4.self]
+        [AstraSchemaV1.self, AstraSchemaV2.self, AstraSchemaV3.self, AstraSchemaV4.self, AstraSchemaV5.self]
     }
 
     public static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: AstraSchemaV1.self, toVersion: AstraSchemaV2.self),
             .lightweight(fromVersion: AstraSchemaV2.self, toVersion: AstraSchemaV3.self),
-            .lightweight(fromVersion: AstraSchemaV3.self, toVersion: AstraSchemaV4.self)
+            .lightweight(fromVersion: AstraSchemaV3.self, toVersion: AstraSchemaV4.self),
+            .lightweight(fromVersion: AstraSchemaV4.self, toVersion: AstraSchemaV5.self)
         ]
     }
 }
 
 public enum AstraModelContainer {
-    public static let schema = Schema(versionedSchema: AstraSchemaV4.self)
+    public static let schema = Schema(versionedSchema: AstraSchemaV5.self)
 
     /// The production, on-disk container.
     public static func live(storeURL: URL? = nil) throws -> ModelContainer {
