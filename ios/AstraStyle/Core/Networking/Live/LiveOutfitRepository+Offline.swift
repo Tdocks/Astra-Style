@@ -28,16 +28,20 @@ extension LiveOutfitRepository {
         defer { endDraining() }
 
         let writer = self.writer
+        let currentUserID = self.currentUserID
         await offlineQueue.drain { mutation in
             switch mutation.entity {
             case .outfit:
                 let outfit = try JSONDecoder.astraDefault.decode(Outfit.self, from: mutation.payloadData)
+                guard await currentUserID() == outfit.userID else { throw OfflineMutationNotHandled() }
                 _ = try await writer.updateOutfit(outfit)
             case .outfitWear:
                 let wear = try JSONDecoder.astraDefault.decode(OutfitWear.self, from: mutation.payloadData)
+                guard await currentUserID() == wear.userID else { throw OfflineMutationNotHandled() }
                 _ = try await writer.createWear(wear)
             case .styleFeedback:
                 let feedback = try JSONDecoder.astraDefault.decode(StyleFeedback.self, from: mutation.payloadData)
+                guard await currentUserID() == feedback.userID else { throw OfflineMutationNotHandled() }
                 _ = try await writer.createFeedback(feedback)
             case .closetItem, .occasion:
                 // Not this repository's mutation — owned by

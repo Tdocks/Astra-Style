@@ -54,6 +54,7 @@ extension OfflineMutation {
 
 @ModelActor
 public actor SwiftDataOfflineMutationQueue: OfflineMutationQueue {
+    let drainGate = AsyncOfflineMutationDrainGate()
 
     public func enqueue(_ mutation: OfflineMutation) async throws {
         let row = PersistedOfflineMutation(
@@ -84,14 +85,23 @@ public actor SwiftDataOfflineMutationQueue: OfflineMutationQueue {
     }
 
     public func drain(apply: @Sendable (OfflineMutation) async throws -> Void) async {
+        await drainGate.withPermit {
+            await self.drainUnlocked(apply: apply)
+        }
+    }
+
+    private func drainUnlocked(apply: @Sendable (OfflineMutation) async throws -> Void) async {
         for mutation in await pendingMutations() {
             do {
+                try Task.checkCancellation()
                 try await apply(mutation)
                 await remove(id: mutation.id)
             } catch is OfflineMutationNotHandled {
                 // Another repository's mutation. Leave it exactly as it is —
                 // still queued, attempt count untouched — and carry on.
                 continue
+            } catch is CancellationError {
+                return
             } catch {
                 // Preserve FIFO ordering: stop at the first failure rather
                 // than skipping ahead, so a later mutation for the same

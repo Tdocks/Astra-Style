@@ -12,6 +12,7 @@ import Foundation
 
 public actor InMemoryOfflineMutationQueue: OfflineMutationQueue {
     private var mutations: [OfflineMutation] = []
+    let drainGate = AsyncOfflineMutationDrainGate()
 
     public init(seed: [OfflineMutation] = []) {
         mutations = seed
@@ -26,9 +27,16 @@ public actor InMemoryOfflineMutationQueue: OfflineMutationQueue {
     }
 
     public func drain(apply: @Sendable (OfflineMutation) async throws -> Void) async {
+        await drainGate.withPermit {
+            await self.drainUnlocked(apply: apply)
+        }
+    }
+
+    private func drainUnlocked(apply: @Sendable (OfflineMutation) async throws -> Void) async {
         var skipped: Set<UUID> = []
         while let next = mutations.first(where: { !skipped.contains($0.id) }) {
             do {
+                try Task.checkCancellation()
                 try await apply(next)
                 // By id, not `removeFirst()`: `apply` suspends, and this actor
                 // can accept an `enqueue`/`remove` in the meantime, so the
@@ -37,6 +45,8 @@ public actor InMemoryOfflineMutationQueue: OfflineMutationQueue {
                 mutations.removeAll { $0.id == next.id }
             } catch is OfflineMutationNotHandled {
                 skipped.insert(next.id)
+            } catch is CancellationError {
+                return
             } catch {
                 if let index = mutations.firstIndex(where: { $0.id == next.id }) {
                     mutations[index].attemptCount += 1

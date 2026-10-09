@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import Observation
 
 @main
 struct AstraStyleApp: App {
@@ -15,29 +16,47 @@ struct AstraStyleApp: App {
     // AstraFeatureFlags). Selected here rather than inside `live()` so there is
     // exactly one place that decides which dependency graph the process runs
     // on, and it is visible at the entry point rather than buried in a factory.
-    @State private var appContainer = AstraFeatureFlags.usesMockBackend
-        ? AppContainer.preview()
-        : AppContainer.live()
+    @State private var startupController = AppStartupController()
     @State private var router = AppRouter()
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(appContainer)
-                .environment(router)
-                .environment(appContainer.sessionStore)
-                .preferredColorScheme((AstraFeatureFlags.forcedTheme ?? appContainer.settings.preferredColorScheme).resolvedColorScheme)
-                .task {
-                    await bootstrap()
+            Group {
+                switch startupController.state {
+                case .opening:
+                    ProgressView("Opening saved data…")
+                        .tint(AstraColor.accentChampagne)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(AstraColor.backgroundPrimary.ignoresSafeArea())
+                case .failed:
+                    PersistentStoreRecoveryView {
+                        startupController.retry()
+                    }
+                case .ready(let appContainer):
+                    RootView()
+                        .environment(appContainer)
+                        .environment(router)
+                        .environment(appContainer.sessionStore)
+                        .preferredColorScheme((AstraFeatureFlags.forcedTheme ?? appContainer.settings.preferredColorScheme).resolvedColorScheme)
+                        .task {
+                            await bootstrap(using: appContainer)
+                        }
+                        .task {
+                            await observeConnectivityForScannerRecovery(using: appContainer)
+                        }
+                        .onChange(of: appContainer.sessionStore.currentSession?.userID) { _, ownerID in
+                            guard let ownerID else { return }
+                            let recovery = appContainer.scannerSaveRecoveryService
+                            let mutationDrain = appContainer.offlineMutationDrainCoordinator
+                            Task {
+                                await recovery.recover(ownerID: ownerID)
+                                await mutationDrain?.sessionChanged(ownerID: ownerID)
+                            }
+                        }
                 }
-                .task {
-                    await observeConnectivityForScannerRecovery()
-                }
-                .onChange(of: appContainer.sessionStore.currentSession?.userID) { _, ownerID in
-                    guard let ownerID else { return }
-                    let recovery = appContainer.scannerSaveRecoveryService
-                    Task { await recovery.recover(ownerID: ownerID) }
-                }
+            }
+            .preferredColorScheme(AstraFeatureFlags.forcedTheme?.resolvedColorScheme)
+            .task { startupController.openIfNeeded() }
         }
     }
 
@@ -60,14 +79,14 @@ struct AstraStyleApp: App {
     /// Restores the session, then advances `AppRouter.routeState` out of
     /// `.launching`. Kept out of `RootView` so the view stays a pure
     /// function of state (no network calls in views, spec §8).
-    private func bootstrap() async {
+    private func bootstrap(using appContainer: AppContainer) async {
         let route = await withMinimumDuration(Self.splashMinimumDwell) {
-            await self.resolveLaunchRoute()
+            await self.resolveLaunchRoute(using: appContainer)
         }
         router.routeState = route
     }
 
-    private func resolveLaunchRoute() async -> AppRouteState {
+    private func resolveLaunchRoute(using appContainer: AppContainer) async -> AppRouteState {
         if AstraFeatureFlags.resetsStateOnLaunch {
             // Test-only reset is local. Calling Supabase Auth's sign-out here
             // would add a network dependency to UI tests and fail offline.
@@ -162,8 +181,14 @@ struct AstraStyleApp: App {
         }
     }
 
-    private func observeConnectivityForScannerRecovery() async {
-        for await isOnline in appContainer.networkMonitor.connectivityUpdates() where isOnline {
+    private func observeConnectivityForScannerRecovery(using appContainer: AppContainer) async {
+        let mutationDrain = appContainer.offlineMutationDrainCoordinator
+        await mutationDrain?.connectivityChanged(
+            isOnline: !(await appContainer.networkMonitor.isOffline())
+        )
+        for await isOnline in appContainer.networkMonitor.connectivityUpdates() {
+            await mutationDrain?.connectivityChanged(isOnline: isOnline)
+            guard isOnline else { continue }
             guard let ownerID = await appContainer.sessionStore.currentUserID() else { continue }
             await appContainer.scannerSaveRecoveryService.recover(ownerID: ownerID)
         }
@@ -179,5 +204,95 @@ extension ThemePreference {
         case .light: .light
         case .dark: .dark
         }
+    }
+}
+
+@MainActor
+@Observable
+final class AppStartupController {
+    enum State {
+        case opening
+        case failed
+        case ready(AppContainer)
+    }
+
+    private(set) var state: State = .opening
+    private var didAttemptOpen = false
+    private let containerFactory: (() throws -> AppContainer)?
+    private var shouldFailInitialOpenForTesting: Bool
+
+    init(containerFactory: (() throws -> AppContainer)? = nil) {
+        self.containerFactory = containerFactory
+        #if DEBUG
+        if case nil = containerFactory {
+            shouldFailInitialOpenForTesting = ProcessInfo.processInfo.arguments.contains(
+                "-astra-test-store-open-failure-once"
+            )
+        } else {
+            shouldFailInitialOpenForTesting = false
+        }
+        #else
+        shouldFailInitialOpenForTesting = false
+        #endif
+    }
+
+    func openIfNeeded() {
+        guard !didAttemptOpen else { return }
+        attemptOpen()
+    }
+
+    func retry() {
+        guard case .failed = state else { return }
+        attemptOpen()
+    }
+
+    private func attemptOpen() {
+        didAttemptOpen = true
+        state = .opening
+        do {
+            if shouldFailInitialOpenForTesting {
+                shouldFailInitialOpenForTesting = false
+                throw AstraError.server("Injected persistent-store startup failure for UI testing.")
+            }
+            let appContainer: AppContainer
+            if let containerFactory {
+                appContainer = try containerFactory()
+            } else if AstraFeatureFlags.usesMockBackend {
+                appContainer = AppContainer.preview()
+            } else {
+                appContainer = try AppContainer.live()
+            }
+            state = .ready(appContainer)
+        } catch {
+            // Keep the store and all its files in place. In particular, do
+            // not substitute an in-memory ModelContainer: writes would look
+            // successful and disappear at the next launch.
+            state = .failed
+        }
+    }
+}
+
+private struct PersistentStoreRecoveryView: View {
+    let retry: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Saved data unavailable", systemImage: "externaldrive.badge.exclamationmark")
+        } description: {
+            Text("Astra Style couldn't open your saved data. Nothing was deleted. Check your device storage, then try again.")
+        } actions: {
+            Button(action: retry) {
+                Text("Try again")
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, AstraSpacing.lg)
+                    .padding(.vertical, AstraSpacing.sm)
+            }
+                .buttonStyle(.astraSecondary)
+                .frame(maxWidth: 320)
+                .accessibilityIdentifier("startup.store.retry")
+        }
+        .padding(AstraSpacing.pagePadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AstraColor.backgroundPrimary.ignoresSafeArea())
     }
 }

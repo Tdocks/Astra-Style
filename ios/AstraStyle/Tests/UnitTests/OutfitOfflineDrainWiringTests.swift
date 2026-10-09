@@ -74,19 +74,21 @@ struct OutfitOfflineDrainWiringTests {
 
     private func makeRepository(
         queue: OfflineMutationQueue,
-        writer: some OutfitWriting
+        writer: some OutfitWriting,
+        ownerID: UUID? = nil
     ) -> LiveOutfitRepository {
         LiveOutfitRepository(
             apiClient: AstraAPIClient(environment: .preview),
             offlineQueue: queue,
             supabase: AstraSupabaseClientFactory.previewClient,
             writer: writer,
-            cache: InMemoryOutfitCache()
+            cache: InMemoryOutfitCache(),
+            currentUserID: { ownerID }
         )
     }
 
-    private func outfit(_ name: String) -> Outfit {
-        Outfit(id: UUID(), userID: UUID(), name: name)
+    private func outfit(_ name: String, userID: UUID = UUID()) -> Outfit {
+        Outfit(id: UUID(), userID: userID, name: name)
     }
 
     // MARK: - Tests
@@ -108,28 +110,33 @@ struct OutfitOfflineDrainWiringTests {
 
     @Test("Failed durable enqueue surfaces outfit update and wear actions")
     func failedQueuePersistenceSurfacesOutfitMutations() async throws {
-        let repository = makeRepository(queue: FailingOfflineQueue(), writer: StubOutfitWriter(shouldFail: true))
-        let look = outfit("Unqueued layers")
+        let ownerID = UUID()
+        let repository = makeRepository(
+            queue: FailingOfflineQueue(), writer: StubOutfitWriter(shouldFail: true), ownerID: ownerID
+        )
+        let look = outfit("Unqueued layers", userID: ownerID)
+        let expectedError = AstraError.server("queue persistence failed")
 
-        await #expect(throws: AstraError.self) { try await repository.updateOutfit(look) }
-        await #expect(throws: AstraError.self) {
+        await #expect(throws: expectedError) { _ = try await repository.updateOutfit(look) }
+        await #expect(throws: expectedError) {
             try await repository.recordWear(outfitID: look.id, wornAt: .now, occasion: nil, rating: nil, feedback: nil)
         }
     }
 
     @Test("A later successful call replays the whole backlog, oldest first")
     func successfulWriteDrainsTheBacklog() async throws {
+        let ownerID = UUID()
         let writer = StubOutfitWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: ownerID)
 
-        let first = outfit("Rainy Commute")
+        let first = outfit("Rainy Commute", userID: ownerID)
         _ = try await repository.updateOutfit(first)
         _ = try await repository.recordWear(outfitID: UUID(), wornAt: .now, occasion: nil, rating: nil, feedback: nil)
         #expect(await queue.pendingMutations().count == 2)
 
         await writer.setShouldFail(false)
-        let third = outfit("Studio Session")
+        let third = outfit("Studio Session", userID: ownerID)
         _ = try await repository.updateOutfit(third)
 
         #expect(await queue.pendingMutations().isEmpty)
@@ -141,6 +148,7 @@ struct OutfitOfflineDrainWiringTests {
 
     @Test("A successful read drains too — a returning user's backlog flushes without a write")
     func successfulReadDrains() async throws {
+        let ownerID = UUID()
         let writer = StubOutfitWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
         let repository = LiveOutfitRepository(
@@ -149,10 +157,11 @@ struct OutfitOfflineDrainWiringTests {
             supabase: AstraSupabaseClientFactory.previewClient,
             writer: writer,
             cache: InMemoryOutfitCache(),
+            currentUserID: { ownerID },
             activeOutfitsFetcher: { [] }
         )
 
-        let garment = outfit("Off-Duty")
+        let garment = outfit("Off-Duty", userID: ownerID)
         _ = try await repository.updateOutfit(garment)
         #expect(await queue.pendingMutations().count == 1)
 
@@ -165,11 +174,12 @@ struct OutfitOfflineDrainWiringTests {
 
     @Test("A replay that fails increments attemptCount and leaves the queue intact")
     func failedReplayCountsAnAttempt() async throws {
+        let ownerID = UUID()
         let writer = StubOutfitWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: ownerID)
 
-        let garment = outfit("Museum Day")
+        let garment = outfit("Museum Day", userID: ownerID)
         _ = try await repository.updateOutfit(garment)
         #expect(await queue.pendingMutations().first?.attemptCount == 0)
 
@@ -184,6 +194,7 @@ struct OutfitOfflineDrainWiringTests {
 
     @Test("A closet mutation is skipped, not dropped, and does not block the outfit backlog")
     func foreignMutationIsSkippedNotDiscarded() async throws {
+        let ownerID = UUID()
         // The foreign mutation is FIRST on purpose: under a plain
         // stop-at-first-failure drain it would wedge the queue and the
         // outfit write behind it would never replay.
@@ -191,9 +202,9 @@ struct OutfitOfflineDrainWiringTests {
         let queue = InMemoryOfflineMutationQueue(seed: [
             OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data("{}".utf8))
         ])
-        let repository = makeRepository(queue: queue, writer: writer)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: ownerID)
 
-        let garment = outfit("Layover Look")
+        let garment = outfit("Layover Look", userID: ownerID)
         _ = try await repository.updateOutfit(garment)
         await writer.setShouldFail(false)
         await repository.drainPendingMutations()
@@ -207,11 +218,12 @@ struct OutfitOfflineDrainWiringTests {
 
     @Test("Two concurrent drains do not replay the same mutation twice")
     func concurrentDrainsDoNotDoubleApply() async throws {
+        let ownerID = UUID()
         let writer = StubOutfitWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: ownerID)
 
-        let garment = outfit("Fireside")
+        let garment = outfit("Fireside", userID: ownerID)
         _ = try await repository.updateOutfit(garment)
         await writer.setShouldFail(false)
 
@@ -220,6 +232,67 @@ struct OutfitOfflineDrainWiringTests {
         _ = await (firstDrain, secondDrain)
 
         #expect(await writer.updatedOutfitIDs == [garment.id])
+        #expect(await queue.pendingMutations().isEmpty)
+    }
+
+    @Test("Foreign outfit, wear, and feedback records stay queued and never reach the writer")
+    func foreignOwnerMutationsAreSkipped() async throws {
+        let currentOwner = UUID()
+        let otherOwner = UUID()
+        let outfit = Outfit(id: UUID(), userID: otherOwner, name: "Other account")
+        let wear = OutfitWear(id: UUID(), outfitID: outfit.id, userID: otherOwner, wornAt: .now)
+        let feedback = StyleFeedback(
+            id: UUID(), userID: otherOwner, targetType: .closetItem, targetID: UUID(), signal: .like
+        )
+        let queue = InMemoryOfflineMutationQueue(seed: [
+            OfflineMutation(entity: .outfit, operation: .update, payloadData: try JSONEncoder.astraDefault.encode(outfit)),
+            OfflineMutation(entity: .outfitWear, operation: .create, payloadData: try JSONEncoder.astraDefault.encode(wear)),
+            OfflineMutation(entity: .styleFeedback, operation: .create, payloadData: try JSONEncoder.astraDefault.encode(feedback))
+        ])
+        let writer = StubOutfitWriter(shouldFail: false)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: currentOwner)
+
+        await repository.drainPendingMutations()
+
+        let pending = await queue.pendingMutations()
+        #expect(pending.count == 3)
+        #expect(pending.allSatisfy { $0.attemptCount == 0 })
+        #expect(await writer.updatedOutfitIDs.isEmpty)
+        #expect(await writer.createdWearIDs.isEmpty)
+        #expect(await writer.createdFeedbackIDs.isEmpty)
+    }
+
+    @Test("An owned style feedback record replays under the matching owner")
+    func ownedFeedbackReplays() async throws {
+        let ownerID = UUID()
+        let feedback = StyleFeedback(
+            id: UUID(), userID: ownerID, targetType: .closetItem, targetID: UUID(), signal: .like
+        )
+        let queue = InMemoryOfflineMutationQueue(seed: [
+            OfflineMutation(entity: .styleFeedback, operation: .create, payloadData: try JSONEncoder.astraDefault.encode(feedback))
+        ])
+        let writer = StubOutfitWriter(shouldFail: false)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: ownerID)
+
+        await repository.drainPendingMutations()
+
+        #expect(await queue.pendingMutations().isEmpty)
+        #expect(await writer.createdFeedbackIDs == [feedback.id])
+    }
+
+    @Test("Offline wear and feedback require a real active owner")
+    func offlineWritesDoNotInventOwners() async {
+        let queue = InMemoryOfflineMutationQueue()
+        let repository = makeRepository(queue: queue, writer: StubOutfitWriter(shouldFail: true))
+
+        await #expect(throws: AstraError.self) {
+            try await repository.recordWear(outfitID: UUID(), wornAt: .now, occasion: nil, rating: nil, feedback: nil)
+        }
+        await #expect(throws: AstraError.self) {
+            try await repository.recordFeedback(
+                targetType: .closetItem, targetID: UUID(), signal: .like, reasonTags: [], freeText: nil
+            )
+        }
         #expect(await queue.pendingMutations().isEmpty)
     }
 }

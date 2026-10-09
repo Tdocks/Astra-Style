@@ -293,3 +293,57 @@ private actor PausedRefresher: SessionRefreshing {
         continuation = nil
     }
 }
+
+@MainActor
+@Suite("Durable-store startup recovery")
+struct AppStartupControllerTests {
+    @Test("A failed persistent open stays unavailable until a deliberate retry succeeds")
+    func retriesAfterPersistentStoreFailure() {
+        var attempts = 0
+        let controller = AppStartupController {
+            attempts += 1
+            guard attempts > 1 else {
+                throw AstraError.server("Injected open failure")
+            }
+            return AppContainer.preview()
+        }
+
+        controller.openIfNeeded()
+        if case .failed = controller.state {
+            #expect(true)
+        } else {
+            Issue.record("A failed durable store open must not create an app container")
+        }
+        #expect(attempts == 1)
+
+        controller.openIfNeeded()
+        #expect(attempts == 1, "Startup must not silently retry in the background")
+
+        controller.retry()
+        #expect(attempts == 2)
+        if case .ready = controller.state {
+            #expect(true)
+        } else {
+            Issue.record("A successful explicit retry should restore the app")
+        }
+    }
+
+    @Test("Repeated store failures remain visible and never fall back to a container")
+    func repeatedFailureRemainsUnavailable() {
+        var attempts = 0
+        let controller = AppStartupController {
+            attempts += 1
+            throw AstraError.server("Store remains unavailable")
+        }
+
+        controller.openIfNeeded()
+        controller.retry()
+
+        #expect(attempts == 2)
+        if case .failed = controller.state {
+            #expect(true)
+        } else {
+            Issue.record("An unavailable persistent store must not be replaced by an in-memory container")
+        }
+    }
+}

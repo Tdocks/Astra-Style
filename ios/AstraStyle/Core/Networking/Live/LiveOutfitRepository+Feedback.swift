@@ -42,10 +42,12 @@ public extension LiveOutfitRepository {
             await drainPendingMutations()
             return recorded
         } catch {
-            let session = try? await supabase.auth.session
+            guard let userID = await currentUserID() else {
+                throw AstraError.auth("Sign in again to save that style feedback.")
+            }
             let feedback = StyleFeedback(
                 id: UUID(),
-                userID: session?.user.id ?? UUID(),
+                userID: userID,
                 targetType: targetType,
                 targetID: targetID,
                 signal: signal,

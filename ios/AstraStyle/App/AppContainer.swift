@@ -106,6 +106,7 @@ public final class AppContainer {
     public let apiClient: AstraAPIClient
     public let analyticsClient: AnalyticsClient
     public let offlineMutationQueue: OfflineMutationQueue
+    public let offlineMutationDrainCoordinator: OfflineMutationDrainCoordinator?
     public let networkMonitor: NetworkReachabilityMonitoring
     public let settings: AppSettings
 
@@ -133,6 +134,7 @@ public final class AppContainer {
         apiClient: AstraAPIClient,
         analyticsClient: AnalyticsClient,
         offlineMutationQueue: OfflineMutationQueue,
+        offlineMutationDrainCoordinator: OfflineMutationDrainCoordinator? = nil,
         networkMonitor: NetworkReachabilityMonitoring,
         settings: AppSettings
     ) {
@@ -159,6 +161,7 @@ public final class AppContainer {
         self.apiClient = apiClient
         self.analyticsClient = analyticsClient
         self.offlineMutationQueue = offlineMutationQueue
+        self.offlineMutationDrainCoordinator = offlineMutationDrainCoordinator
         self.networkMonitor = networkMonitor
         self.settings = settings
     }
@@ -167,6 +170,12 @@ public final class AppContainer {
 // MARK: - Factories
 
 extension AppContainer {
+
+    private struct LiveClosetStack {
+        let repository: ClosetRepository
+        let remote: any ScannerSaveRemoteWriting
+        let drainPendingMutations: @Sendable () async -> Void
+    }
 
     private struct LiveContainerDependencies {
         let apiClient: AstraAPIClient
@@ -178,6 +187,7 @@ extension AppContainer {
         let pendingScanQueue: PendingScanQueue
         let scannerSaveJournal: ScannerSaveJournaling
         let scannerSaveRecoveryService: ScannerSaveRecoveryService
+        let drainClosetMutations: @Sendable () async -> Void
         let subscriptionRepository: SubscriptionRepository
         let closetRepository: ClosetRepository
         let closetImageURLResolver: ClosetImageURLResolving
@@ -200,7 +210,11 @@ extension AppContainer {
 
     /// Production dependency graph. Talks to Supabase Edge Functions per
     /// spec §8; the client never talks to a model provider directly.
-    public static func live() -> AppContainer {
+    public static func live() throws -> AppContainer {
+        // Open durable storage before constructing repositories, queues, or
+        // services. If this fails, the app remains in its startup recovery
+        // screen and no write path can target an ephemeral substitute.
+        let modelContainer = try AstraModelContainer.live()
         let environment = AstraEnvironment.current
         let apiClient = AstraAPIClient(environment: environment)
         let sessionStore = SessionStore(apiClient: apiClient)
@@ -208,11 +222,6 @@ extension AppContainer {
         let weatherService = LiveWeatherService()
         let calendarService = LiveCalendarService()
 
-        // Fall back to an in-memory store if the on-disk container fails
-        // to initialize (e.g. an unreadable/corrupt store) rather than
-        // crashing at launch — offline caching degrades to "no caching
-        // this session" instead of bricking the app.
-        let modelContainer = (try? AstraModelContainer.live()) ?? AstraModelContainer.preview()
         let offlineMutationQueue = SwiftDataOfflineMutationQueue(modelContainer: modelContainer)
         let pendingScanQueue = SwiftDataPendingScanQueue(modelContainer: modelContainer)
         let scannerSaveJournal = SwiftDataScannerSaveJournal(modelContainer: modelContainer)
@@ -243,6 +252,7 @@ extension AppContainer {
             pendingScanQueue: pendingScanQueue,
             scannerSaveJournal: scannerSaveJournal,
             scannerSaveRecoveryService: scannerSaveRecoveryService,
+            drainClosetMutations: closetStack.drainPendingMutations,
             subscriptionRepository: subscriptionRepository,
             closetRepository: closetStack.repository,
             closetImageURLResolver: LiveClosetImageURLResolver(apiClient: apiClient),
@@ -252,17 +262,25 @@ extension AppContainer {
     }
 
     private static func makeLiveContainer(_ dependencies: LiveContainerDependencies) -> AppContainer {
-        AppContainer(
+        let sessionStore = dependencies.sessionStore
+        let drainClosetMutations = dependencies.drainClosetMutations
+        let outfitRepository = LiveOutfitRepository(
+            apiClient: dependencies.apiClient,
+            offlineQueue: dependencies.offlineMutationQueue,
+            cache: SwiftDataOutfitCache(modelContainer: dependencies.modelContainer)
+        )
+        let offlineMutationDrainCoordinator = OfflineMutationDrainCoordinator(
+            currentOwnerID: { await sessionStore.currentUserID() },
+            drainCloset: drainClosetMutations,
+            drainOutfits: { await outfitRepository.drainPendingMutations() }
+        )
+        return AppContainer(
             sessionStore: dependencies.sessionStore,
             authRepository: LiveAuthRepository(apiClient: dependencies.apiClient, sessionStore: dependencies.sessionStore),
             profileRepository: LiveProfileRepository(apiClient: dependencies.apiClient),
             closetRepository: dependencies.closetRepository,
             closetImageURLResolver: dependencies.closetImageURLResolver,
-            outfitRepository: LiveOutfitRepository(
-                apiClient: dependencies.apiClient,
-                offlineQueue: dependencies.offlineMutationQueue,
-                cache: SwiftDataOutfitCache(modelContainer: dependencies.modelContainer)
-            ),
+            outfitRepository: outfitRepository,
             kyraRepository: LiveKyraRepository(
                 apiClient: dependencies.apiClient,
                 weatherService: dependencies.weatherService,
@@ -282,6 +300,7 @@ extension AppContainer {
             apiClient: dependencies.apiClient,
             analyticsClient: dependencies.analyticsClient,
             offlineMutationQueue: dependencies.offlineMutationQueue,
+            offlineMutationDrainCoordinator: offlineMutationDrainCoordinator,
             networkMonitor: dependencies.networkMonitor,
             settings: AppSettings()
         )
@@ -300,7 +319,7 @@ extension AppContainer {
         modelContainer: ModelContainer,
         subscriptionRepository: SubscriptionRepository,
         sessionStore: SessionStore
-    ) -> (repository: ClosetRepository, remote: any ScannerSaveRemoteWriting) {
+    ) -> LiveClosetStack {
         let liveClosetRepository = LiveClosetRepository(
             apiClient: apiClient,
             offlineQueue: offlineMutationQueue,
@@ -319,7 +338,11 @@ extension AppContainer {
                 await sessionStore.currentIsAnonymous()
             }
         )
-        return (freeTierCappedClosetRepository, liveClosetRepository)
+        return LiveClosetStack(
+            repository: freeTierCappedClosetRepository,
+            remote: liveClosetRepository,
+            drainPendingMutations: { await liveClosetRepository.drainPendingMutations() }
+        )
     }
 
     private static func offlineQueueContainsCreate(

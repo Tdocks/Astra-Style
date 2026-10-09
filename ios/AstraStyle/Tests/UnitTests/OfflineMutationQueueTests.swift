@@ -100,6 +100,100 @@ struct OfflineMutationQueueTests {
 
         #expect(await queue.pendingMutations().isEmpty)
     }
+
+    @Test("Overlapping drain callers wait, so one queued mutation is applied once")
+    func concurrentDrainCallersAreSerialized() async throws {
+        let queue = InMemoryOfflineMutationQueue(seed: [
+            OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data()),
+            OfflineMutation(entity: .outfit, operation: .update, payloadData: Data())
+        ])
+        let recorder = DrainConcurrencyBarrier()
+
+        let first = Task {
+            await queue.drain { mutation in
+                guard mutation.entity == .closetItem else { throw OfflineMutationNotHandled() }
+                await recorder.holdFirstApply()
+            }
+        }
+        await recorder.waitForFirstApply()
+
+        let second = Task {
+            await queue.drain { mutation in
+                guard mutation.entity == .outfit else { throw OfflineMutationNotHandled() }
+                await recorder.record("second-owner")
+            }
+        }
+        while await queue.drainGate.waitingCallerCount == 0 { await Task.yield() }
+        #expect(await recorder.events == ["first-start"])
+
+        await recorder.releaseFirstApply()
+        await first.value
+        await second.value
+
+        #expect(await recorder.events == ["first-start", "first-end", "second-owner"])
+        #expect(await queue.pendingMutations().isEmpty)
+    }
+
+    @Test("SwiftData queue serializes drain handlers across actor reentrancy")
+    func swiftDataDrainCallersAreSerialized() async throws {
+        let queue = SwiftDataOfflineMutationQueue(modelContainer: AstraModelContainer.preview())
+        try await queue.enqueue(OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data()))
+        try await queue.enqueue(OfflineMutation(entity: .outfit, operation: .update, payloadData: Data()))
+        let recorder = DrainConcurrencyBarrier()
+
+        let first = Task {
+            await queue.drain { mutation in
+                guard mutation.entity == .closetItem else { throw OfflineMutationNotHandled() }
+                await recorder.holdFirstApply()
+            }
+        }
+        await recorder.waitForFirstApply()
+
+        let second = Task {
+            await queue.drain { mutation in
+                guard mutation.entity == .outfit else { throw OfflineMutationNotHandled() }
+                await recorder.record("second-owner")
+            }
+        }
+        while await queue.drainGate.waitingCallerCount == 0 { await Task.yield() }
+        #expect(await recorder.events == ["first-start"])
+
+        await recorder.releaseFirstApply()
+        await first.value
+        await second.value
+
+        #expect(await recorder.events == ["first-start", "first-end", "second-owner"])
+        #expect(await queue.pendingMutations().isEmpty)
+    }
+
+    @Test("A cancelled drain waiter releases its place for the next waiter")
+    func cancelledDrainWaiterDoesNotBlockFollowingCaller() async {
+        let gate = AsyncOfflineMutationDrainGate()
+        let recorder = DrainConcurrencyBarrier()
+
+        let holder = Task {
+            await gate.withPermit { await recorder.holdFirstApply() }
+        }
+        await recorder.waitForFirstApply()
+
+        let cancelled = Task {
+            await gate.withPermit { await recorder.record("cancelled") }
+        }
+        while await gate.waitingCallerCount == 0 { await Task.yield() }
+        cancelled.cancel()
+        while await gate.waitingCallerCount != 0 { await Task.yield() }
+
+        let following = Task {
+            await gate.withPermit { await recorder.record("following") }
+        }
+        while await gate.waitingCallerCount == 0 { await Task.yield() }
+        await recorder.releaseFirstApply()
+        await holder.value
+        await cancelled.value
+        await following.value
+
+        #expect(await recorder.events == ["first-start", "first-end", "following"])
+    }
 }
 
 /// `drain(apply:)` takes a `@Sendable` closure, so the applied order cannot be
@@ -112,5 +206,35 @@ private actor AppliedOrderRecorder {
 
     func record(_ id: UUID) {
         ids.append(id)
+    }
+}
+
+private actor DrainConcurrencyBarrier {
+    private(set) var events: [String] = []
+    private var firstApplyStarted = false
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    func holdFirstApply() async {
+        events.append("first-start")
+        firstApplyStarted = true
+        startedContinuation?.resume()
+        startedContinuation = nil
+        await withCheckedContinuation { releaseContinuation = $0 }
+        events.append("first-end")
+    }
+
+    func waitForFirstApply() async {
+        guard !firstApplyStarted else { return }
+        await withCheckedContinuation { startedContinuation = $0 }
+    }
+
+    func releaseFirstApply() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
+    }
+
+    func record(_ event: String) {
+        events.append(event)
     }
 }

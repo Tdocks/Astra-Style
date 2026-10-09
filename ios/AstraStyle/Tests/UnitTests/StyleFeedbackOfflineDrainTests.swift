@@ -51,27 +51,31 @@ struct StyleFeedbackOfflineDrainTests {
 
     private func makeRepository(
         queue: OfflineMutationQueue,
-        writer: some OutfitWriting
+        writer: some OutfitWriting,
+        ownerID: UUID
     ) -> LiveOutfitRepository {
         LiveOutfitRepository(
             apiClient: AstraAPIClient(environment: .preview),
             offlineQueue: queue,
             supabase: AstraSupabaseClientFactory.previewClient,
             writer: writer,
-            cache: InMemoryOutfitCache()
+            cache: InMemoryOutfitCache(),
+            currentUserID: { ownerID }
         )
     }
 
     @Test("A failed recordFeedback call is queued and the local value is returned")
     func failedFeedbackIsQueued() async throws {
+        let ownerID = UUID()
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: StubOutfitWriter(shouldFail: true))
+        let repository = makeRepository(queue: queue, writer: StubOutfitWriter(shouldFail: true), ownerID: ownerID)
         let outfitID = UUID()
 
         let returned = try await repository.recordFeedback(targetType: .outfit, targetID: outfitID, signal: .skipped)
 
         #expect(returned.targetID == outfitID)
         #expect(returned.signal == .skipped)
+        #expect(returned.userID == ownerID)
         let pending = await queue.pendingMutations()
         #expect(pending.count == 1)
         #expect(pending.first?.entity == .styleFeedback)
@@ -80,18 +84,22 @@ struct StyleFeedbackOfflineDrainTests {
 
     @Test("Failed durable enqueue surfaces the feedback action")
     func failedQueuePersistenceSurfacesFeedback() async throws {
-        let repository = makeRepository(queue: FailingOfflineQueue(), writer: StubOutfitWriter(shouldFail: true))
+        let expectedError = AstraError.server("queue persistence failed")
+        let repository = makeRepository(
+            queue: FailingOfflineQueue(), writer: StubOutfitWriter(shouldFail: true), ownerID: UUID()
+        )
 
-        await #expect(throws: AstraError.self) {
+        await #expect(throws: expectedError) {
             try await repository.recordFeedback(targetType: .outfit, targetID: UUID(), signal: .skipped)
         }
     }
 
     @Test("A later successful drain replays the queued style_feedback write")
     func successfulDrainReplaysQueuedFeedback() async throws {
+        let ownerID = UUID()
         let writer = StubOutfitWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: ownerID)
         let outfitID = UUID()
 
         _ = try await repository.recordFeedback(targetType: .outfit, targetID: outfitID, signal: .dislike)
@@ -106,11 +114,12 @@ struct StyleFeedbackOfflineDrainTests {
 
     @Test("A closet mutation ahead of a queued style_feedback write is skipped, not dropped")
     func foreignMutationIsSkippedNotDiscarded() async throws {
+        let ownerID = UUID()
         let writer = StubOutfitWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue(seed: [
             OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data("{}".utf8))
         ])
-        let repository = makeRepository(queue: queue, writer: writer)
+        let repository = makeRepository(queue: queue, writer: writer, ownerID: ownerID)
 
         _ = try await repository.recordFeedback(targetType: .outfit, targetID: UUID(), signal: .skipped)
         await writer.setShouldFail(false)

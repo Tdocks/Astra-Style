@@ -35,7 +35,9 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
     let offlineQueue: OfflineMutationQueue
     let writer: any OutfitWriting
     let cache: OutfitCaching
-    private let currentUserID: @Sendable () async -> UUID?
+    /// Shared by sibling offline extensions so replay and offline queue
+    /// creation enforce the same active-account boundary.
+    let currentUserID: @Sendable () async -> UUID?
     /// Test seams: when non-nil, `fetchOutfits`/`fetchOutfitItems` use
     /// these instead of Postgrest, so cache write-through / offline
     /// fallback can be asserted without a live Supabase project. Mirrors
@@ -323,11 +325,13 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
         } catch let error as AstraError where error.category == .rateLimited {
             throw error
         } catch {
-            let session = try? await supabase.auth.session
+            guard let userID = await currentUserID() else {
+                throw AstraError.auth("Sign in again to save that wear record.")
+            }
             let wear = OutfitWear(
                 id: UUID(),
                 outfitID: outfitID,
-                userID: session?.user.id ?? UUID(),
+                userID: userID,
                 wornAt: wornAt,
                 occasion: occasion,
                 rating: rating,
