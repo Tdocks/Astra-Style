@@ -91,3 +91,24 @@ Deno.test("unknown target attributes remain disclosed instead of implying certai
     "formality",
   ]);
 });
+
+Deno.test("unknown comparison attributes are disclosed even when target is complete", () => {
+  const target = item("target");
+  const unknown = item("unknown", {
+    primaryColor: null,
+    fit: null,
+    materials: [],
+    formalityScore: null,
+  });
+  assertEquals(computeItemInsights(target, [target, unknown], []).missingRedundancyInputs, [
+    "color",
+    "fit",
+    "material",
+    "formality",
+  ]);
+  assertEquals(
+    computeItemInsights(target, [target, { ...unknown, archivedAt: new Date() }], [])
+      .missingRedundancyInputs,
+    [],
+  );
+});

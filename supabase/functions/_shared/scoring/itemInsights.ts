@@ -70,10 +70,18 @@ export function computeItemInsights(
       ? "recorded_wear"
       : null,
     missingRedundancyInputs: [
-      ...(target.primaryColor === null ? ["color"] : []),
-      ...(target.fit === null ? ["fit"] : []),
-      ...(target.materials.length === 0 ? ["material"] : []),
-      ...(target.formalityScore === null ? ["formality"] : []),
+      ...new Set([
+        target,
+        ...active.filter((item) =>
+          item.id !== target.id && item.category === target.category &&
+          seasonalityOverlaps(item.seasonality, target.seasonality)
+        ),
+      ].flatMap((item) => [
+        ...(item.primaryColor === null ? ["color"] : []),
+        ...(item.fit === null ? ["fit"] : []),
+        ...(item.materials.length === 0 ? ["material"] : []),
+        ...(item.formalityScore === null ? ["formality"] : []),
+      ])),
     ],
   };
 }
