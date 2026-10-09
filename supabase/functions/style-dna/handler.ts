@@ -103,14 +103,22 @@ export const STYLE_DNA_SYSTEM_PROMPT = [
   "1. Every claim must trace to an input in the context packet. If an input is",
   "   missing, produce a shorter result and name the gap in open_questions.",
   "   Never fill a section with generic advice to make the result look complete.",
-  "2. The garment is the subject of every sentence, never the reader's body.",
+  "   Empty recommendation lists are correct when there is no stated goal or",
+  "   wardrobe evidence to support a recommendation.",
+  "2. The response schema requires a silhouette headline/detail and palette",
+  "   rationale even for sparse profiles. If no fit, body, or silhouette evidence",
+  "   exists, use a brief explicit unknown (for example, 'Direction still open')",
+  "   and say that no cut preference is recorded. Do not invent a fit direction.",
+  "   If a primary identity is supplied, report it as supplied; do not infer",
+  "   secondary identities or preferences from it alone.",
+  "3. The garment is the subject of every sentence, never the reader's body.",
   "   Describe what a cut does. Never use the word 'flattering'.",
-  "3. Never imply an exact fit or a size. Measurements inform direction, not",
+  "4. Never imply an exact fit or a size. Measurements inform direction, not",
   "   a guarantee.",
-  "4. Never give advice about changing the reader's body.",
-  "5. A preference measured from one or two comparisons is a starting point,",
+  "5. Never give advice about changing the reader's body.",
+  "6. A preference measured from one or two comparisons is a starting point,",
   "   not something the reader told you. Say so when you use it.",
-  "6. Reply with one JSON document matching the provided schema. No prose",
+  "7. Reply with one JSON document matching the provided schema. No prose",
   "   outside it.",
 ].join("\n");
 
@@ -276,6 +284,7 @@ export async function handleGenerateStyleDna(req: Request, deps: HandlerDeps): P
       // needs none of the eleven Kyra tools (docs/06 §3).
       tools: [],
       responseSchema: styleDnaResponseSchema(STYLE_IDENTITIES),
+      strictResponseSchema: true,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       // Fixed per call type, never user-configurable (docs/08 §1). Low, not
       // zero: this is generative prose, but two runs against an unchanged
@@ -391,7 +400,13 @@ function toAppError(err: unknown): AppError {
     );
   }
   if (err instanceof ProviderError) {
-    return err.retryable
+    return err.isConfigurationIssue
+      ? new AppError(
+        "provider",
+        503,
+        "Kyra's Style DNA service is unavailable right now. Please try again later.",
+      )
+      : err.retryable
       ? new AppError(
         "provider",
         502,

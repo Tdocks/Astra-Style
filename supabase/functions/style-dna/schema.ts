@@ -412,11 +412,13 @@ export function styleDnaResponseSchema(
 ): Record<string, unknown> {
   const named = {
     type: "object",
+    additionalProperties: false,
     required: ["title", "reason"],
     properties: { title: { type: "string" }, reason: { type: "string" } },
   };
   return {
     type: "object",
+    additionalProperties: false,
     required: [
       "primary_identity",
       "identity_basis",
@@ -440,6 +442,7 @@ export function styleDnaResponseSchema(
       secondary_influences: { type: "array", items: { type: "string", enum: allowedIdentities } },
       palette: {
         type: "object",
+        additionalProperties: false,
         required: ["preferred_colors", "avoided_colors", "rationale"],
         properties: {
           preferred_colors: { type: "array", items: { type: "string" } },
@@ -449,6 +452,7 @@ export function styleDnaResponseSchema(
       },
       silhouette: {
         type: "object",
+        additionalProperties: false,
         required: ["headline", "detail"],
         properties: { headline: { type: "string" }, detail: { type: "string" } },
       },
@@ -457,6 +461,7 @@ export function styleDnaResponseSchema(
         type: "array",
         items: {
           type: "object",
+          additionalProperties: false,
           required: ["rank", "title", "reason"],
           properties: {
             rank: { type: "integer", minimum: 1 },

@@ -88,21 +88,25 @@ still the boundary.
 ## The provider seam in `style-dna`
 
 `style-dna/index.ts` constructs a `StylistReasoningProvider` (spec §8,
-`docs/08-provider-abstraction.md` §1) and hands it to the handler. Today that is
-`DeterministicStylistProvider` — no model call, no key, ten distinct identity
-playbooks, and output that gets shorter rather than vaguer as input thins out.
-Replacing it with a live vendor adapter is that one expression; nothing else in
-this repo, and nothing at all in `ios/`, changes. `style-dna/handler_test.ts`
-asserts exactly that by running one request through two unrelated providers and
-comparing everything except the content and the reported model id.
+`docs/08-provider-abstraction.md` §1) and hands it to the handler. The default
+is the live OpenAI adapter already used by Kyra, at the configured Terra tier.
+It reuses `STYLIST_PROVIDER_API_KEY`, or `IMAGE_PROVIDER_API_KEY` only when
+`IMAGE_GENERATION_PROVIDER=openai`. Missing credentials produce a provider
+error; they do not silently route a production request to deterministic copy.
+The deterministic provider is available only when explicitly selected with
+`STYLE_DNA_PROVIDER=deterministic`, and its response reports the deterministic
+model identifier.
 
-What a live adapter still needs, so nobody assumes it is a small job: a vendor
-account under API-tier terms with training opted out (spec §29 is a hard legal
-gate), its key set via `supabase secrets set`, an adapter that keeps every
-vendor concept inside itself, the shared retry/circuit-breaker baseline
-(`docs/08` §0.1), the escalation router (`docs/09` §2), and the golden-set and
-guardrail evals (`docs/06` §7.1–7.2) run against
-`STYLE_DNA_SYSTEM_PROMPT_VERSION` before it ships.
+Style DNA adds the docs/08 §0.1 transient retry and rolling circuit breaker.
+The request/response schema remains in `style-dna/handler.ts`; malformed or
+unsupported model output is rejected before persistence. `golden_eval.ts`
+evaluates three synthetic profiles—including identity-only and no-identity
+cases—against the live provider without writing profile data. Run it with the
+same configured stylist credential before shipping a prompt revision. The
+golden pass does not replace the hard spec §29 review of provider data-use
+terms. From `supabase/functions/`, run
+`deno run --allow-env --allow-net --import-map deno.json style-dna/golden_eval.ts`;
+the report includes only case ids, model identifiers, and pass/fail reasons.
 
 Every future endpoint (`closet/analyze-item`,
 `kyra/respond`, etc.) should follow the same shape: a function directory

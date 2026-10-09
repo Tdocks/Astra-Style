@@ -150,7 +150,7 @@ export class LiveStylistProvider implements StylistReasoningProvider {
         format: {
           type: "json_schema",
           name: "kyra_response",
-          strict: false,
+          strict: request.strictResponseSchema ?? false,
           schema: request.responseSchema,
         },
       },

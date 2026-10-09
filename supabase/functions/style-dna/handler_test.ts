@@ -25,6 +25,7 @@ import type {
 } from "../_shared/providers/stylistReasoning.ts";
 import { ProviderError } from "../_shared/providers/types.ts";
 import { DeterministicStylistProvider } from "./deterministicStylist.ts";
+import { buildStyleDnaProvider } from "./providerFactory.ts";
 import {
   type GeneratedSummary,
   handleGenerateStyleDna,
@@ -485,6 +486,19 @@ Deno.test("a retryable provider outage is a 502; a non-retryable one is a 500", 
   );
   // A misconfigured key is ours to fix, not something a client retry helps.
   assertEquals(permanent.status, 500);
+});
+
+Deno.test("missing live provider configuration returns an honest 503 and stores no generated DNA", async () => {
+  const repository = recordingRepository();
+  const response = await handleGenerateStyleDna(
+    requestFor(ENVELOPE, { Authorization: `Bearer ${JWT_A}` }),
+    buildDeps({ provider: buildStyleDnaProvider({}), profileRepository: repository }),
+  );
+
+  assertEquals(response.status, 503);
+  const json = await response.json();
+  assertEquals(json.error.category, "provider");
+  assertEquals(repository.saves.length, 0);
 });
 
 Deno.test("a failed profile read never writes a thin result over a good one", async () => {

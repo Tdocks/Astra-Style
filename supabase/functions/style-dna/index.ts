@@ -13,28 +13,16 @@
 //
 // THE PROVIDER SWAP HAPPENS HERE AND NOWHERE ELSE.
 //
-// `provider` below is the single line that decides which
-// `StylistReasoningProvider` (spec §8) backs this endpoint. Today it is
-// `DeterministicStylistProvider`; a live GPT-5.6 adapter
-// (docs/08-provider-abstraction.md §1.5) replaces this one expression and
-// nothing else in the repository — not handler.ts, not the DTO, not
-// `AstraEndpoint`, not `ProfileRepository`, not a single Swift file. That is
-// ADR 0004's decision 4 ("Provider selection ... is a server-side
-// configuration concern, changeable without an app release") expressed as
-// code rather than as an intention.
+// `providerFactory.ts` selects the deterministic preview only when explicitly
+// configured. Otherwise it reuses Kyra's live OpenAI Responses adapter and
+// server-side credential precedence, with Style DNA's Terra tier and its
+// own retry/circuit boundary. Both implementations satisfy the same Astra
+// protocol; no client/DTO change is needed for an adapter swap.
 //
-// What a live adapter still needs, stated plainly rather than implied:
-//   • A vendor account with API-tier terms and training opted out (spec §29
-//     is a hard legal gate, docs/08 §1.1), and its key set via
-//     `supabase secrets set` — never in the repo, never in the app.
-//   • An adapter implementing this protocol that translates
-//     StylistCompletionRequest -> the vendor's request and its response ->
-//     StylistCompletionResult, keeping every vendor concept inside itself.
-//   • The §0.1 retry/circuit-breaker baseline and the escalation router
-//     (docs/09 §2), neither of which exists yet in this repo.
-//   • The golden-set and guardrail evaluation in docs/06 §7.1-7.2 run before
-//     the first prompt version ships. `STYLE_DNA_SYSTEM_PROMPT_VERSION` in
-//     handler.ts is what that eval would be pinned to.
+// Before a production prompt version ships, run `golden_eval.ts` with the
+// configured live key against its synthetic profile set and review the
+// privacy/training terms required by spec §29. The endpoint persists nothing
+// when the provider fails or returns a document rejected by its validator.
 //
 // NOTE ON SERVICE-ROLE: this function never constructs a service-role client.
 // It reads and writes only the caller's own style/body/lifestyle rows, all of
@@ -52,7 +40,7 @@ import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { serverError } from "../_shared/errors.ts";
 import { parseWardrobeGraph } from "../_shared/scoring/wardrobeGraph.ts";
-import { DeterministicStylistProvider } from "./deterministicStylist.ts";
+import { buildStyleDnaProvider } from "./providerFactory.ts";
 import {
   type GeneratedSummary,
   handleGenerateStyleDna,
@@ -70,9 +58,18 @@ const env = readEdgeEnv();
 // `_shared/rateLimit.ts`.
 const rateLimiter = createRateLimiter({ limit: 5, windowMs: 60_000 });
 
-// Stateless and free to share across requests in this isolate. THIS IS THE
-// SWAP POINT — see the header.
-const provider = new DeterministicStylistProvider();
+// Stateless and free to share across requests in this isolate. The live key
+// follows Kyra's established server-only credential precedence. A missing
+// key is an honest provider error unless deterministic preview mode is
+// explicitly selected.
+const provider = buildStyleDnaProvider({
+  mode: Deno.env.get("STYLE_DNA_PROVIDER"),
+  stylistApiKey: Deno.env.get("STYLIST_PROVIDER_API_KEY"),
+  imageProvider: Deno.env.get("IMAGE_GENERATION_PROVIDER"),
+  imageApiKey: Deno.env.get("IMAGE_PROVIDER_API_KEY"),
+  modelLuna: Deno.env.get("STYLIST_PROVIDER_MODEL_LUNA"),
+  modelTerra: Deno.env.get("STYLIST_PROVIDER_MODEL_TERRA"),
+});
 
 function generateStyleDnaRoute(req: Request): Promise<Response> {
   const authorizationHeader = req.headers.get("Authorization") ??

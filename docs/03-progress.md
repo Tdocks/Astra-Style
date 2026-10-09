@@ -58,15 +58,15 @@ lands data layers, protocols, and models long before the screens that use them.
 | Phase | Tickets | Done | Partial | Not started |
 |---|---|---|---|---|
 | 1 — Foundation | 25 | 17 | 8 | 0 |
-| 2 — Identity | 18 | 14 | 4 | 0 |
+| 2 — Identity | 18 | 15 | 3 | 0 |
 | 3 — Closet | 27 | 15 | 12 | 0 |
 | 4 — Outfit intelligence | 26 | 20 | 5 | 1 |
 | 5 — Kyra | 22 | 18 | 4 | 0 |
 | 6 — Studio and commerce | 25 | 12 | 10 | 3 |
 | 7 — Monetization and hardening | 36 | 5 | 24 | 7 |
-| **Total** | **179** | **101** | **67** | **11** |
+| **Total** | **179** | **102** | **66** | **11** |
 
-Read that table carefully before drawing a conclusion from it. 101 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 102 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -245,7 +245,7 @@ pgvector ordering test.
 | P2-ONBOARD-11 | Done | `restore()` reopens at `draft.furthestStepReached`; `FileOnboardingDraftStore` is user-scoped and written on every mutation; routes to `.main` on success. |
 | P2-ONBOARD-12 | Done | `supabase/functions/profile/` (`index.ts`/`handler.ts`/`schema.ts` + 40 Deno tests) serving `POST /profile/complete-onboarding` via `_shared/routing.ts`, deployed to `anutsdzbxycaavmmkewo`. All three criteria verified against production with a real JWT: the call returned **200** with `onboarding_completed_at` set and all four tables written, while a payload carrying a different `user_id` in every document still wrote as the JWT's user (the write goes through `supabase/migrations/20260730190000_complete_onboarding_rpc.sql`, which has no user-id parameter — `auth.uid()` is the only identity source); a malformed enum returns 400, not 500 (`profile/schema_test.ts`). The write is atomic: one `SECURITY INVOKER` plpgsql function, so a failure leaves nothing written rather than a half-populated profile. The §6.9 vector round-trips with absent axes absent and `observations: 0` axes intact, confirmed on the live row. Unauthenticated returns 401; an unknown path under the slug returns 404. |
 | P2-CORE-01 | Partial | `LiveProfileRepository` implements read/upsert for all four tables. **No SwiftData caching** and **no `OfflineMutationQueue` dependency** — both acceptance criteria unmet. |
-| P2-CORE-02 | Partial | The protocol, deterministic preview, live adapter wiring, and endpoint now exist. The live path reuses Kyra's OpenAI Responses adapter and server-side key precedence; `STYLE_DNA_PROVIDER=deterministic` is required to select synthetic content. The endpoint retains its existing 1:1 schema validator and only persists successful validated documents. `providerResilience.ts` adds the single transient retry and rolling circuit breaker from `docs/08` §0.1. The new synthetic golden set covers identity-only, no-identity sparse, and measured-identity profiles and can run against the actual adapter with `style-dna/golden_eval.ts`; local regression currently runs it against the deterministic preview. **Still open:** run the golden set through the live configured model, review the generated prose for traceability/coherence and the provider's §29 terms, and record the response's actual model identifier. The live wiring is deployed; hosted acceptance exposed inconsistent sparse-profile schema adherence, which is being fixed before completion. |
+| P2-CORE-02 | Done | The protocol, deterministic preview, live adapter, and endpoint are deployed. The live path reuses Kyra's OpenAI Responses adapter and server-side key precedence; deterministic output requires explicit preview mode. Style DNA uses strict structured output plus server-side validation and only persists validated documents. The synthetic golden set passed all three hosted cases on `gpt-5.6-terra`; sparse inputs remained honest, generated summaries were present in each caller's data export, and fixture accounts were deleted and independently verified. Full evidence and limits are in `docs/acceptance/2026-10-09-style-dna-live-acceptance.md`. |
 | P2-HOME-01 | Done | `HomeView` + `DailyBriefHeaderView`, `HeroOutfitCardView`, and 6 secondary modules; `HomeBriefProvidingTests` cover the zero-item path. Built well past "skeleton". |
 | P2-HOME-02 | Done | `HomeEmptyStateView.swift:28` carries the §21 copy verbatim; CTA calls `router.startScan()`; state recomputed in `.task`. **Reachable for signed-in users since 2026-08-06** — `DefaultHomeBriefProvider.loadTodayBrief` now short-circuits to `loadSparseClosetBrief` below `HomeBriefData.minimumItemsForOutfits`, so a man who has just finished onboarding sees this screen instead of the `P4-HOME-02` 404. Previously only guests could reach it. Pinned by `HomeBriefProvidingTests`' sparse-closet suite, including the fifth-garment boundary and the unreadable-closet case. |
 | P2-INFRA-01 | Partial | `vector` extension enabled; live `style_profiles.embedding` is `vector(1536)`; hnsw `vector_cosine_ops` index exists. **No test inserts a fixture embedding or asserts cosine ordering.** |

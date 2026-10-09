@@ -68,6 +68,7 @@ Deno.test("maps the Astra-shaped request onto the vendor wire, tier onto model i
   assertEquals(sent["store"], false);
   assertEquals(sent["reasoning"], { effort: "low" });
   assertEquals(sent["include"], ["reasoning.encrypted_content"]);
+  assertEquals((sent["text"] as { format: { strict: boolean } }).format.strict, false);
   const messages = sent["input"] as Array<Record<string, unknown>>;
   assertEquals(messages[0]!["role"], "system");
   assert(String(messages[1]!["content"]).includes("CONTEXT PACKET"));
@@ -79,6 +80,30 @@ Deno.test("maps the Astra-shaped request onto the vendor wire, tier onto model i
   assertEquals(result.finishReason, "stop");
   assertEquals(result.usage, { inputTokens: 120, outputTokens: 40 });
   assertEquals(result.modelIdentifier, "model-luna-2026-08");
+});
+
+Deno.test("strict response schemas are enabled only for callers that request them", async () => {
+  const captured: Array<Record<string, unknown>> = [];
+  const live = provider(
+    () =>
+      okResponse({
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: "{}" }] }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }),
+    captured,
+  );
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: { value: { type: "string", enum: ["known"] } },
+    required: ["value"],
+  };
+  await live.complete(request({ responseSchema: schema, strictResponseSchema: true }), CTX);
+
+  const format = (captured[0]?.["text"] as { format: Record<string, unknown> }).format;
+  assertEquals(format["strict"], true);
+  assertEquals(format["schema"], schema);
 });
 
 Deno.test("terra tier selects the terra model", async () => {

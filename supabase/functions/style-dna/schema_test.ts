@@ -213,6 +213,28 @@ Deno.test("the response schema handed to a provider names every required field",
   assertEquals(required.length, Object.keys(document).length);
 });
 
+Deno.test("Style DNA provider schema is compatible with strict structured output", () => {
+  const schema = styleDnaResponseSchema(IDENTITIES);
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    const object = node as Record<string, unknown>;
+    if (object["type"] === "object") {
+      assertEquals(object["additionalProperties"], false);
+      const properties = object["properties"] as Record<string, unknown> | undefined;
+      const required = object["required"] as string[] | undefined;
+      assert(properties);
+      assert(required);
+      assertEquals([...Object.keys(properties)].sort(), [...required].sort());
+    }
+    Object.values(object).forEach(visit);
+  };
+  visit(schema);
+});
+
 // ---------------------------------------------------------------------------
 // Request
 // ---------------------------------------------------------------------------

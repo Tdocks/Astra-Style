@@ -4,9 +4,9 @@
 // `StylistReasoningProvider` — the first of spec §8's five provider
 // protocols, specified in `docs/08-provider-abstraction.md` §1. This file is
 // the interface ONLY. It contains no vendor SDK, no API key handling, and no
-// HTTP: an implementation lives beside the function that wires it
-// (`style-dna/deterministicStylist.ts` today), and a live adapter would live
-// in `_shared/providers/` next to this file once one exists.
+// HTTP: implementations live beside their wiring (`style-dna/
+// deterministicStylist.ts` for the preview, and `kyra/liveStylistProvider.ts`
+// for the live adapter that Style DNA reuses).
 //
 // WHY THE PROTOCOL IS SERVER-SIDE ONLY, AND HAS NO SWIFT COUNTERPART.
 //
@@ -69,6 +69,8 @@ export interface StylistCompletionRequest {
    * structured output the day a vendor swap made it load-bearing.
    */
   readonly responseSchema: Record<string, unknown>;
+  /** Request provider-enforced exact schema output when the vendor supports it. */
+  readonly strictResponseSchema?: boolean;
   readonly maxOutputTokens: number;
   /** Fixed per intent type, never user-configurable (`docs/08` §1). */
   readonly temperature: number;
