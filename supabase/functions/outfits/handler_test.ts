@@ -137,6 +137,18 @@ function recordingClosetRepository(): ClosetRepository & {
     readWardrobeGraph() {
       return Promise.resolve("menswear_3_role" as const);
     },
+    readPreferences() {
+      return Promise.resolve(undefined);
+    },
+    listWearHistory() {
+      return Promise.resolve([]);
+    },
+    listWornOutfitItems() {
+      return Promise.resolve([]);
+    },
+    readOccasion() {
+      return Promise.resolve(null);
+    },
   };
 }
 
@@ -450,6 +462,110 @@ Deno.test("rank: cannot resolve or score another user's items even if their id i
 
   assertEquals(closetRepository.byIdsCalls.length, 1);
   assertEquals(closetRepository.byIdsCalls[0]!.userId, USER_A_ID);
+});
+
+Deno.test("rank: caller's wear history changes ranking between otherwise identical outfits", async () => {
+  const topGood = "aaaaaaaa-0000-4000-8000-000000000011";
+  const bottomGood = "aaaaaaaa-0000-4000-8000-000000000012";
+  const topBad = "aaaaaaaa-0000-4000-8000-000000000013";
+  const bottomBad = "aaaaaaaa-0000-4000-8000-000000000014";
+  const rows = [
+    row(topGood, "top"),
+    row(bottomGood, "bottom"),
+    row(topBad, "top"),
+    row(bottomBad, "bottom"),
+  ];
+  const repository = recordingClosetRepository();
+  repository.listItemsByIds = (_userId, ids) =>
+    Promise.resolve(rows.filter((item) => ids.includes(item.id)));
+  repository.listWearHistory = () =>
+    Promise.resolve([
+      ...Array.from({ length: 20 }, (_, index) => ({ outfitId: `good-${index}`, rating: 5 })),
+      ...Array.from({ length: 20 }, (_, index) => ({ outfitId: `bad-${index}`, rating: 1 })),
+    ]);
+  repository.listWornOutfitItems = (_userId, ids) =>
+    Promise.resolve(ids.flatMap((outfitId) => {
+      if (outfitId.startsWith("good-")) {
+        return [
+          { outfitId, closetItemId: topGood, category: "top" },
+          { outfitId, closetItemId: bottomGood, category: "bottom" },
+        ];
+      }
+      return [
+        { outfitId, closetItemId: topBad, category: "top" },
+        { outfitId, closetItemId: bottomBad, category: "bottom" },
+      ];
+    }));
+  const response = await handleRankOutfits(
+    requestFor("rank", {
+      body: {
+        candidates: [
+          { id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", item_ids: [topBad, bottomBad] },
+          { id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", item_ids: [topGood, bottomGood] },
+        ],
+      },
+    }, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps({ closetRepository: repository }),
+  );
+  assertEquals(response.status, 200);
+  const json = await response.json();
+  assertEquals(json.data[0].id, "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
+  assertEquals(json.data[1].id, "dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+});
+
+Deno.test("generate: missing preferences and wear history remain a degraded cold-start response", async () => {
+  const response = await handleGenerateOutfits(
+    requestFor("generate", VALID_GENERATE_ENVELOPE, {
+      Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+    }),
+    buildDeps(),
+  );
+  assertEquals(response.status, 200);
+  const json = await response.json();
+  assert(
+    json.data[0].unmeasured.some((value: string) =>
+      value.includes("stated colour, fit and formality preferences")
+    ),
+  );
+  assert(json.data[0].unmeasured.some((value: string) => value.includes("wear history")));
+});
+
+Deno.test("generate: fresh structured weather reaches the weather scorer", async () => {
+  const response = await handleGenerateOutfits(
+    requestFor("generate", {
+      body: {
+        desired_count: 1,
+        weather_context: {
+          temperature_celsius: 12.5,
+          precipitation_chance: 0.1,
+          observed_at: "2026-07-28T11:30:00Z",
+          season: "summer",
+        },
+      },
+    }, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps(),
+  );
+  assertEquals(response.status, 200);
+  const json = await response.json();
+  assert(json.data[0].breakdown.season_weather_suitability > 0.75);
+  assert(!json.data[0].unmeasured.some((value: string) => value.includes("no forecast available")));
+});
+
+Deno.test("generate: an occasion unavailable to the caller is rejected without scoring", async () => {
+  const repository = recordingClosetRepository();
+  const calls: string[] = [];
+  repository.readOccasion = (userId, _occasionId) => {
+    calls.push(userId);
+    return Promise.resolve(null); // Same visibility as a peer-owned row under RLS.
+  };
+  const response = await handleGenerateOutfits(
+    requestFor("generate", {
+      body: { desired_count: 1, occasion_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" },
+    }, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps({ closetRepository: repository }),
+  );
+  assertEquals(response.status, 404);
+  assertEquals(calls, [USER_A_ID]);
 });
 
 Deno.test("rank: OPTIONS is answered as a CORS preflight before authentication", async () => {

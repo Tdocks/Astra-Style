@@ -1,6 +1,11 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { AppError } from "../_shared/errors.ts";
-import { parseEnvelope, parseGenerateOutfitsBody, parseRankOutfitsBody } from "./schema.ts";
+import {
+  parseEnvelope,
+  parseGenerateOutfitsBody,
+  parseRankOutfitsBody,
+  parseWeatherContext,
+} from "./schema.ts";
 
 const VALID_UUID = "550e8400-e29b-41d4-a716-446655440000";
 const OTHER_UUID = "11111111-2222-4333-8444-555555555555";
@@ -29,6 +34,7 @@ Deno.test("parseGenerateOutfitsBody applies defaults for an empty body", () => {
     lockedClosetItemIds: [],
     excludedClosetItemIds: [],
     desiredCount: 3,
+    weatherContext: undefined,
   });
 });
 
@@ -48,6 +54,82 @@ Deno.test("parseGenerateOutfitsBody parses a fully populated valid body", () => 
 });
 
 const THIRD_UUID = "22222222-3333-4444-8555-666666666666";
+
+const WEATHER_NOW = new Date("2026-10-09T12:00:00Z");
+const FRESH_WEATHER = {
+  temperature_celsius: 14.5,
+  precipitation_chance: 0.35,
+  observed_at: "2026-10-09T11:30:00Z",
+  season: "fall",
+};
+
+Deno.test("weather_context accepts fresh explicit-unit measurements and maps to scorer units", () => {
+  assertEquals(parseWeatherContext(FRESH_WEATHER, WEATHER_NOW), {
+    temperatureC: 14.5,
+    precipitationProbability: 0.35,
+    season: "fall",
+  });
+  assertEquals(
+    parseGenerateOutfitsBody({ weather_context: FRESH_WEATHER }, WEATHER_NOW).weatherContext,
+    {
+      temperatureC: 14.5,
+      precipitationProbability: 0.35,
+      season: "fall",
+    },
+  );
+});
+
+Deno.test("weather_context rejects non-finite and out-of-range measurements", () => {
+  for (const value of [NaN, Infinity, -Infinity, -90.1, 65.1]) {
+    assertThrows(
+      () => parseWeatherContext({ ...FRESH_WEATHER, temperature_celsius: value }, WEATHER_NOW),
+      AppError,
+    );
+  }
+  for (const value of [NaN, Infinity, -0.01, 1.01]) {
+    assertThrows(
+      () => parseWeatherContext({ ...FRESH_WEATHER, precipitation_chance: value }, WEATHER_NOW),
+      AppError,
+    );
+  }
+});
+
+Deno.test("weather_context rejects stale observations, future observations, and unknown seasons", () => {
+  assertThrows(() =>
+    parseWeatherContext({
+      ...FRESH_WEATHER,
+      observed_at: "2026-10-09T09:59:59Z",
+    }, WEATHER_NOW), AppError);
+  assertThrows(() =>
+    parseWeatherContext({
+      ...FRESH_WEATHER,
+      observed_at: "2026-10-09T12:05:01Z",
+    }, WEATHER_NOW), AppError);
+  assertThrows(
+    () => parseWeatherContext({ ...FRESH_WEATHER, season: "monsoon" }, WEATHER_NOW),
+    AppError,
+  );
+});
+
+Deno.test("weather_context requires timestamp with explicit timezone and allows absent season", () => {
+  assertThrows(() =>
+    parseWeatherContext({
+      ...FRESH_WEATHER,
+      observed_at: "2026-10-09T11:30:00",
+    }, WEATHER_NOW), AppError);
+  assertEquals(
+    parseWeatherContext({
+      temperature_celsius: 10,
+      precipitation_chance: 0,
+      observed_at: FRESH_WEATHER.observed_at,
+    }, WEATHER_NOW),
+    {
+      temperatureC: 10,
+      precipitationProbability: 0,
+    },
+  );
+  assertEquals(parseWeatherContext(undefined, WEATHER_NOW), undefined);
+});
 
 Deno.test("parseGenerateOutfitsBody rejects a non-object body", () => {
   const err = assertThrows(() => parseGenerateOutfitsBody("nope"), AppError);

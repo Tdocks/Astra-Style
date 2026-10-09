@@ -34,20 +34,12 @@
 //      counts/ids/status/booleans are ever passed to it, never
 //      `naturalLanguageRequest`'s actual contents.
 //
-// WHAT THIS FILE DOES NOT WIRE IN, AND WHY THAT IS HONEST RATHER THAN
-// UNFINISHED. `ScoringContext.weather`, `.preferences` and `.coWear` are
-// never populated by either handler below. There is no server-side weather
-// provider yet (`daily-brief/handler.ts`'s header records the same gap for
-// `P4-HOME-05`), no fetch of `style_profiles`/`style_preferences` here, and
-// no `outfit_wears`-derived co-wear statistics. `body.occasionId` is parsed
-// (schema.ts) but not resolved to a `dress_code` tag, and
-// `body.naturalLanguageRequest` is parsed but not interpreted — both would
-// need a lookup or a model call this ticket does not build. Every one of
-// those gaps is exactly what `ScoringContext`'s optional fields and each
-// subscore's documented cold-start prior exist for (`_shared/scoring/types.ts`,
-// `subscores/context.ts`): the score comes back honestly degraded, and
-// `unmeasured` on the wire says so, rather than this file inventing a
-// weather reading or a preference profile it does not have.
+// Weather is used only when the caller supplies a validated, recent
+// `weather_context`; otherwise the scorer's documented no-forecast prior is
+// retained. Preferences and caller-owned wear history are read through the
+// repository; generate also resolves an owned occasion or a deterministic
+// formality hint from the user's request. Missing optional data continues to
+// use cold-start priors and remains visible in `unmeasured`.
 // ============================================================================
 
 import { CORS_HEADERS, handleCorsPreflight } from "../_shared/cors.ts";
@@ -57,6 +49,7 @@ import {
   errorResponse,
   jsonResponse,
   methodNotAllowed,
+  notFound,
   serverError,
 } from "../_shared/errors.ts";
 import { createLogger, type RequestLogger } from "../_shared/logger.ts";
@@ -79,6 +72,8 @@ import { scoreOutfit } from "../_shared/scoring/compatibility.ts";
 import { toScoredOutfit } from "../_shared/scoring/wire.ts";
 import type { ScoredOutfitEnvelope } from "../_shared/scoring/wire.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
+import type { PreferenceContext, WeatherContext } from "../_shared/scoring/types.ts";
+import { coWearContext, resolveTargetFormality } from "./scoringContext.ts";
 
 export interface ClosetRepository {
   /**
@@ -103,6 +98,43 @@ export interface ClosetRepository {
    */
   listItemsByIds(userId: string, ids: readonly string[]): Promise<ClosetItemMapperRow[]>;
   readWardrobeGraph(userId: string): Promise<"menswear_3_role" | "womenswear">;
+  readPreferences(userId: string): Promise<PreferenceContext | undefined>;
+  listWearHistory(userId: string): Promise<{ outfitId: string; rating: number | null }[]>;
+  listWornOutfitItems(userId: string, outfitIds: readonly string[]): Promise<{
+    outfitId: string;
+    closetItemId: string | null;
+    category: string;
+  }[]>;
+  readOccasion(userId: string, occasionId: string): Promise<{ dressCode: string | null } | null>;
+}
+
+async function scoringContext(
+  repository: ClosetRepository,
+  userId: string,
+  itemIds: ReadonlySet<string>,
+  options: { occasionId?: string; naturalLanguageRequest?: string } = {},
+  weather?: WeatherContext,
+) {
+  const [preferences, occasion] = await Promise.all([
+    repository.readPreferences(userId),
+    options.occasionId
+      ? repository.readOccasion(userId, options.occasionId)
+      : Promise.resolve(null),
+  ]);
+  if (options.occasionId && !occasion) throw notFound("That occasion is unavailable.");
+  const wears = await repository.listWearHistory(userId);
+  const outfitIds = [...new Set(wears.map((wear) => wear.outfitId))];
+  const wornItems = outfitIds.length ? await repository.listWornOutfitItems(userId, outfitIds) : [];
+  const targetFormalityScore = resolveTargetFormality(
+    occasion?.dressCode,
+    options.naturalLanguageRequest,
+  );
+  return {
+    ...(preferences ? { preferences } : {}),
+    ...(weather ? { weather } : {}),
+    ...coWearContext(itemIds, wears, wornItems),
+    ...(targetFormalityScore === null ? {} : { targetFormalityScore }),
+  };
 }
 
 export interface HandlerDeps {
@@ -181,20 +213,26 @@ export async function handleGenerateOutfits(req: Request, deps: HandlerDeps): Pr
     const envelope = parseEnvelope(rawJson);
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
-    const body = parseGenerateOutfitsBody(envelope.body);
+    const body = parseGenerateOutfitsBody(envelope.body, deps.now());
 
     // 4. Validate ownership: `userId` below is the JWT-verified id from
     // step 1. `body` (schema.ts) has no `user_id` field at all, so there is
     // nothing here to "trust" or "not trust" from the client.
     const rows = await deps.closetRepository.listCandidateItems(userId);
     const items = mapRows(rows);
-    const wardrobeGraph = await deps.closetRepository.readWardrobeGraph(userId);
+    const [wardrobeGraph, context] = await Promise.all([
+      deps.closetRepository.readWardrobeGraph(userId),
+      scoringContext(deps.closetRepository, userId, new Set(items.map((item) => item.id)), {
+        occasionId: body.occasionId,
+        naturalLanguageRequest: body.naturalLanguageRequest,
+      }, body.weatherContext),
+    ]);
 
     const generated = generateCandidateOutfits(items, {
       desiredCount: body.desiredCount,
       lockedItemIds: new Set(body.lockedClosetItemIds),
       excludedItemIds: new Set(body.excludedClosetItemIds),
-      context: { wardrobeGraph },
+      context: { ...context, wardrobeGraph },
     });
 
     const payload: ScoredOutfitEnvelope[] = generated.map((outfit) =>
@@ -289,7 +327,10 @@ export async function handleRankOutfits(req: Request, deps: HandlerDeps): Promis
 
     const allItemIds = [...new Set(body.candidates.flatMap((c) => c.itemIds))];
     const rows = await deps.closetRepository.listItemsByIds(userId, allItemIds);
-    const wardrobeGraph = await deps.closetRepository.readWardrobeGraph(userId);
+    const [wardrobeGraph, context] = await Promise.all([
+      deps.closetRepository.readWardrobeGraph(userId),
+      scoringContext(deps.closetRepository, userId, new Set(allItemIds)),
+    ]);
     const itemsById = new Map<string, ScorableItem>();
     for (const item of mapRows(rows)) {
       itemsById.set(item.id, item);
@@ -324,7 +365,7 @@ export async function handleRankOutfits(req: Request, deps: HandlerDeps): Promis
 
     const results = scored
       .map(({ input, items }) => {
-        const score = scoreOutfit(items, { wardrobeGraph });
+        const score = scoreOutfit(items, { ...context, wardrobeGraph });
         return { input, items, score };
       })
       .sort((a, b) => b.score.score - a.score.score);

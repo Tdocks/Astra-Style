@@ -24,6 +24,7 @@
 // ============================================================================
 
 import { badRequest } from "../_shared/errors.ts";
+import type { Season, WeatherContext } from "../_shared/scoring/types.ts";
 import {
   isRecord,
   isUUID,
@@ -39,6 +40,7 @@ export interface GenerateOutfitsRequestBody {
   lockedClosetItemIds: string[];
   excludedClosetItemIds: string[];
   desiredCount: number;
+  weatherContext?: WeatherContext;
 }
 
 const MIN_DESIRED_COUNT = 1;
@@ -46,9 +48,74 @@ const MAX_DESIRED_COUNT = 6;
 const DEFAULT_DESIRED_COUNT = 3;
 const MAX_NATURAL_LANGUAGE_LENGTH = 500;
 const MAX_ITEM_IDS = 50;
+const WEATHER_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+const WEATHER_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+const VALID_SEASONS: readonly Season[] = ["spring", "summer", "fall", "winter"];
+
+export function parseWeatherContext(
+  raw: unknown,
+  now: Date = new Date(),
+): WeatherContext | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!isRecord(raw)) throw badRequest("body.weather_context must be an object.");
+
+  const temperature = raw["temperature_celsius"];
+  if (
+    typeof temperature !== "number" || !Number.isFinite(temperature) || temperature < -90 ||
+    temperature > 65
+  ) {
+    throw badRequest(
+      "body.weather_context.temperature_celsius must be a finite value from -90 to 65.",
+    );
+  }
+  const precipitation = raw["precipitation_chance"];
+  if (
+    typeof precipitation !== "number" || !Number.isFinite(precipitation) || precipitation < 0 ||
+    precipitation > 1
+  ) {
+    throw badRequest(
+      "body.weather_context.precipitation_chance must be a finite value from 0 to 1.",
+    );
+  }
+  const observedAt = raw["observed_at"];
+  if (
+    typeof observedAt !== "string" || !/^\d{4}-\d\d-\d\dT.+(?:Z|[+-]\d\d:\d\d)$/.test(observedAt)
+  ) {
+    throw badRequest(
+      "body.weather_context.observed_at must be an ISO-8601 timestamp with a timezone.",
+    );
+  }
+  const observedAtMs = Date.parse(observedAt);
+  if (!Number.isFinite(observedAtMs)) {
+    throw badRequest("body.weather_context.observed_at is invalid.");
+  }
+  const ageMs = now.getTime() - observedAtMs;
+  if (ageMs > WEATHER_MAX_AGE_MS) {
+    throw badRequest("body.weather_context is stale; refresh the weather before sending it.");
+  }
+  if (ageMs < -WEATHER_MAX_FUTURE_SKEW_MS) {
+    throw badRequest("body.weather_context.observed_at is in the future.");
+  }
+
+  const rawSeason = raw["season"];
+  if (
+    rawSeason !== undefined && rawSeason !== null &&
+    (typeof rawSeason !== "string" || !VALID_SEASONS.includes(rawSeason as Season))
+  ) {
+    throw badRequest("body.weather_context.season must be spring, summer, fall, or winter.");
+  }
+  return {
+    temperatureC: temperature,
+    precipitationProbability: precipitation,
+    ...(typeof rawSeason === "string" ? { season: rawSeason as Season } : {}),
+  };
+}
 
 /** Parses and validates the `body` object of the request envelope. */
-export function parseGenerateOutfitsBody(rawBody: unknown): GenerateOutfitsRequestBody {
+export function parseGenerateOutfitsBody(
+  rawBody: unknown,
+  now: Date = new Date(),
+): GenerateOutfitsRequestBody {
   if (!isRecord(rawBody)) {
     throw badRequest('Request envelope must contain a JSON object at "body".');
   }
@@ -77,6 +144,7 @@ export function parseGenerateOutfitsBody(rawBody: unknown): GenerateOutfitsReque
       MAX_DESIRED_COUNT,
       DEFAULT_DESIRED_COUNT,
     ),
+    weatherContext: parseWeatherContext(rawBody["weather_context"], now),
   };
 }
 

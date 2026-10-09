@@ -43,6 +43,8 @@ import {
 } from "./handler.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
 import { serverError } from "../_shared/errors.ts";
+import { preferenceContextFromRow } from "./scoringContext.ts";
+import { readAllUserIdBatches, readAllUserPages } from "./readPagination.ts";
 
 // Read once at cold start (per isolate), not per request: a misconfigured
 // deploy should fail immediately and visibly rather than on the first
@@ -161,6 +163,85 @@ function buildClosetRepository(authorizationHeader: string): ClosetRepository {
         ? (data as { wardrobe_graph?: unknown }).wardrobe_graph
         : undefined;
       return value === "womenswear" ? "womenswear" : "menswear_3_role";
+    },
+
+    async readPreferences(userId) {
+      const { data, error } = await supabase
+        .from("style_profiles")
+        .select("preferred_colors,avoided_colors,preferred_fit,formality_preference")
+        .eq("user_id", userId)
+        .maybeSingle();
+      // Preferences are optional; a missing profile or transient read failure
+      // must not block a useful cold-start recommendation.
+      if (error) return undefined;
+      return preferenceContextFromRow(data as Record<string, unknown> | null);
+    },
+
+    async listWearHistory(userId) {
+      const data = await readAllUserPages(userId, async (ownerId, offset, limit) => {
+        const { data, error } = await supabase
+          .from("outfit_wears")
+          .select("outfit_id,rating")
+          .eq("user_id", ownerId)
+          .order("worn_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + limit - 1);
+        return { data, error };
+      });
+      if (data === null) return [];
+      return data.flatMap((value) => {
+        const row = value as { outfit_id?: unknown; rating?: unknown };
+        return typeof row.outfit_id === "string"
+          ? [{
+            outfitId: row.outfit_id,
+            rating: typeof row.rating === "number" ? row.rating : null,
+          }]
+          : [];
+      });
+    },
+
+    async listWornOutfitItems(userId, outfitIds) {
+      if (outfitIds.length === 0) return [];
+      const data = await readAllUserIdBatches(
+        userId,
+        outfitIds,
+        async (ownerId, ids, offset, limit) => {
+          const { data, error } = await supabase
+            .from("outfit_items")
+            .select("outfit_id,closet_item_id,role")
+            .eq("user_id", ownerId)
+            .in("outfit_id", [...ids])
+            .not("closet_item_id", "is", null)
+            .order("outfit_id", { ascending: true })
+            .order("id", { ascending: true })
+            .range(offset, offset + limit - 1);
+          return { data, error };
+        },
+      );
+      if (data === null) return [];
+      return data.flatMap((value) => {
+        const row = value as { outfit_id?: unknown; closet_item_id?: unknown; role?: unknown };
+        return typeof row.outfit_id === "string" && typeof row.role === "string"
+          ? [{
+            outfitId: row.outfit_id,
+            closetItemId: typeof row.closet_item_id === "string" ? row.closet_item_id : null,
+            category: row.role,
+          }]
+          : [];
+      });
+    },
+
+    async readOccasion(userId, occasionId) {
+      const { data, error } = await supabase
+        .from("occasions")
+        .select("dress_code")
+        .eq("user_id", userId)
+        .eq("id", occasionId)
+        .maybeSingle();
+      if (error) throw serverError("Couldn't load that occasion.");
+      if (!data) return null;
+      const row = data as { dress_code?: unknown };
+      return { dressCode: typeof row.dress_code === "string" ? row.dress_code : null };
     },
   };
 }
