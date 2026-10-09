@@ -194,6 +194,10 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/39_studio_premium_quota.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/40_kyra_preview_approval_ordering.sql"
+  test_exit=$?
+fi
 set -e
 echo
 

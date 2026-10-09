@@ -535,3 +535,7 @@ Allowance screen acceptance: Home inspiration UI flow passed with the count chan
 ## 2026-10-08 — Build 22 upload and Kyra failure handling
 
 TestFlight build 22 archived/exported and uploaded successfully at 20:56:03 local time. Apple processing and Internal availability are not yet verified. It includes the Studio allowance display and monthly-limit paywall fix. Kyra v18 is deployed and rejects failed/cancelled Responses before consuming partial tool output; 137 Kyra tests passed. This does not complete hosted preview, Premium purchase or device acceptance.
+
+## 2026-10-08 — Chat preview reservation ordering groundwork
+
+Added a final existing-confirmation closed/expiry check under a row lock in the idempotent enqueue transaction. Full local SQL suite passed, proving cancelled/expired approvals consume no allowance and accepted jobs replay after closure. Migration is not deployed. Concurrent ordering acceptance and explicit missing-confirmation handling remain open. Build 22 upload completed; Apple listing remains pending.

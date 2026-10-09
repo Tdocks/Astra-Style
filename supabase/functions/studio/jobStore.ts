@@ -65,6 +65,9 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
           "That source estimate expired or was removed. Generate a fresh inspiration instead.",
         );
       }
+      if (error?.message?.includes("studio_confirmation_unavailable")) {
+        throw new AppError("validation", 409, "This preview confirmation expired or was cancelled. Ask Kyra for a new preview.");
+      }
       if (error?.message?.includes("studio_request_conflict")) {
         throw new AppError(
           "validation",

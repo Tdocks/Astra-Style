@@ -34,3 +34,9 @@ reference filtering and cross-turn request-key reuse. Full ask/yes/cancel,
 concurrency and hosted acceptance remain pending. Native preview-job presentation
 and high-resolution support remain separate unfinished work. Deployment must apply
 the confirmation migration before publishing the new Kyra function.
+
+## Reservation ordering follow-up
+
+A new unapplied migration adds a row lock and final closed/expiry check for an existing owner-scoped saved confirmation whose UUID is the submission key. The lock is held through allowance/job reservation. A cancellation committed before that check blocks a new submission; an already accepted job remains replayable after closure. The full local SQL suite passed, including cancelled/expired rejection without allowance use and accepted-job replay after closure.
+
+Concurrent cancellation/submission acceptance and deployment remain open. This check identifies existing confirmation records by request key; missing/deleted confirmation records are not distinguished from ordinary native submission keys. An explicit confirmation-origin marker is still needed to reject missing-record chat submissions, rather than claiming every stale proposal is covered.
