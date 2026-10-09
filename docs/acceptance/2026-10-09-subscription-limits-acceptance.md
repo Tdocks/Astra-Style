@@ -88,3 +88,11 @@ client table privileges and RPC denial require independent hosted verification.
 Live signed Apple notification and physical-device sandbox purchase, renewal,
 cancellation, and restore acceptance remain separate release gates. Build 32 does
 not include this pass or the later Monthly Review corrections.
+
+## Follow-up: lifetime trial races resolved
+
+The later [atomic morning-loop acceptance](2026-10-09-morning-loop-atomic-acceptance.md)
+records deployed fixes for the Daily Brief and product-evaluation concurrency,
+delete-refund and replay gaps identified above. The original evidence remains
+historical; current admission is transactional. Regeneration retains its existing
+distinct-date accounting, and replay payload retention is documented separately.

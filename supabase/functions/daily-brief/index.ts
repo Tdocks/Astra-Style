@@ -23,17 +23,17 @@
 // different user id in application code would change nothing.
 // ============================================================================
 
-import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import {
+  createServiceRoleClient,
+  createUserScopedClient,
+  readEdgeEnv,
+} from "../_shared/supabaseClient.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
-import { serverError } from "../_shared/errors.ts";
+import { AppError, serverError } from "../_shared/errors.ts";
+import { FREE_DAILY_BRIEF_COUNT, morningLoopQuotaError } from "../_shared/premium.ts";
 import { hasActivePremiumSubscription } from "../_shared/premium.ts";
-import {
-  type BriefRepository,
-  handleGenerateDailyBrief,
-  type OutfitDraft,
-  type UpsertBriefInput,
-} from "./handler.ts";
+import { type BriefRepository, handleGenerateDailyBrief } from "./handler.ts";
 import type { DailyBriefRow } from "./schema.ts";
 import {
   CompatibilityOutfitScorer,
@@ -86,8 +86,39 @@ function generateRoute(req: Request): Promise<Response> {
   const authorizationHeader = req.headers.get("Authorization") ??
     req.headers.get("authorization") ?? "";
   const supabase = createUserScopedClient(env, authorizationHeader);
+  const service = createServiceRoleClient(env);
 
   const repository: BriefRepository = {
+    async findOperation(userId, requestId, fingerprint): Promise<DailyBriefRow | null> {
+      const { data, error } = await service.rpc("get_morning_loop_trial_operation", {
+        p_user_id: userId,
+        p_feature: "daily_brief",
+        p_request_id: requestId,
+        p_request_fingerprint: fingerprint,
+      });
+      if (error) {
+        if (error.message.includes("morning_loop_result_deleted")) {
+          throw new AppError(
+            "validation",
+            404,
+            "The saved brief was deleted and cannot be restored.",
+          );
+        }
+        if (error.message.includes("morning_loop_request_id_reused")) {
+          throw new AppError(
+            "validation",
+            409,
+            "This request ID was already used for a different request.",
+          );
+        }
+        throw serverError("Couldn't recover the saved brief request.");
+      }
+      if (typeof data !== "object" || data === null) return null;
+      const result = data as { status?: unknown; brief?: unknown };
+      return typeof result.brief === "object" && result.brief !== null
+        ? result.brief as DailyBriefRow
+        : null;
+    },
     async findBrief(userId: string, briefDate: string): Promise<DailyBriefRow | null> {
       void userId; // RLS scopes this, not application code. See header.
       const { data, error } = await supabase
@@ -153,71 +184,60 @@ function generateRoute(req: Request): Promise<Response> {
       return count ?? 0;
     },
 
-    async createOutfits(userId: string, drafts: readonly OutfitDraft[]): Promise<string[]> {
-      if (drafts.length === 0) {
-        return [];
-      }
-      const { data, error } = await supabase
-        .from("outfits")
-        .insert(drafts.map((draft) => ({
-          user_id: userId,
-          name: "Today's Outfit",
-          description: draft.reason,
+    async finalizeBrief(input, drafts, admission): Promise<DailyBriefRow> {
+      const { data, error } = await service.rpc("finalize_daily_brief", {
+        p_user_id: input.userId,
+        p_request_id: admission.requestId,
+        p_request_fingerprint: admission.requestFingerprint,
+        p_brief_date: input.briefDate,
+        p_regenerate: admission.regenerate,
+        p_weather_snapshot: input.weatherSnapshot ?? {},
+        p_schedule_snapshot: input.scheduleSnapshot,
+        p_requested_weather_snapshot: admission.requestedWeatherSnapshot,
+        p_requested_schedule_snapshot: admission.requestedScheduleSnapshot,
+        p_drafts: drafts.map((draft) => ({
+          reason: draft.reason,
           compatibility_score: draft.compatibilityScore,
-          source: "ai_generated",
-        })))
-        .select("id");
-      if (error || !data) {
-        throw serverError("Couldn't save today's outfits.");
-      }
-      const outfitIds = (data as { id: string }[]).map((row) => row.id);
-
-      // `outfit_items` rows are what make an outfit more than a name. A
-      // failure here would leave outfits with no garments in them — which
-      // reads on Home as a card with nothing on it — so it is surfaced
-      // rather than swallowed, and the brief is never written.
-      const itemRows = drafts.flatMap((draft, draftIndex) =>
-        draft.itemIds.map((closetItemId, sortOrder) => ({
-          outfit_id: outfitIds[draftIndex],
-          user_id: userId,
-          closet_item_id: closetItemId,
-          role: draft.rolesByItemId.get(closetItemId) ?? "top",
-          sort_order: sortOrder,
-          is_required: true,
-        }))
-      );
-      const { error: itemsError } = await supabase.from("outfit_items").insert(itemRows);
-      if (itemsError) {
-        throw serverError("Couldn't save today's outfits.");
-      }
-      return outfitIds;
-    },
-
-    async upsertBrief(input: UpsertBriefInput): Promise<DailyBriefRow> {
-      // Idempotency, half two. `onConflict` targets the table's own
-      // `daily_briefs_one_per_user_per_day` unique constraint, so two
-      // requests that both miss the read in `handler.ts` converge on one
-      // row rather than one of them failing on the constraint.
-      const { data, error } = await supabase
-        .from("daily_briefs")
-        .upsert({
-          user_id: input.userId,
-          brief_date: input.briefDate,
-          primary_outfit_id: input.primaryOutfitId,
-          alternative_outfit_ids: input.alternativeOutfitIds,
-          // `?? {}` matches the column's own default (P4-HOME-05): no
-          // weather reading is the ordinary case, not an error, and `{}`
-          // is what `mapBriefRowToWire` already knows how to turn back
-          // into `null` for the client.
-          weather_snapshot: input.weatherSnapshot ?? {},
-          schedule_snapshot: input.scheduleSnapshot,
-        }, { onConflict: "user_id,brief_date" })
-        .select(BRIEF_COLUMNS)
-        .single();
-      if (error || !data) {
+          items: draft.itemIds.map((closetItemId, sortOrder) => ({
+            closet_item_id: closetItemId,
+            role: draft.rolesByItemId.get(closetItemId) ?? "top",
+            sort_order: sortOrder,
+          })),
+        })),
+      });
+      if (error) {
+        if (error.message.includes("morning_loop_result_deleted")) {
+          throw new AppError(
+            "validation",
+            404,
+            "The saved brief was deleted and cannot be restored.",
+          );
+        }
+        if (error.message.includes("morning_loop_request_id_reused")) {
+          throw new AppError(
+            "validation",
+            409,
+            "This request ID was already used for a different request.",
+          );
+        }
         throw serverError("Couldn't save today's brief.");
       }
-      return data as DailyBriefRow;
+      if (typeof data !== "object" || data === null) {
+        throw serverError("Couldn't save today's brief.");
+      }
+      const result = data as { status?: unknown; brief?: unknown };
+      if (result.status === "limit") {
+        throw morningLoopQuotaError(
+          "daily_brief_trial_generation",
+          FREE_DAILY_BRIEF_COUNT,
+          0,
+          "You've used your free Daily Briefs. Upgrade to Astra Style Premium for a full brief every morning.",
+        );
+      }
+      if (typeof result.brief !== "object" || result.brief === null) {
+        throw serverError("Couldn't save today's brief.");
+      }
+      return result.brief as DailyBriefRow;
     },
   };
 
@@ -229,15 +249,6 @@ function generateRoute(req: Request): Promise<Response> {
     now: () => new Date(),
     hasActivePremiumSubscription: (userID, nowIso) =>
       hasActivePremiumSubscription(supabase, userID, nowIso),
-    async countBriefs(userId) {
-      void userId;
-      const { count, error } = await supabase
-        .from("daily_briefs")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userId);
-      if (error) return Number.MAX_SAFE_INTEGER;
-      return count ?? 0;
-    },
   });
 }
 

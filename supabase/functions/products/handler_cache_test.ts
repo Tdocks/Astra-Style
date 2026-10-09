@@ -50,7 +50,8 @@ function dependencies(over: Partial<ProductsDependencies> = {}): ProductsDepende
     listWornOutfitItems: () => Promise.resolve([]),
     fetchLifestyle: () => Promise.resolve({ monthlyBudget: null, dressCode: null }),
     fetchAlternatives: () => Promise.resolve([]),
-    persistEvaluation: () => Promise.resolve({ created_at: "2026-10-09T00:00:00Z" }),
+    persistEvaluation: (_row, payload) =>
+      Promise.resolve({ ...payload, created_at: "2026-10-09T00:00:00Z" }),
     fetchLatestEvaluatedCandidates: () => Promise.resolve([]),
     readClosetStateVersion: () => Promise.resolve(9),
     readCompatibilityWeights: () =>
@@ -231,9 +232,9 @@ Deno.test("throwing cache-read or cache-write transport preserves the recommenda
         computations++;
         return { ...RESULT, unlockCount: 1 };
       },
-      persistEvaluation: (row) => {
+      persistEvaluation: (row, payload) => {
         persistedUnlockCount = row.outfits_unlocked;
-        return Promise.resolve({ created_at: "2026-10-09T00:00:00Z" });
+        return Promise.resolve({ ...payload, created_at: "2026-10-09T00:00:00Z" });
       },
     }),
   );
@@ -256,9 +257,9 @@ Deno.test("throwing closet-version transport bypasses cache and still persists t
         computations++;
         return { ...RESULT, unlockCount: 1 };
       },
-      persistEvaluation: () => {
+      persistEvaluation: (_row, payload) => {
         persisted = true;
-        return Promise.resolve({ created_at: "2026-10-09T00:00:00Z" });
+        return Promise.resolve({ ...payload, created_at: "2026-10-09T00:00:00Z" });
       },
     }),
   );

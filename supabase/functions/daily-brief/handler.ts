@@ -48,9 +48,9 @@ import { createLogger } from "../_shared/logger.ts";
 import { type AuthClient, authenticateRequest } from "../_shared/jwt.ts";
 import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
+import { requestFingerprint } from "../_shared/requestFingerprint.ts";
 import type { OutfitScorer, OutfitScorerRow } from "../_shared/scoring/outfitScorer.ts";
 import type { ScoringContext } from "../_shared/scoring/types.ts";
-import { FREE_DAILY_BRIEF_COUNT, morningLoopQuotaError } from "../_shared/premium.ts";
 import {
   type DailyBriefRow,
   mapBriefRowToWire,
@@ -69,6 +69,12 @@ export interface OutfitDraft {
 }
 
 export interface BriefRepository {
+  /** Previously committed result for an owner/request/fingerprint retry. */
+  findOperation?(
+    userId: string,
+    requestId: string,
+    requestFingerprint: string,
+  ): Promise<DailyBriefRow | null>;
   /** Today's brief for this user, or null. */
   findBrief(userId: string, briefDate: string): Promise<DailyBriefRow | null>;
 
@@ -98,10 +104,18 @@ export interface BriefRepository {
    * returns — which are never persisted anywhere — would be rejected by the
    * database. That asymmetry between the two endpoints is easy to miss.
    */
-  createOutfits(userId: string, drafts: readonly OutfitDraft[]): Promise<string[]>;
-
-  /** Upsert on `(user_id, brief_date)`; returns the stored row. */
-  upsertBrief(input: UpsertBriefInput): Promise<DailyBriefRow>;
+  /** Atomically persists outfits, outfit items, and the brief with trial accounting. */
+  finalizeBrief(
+    input: UpsertBriefInput,
+    drafts: readonly OutfitDraft[],
+    admission: {
+      requestId: string;
+      requestFingerprint: string;
+      regenerate: boolean;
+      requestedWeatherSnapshot: Record<string, unknown> | null;
+      requestedScheduleSnapshot: Record<string, unknown> | null;
+    },
+  ): Promise<DailyBriefRow>;
 }
 
 export interface UpsertBriefInput {
@@ -120,7 +134,6 @@ export interface HandlerDeps {
   rateLimiter: RateLimiter;
   now: () => Date;
   hasActivePremiumSubscription?: (userID: string, nowIso: string) => Promise<boolean>;
-  countBriefs?: (userId: string) => Promise<number>;
 }
 
 /**
@@ -249,6 +262,16 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
     const body = parseGenerateDailyBriefBody(envelope.body);
+    const fingerprint = await requestFingerprint(body);
+
+    const replay = await deps.repository.findOperation?.(userId, requestId, fingerprint);
+    if (replay) {
+      return jsonResponse(mapBriefRowToWire(replay), {
+        status: 200,
+        requestId,
+        extraHeaders: CORS_HEADERS,
+      });
+    }
 
     // 4. Idempotency, half one. The row is scoped by RLS to this caller, so
     // "the existing brief" can only ever be his own.
@@ -281,26 +304,18 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
       }
     }
 
-    const premium = deps.hasActivePremiumSubscription
-      ? await deps.hasActivePremiumSubscription(userId, deps.now().toISOString())
-      : true;
-    if (!premium && !refreshingMeasuredContext) {
-      const used = deps.countBriefs ? await deps.countBriefs(userId) : 0;
-      if (used >= FREE_DAILY_BRIEF_COUNT) {
-        throw morningLoopQuotaError(
-          "daily_brief_trial_generation",
-          FREE_DAILY_BRIEF_COUNT,
-          Math.max(0, FREE_DAILY_BRIEF_COUNT - used),
-          "You've used your free Daily Briefs. Upgrade to Astra Style Premium for a full brief every morning.",
-        );
-      }
-    }
-
     const brief = await buildBrief(
       userId,
       body.briefDate,
       body.weatherSnapshot,
       body.scheduleSnapshot,
+      {
+        requestId,
+        requestFingerprint: fingerprint,
+        regenerate: body.regenerate,
+        requestedWeatherSnapshot: body.weatherSnapshot,
+        requestedScheduleSnapshot: body.scheduleSnapshot,
+      },
       deps,
     );
 
@@ -392,6 +407,13 @@ async function buildBrief(
   briefDate: string,
   weatherSnapshot: Record<string, unknown> | null,
   scheduleSnapshot: Record<string, unknown> | null,
+  admission: {
+    requestId: string;
+    requestFingerprint: string;
+    regenerate: boolean;
+    requestedWeatherSnapshot: Record<string, unknown> | null;
+    requestedScheduleSnapshot: Record<string, unknown> | null;
+  },
   deps: HandlerDeps,
 ): Promise<DailyBriefRow> {
   const items = await deps.repository.listCandidateItems(userId);
@@ -413,24 +435,25 @@ async function buildBrief(
     ? await deps.repository.countOccasions(userId, briefDate)
     : Number(scheduleSnapshot["event_count"] ?? 0);
 
-  const outfitIds = scored.length === 0 ? [] : await deps.repository.createOutfits(
-    userId,
-    scored.map((outfit) => ({
-      compatibilityScore: outfit.compatibilityScore,
-      reason: outfit.reason,
-      itemIds: outfit.itemIds,
-      rolesByItemId,
-    })),
-  );
+  const drafts = scored.map((outfit) => ({
+    compatibilityScore: outfit.compatibilityScore,
+    reason: outfit.reason,
+    itemIds: outfit.itemIds,
+    rolesByItemId,
+  }));
 
-  return deps.repository.upsertBrief({
-    userId,
-    briefDate,
-    primaryOutfitId: outfitIds[0] ?? null,
-    alternativeOutfitIds: outfitIds.slice(1),
-    weatherSnapshot,
-    scheduleSnapshot: scheduleSnapshot ?? { event_count: occasionCount },
-  });
+  return deps.repository.finalizeBrief(
+    {
+      userId,
+      briefDate,
+      primaryOutfitId: null,
+      alternativeOutfitIds: [],
+      weatherSnapshot,
+      scheduleSnapshot: scheduleSnapshot ?? { event_count: occasionCount },
+    },
+    drafts,
+    admission,
+  );
 }
 
 function scheduleScoringContext(snapshot: Record<string, unknown> | null): ScoringContext {

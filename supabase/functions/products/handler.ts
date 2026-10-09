@@ -57,6 +57,7 @@ import {
   unlockCountCacheKey,
 } from "../_shared/scoring/unlockCountCache.ts";
 import { type ComponentWeights, DEFAULT_WEIGHTS } from "../_shared/scoring/compatibility.ts";
+import { requestFingerprint } from "../_shared/requestFingerprint.ts";
 import type { CompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
 import {
   loadOwnedPreferenceCoWearContext,
@@ -127,7 +128,12 @@ export interface ProductsDependencies extends OwnedScoringContextRepository {
     readonly expected_cost_per_wear: number | null;
     readonly verdict: string;
     readonly reasoning: string;
-  }) => Promise<{ readonly created_at: string }>;
+  }, resultPayload: Omit<ProductEvaluationDTO, "created_at">) => Promise<ProductEvaluationDTO>;
+  readonly findEvaluationReplay?: (
+    userID: string,
+    requestID: string,
+    fingerprint: string,
+  ) => Promise<ProductEvaluationDTO | null>;
   /**
    * Latest evaluated `product_candidates` for this caller, recency order,
    * already unique and capped.
@@ -206,8 +212,10 @@ export async function handleEvaluateProduct(
   userID: string,
   deps: ProductsDependencies,
 ): Promise<ProductEvaluationDTO> {
-  await assertPasteQuota(userID, deps);
   const body = parseEvaluateProductBody(rawBody);
+  const fingerprint = await requestFingerprint({ product_candidate_id: body.productCandidateId });
+  const replay = await deps.findEvaluationReplay?.(userID, deps.requestID, fingerprint);
+  if (replay) return replay;
 
   const row = await deps.fetchCandidate(body.productCandidateId);
   if (row === null) {
@@ -269,18 +277,12 @@ export async function handleEvaluateProduct(
     unlockCountResult: unlockCount,
   });
 
-  const persisted = await deps.persistEvaluation({
-    user_id: userID,
-    product_candidate_id: row.id,
-    compatibility_score: evaluation.compatibilityScore,
-    redundancy_score: evaluation.redundancyScore,
-    outfits_unlocked: evaluation.outfitsUnlocked,
-    expected_cost_per_wear: evaluation.expectedCostPerWear,
-    verdict: evaluation.verdict,
-    reasoning: evaluation.reasoning,
+  const alternatives = await buildAlternatives(row, closet, deps, weightConfig, {
+    userID,
+    scoringContext,
+    closetStateVersion,
   });
-
-  return {
+  const responsePayload: Omit<ProductEvaluationDTO, "created_at"> = {
     fills_gap: evaluation.fillsGap,
     gap_details: evaluation.gapsFilled.map((gap) => ({
       occasion: gap.occasion,
@@ -297,19 +299,24 @@ export async function handleEvaluateProduct(
     expected_cost_per_wear: evaluation.expectedCostPerWear,
     verdict: evaluation.verdict,
     reasoning: evaluation.reasoning,
-    created_at: persisted.created_at,
     color_fit: evaluation.colorFit,
     lifestyle_fit: evaluation.lifestyleFit,
     budget_fit: evaluation.budgetFit,
-    // Read here, after the verdict exists, and used only as a label.
     sponsored: row.sponsored,
     unmeasured: [...new Set(evaluation.degraded)],
-    alternatives: await buildAlternatives(row, closet, deps, weightConfig, {
-      userID,
-      scoringContext,
-      closetStateVersion,
-    }),
+    alternatives,
   };
+
+  return await deps.persistEvaluation({
+    user_id: userID,
+    product_candidate_id: row.id,
+    compatibility_score: evaluation.compatibilityScore,
+    redundancy_score: evaluation.redundancyScore,
+    outfits_unlocked: evaluation.outfitsUnlocked,
+    expected_cost_per_wear: evaluation.expectedCostPerWear,
+    verdict: evaluation.verdict,
+    reasoning: evaluation.reasoning,
+  }, responsePayload);
 }
 
 /**

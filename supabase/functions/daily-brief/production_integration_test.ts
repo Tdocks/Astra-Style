@@ -157,6 +157,18 @@ class ScratchOwnedRepository implements BriefRepository {
     this.briefs.set(key, row);
     return Promise.resolve(row);
   }
+
+  async finalizeBrief(
+    input: UpsertBriefInput,
+    drafts: readonly OutfitDraft[],
+  ): Promise<DailyBriefRow> {
+    const outfitIds = await this.createOutfits(input.userId, drafts);
+    return await this.upsertBrief({
+      ...input,
+      primaryOutfitId: outfitIds[0] ?? null,
+      alternativeOutfitIds: outfitIds.slice(1),
+    });
+  }
 }
 
 class CapturingProductionScorer implements OutfitScorer {
@@ -219,7 +231,6 @@ function dependencies(
     rateLimiter: createRateLimiter({ limit: 10, windowMs: 60_000 }),
     now: () => new Date("2026-10-09T12:00:00Z"),
     hasActivePremiumSubscription: () => Promise.resolve(true),
-    countBriefs: () => Promise.resolve(0),
   };
 }
 

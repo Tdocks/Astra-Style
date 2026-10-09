@@ -106,7 +106,8 @@ function deps(
     listWornOutfitItems: () => Promise.resolve([]),
     fetchLifestyle: () => Promise.resolve({ monthlyBudget: null, dressCode: null }),
     fetchAlternatives: () => Promise.resolve([]),
-    persistEvaluation: () => Promise.resolve({ created_at: "2026-08-22T00:00:00Z" }),
+    persistEvaluation: (_row, payload) =>
+      Promise.resolve({ ...payload, created_at: "2026-08-22T00:00:00Z" }),
     fetchLatestEvaluatedCandidates: (_userID, limit) => Promise.resolve(candidates.slice(0, limit)),
     requestID: "req-unlocks",
   };

@@ -15,6 +15,7 @@
 import { assertEquals, assertNotEquals } from "@std/assert";
 import type { AuthClient } from "../_shared/jwt.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
+import { AppError } from "../_shared/errors.ts";
 import { CompatibilityOutfitScorer } from "../_shared/scoring/compatibilityScorer.ts";
 import { LeastRecentlyWornScorer } from "../_shared/scoring/leastRecentlyWorn.ts";
 import type {
@@ -47,7 +48,11 @@ const BRIEF_DATE = "2026-08-06";
  * closets — and drive it through a stub scorer, so the eleven scoring columns
  * are noise here. Padded once, in one place.
  */
-function closetRow(id: string, category: string, lastWornAt: string | null): OutfitScorerRow {
+function closetRow(
+  id: string,
+  category: string,
+  lastWornAt: string | null,
+): OutfitScorerRow {
   return {
     id,
     category,
@@ -81,9 +86,15 @@ function tokenMappedAuthClient(): AuthClient {
     auth: {
       getUser(jwt?: string) {
         if (jwt === VALID_LOOKING_JWT_A) {
-          return Promise.resolve({ data: { user: { id: USER_A_ID } }, error: null });
+          return Promise.resolve({
+            data: { user: { id: USER_A_ID } },
+            error: null,
+          });
         }
-        return Promise.resolve({ data: { user: null }, error: { message: "invalid token" } });
+        return Promise.resolve({
+          data: { user: null },
+          error: { message: "invalid token" },
+        });
       },
     },
   };
@@ -94,9 +105,13 @@ interface MemoryRepository extends BriefRepository {
   readonly createdOutfits: OutfitDraft[][];
   /** Order of persistence, so a test can prove outfits precede the brief. */
   readonly writeLog: string[];
+  findOperation?: BriefRepository["findOperation"];
 }
 
-function memoryRepository(closet: OutfitScorerRow[], occasions = 0): MemoryRepository {
+function memoryRepository(
+  closet: OutfitScorerRow[],
+  occasions = 0,
+): MemoryRepository {
   const briefs = new Map<string, DailyBriefRow>();
   const createdOutfits: OutfitDraft[][] = [];
   const writeLog: string[] = [];
@@ -118,19 +133,41 @@ function memoryRepository(closet: OutfitScorerRow[], occasions = 0): MemoryRepos
     countOccasions() {
       return Promise.resolve(occasions);
     },
-    createOutfits(_userId: string, drafts: readonly OutfitDraft[]) {
-      writeLog.push("outfits");
-      createdOutfits.push([...drafts]);
-      return Promise.resolve(drafts.map(() => `outfit-${++outfitSequence}`));
-    },
-    upsertBrief(input: UpsertBriefInput) {
+    finalizeBrief(
+      input: UpsertBriefInput,
+      drafts: readonly OutfitDraft[],
+      admission,
+    ) {
+      if (
+        briefs.size >= 3 &&
+        (admission.regenerate || !briefs.has(input.briefDate))
+      ) {
+        throw new AppError(
+          "subscription_limit_reached",
+          429,
+          "trial limit",
+          undefined,
+          {
+            limit: "daily_brief_trial_generation",
+            limit_count: 3,
+            remaining: 0,
+            resets_at: null,
+          },
+        );
+      }
+      const outfitIds = drafts.map(() => `outfit-${++outfitSequence}`);
+      if (drafts.length > 0) {
+        writeLog.push("outfits");
+        createdOutfits.push([...drafts]);
+      }
       writeLog.push("brief");
+      const prior = briefs.get(input.briefDate);
       const row: DailyBriefRow = {
-        id: `brief-${input.briefDate}`,
+        id: prior?.id ?? `brief-${input.briefDate}`,
         user_id: input.userId,
         brief_date: input.briefDate,
-        primary_outfit_id: input.primaryOutfitId,
-        alternative_outfit_ids: [...input.alternativeOutfitIds],
+        primary_outfit_id: outfitIds[0] ?? null,
+        alternative_outfit_ids: outfitIds.slice(1),
         // Mirrors the live `upsertBrief`'s own `?? {}` (P4-HOME-05): the
         // column default when nothing was measured, not a fabricated one.
         weather_snapshot: input.weatherSnapshot ?? {},
@@ -167,7 +204,10 @@ class RecordingContextScorer implements OutfitScorer {
   }
 }
 
-function requestFor(body: unknown, headers: Record<string, string> = {}): Request {
+function requestFor(
+  body: unknown,
+  headers: Record<string, string> = {},
+): Request {
   return new Request("https://example.com/daily-brief/generate", {
     method: "POST",
     headers: {
@@ -201,7 +241,9 @@ Deno.test("daily brief rate limit returns the exact Retry-After reset", async ()
   const response = await handleGenerateDailyBrief(
     requestFor(generateBody()),
     buildDeps({
-      rateLimiter: { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) },
+      rateLimiter: {
+        check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }),
+      },
     }),
   );
   assertEquals(response.status, 429);
@@ -217,7 +259,9 @@ Deno.test("rejects a malformed JWT", async () => {
 });
 
 Deno.test("rejects a date that is not a calendar day", async () => {
-  for (const bad of ["2026-8-6", "2026-02-31", "today", "2026-08-06T00:00:00Z"]) {
+  for (
+    const bad of ["2026-8-6", "2026-02-31", "today", "2026-08-06T00:00:00Z"]
+  ) {
     const response = await handleGenerateDailyBrief(
       requestFor(generateBody({ date: bad })),
       buildDeps(),
@@ -228,7 +272,10 @@ Deno.test("rejects a date that is not a calendar day", async () => {
 
 // P4-HOME-02, criterion 1.
 Deno.test("a populated closet yields a primary outfit and at least one alternative", async () => {
-  const response = await handleGenerateDailyBrief(requestFor(generateBody()), buildDeps());
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps(),
+  );
   assertEquals(response.status, 200);
   const json = await response.json();
   assertEquals(json.error, null);
@@ -241,8 +288,10 @@ Deno.test("a second call the same day returns the same brief", async () => {
   const repository = memoryRepository(POPULATED_CLOSET);
   const deps = buildDeps({ repository });
 
-  const first = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps)).json();
-  const second = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps)).json();
+  const first = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps))
+    .json();
+  const second = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps))
+    .json();
 
   assertEquals(second.data.id, first.data.id);
   assertEquals(second.data.primary_outfit_id, first.data.primary_outfit_id);
@@ -252,10 +301,40 @@ Deno.test("a second call the same day returns the same brief", async () => {
   assertEquals(repository.createdOutfits.length, 1);
 });
 
+Deno.test("a committed request replay returns before reading the closet or scoring", async () => {
+  const repository = memoryRepository(POPULATED_CLOSET);
+  const saved: DailyBriefRow = {
+    id: "brief-replay",
+    user_id: USER_A_ID,
+    brief_date: "2026-08-06",
+    primary_outfit_id: "outfit-replay",
+    alternative_outfit_ids: [],
+    weather_snapshot: {},
+    schedule_snapshot: { event_count: 0 },
+    kyra_message: null,
+  };
+  repository.findOperation = () => Promise.resolve(saved);
+  repository.listCandidateItems = () => Promise.reject(new Error("must not read closet on replay"));
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({
+      repository,
+      scorer: {
+        generate: () => {
+          throw new Error("must not score on replay");
+        },
+      },
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).data.id, "brief-replay");
+});
+
 Deno.test("jsonb schedule key order does not rebuild an existing brief", async () => {
   const repository = memoryRepository(POPULATED_CLOSET, 2);
   const deps = buildDeps({ repository });
-  const first = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps)).json();
+  const first = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps))
+    .json();
   const stored = repository.briefs.get(BRIEF_DATE);
   if (!stored) throw new Error("Expected the first brief to be persisted.");
 
@@ -268,7 +347,8 @@ Deno.test("jsonb schedule key order does not rebuild an existing brief", async (
     ),
   });
 
-  const second = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps)).json();
+  const second = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps))
+    .json();
   assertEquals(second.data.id, first.data.id);
   assertEquals(second.data.primary_outfit_id, first.data.primary_outfit_id);
   assertEquals(repository.createdOutfits.length, 1);
@@ -293,7 +373,10 @@ Deno.test("regenerate rebuilds the day's brief", async () => {
 /// order is the requirement, not an implementation detail.
 Deno.test("outfits are persisted before the brief that references them", async () => {
   const repository = memoryRepository(POPULATED_CLOSET);
-  await handleGenerateDailyBrief(requestFor(generateBody()), buildDeps({ repository }));
+  await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({ repository }),
+  );
   assertEquals(repository.writeLog, ["outfits", "brief"]);
 });
 
@@ -303,13 +386,17 @@ Deno.test("outfits are persisted before the brief that references them", async (
 /// a top in the outfit builder.
 Deno.test("each outfit draft carries the category of every item it contains", async () => {
   const repository = memoryRepository(POPULATED_CLOSET);
-  await handleGenerateDailyBrief(requestFor(generateBody()), buildDeps({ repository }));
+  await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({ repository }),
+  );
 
   const drafts = repository.createdOutfits[0] ?? [];
   assertEquals(drafts.length > 0, true);
   for (const draft of drafts) {
     for (const itemId of draft.itemIds) {
-      const expected = POPULATED_CLOSET.find((item) => item.id === itemId)?.category;
+      const expected = POPULATED_CLOSET.find((item) => item.id === itemId)
+        ?.category;
       assertEquals(draft.rolesByItemId.get(itemId), expected);
     }
   }
@@ -339,7 +426,10 @@ Deno.test("an empty closet yields a brief with a null primary outfit, not an err
 /// the device rather than degrade to nil. Mapping it to null is what stops
 /// that, and there is no weather provider to fill it with (P4-HOME-05).
 Deno.test("an empty weather snapshot goes out as null, not as {}", async () => {
-  const response = await handleGenerateDailyBrief(requestFor(generateBody()), buildDeps());
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps(),
+  );
   const json = await response.json();
   assertEquals(json.data.weather_snapshot, null);
 });
@@ -454,7 +544,6 @@ Deno.test("adding weather refreshes an existing no-weather brief exactly once", 
     buildDeps({
       repository,
       hasActivePremiumSubscription: () => Promise.resolve(false),
-      countBriefs: () => Promise.resolve(3),
     }),
   );
   assertEquals(withWeather.status, 200);
@@ -478,7 +567,9 @@ Deno.test("hot and cold forecasts choose different warmth from the same closet",
     { ...closetRow("shoes", "shoes", null), warmth_score: 50 },
   ];
 
-  async function primaryItems(apparentTemperatureF: number): Promise<readonly string[]> {
+  async function primaryItems(
+    apparentTemperatureF: number,
+  ): Promise<readonly string[]> {
     const repository = memoryRepository(climateCloset);
     const response = await handleGenerateDailyBrief(
       requestFor(generateBody({
@@ -505,7 +596,10 @@ Deno.test("hot and cold forecasts choose different warmth from the same closet",
 });
 
 Deno.test("no weather_snapshot in the request stays honestly null, not an error", async () => {
-  const response = await handleGenerateDailyBrief(requestFor(generateBody()), buildDeps());
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps(),
+  );
   assertEquals(response.status, 200);
   const json = await response.json();
   assertEquals(json.error, null);
@@ -523,7 +617,11 @@ Deno.test("a weather_snapshot missing required fields is rejected, not stored", 
 Deno.test("a weather_snapshot with an unknown condition is rejected", async () => {
   const response = await handleGenerateDailyBrief(
     requestFor(generateBody({
-      weather_snapshot: { temperature_high: 70, temperature_low: 55, condition: "tornado" },
+      weather_snapshot: {
+        temperature_high: 70,
+        temperature_low: 55,
+        condition: "tornado",
+      },
     })),
     buildDeps(),
   );
@@ -533,9 +631,29 @@ Deno.test("a weather_snapshot with an unknown condition is rejected", async () =
 Deno.test("a fourth free generate is 429; returning today's existing brief is not", async () => {
   const gated = buildDeps({
     hasActivePremiumSubscription: () => Promise.resolve(false),
-    countBriefs: () => Promise.resolve(3),
+    repository: {
+      ...memoryRepository([]),
+      finalizeBrief: () =>
+        Promise.reject(
+          new AppError(
+            "subscription_limit_reached",
+            429,
+            "limit",
+            undefined,
+            {
+              limit: "daily_brief_trial_generation",
+              limit_count: 3,
+              remaining: 0,
+              resets_at: null,
+            },
+          ),
+        ),
+    },
   });
-  const blocked = await handleGenerateDailyBrief(requestFor(generateBody()), gated);
+  const blocked = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    gated,
+  );
   assertEquals(blocked.status, 429);
   const body = await blocked.json();
   assertEquals(body.error.category, "subscription_limit_reached");
@@ -556,7 +674,6 @@ Deno.test("a fourth free generate is 429; returning today's existing brief is no
     buildDeps({
       repository: existing,
       hasActivePremiumSubscription: () => Promise.resolve(false),
-      countBriefs: () => Promise.resolve(3),
     }),
   );
   assertEquals(again.status, 200);

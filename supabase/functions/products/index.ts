@@ -34,16 +34,27 @@ import {
   createUserScopedClient,
   readEdgeEnv,
 } from "../_shared/supabaseClient.ts";
-import { hasActivePremiumSubscription } from "../_shared/premium.ts";
+import {
+  FREE_PASTE_EVALUATE_COUNT,
+  hasActivePremiumSubscription,
+  morningLoopQuotaError,
+} from "../_shared/premium.ts";
 import { loadCompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
 import { isUnlockCountResult } from "../_shared/scoring/unlockCountCache.ts";
 import type { UnlockCountResult } from "../_shared/scoring/unlockCount.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { authenticateRequest } from "../_shared/jwt.ts";
-import { type AppError, errorResponse, jsonResponse, serverError } from "../_shared/errors.ts";
+import {
+  AppError,
+  type AppError as AppErrorType,
+  errorResponse,
+  jsonResponse,
+  serverError,
+} from "../_shared/errors.ts";
 import { rateLimited } from "../_shared/errors.ts";
 import { resolveRequestId } from "../_shared/requestId.ts";
+import { requestFingerprint } from "../_shared/requestFingerprint.ts";
 import { MockProductExtractionProvider } from "../_shared/providers/mockProductExtraction.ts";
 import { HtmlProductExtractionProvider } from "../_shared/providers/htmlProductExtraction.ts";
 import type { ProductExtractionProvider } from "../_shared/providers/productExtraction.ts";
@@ -59,6 +70,7 @@ import {
   UNLOCKS_CANDIDATE_CAP,
 } from "./handler.ts";
 import type { ProductCandidateRow } from "./candidateMapper.ts";
+import type { ProductEvaluationDTO } from "./schema.ts";
 import { mapOwnedGarmentForProductEvaluation } from "./ownedGarmentMapper.ts";
 import type { LifestyleInputs } from "./evaluation.ts";
 import { parseEnvelope } from "./schema.ts";
@@ -330,27 +342,96 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
       return (data ?? []) as unknown as ProductCandidateRow[];
     },
 
-    async persistEvaluation(row) {
-      const { data, error } = await supabase
-        .from("user_product_evaluations")
-        .insert(row)
-        .select("created_at")
-        .single();
-      if (error || !data) throw serverError("Couldn't save that verdict.");
-      return data as { created_at: string };
+    async persistEvaluation(row, resultPayload) {
+      const { data, error } = await catalogWriter.rpc("persist_product_evaluation", {
+        p_user_id: row.user_id,
+        p_request_id: requestID,
+        p_request_fingerprint: await requestFingerprint({
+          product_candidate_id: row.product_candidate_id,
+        }),
+        p_evaluation: row,
+        p_result_payload: resultPayload,
+      });
+      if (error) {
+        if (error.message.includes("morning_loop_result_deleted")) {
+          throw new AppError(
+            "validation",
+            404,
+            "The saved verdict was deleted and cannot be restored.",
+          );
+        }
+        if (error.message.includes("morning_loop_request_id_reused")) {
+          throw new AppError(
+            "validation",
+            409,
+            "This request ID was already used for a different request.",
+          );
+        }
+        throw serverError("Couldn't save that verdict.");
+      }
+      if (typeof data !== "object" || data === null) {
+        throw serverError("Couldn't save that verdict.");
+      }
+      const result = data as { status?: unknown; result?: unknown };
+      if (result.status === "limit") {
+        throw morningLoopQuotaError(
+          "paste_product_evaluation_trial",
+          FREE_PASTE_EVALUATE_COUNT,
+          0,
+          "You've used your free product verdict. Upgrade to Astra Style Premium to keep evaluating products.",
+        );
+      }
+      if (typeof result.result !== "object" || result.result === null) {
+        throw serverError("Couldn't save that verdict.");
+      }
+      return result.result as ProductEvaluationDTO;
+    },
+
+    async findEvaluationReplay(userID, replayRequestID, fingerprint) {
+      const { data, error } = await catalogWriter.rpc("get_morning_loop_trial_operation", {
+        p_user_id: userID,
+        p_feature: "product_evaluation",
+        p_request_id: replayRequestID,
+        p_request_fingerprint: fingerprint,
+      });
+      if (error) {
+        if (error.message.includes("morning_loop_result_deleted")) {
+          throw new AppError(
+            "validation",
+            404,
+            "The saved verdict was deleted and cannot be restored.",
+          );
+        }
+        if (error.message.includes("morning_loop_request_id_reused")) {
+          throw new AppError(
+            "validation",
+            409,
+            "This request ID was already used for a different request.",
+          );
+        }
+        throw serverError("Couldn't recover the saved verdict request.");
+      }
+      if (typeof data !== "object" || data === null) return null;
+      const result = data as { status?: unknown; result?: unknown };
+      return result.status === "replay" && typeof result.result === "object" &&
+          result.result !== null
+        ? result.result as ProductEvaluationDTO
+        : null;
     },
 
     hasActivePremiumSubscription: (userID, nowIso) =>
       hasActivePremiumSubscription(supabase, userID, nowIso),
 
     async countEvaluations(userID) {
-      void userID;
-      const { count, error } = await supabase
-        .from("user_product_evaluations")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", userID);
+      const { data, error } = await catalogWriter
+        .from("morning_loop_trial_usage")
+        .select("product_evaluation_successes")
+        .eq("user_id", userID)
+        .maybeSingle();
       if (error) return Number.MAX_SAFE_INTEGER;
-      return count ?? 0;
+      const count = (data as { product_evaluation_successes?: unknown } | null)
+        ?.product_evaluation_successes;
+      return typeof count === "number" ? count : 0;
     },
 
     async fetchLatestEvaluatedCandidates(userID, limit) {
@@ -403,7 +484,7 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
   };
 }
 
-function isAppError(value: unknown): value is AppError {
+function isAppError(value: unknown): value is AppErrorType {
   return typeof value === "object" && value !== null && "status" in value && "category" in value;
 }
 
