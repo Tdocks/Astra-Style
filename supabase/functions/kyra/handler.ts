@@ -1094,14 +1094,59 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
       call.name === "generate_studio_preview" && isUUID(call.result.generation_id)
     );
     const queuedPreview = queuedCall !== undefined;
-    const proposedSelection = deps.studio && !queuedPreview && pendingCall
+    let proposedSelection = deps.studio && !queuedPreview && pendingCall
       ? parseStudioPreview(pendingCall.args)
       : null;
+    let selectionUnavailable = false;
+    let selectionUnavailableMessage =
+      "I couldn't verify those selected closet pieces and a saved photo with current consent. Open Studio to check your reference photo, or choose available pieces from your closet before generating.";
+    if (proposedSelection) {
+      const selectedIDs = proposedSelection.outfitId
+        ? await deps.store.getOutfitItemIds(proposedSelection.outfitId)
+        : [...proposedSelection.itemIds];
+      const ownedIDs = selectedIDs?.length ? await deps.store.listOwnedItemIds(selectedIDs) : [];
+      if (
+        !selectedIDs?.length || selectedIDs.some((id) => !ownedIDs.includes(id)) ||
+        !studioReferenceIDs.includes(proposedSelection.referenceImageId) ||
+        proposedSelection.resolution !== "draft" ||
+        !["studio-neutral", "studio", "neutral", "urban", "editorial_outdoor"].includes(
+          proposedSelection.background,
+        )
+      ) {
+        if (proposedSelection.resolution !== "draft") {
+          selectionUnavailableMessage =
+            "High-resolution previews aren't available yet. Ask for a draft preview instead.";
+        } else if (
+          !["studio-neutral", "studio", "neutral", "urban", "editorial_outdoor"].includes(
+            proposedSelection.background,
+          )
+        ) {
+          selectionUnavailableMessage =
+            "Choose a studio, urban or outdoor scene for this preview, then I can ask you to confirm it.";
+        }
+        proposedSelection = null;
+        selectionUnavailable = true;
+      }
+    }
     const finalResponse = proposedSelection
       ? {
         ...guarded.response,
+        cards: proposedSelection.outfitId
+          ? [{ type: "outfit" as const, outfit_id: proposedSelection.outfitId }]
+          : proposedSelection.itemIds.map((id) => ({
+            type: "closet_item" as const,
+            closet_item_id: id,
+          })),
+        suggested_actions: [],
         message:
-          "Would you like me to generate this Studio preview? It uses one preview from your generation allowance. Reply yes to approve this selection, or tell me what to change.",
+          `Generate a draft Studio preview of these selected pieces with your saved, consented reference photo, in a ${proposedSelection.pose} pose against ${proposedSelection.background}? It uses one preview from your generation allowance. Reply yes to approve, or tell me what to change.`,
+      }
+      : selectionUnavailable
+      ? {
+        ...guarded.response,
+        cards: [],
+        suggested_actions: [],
+        message: selectionUnavailableMessage,
       }
       : queuedCall
       ? {

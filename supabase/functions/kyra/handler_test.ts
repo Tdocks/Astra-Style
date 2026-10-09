@@ -665,8 +665,12 @@ Deno.test("Studio cost question is persisted before its private approval record"
   ]);
   let prepared = 0;
   const response = await handleKyraRespond(request({ text: "Can I see a preview?" }), {
-    ...deps(provider, fakeStore(recording)),
+    ...deps(
+      provider,
+      fakeStore(recording, { listOwnedItemIds: () => Promise.resolve([PACKET_ITEM]) }),
+    ),
     studio: {
+      referenceIDs: () => Promise.resolve([PACKET_ITEM]),
       confirmations: {
         pending: () => Promise.resolve(null),
         close: () => {
@@ -704,6 +708,10 @@ Deno.test("Studio cost question is persisted before its private approval record"
   });
   assertEquals(response.status, 200);
   assertEquals(prepared, 1);
+  assertEquals(recording.assistantMessages[0]?.structuredPayload.cards, [{
+    type: "closet_item",
+    closet_item_id: PACKET_ITEM,
+  }]);
 });
 
 Deno.test("cancelled preview closes approval and cannot prepare a replacement in the same turn", async () => {
@@ -883,4 +891,62 @@ Deno.test("matching saved yes approval submits once and closes its confirmation"
   );
   assertEquals(submitted, 1);
   assertEquals(closed, 1);
+});
+
+Deno.test("preview proposals with unavailable items, consent or resolution cannot prepare approval", async () => {
+  for (const scenario of ["missing_item", "missing_photo", "hi_res"]) {
+    const recording = emptyRecording();
+    const provider = scriptedProvider([
+      {
+        kind: "result",
+        result: {
+          finishReason: "tool_calls",
+          toolCalls: [{
+            id: "preview_call",
+            name: "generate_studio_preview",
+            arguments: {
+              item_ids: [PACKET_ITEM],
+              reference_image_id: PACKET_ITEM,
+              resolution: scenario === "hi_res" ? "hi_res" : "draft",
+            },
+          }],
+        },
+      },
+      { kind: "result", result: { message: goodJson() } },
+    ]);
+    const response = await handleKyraRespond(request({ text: "Can I see a preview?" }), {
+      ...deps(
+        provider,
+        fakeStore(recording, {
+          listOwnedItemIds: () => Promise.resolve(scenario === "missing_item" ? [] : [PACKET_ITEM]),
+        }),
+      ),
+      studio: {
+        referenceIDs: () => Promise.resolve(scenario === "missing_photo" ? [] : [PACKET_ITEM]),
+        confirmations: {
+          pending: () => Promise.resolve(null),
+          close: () => {
+            throw new Error("Unexpected closure");
+          },
+          prepare: () => {
+            throw new Error("Unavailable selection cannot receive approval");
+          },
+        },
+        preview: (turn) => ({
+          userText: turn.userText,
+          pending: null,
+          currentConsentTermsVersion: "fixture",
+          resolveOwnedConsentedReference: () => {
+            throw new Error("No approval");
+          },
+          enqueue: () => {
+            throw new Error("No approval");
+          },
+        }),
+      },
+    });
+    assertEquals(response.status, 200);
+    assertEquals(recording.assistantMessages[0]?.structuredPayload.cards, []);
+    assert(!recording.assistantMessages[0]?.content.includes("uses one preview"));
+  }
 });

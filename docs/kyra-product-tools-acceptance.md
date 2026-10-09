@@ -368,3 +368,19 @@ Kyra v16 is now ACTIVE with JWT verification and the same behavior plus filtered
 results. 135 Kyra tests passed (`/tmp/astra-kyra-tool-metadata-tests.log`), including
 stored executed-name metadata; lint and entrypoint checks passed. Hosted preview
 consent/generation, simulator sheet UI and remaining master-plan work stay open.
+
+## Visible verified preview selection
+
+Kyra v17 is ACTIVE with JWT verification. Before preparing an approval, the
+handler verifies selected outfit/items through caller-owned reads and checks the
+reference ID against current consented context. The question includes exact
+owned outfit/garment cards, the pose/background and one-preview allowance cost;
+unrelated model cards/actions are removed. Missing pieces/consent, unsupported
+scenes and unavailable high-resolution proposals cannot prepare approval records.
+Unavailable options receive explicit corrective copy.
+
+136 Kyra tests passed (`/tmp/astra-kyra-proposal-selection-tests.log`), covering
+visible selected cards and rejection before preparation for missing items,
+missing consented context and high resolution. Lint/type checks passed. Native
+cards already exist in build 21, so this backend change needs no binary upload.
+Full hosted ask/yes/preview generation and sheet UI acceptance remain open.
