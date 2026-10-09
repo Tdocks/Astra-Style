@@ -205,6 +205,8 @@ private struct ClosetItemDetailContent: View {
 
             ClosetItemPurchaseSection(item: item)
 
+            ClosetItemInsightsSection(viewModel: viewModel)
+
             unfilledDetailsPrompt
         }
     }

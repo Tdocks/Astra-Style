@@ -120,6 +120,10 @@ public final class ClosetItemDetailViewModel {
         }
     }
 
+    public private(set) var insights: ClosetItemInsights?
+    public private(set) var insightsError: String?
+    public private(set) var isLoadingInsights = false
+    public private(set) var insightItems: [UUID: ClosetItem] = [:]
     public private(set) var state: ViewState = .loading
 
     /// Independent of `state`, exactly as on Home: a cached item still
@@ -201,6 +205,7 @@ public final class ClosetItemDetailViewModel {
             let item = try await closetRepository.fetchItem(id: itemID)
             let images = try await closetRepository.fetchImages(forItem: itemID)
             apply(ItemDetail(item: item, images: images, imageURLs: await resolveURLs(for: images)))
+            await loadInsights()
         } catch let error as AstraError {
             state = .failed(error)
         } catch {
@@ -498,5 +503,22 @@ public enum ClosetItemDetailCopy {
     public static func unfilledDetailPrompt(count: Int) -> String {
         let details = AstraQuantityText.count(count, singular: "detail", plural: "details")
         return String(localized: "\(details) still blank", comment: "How many optional garment fields have no value yet")
+    }
+}
+
+public extension ClosetItemDetailViewModel {
+    func loadInsights() async {
+        guard !isLoadingInsights else { return }
+        isLoadingInsights = true
+        insightsError = nil
+        defer { isLoadingInsights = false }
+        do {
+            let result = try await closetRepository.fetchItemInsights(id: itemID)
+            let items = try await closetRepository.fetchItems()
+            insightItems = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+            insights = result
+        } catch {
+            insightsError = (error as? AstraError)?.message ?? "Couldn't load item insights. Try again."
+        }
     }
 }

@@ -582,3 +582,7 @@ Added a pure item-insights calculation reusing the wardrobe redundancy formula a
 ## 2026-10-08 — Item-insights backend endpoint
 
 Added GET /closet/items/:id/insights, deployed in Closet v18 with JWT verification. Every closet/outfit/link read filters the verified caller and uses stable 500-row pagination; the profile read also filters its owner. Unavailable items return 404, query errors stay bounded, responses are no-store and requests share the wardrobe-read rate limit. Thirty backend tests, type check and lint passed. Hosted unauthenticated request returned 401. Authenticated hosted fixture acceptance and native item-detail display/navigation remain open; this is not in build 23.
+
+## 2026-10-08 — Native item-insights integration
+
+Added the typed GET endpoint/repository response and item-detail section for redundancy estimates, similar pieces, wearable pairings, saved-look navigation and condition-based repair/replacement advice. Insight errors stay separate from the usable item screen and have a retry action; missing target attributes and absent weather/calendar context are disclosed. Simulator build and selected API-contract, item-detail and endpoint-mapping tests passed. Strict lint passed for changed files. Mock insights fixtures, full UI/accessibility acceptance, refreshed insights after item edits and authenticated live acceptance remain open. Saved looks currently use numbered links rather than a thumbnail gallery. Changes are not in TestFlight build 23.

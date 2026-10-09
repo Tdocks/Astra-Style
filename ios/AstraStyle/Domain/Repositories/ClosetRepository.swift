@@ -14,6 +14,7 @@
 import Foundation
 
 public protocol ClosetRepository: Sendable {
+    func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights
     func fetchItems() async throws -> [ClosetItem]
     func fetchItem(id: UUID) async throws -> ClosetItem
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage]
@@ -188,5 +189,11 @@ public struct WardrobeScoreSnapshot: Hashable, Sendable {
         self.activeItemCount = activeItemCount
         self.confidence = confidence
         self.degradedComponents = degradedComponents
+    }
+}
+
+public extension ClosetRepository {
+    func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {
+        throw AstraError.server("Item insights are unavailable. Try again later.")
     }
 }
