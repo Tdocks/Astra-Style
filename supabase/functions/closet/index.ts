@@ -43,12 +43,15 @@
 // not. An unconfigured function (`VISION_ANALYSIS_PROVIDER` unset) stays
 // quiet, because running on the mock by choice is a decision, not a fault.
 //
-// NOTE ON SERVICE-ROLE: this function never constructs a service-role
-// client. Job rows and idempotency rows are owned by the caller; RLS with
-// the caller's JWT is sufficient.
+// Analysis jobs use caller RLS. Optional cutout reservations use a service-only
+// ledger; cutout photo reads/writes still use the verified caller JWT.
 // ============================================================================
 
-import { createUserScopedClient, readEdgeEnv } from "../_shared/supabaseClient.ts";
+import {
+  createServiceRoleClient,
+  createUserScopedClient,
+  readEdgeEnv,
+} from "../_shared/supabaseClient.ts";
 import { createRateLimiter } from "../_shared/rateLimit.ts";
 import { createRouter } from "../_shared/routing.ts";
 import { serverError } from "../_shared/errors.ts";
@@ -71,6 +74,12 @@ import type {
 } from "./schema.ts";
 import { handleItemInsights } from "./itemInsights.ts";
 import { handleWardrobeScore } from "./wardrobeScore.ts";
+
+import { handleBackgroundRemoval } from "./backgroundRemovalHandler.ts";
+import { fallbackBackgroundRemoval } from "./backgroundRemoval.ts";
+import { SupabaseRemovalReservations } from "./backgroundRemovalReservations.ts";
+import { SupabaseRemovalStorage } from "./backgroundRemovalStorage.ts";
+import { RemoveBgBackgroundRemovalProvider } from "../_shared/providers/removeBgBackgroundRemoval.ts";
 
 const env = readEdgeEnv();
 
@@ -331,7 +340,25 @@ function itemInsightsRoute(
   }, params["id"] ?? "");
 }
 
+function backgroundRemovalRoute(req: Request): Promise<Response> {
+  const caller = createUserScopedClient(env, req.headers.get("Authorization") ?? "");
+  const key = Deno.env.get("BACKGROUND_REMOVAL_PROVIDER_API_KEY")?.trim() ?? "";
+  const enabled = Deno.env.get("BACKGROUND_REMOVAL_PROVIDER") === "removebg" && key.length > 0;
+  return handleBackgroundRemoval(req, {
+    authClient: caller,
+    rateLimiter,
+    enabled,
+    run: (source, adequate, ctx) =>
+      fallbackBackgroundRemoval(source, adequate, ctx, {
+        provider: new RemoveBgBackgroundRemovalProvider(key),
+        reservations: new SupabaseRemovalReservations(createServiceRoleClient(env)),
+        storage: new SupabaseRemovalStorage(caller, ctx.userId),
+      }),
+  });
+}
+
 Deno.serve(createRouter("closet", [
+  { method: "POST", pattern: "/remove-background", handler: backgroundRemovalRoute },
   { method: "POST", pattern: "/analyze-item", handler: analyzeItemRoute },
   { method: "POST", pattern: "/batch-analyze", handler: batchAnalyzeRoute },
   { method: "GET", pattern: "/batch-status/:id", handler: batchStatusRoute },

@@ -30,6 +30,7 @@ import { unauthorized } from "./errors.ts";
 
 export interface AuthUser {
   id: string;
+  is_anonymous?: boolean;
 }
 
 export interface AuthClient {
@@ -60,7 +61,7 @@ function looksLikeJwt(token: string): boolean {
  *   - a structurally-valid-looking token that Supabase Auth itself rejects
  *     (expired, wrong signature, revoked, malformed claims, etc).
  */
-export async function authenticateRequest(req: Request, authClient: AuthClient): Promise<string> {
+export async function authenticateUser(req: Request, authClient: AuthClient): Promise<AuthUser> {
   const header = req.headers.get("authorization") ?? req.headers.get("Authorization");
   if (!header) {
     throw unauthorized("Missing Authorization header.");
@@ -81,5 +82,9 @@ export async function authenticateRequest(req: Request, authClient: AuthClient):
     throw unauthorized("Invalid or expired access token.");
   }
 
-  return data.user.id;
+  return data.user;
+}
+
+export async function authenticateRequest(req: Request, authClient: AuthClient): Promise<string> {
+  return (await authenticateUser(req, authClient)).id;
 }
