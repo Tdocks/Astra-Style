@@ -127,3 +127,11 @@ Deno.test("full pages fetch next page instead of silently truncating", async () 
     999,
   ]]);
 });
+
+Deno.test("rate-limited insights return the exact Retry-After reset", async () => {
+  const f = fixture();
+  f.deps.rateLimiter = { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) };
+  const response = await handleItemInsights(request(), f.deps, target);
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+});

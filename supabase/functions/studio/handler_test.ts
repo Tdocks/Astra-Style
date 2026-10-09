@@ -518,6 +518,42 @@ Deno.test("generate rejects a missing or malformed JWT", async () => {
   assertEquals(deps.jobStore.rows.size, 0);
 });
 
+Deno.test("Studio generation and status limits return exact Retry-After resets", async () => {
+  const generateDeps = buildDeps();
+  generateDeps.generateRateLimiter = {
+    check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }),
+  };
+  const generate = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, generateBody()),
+    generateDeps,
+  );
+  assertEquals(generate.status, 429);
+  assertEquals(generate.headers.get("Retry-After"), "23");
+
+  const statusDeps = buildDeps();
+  statusDeps.statusRateLimiter = {
+    check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 29 }),
+  };
+  const status = await handleStatus(
+    statusRequest(VALID_LOOKING_JWT_A, OUTFIT_ID),
+    statusDeps,
+    OUTFIT_ID,
+  );
+  assertEquals(status.status, 429);
+  assertEquals(status.headers.get("Retry-After"), "29");
+
+  const exportDeps = buildDeps();
+  exportDeps.generateRateLimiter = {
+    check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 31 }),
+  };
+  const exportResponse = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_A, { source_generation_id: OUTFIT_ID }),
+    exportDeps,
+  );
+  assertEquals(exportResponse.status, 429);
+  assertEquals(exportResponse.headers.get("Retry-After"), "31");
+});
+
 Deno.test("consent gate: no acknowledgment → 400, specific message, and NO row", async () => {
   const deps = buildDeps();
   const response = await handleGenerate(

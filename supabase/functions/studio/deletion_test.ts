@@ -111,3 +111,13 @@ Deno.test("Studio deletion completes a failed job that never stored output", asy
   assertEquals((await handleDelete(f.req(), f.deps, f.generation)).status, 200);
   assertEquals(f.events, ["prepare", "finish:true"]);
 });
+
+Deno.test("Studio deletion limit returns exact Retry-After on the first rejected request", async () => {
+  const f = fixture();
+  let response: Response | null = null;
+  for (let request = 0; request < 31; request++) {
+    response = await handleDelete(f.req(), f.deps, f.generation);
+  }
+  assertEquals(response?.status, 429);
+  assertEquals(response?.headers.get("Retry-After"), "60");
+});

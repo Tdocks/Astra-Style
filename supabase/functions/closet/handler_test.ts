@@ -452,3 +452,48 @@ Deno.test("batch-analyze rejects another user's storage path in the batch", asyn
   assertEquals(response.status, 400);
   assertEquals(deps.jobStore.createCalls.length, 0);
 });
+
+Deno.test("closet analyze and batch handlers return exact rate-limit reset hints", async () => {
+  const limiter = createRateLimiter({ limit: 1, windowMs: 60_000 });
+  limiter.check(USER_A_ID, Date.parse("2026-08-01T12:00:00Z"));
+  const analyzeResponse = await handleAnalyzeItem(
+    analyzeRequest(),
+    buildAnalyzeDeps({ rateLimiter: limiter }),
+  );
+  assertEquals(analyzeResponse.status, 429);
+  assertEquals(analyzeResponse.headers.get("Retry-After"), "60");
+
+  const batchLimiter = createRateLimiter({ limit: 1, windowMs: 60_000 });
+  batchLimiter.check(USER_A_ID, Date.parse("2026-08-01T12:00:00Z"));
+  const batchResponse = await handleBatchAnalyze(
+    new Request("https://example.com/closet/batch-analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${VALID_LOOKING_JWT_A}`,
+      },
+      body: JSON.stringify({
+        request_id: "limit",
+        client_version: "ios/1.0.0",
+        body: { items: [] },
+      }),
+    }),
+    buildBatchDeps({ rateLimiter: batchLimiter }),
+  );
+  assertEquals(batchResponse.status, 429);
+  assertEquals(batchResponse.headers.get("Retry-After"), "60");
+
+  const statusLimiter = createRateLimiter({ limit: 1, windowMs: 60_000 });
+  statusLimiter.check(USER_A_ID, Date.parse("2026-08-01T12:00:00Z"));
+  const jobID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const statusResponse = await handleBatchStatus(
+    new Request(`https://example.com/closet/batch-status/${jobID}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` },
+    }),
+    buildBatchDeps({ rateLimiter: statusLimiter }),
+    jobID,
+  );
+  assertEquals(statusResponse.status, 429);
+  assertEquals(statusResponse.headers.get("Retry-After"), "60");
+});

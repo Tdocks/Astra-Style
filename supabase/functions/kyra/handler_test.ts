@@ -193,12 +193,15 @@ function deps(
   provider: FakeProvider,
   store: KyraStore,
   configOverrides: Partial<HandlerDeps["config"]> = {},
+  rateLimiter: HandlerDeps["rateLimiter"] = {
+    check: () => ({ allowed: true, remaining: 9, retryAfterSeconds: 0 }),
+  },
 ): HandlerDeps {
   return {
     authClient: fakeAuthClient,
     store,
     provider: provider.provider,
-    rateLimiter: { check: () => ({ allowed: true, remaining: 9, retryAfterSeconds: 0 }) },
+    rateLimiter,
     config: {
       freeDailyConversationLimit: 3,
       confidenceEscalationThreshold: 0.55,
@@ -292,6 +295,20 @@ Deno.test("P5-KYRA-19: the 4th free-tier conversation today is blocked with an u
   // Nothing was created or spent.
   assertEquals(recording.threadsCreated.length, 0);
   assertEquals(provider.requests.length, 0);
+});
+
+Deno.test("Kyra burst rate limit returns the exact Retry-After reset", async () => {
+  const response = await handleKyraRespond(
+    request({ text: "hello" }),
+    deps(
+      scriptedProvider([]),
+      fakeStore(emptyRecording()),
+      {},
+      { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) },
+    ),
+  );
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
 });
 
 Deno.test("P5-KYRA-19: premium users are never blocked by the daily limit", async () => {

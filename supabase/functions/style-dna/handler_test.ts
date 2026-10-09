@@ -173,7 +173,7 @@ Deno.test("exceeding the rate limit is a 429 with Retry-After", async () => {
     deps,
   );
   assertEquals(second.status, 429);
-  assertNotEquals(second.headers.get("Retry-After"), null);
+  assertEquals(second.headers.get("Retry-After"), "60");
 });
 
 Deno.test("a CORS preflight is answered without authentication", async () => {

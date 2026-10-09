@@ -119,3 +119,13 @@ Deno.test("reference preflight and wrong method cannot initiate erasure", async 
   assertEquals((await handleReferenceDelete(f.req(undefined, null, "POST"), f.deps)).status, 405);
   assertEquals(f.calls, []);
 });
+
+Deno.test("reference deletion limit returns exact Retry-After on the first rejected request", async () => {
+  const f = fixture();
+  let response: Response | null = null;
+  for (let request = 0; request < 31; request++) {
+    response = await handleReferenceDelete(f.req(), f.deps);
+  }
+  assertEquals(response?.status, 429);
+  assertEquals(response?.headers.get("Retry-After"), "60");
+});

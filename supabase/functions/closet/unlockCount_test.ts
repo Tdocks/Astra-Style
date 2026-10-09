@@ -144,6 +144,14 @@ Deno.test("missing or peer-owned saved item is unavailable", async () => {
   assertEquals((await handleScanUnlockCount(request(), TARGET, peer.deps)).status, 404);
 });
 
+Deno.test("rate-limited scan unlock count returns the exact Retry-After reset", async () => {
+  const f = fixture();
+  f.deps.rateLimiter = { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) };
+  const response = await handleScanUnlockCount(request(), TARGET, f.deps);
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+});
+
 Deno.test("unauthenticated callers never read the closet", async () => {
   const f = fixture({ authenticated: false });
   assertEquals((await handleScanUnlockCount(request(), TARGET, f.deps)).status, 401);

@@ -197,6 +197,17 @@ Deno.test("rejects a request with no Authorization header", async () => {
   assertEquals(response.status, 401);
 });
 
+Deno.test("daily brief rate limit returns the exact Retry-After reset", async () => {
+  const response = await handleGenerateDailyBrief(
+    requestFor(generateBody()),
+    buildDeps({
+      rateLimiter: { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) },
+    }),
+  );
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+});
+
 Deno.test("rejects a malformed JWT", async () => {
   const response = await handleGenerateDailyBrief(
     requestFor(generateBody(), { Authorization: "Bearer not-a-jwt" }),

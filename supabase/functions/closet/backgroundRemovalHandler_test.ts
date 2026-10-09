@@ -103,3 +103,12 @@ Deno.test("oversized requests are rejected before processing", async () => {
   );
   assertEquals(f.calls.length, 0);
 });
+
+Deno.test("rate-limited cutout requests return the exact Retry-After reset", async () => {
+  const f = fixture();
+  f.deps.rateLimiter = { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) };
+  const response = await handleBackgroundRemoval(request(), f.deps);
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+  assertEquals(f.calls.length, 0);
+});

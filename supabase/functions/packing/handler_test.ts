@@ -192,6 +192,17 @@ Deno.test("rejects a missing JWT", async () => {
   assertEquals(response.status, 401);
 });
 
+Deno.test("packing rate limit returns the exact Retry-After reset", async () => {
+  const response = await handleGeneratePacking(
+    requestFor(packingBody()),
+    buildDeps({
+      rateLimiter: { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) },
+    }),
+  );
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+});
+
 Deno.test("two days with two looks rotate instead of repeating the same hoodie", async () => {
   const repo = memoryRepository(TWO_LOOKS);
   const response = await handleGeneratePacking(

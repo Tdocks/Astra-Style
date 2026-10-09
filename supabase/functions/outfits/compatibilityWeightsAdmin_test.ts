@@ -6,6 +6,7 @@ import {
   loadCompatibilityWeightsConfig,
 } from "../_shared/scoring/compatibilityWeights.ts";
 import type { ComponentWeights } from "../_shared/scoring/compatibility.ts";
+import type { RateLimiter } from "../_shared/rateLimit.ts";
 import { scoreOutfit } from "../_shared/scoring/compatibility.ts";
 import { classifyNeutral, rgbToLCh } from "../_shared/scoring/colorSpace.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
@@ -75,6 +76,7 @@ function dependencies(options: {
     weights: ComponentWeights,
   ) => Promise<CompatibilityWeightsConfig | null>;
   readonly now?: () => Date;
+  readonly rateLimiter?: RateLimiter;
 } = {}) {
   let authCalls = 0;
   let updateCalls = 0;
@@ -98,7 +100,9 @@ function dependencies(options: {
   };
   const deps = {
     authClient,
-    rateLimiter: { check: () => ({ allowed: true, remaining: 9, retryAfterSeconds: 0 }) },
+    rateLimiter: options.rateLimiter ?? {
+      check: () => ({ allowed: true, remaining: 9, retryAfterSeconds: 0 }),
+    },
     now: options.now ?? (() => new Date("2026-10-09T12:00:00Z")),
     store: {
       async updateIfVersion(version: number, weights: ComponentWeights) {
@@ -275,4 +279,17 @@ Deno.test("an updated config re-fetch changes the compatibility score", async ()
     after < before,
     `a higher color weight should lower the clash score: ${after} vs ${before}`,
   );
+});
+
+Deno.test("compatibility weights admin limit returns the exact Retry-After reset", async () => {
+  const fixture = dependencies({
+    rateLimiter: { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) },
+  });
+  const response = await handleUpdateCompatibilityWeights(
+    request({ expected_version: 1, weights: DEFAULT_WEIGHTS }),
+    fixture.deps,
+  );
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+  assertEquals(fixture.updateCalls, 0);
 });

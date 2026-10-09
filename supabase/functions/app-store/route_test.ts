@@ -71,6 +71,34 @@ Deno.test("verified duplicate notifications are acknowledged despite bundle thro
   assertEquals((await duplicate.json()).result, "ignored");
 });
 
+Deno.test("verified bundle limit returns exact Retry-After on a new notification", async () => {
+  const route = createAppStoreWebhookRoute({
+    store: emptyStore(),
+    verifier: {
+      verifyNotification: (() => {
+        let sequence = 0;
+        return () =>
+          Promise.resolve({
+            notificationUUID: `notification-${++sequence}`,
+            signedDate: NOW.getTime(),
+            data: { environment: "Sandbox", bundleId: "com.astrastyle.app" },
+          });
+      })(),
+      verifyTransaction: () => Promise.reject(new Error("not used")),
+      verifyRenewalInfo: () => Promise.resolve({}),
+    },
+    inboundRateLimiter: createRateLimiter({ limit: 10, windowMs: 60_000 }),
+    verifiedBundleRateLimiter: createRateLimiter({ limit: 1, windowMs: 60_000 }),
+    now: () => NOW,
+  });
+
+  const first = await route(webhookRequest("signed-1", "bundle-1"));
+  const second = await route(webhookRequest("signed-2", "bundle-2"));
+  assertEquals(first.status, 200);
+  assertEquals(second.status, 429);
+  assertEquals(second.headers.get("Retry-After"), "60");
+});
+
 function webhookRequest(payload: string, requestId: string): Request {
   return new Request("https://example.supabase.co/app-store/webhook", {
     method: "POST",

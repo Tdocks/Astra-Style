@@ -86,6 +86,15 @@ Deno.test("signs only a selected image id returned by the caller-scoped public-l
   });
 });
 
+Deno.test("public look image signing returns the exact Retry-After reset", async () => {
+  const { deps } = dependencies({
+    rateLimiter: { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) },
+  });
+  const response = await handleSignPublicLookImages(request([]), deps);
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+});
+
 Deno.test("returns no URLs when no requested image belongs to a public worn look", async () => {
   const { deps, calls } = dependencies({
     fetchPublicGarments: () => Promise.resolve([]),

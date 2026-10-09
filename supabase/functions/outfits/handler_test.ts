@@ -652,3 +652,14 @@ Deno.test("record-wear: Wear This stays ungated regardless of prior wear count",
   assertEquals(response.status, 200);
   assertEquals(inserts.length, 1);
 });
+
+Deno.test("record-wear rate limit returns the exact Retry-After reset", async () => {
+  const response = await handleRecordWear(
+    requestFor("record-wear", WEAR_ENVELOPE, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps({
+      rateLimiter: { check: () => ({ allowed: false, remaining: 0, retryAfterSeconds: 23 }) },
+    }),
+  );
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "23");
+});

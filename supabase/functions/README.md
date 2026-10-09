@@ -350,17 +350,20 @@ import map and strict compiler options every file below it inherits):
 cd supabase/functions
 
 deno check _shared/*.ts outfits/*.ts   # or: deno task check
-deno test --allow-env _shared/ outfits/  # or: deno task test
+deno test --allow-env \
+  --allow-read=README.md,profile/index.ts,profile/referenceDeletion.ts,style-dna/index.ts,closet/index.ts,outfits/index.ts,daily-brief/index.ts,kyra/index.ts,products/index.ts,studio/index.ts,studio/deletion.ts,packing/index.ts,subscriptions/index.ts,lookbook/index.ts,account/index.ts,app-store/index.ts \
+  _shared/ outfits/  # or: deno task test
 deno fmt --check _shared/ outfits/       # or: deno task fmt-check
 deno lint _shared/ outfits/              # or: deno task lint
 ```
 
-`deno test` needs `--allow-env` only because `_shared/supabaseClient.ts`
-reads `Deno.env.get(...)` at module scope in a code path some tests import
-transitively for type purposes; no test in this suite makes a network call
-or touches a real Supabase project — every Supabase/Auth interaction is
-mocked at the `AuthClient`/`ClosetRepository` interface boundary (see
-`outfits/handler_test.ts`'s header comment).
+`deno test` needs `--allow-env` because `_shared/supabaseClient.ts` reads
+`Deno.env.get(...)` at module scope. The bounded `--allow-read` list is used
+by `_shared/rateLimitDocumentation_test.ts` to compare the README's endpoint
+budgets with route registrations and limiter constants. No test makes a
+network call or touches a real Supabase project — every Supabase/Auth
+interaction is mocked at the `AuthClient`/`ClosetRepository` interface
+boundary (see `outfits/handler_test.ts`'s header comment).
 
 `outfits/index.ts` (the `Deno.serve` wiring) is intentionally *not*
 covered by a unit test — it's wiring plus a route table, and the dispatch

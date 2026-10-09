@@ -357,7 +357,7 @@ Deno.test("exceeding the rate limit is a 429 with a Retry-After header", async (
   );
   assertEquals(second.status, 429);
   assertEquals((await second.json()).error.category, "rate_limited");
-  assertNotEquals(second.headers.get("Retry-After"), null);
+  assertEquals(second.headers.get("Retry-After"), "60");
 });
 
 Deno.test("the rate limit is per user, not global", async () => {
