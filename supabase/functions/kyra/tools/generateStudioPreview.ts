@@ -2,7 +2,11 @@ import type { StylistToolDefinition } from "../../_shared/providers/stylistReaso
 import { generateStudioPreviewDefinition as previewSchema } from "./phase6Stubs.ts";
 import { AppError } from "../../_shared/errors.ts";
 import { isUUID } from "../../_shared/validation.ts";
-import { type PendingStudioConfirmation, studioGenerationConfirmed } from "./studioConfirmation.ts";
+import {
+  type PendingStudioConfirmation,
+  studioGenerationConfirmed,
+  studioRequestCancelled,
+} from "./studioConfirmation.ts";
 
 export interface StudioPreviewSelection {
   outfitId: string | null;
@@ -71,6 +75,12 @@ export async function executeGenerateStudioPreview(
   args: Record<string, unknown>,
   deps: GenerateStudioPreviewDeps,
 ): Promise<Record<string, unknown>> {
+  if (studioRequestCancelled(deps.userText)) {
+    return {
+      error: "PREVIEW_CANCELLED",
+      detail: "The user declined generation. Do not submit or ask for approval again in this turn.",
+    };
+  }
   const selection = parseStudioPreview(args);
   if (!selection) {
     return {

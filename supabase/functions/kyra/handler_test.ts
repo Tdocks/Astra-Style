@@ -704,3 +704,175 @@ Deno.test("Studio cost question is persisted before its private approval record"
   assertEquals(response.status, 200);
   assertEquals(prepared, 1);
 });
+
+Deno.test("cancelled preview closes approval and cannot prepare a replacement in the same turn", async () => {
+  const { studioSelectionKey } = await import("./tools/generateStudioPreview.ts");
+  const recording = emptyRecording();
+  const selection = {
+    outfitId: null,
+    itemIds: [PACKET_ITEM],
+    referenceImageId: PACKET_ITEM,
+    pose: "standing" as const,
+    background: "studio-neutral",
+    resolution: "draft" as const,
+  };
+  let closed = 0;
+  const provider = scriptedProvider([
+    {
+      kind: "result",
+      result: {
+        finishReason: "tool_calls",
+        toolCalls: [{
+          id: "preview_call",
+          name: "generate_studio_preview",
+          arguments: { item_ids: [PACKET_ITEM], reference_image_id: PACKET_ITEM },
+        }],
+      },
+    },
+    { kind: "result", result: { message: goodJson() } },
+  ]);
+  const response = await handleKyraRespond(
+    request({ text: "Don't generate this preview", thread_id: THREAD }),
+    {
+      ...deps(
+        provider,
+        fakeStore(recording, {
+          listRecentMessages: () =>
+            Promise.resolve([{
+              id: ASSISTANT_MESSAGE,
+              role: "assistant",
+              content: "It uses one preview. Generate it?",
+              structured_payload: null,
+            }]),
+        }),
+      ),
+      studio: {
+        confirmations: {
+          pending: (_user, _thread, prompt) => {
+            assertEquals(prompt, ASSISTANT_MESSAGE);
+            return Promise.resolve({
+              id: USER_MESSAGE,
+              promptMessageID: ASSISTANT_MESSAGE,
+              selection,
+              selectionKey: studioSelectionKey(selection),
+              expiresAt: "2099-01-01T00:00:00Z",
+            });
+          },
+          close: () => {
+            closed++;
+            return Promise.resolve();
+          },
+          prepare: () => {
+            throw new Error("Cancellation cannot create a new approval");
+          },
+        },
+        preview: (turn) => {
+          assertEquals(turn.proposal, null);
+          return {
+            userText: turn.userText,
+            pending: null,
+            currentConsentTermsVersion: "fixture",
+            resolveOwnedConsentedReference: () => {
+              throw new Error("Cancelled");
+            },
+            enqueue: () => {
+              throw new Error("Cancelled");
+            },
+          };
+        },
+      },
+    },
+  );
+  assertEquals(response.status, 200);
+  assertEquals(closed, 1);
+  assert(
+    provider.requests[1]?.messages.some((message) =>
+      message.content?.includes("PREVIEW_CANCELLED")
+    ),
+  );
+});
+
+Deno.test("matching saved yes approval submits once and closes its confirmation", async () => {
+  const { studioSelectionKey } = await import("./tools/generateStudioPreview.ts");
+  const recording = emptyRecording();
+  const selection = {
+    outfitId: null,
+    itemIds: [PACKET_ITEM],
+    referenceImageId: PACKET_ITEM,
+    pose: "standing" as const,
+    background: "studio-neutral",
+    resolution: "draft" as const,
+  };
+  const proposal = {
+    id: USER_MESSAGE,
+    promptMessageID: ASSISTANT_MESSAGE,
+    selection,
+    selectionKey: studioSelectionKey(selection),
+    expiresAt: "2099-01-01T00:00:00Z",
+  };
+  let submitted = 0;
+  let closed = 0;
+  const provider = scriptedProvider([
+    {
+      kind: "result",
+      result: {
+        finishReason: "tool_calls",
+        toolCalls: [{
+          id: "preview_call",
+          name: "generate_studio_preview",
+          arguments: { item_ids: [PACKET_ITEM], reference_image_id: PACKET_ITEM },
+        }],
+      },
+    },
+    { kind: "result", result: { message: goodJson() } },
+  ]);
+  const response = await handleKyraRespond(request({ text: "yes" }), {
+    ...deps(
+      provider,
+      fakeStore(recording, {
+        listRecentMessages: () =>
+          Promise.resolve([{
+            id: ASSISTANT_MESSAGE,
+            role: "assistant",
+            content: "It uses one preview. Generate it?",
+            structured_payload: null,
+          }]),
+      }),
+    ),
+    studio: {
+      confirmations: {
+        pending: () => Promise.resolve(proposal),
+        close: (_user, _thread, id) => {
+          assertEquals(id, proposal.id);
+          closed++;
+          return Promise.resolve();
+        },
+        prepare: () => {
+          throw new Error("Accepted approval should not be replaced");
+        },
+      },
+      preview: (turn) => {
+        assertEquals(turn.proposal?.id, proposal.id);
+        return {
+          userText: turn.userText,
+          pending: { selectionKey: proposal.selectionKey, askedAboutGenerationCost: true },
+          currentConsentTermsVersion: "fixture",
+          resolveOwnedConsentedReference: () =>
+            Promise.resolve({ path: "owned", termsVersion: "fixture" }),
+          enqueue: (selected) => {
+            assertEquals(selected, selection);
+            submitted++;
+            return Promise.resolve({
+              generationId: PACKET_ITEM,
+              status: "queued",
+              estimatedSeconds: 120,
+            });
+          },
+        };
+      },
+    },
+  });
+  assertEquals(response.status, 200);
+  assertEquals(submitted, 1);
+  assertEquals(closed, 1);
+});

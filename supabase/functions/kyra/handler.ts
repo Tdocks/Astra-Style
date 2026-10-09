@@ -188,6 +188,7 @@ export interface KyraConfig {
   readonly memoryMinimumConfidence: number;
 }
 
+import { studioRequestCancelled } from "./tools/studioConfirmation.ts";
 import type { AnalyzeProductDeps } from "./tools/analyzeProduct.ts";
 import {
   type GenerateStudioPreviewDeps,
@@ -891,7 +892,7 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         lastHistory?.role === "assistant" ? lastHistory.id ?? null : null,
       )
       : null;
-    if (deps.studio && studioProposal && /^(no|nope|nah|cancel|stop)\b/i.test(body.text.trim())) {
+    if (deps.studio && studioProposal && studioRequestCancelled(body.text)) {
       await deps.studio.confirmations.close(userId, threadId, studioProposal.id);
       studioProposal = null;
     }

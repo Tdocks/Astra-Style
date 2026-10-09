@@ -6,16 +6,19 @@ export interface PendingStudioConfirmation {
   askedAboutGenerationCost: boolean;
 }
 
+export function studioRequestCancelled(userText: string): boolean {
+  const text = userText.trim().toLowerCase().replace(/[’]/g, "'");
+  return /^(no|nope|nah|cancel|stop)\b/.test(text) ||
+    /\b(don't|do not|never)\b.{0,60}\b(generate|create|show|spend|use|charge)\b/.test(text);
+}
+
 export function studioGenerationConfirmed(
   userText: string,
   selectionKey: string,
   pending: PendingStudioConfirmation | null,
 ): boolean {
   const text = userText.trim().toLowerCase().replace(/[’]/g, "'");
-  if (
-    !text || /^(no|nope|nah|cancel|stop)\b/.test(text) ||
-    /\b(don't|do not|never)\b.{0,60}\b(generate|create|show|spend|use|charge)\b/.test(text)
-  ) return false;
+  if (!text || studioRequestCancelled(userText)) return false;
   // A yes is meaningful only for the same selection and an explicit cost prompt.
   if (/^(yes|yeah|yep|sure|go ahead|please do|do it)[.!\s]*$/.test(text)) {
     return pending?.askedAboutGenerationCost === true && pending.selectionKey === selectionKey;

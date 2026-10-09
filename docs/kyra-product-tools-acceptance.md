@@ -258,3 +258,18 @@ owned reference-context filtering, duplicate removal and stale-consent rejection
 Lint and entrypoint type checks passed. Full conversation/concurrency acceptance,
 migration/function deployment and native preview job presentation remain open.
 The deployed Kyra function is still the earlier version.
+
+## Affirmative and cancellation conversation checks
+
+Added handler acceptance fixtures for a matching saved affirmative (one submit,
+then confirmation closure) and explicit negative generation instructions
+(closure, no submission, no replacement approval even if the model calls the
+preview tool). Cancellation detection is shared between the handler and executor;
+`PREVIEW_CANCELLED` prevents a declined request from reopening a cost question
+in the same turn. This corrects a gap in the initial orchestration implementation.
+
+133 Kyra tests passed (`/tmp/astra-kyra-cancellation-tests.log`), with lint and
+entrypoint type checks passing. These fixtures exercise real handler/executor
+logic with mocked persistence/provider/queue dependencies. They do not establish
+hosted persistence, live model behavior, concurrent cancellation ordering or
+native preview-job UI acceptance. Migration and function deployment remain open.
