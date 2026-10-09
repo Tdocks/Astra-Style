@@ -19,13 +19,25 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `28`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `29`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 28 (2026-10-09)
+## Current internal release — build 29 (2026-10-09)
+
+Version **1.0.0 (29)** is VALID and IN_BETA_TESTING in Internal
+(build ID `d4950b5a-1a54-4a51-9512-d67ab7321a06`). Internal group membership
+and en-US testing notes were verified by readback. Adds explicit durable-storage
+startup recovery and serialized, account-scoped offline replay when connectivity
+returns. Eight mock core UI flows passed; startup retry was checked in dark and
+light at accessibility text sizes. Historical store upgrades are being verified
+separately and are not included in this build. Real-device, live-provider, purchase,
+and legal acceptance remain open. External review remains unsubmitted; public
+group still uses build 11.
+
+## Previous internal release — build 28 (2026-10-09)
 
 Version **1.0.0 (28)** is VALID and IN_BETA_TESTING in Internal
 (build ID `6650cb3c-b144-4e3b-92a8-2bfd3c46df08`). Internal group membership
