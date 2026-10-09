@@ -20,11 +20,13 @@ on:
       - "ios/**"
       - ".github/workflows/ios.yml"
       - "scripts/check_*"
+      - "scripts/manage_ios_package_resolution.py"
   pull_request:
     paths:
       - "ios/**"
       - ".github/workflows/ios.yml"
       - "scripts/check_*"
+      - "scripts/manage_ios_package_resolution.py"
 
 concurrency:
   group: ios-${{ github.workflow }}-${{ github.ref }}
@@ -63,6 +65,9 @@ jobs:
 
       - name: Verify simulator test partition coverage
         run: python3 scripts/check_ios_test_partitions.py
+
+      - name: Verify reviewed SwiftPM lock helper
+        run: python3 scripts/manage_ios_package_resolution.py --self-test
 
       - name: Install SwiftLint
         run: brew install swiftlint
@@ -187,6 +192,20 @@ jobs:
         working-directory: ios
         run: xcodegen generate
 
+      - name: Install reviewed SwiftPM resolution
+        working-directory: ios
+        run: python3 ../scripts/manage_ios_package_resolution.py --install
+
+      - name: Resolve only reviewed Swift packages
+        working-directory: ios
+        # Resolve the generated project against the separately tracked lock.
+        # A changed requirement must be reviewed and recorded, not floated by CI.
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project AstraStyle.xcodeproj \
+            -scheme AstraStyle \
+            -onlyUsePackageVersionsFromResolvedFile
+
       - name: List available iOS simulators
         run: xcrun simctl list devices available
         # Always runs, even if a later step fails — the first thing you want
@@ -239,6 +258,7 @@ jobs:
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination "id=$ASTRA_SIM_ID" \
+            -onlyUsePackageVersionsFromResolvedFile \
             -skipMacroValidation \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-build.log"
 
@@ -296,6 +316,7 @@ jobs:
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination "id=$ASTRA_SIM_ID" \
+            -onlyUsePackageVersionsFromResolvedFile \
             -skipMacroValidation \
             -parallel-testing-enabled NO \
             "${partition_args[@]}" \

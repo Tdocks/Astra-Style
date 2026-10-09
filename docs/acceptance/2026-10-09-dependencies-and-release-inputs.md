@@ -1,10 +1,10 @@
 # iOS dependency inventory and release inputs — 2026-10-09
 
-This inventory records the package versions and revisions resolved on the audit machine, with purposes checked against package manifests and license identifiers checked against the corresponding upstream license files. It is not legal advice or a completed App Store review. The generated Xcode project and its Package.resolved are ignored and are not checked in, so the transitive revision list below is an audit-machine snapshot, not a lock enforced by CI.
+This inventory records the package versions and revisions resolved on the audit machine, with purposes checked against package manifests and license identifiers checked against the corresponding upstream license files. It is not legal advice or a completed App Store review. The generated Xcode project and its Package.resolved are ignored; the reviewed lock is tracked separately at ios/Dependencies/AstraStyle.Package.resolved and CI installs and enforces that graph.
 
 ## Resolved iOS package graph
 
-The app declares one direct package dependency in ios/project.yml: Supabase Swift, product Supabase, now pinned with exactVersion 2.54.0. The locally generated Package.resolved on the audit machine resolved this graph:
+The app declares one direct package dependency in ios/project.yml: Supabase Swift, product Supabase, pinned with exactVersion 2.54.0. The tracked canonical lock records the transitive graph that resolved on the audit machine:
 
 | Package | Local resolved version | Local revision | Role in the app/package graph | License evidence |
 |---|---:|---|---|---|
@@ -16,9 +16,9 @@ The app declares one direct package dependency in ios/project.yml: Supabase Swif
 | swift-http-types | 1.6.0 | db774a277f60063a32d854f2980299caf06da041 | HTTP request/response types used by Supabase networking targets. | Apache-2.0; LICENSE.txt and NOTICE.txt in the pinned checkout. |
 | xctest-dynamic-overlay | 1.11.0 | 8f6abcf4c8950e2679d5b2fee4ca284fd7c34886 | Supabase package's issue-reporting and XCTest overlay dependency. | MIT; LICENSE in the pinned checkout. |
 
-The revision values above were read from ios/AstraStyle.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved and the corresponding checkouts under Xcode DerivedData on the audit machine. That generated lockfile and project file are not tracked. The project does not directly declare SnapshotTesting; its presence in Supabase's own package manifest as a test dependency does not make it a resolved app dependency. Apple SDK frameworks are not third-party package pins in this inventory.
+The revision values above were read from the generated lock and matching checkouts under Xcode DerivedData on the audit machine, then recorded in the tracked canonical lock. CI copies that canonical file into the generated project after XcodeGen and runs package resolution with onlyUsePackageVersionsFromResolvedFile; build and test commands use the same restriction. The project does not directly declare SnapshotTesting; its presence in Supabase's own package manifest as a test dependency does not make it a resolved app dependency. Apple SDK frameworks are not third-party package pins in this inventory.
 
-Before release, choose and enforce a transitive dependency-lock policy: ensure CI resolves and reports the same reviewed package graph, or track the generated Package.resolved if that is the chosen policy. Verify that the final archived app and its included package notices satisfy each license's attribution and notice conditions. Re-run this inventory against the actual CI/archive resolution; the exact direct Supabase version alone does not pin its transitive graph.
+For local work, run `python3 scripts/manage_ios_package_resolution.py --install` after XcodeGen and pass `-onlyUsePackageVersionsFromResolvedFile` to Xcode builds and tests. To change a transitive dependency, resolve it deliberately, review the full lock diff and package licenses, then record it with scripts/manage_ios_package_resolution.py --record-reviewed-resolution --reviewed. The helper rejects an unlocked/floating Supabase declaration, malformed lock, duplicate package identities, and a Supabase version that differs from project.yml. Verify that the final archived app and its included package notices satisfy each license's attribution and notice conditions. The exact direct Supabase version alone does not pin its transitive graph; the tracked lock and CI enforcement do.
 
 ## Physical-device acceptance
 
