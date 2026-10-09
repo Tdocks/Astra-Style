@@ -399,3 +399,15 @@ mock polling acceptance; it does not establish live image-provider/photo fidelit
 physical-device acceptance or every accessibility layout. Build 21 contains the
 preview flow; these additional mock fixture/test changes are not a new release.
 Hosted ask/yes/preview generation remains open.
+
+## Light mode and large-text preview routing
+
+The queued-preview UI fixture now shares one assertion helper across the standard
+flow and light mode with Accessibility XXXL text. The preview action scrolls into
+view before tapping. The large-text run passed opening, mock completion, closing
+and retaining the chat action (`/tmp/astra-kyra-preview-large-ui.log`, TEST
+SUCCEEDED; Test-AstraStyle-2026.10.08_20-41-27--0400.xcresult).
+
+This confirms interactive routing at that size, not a complete visual clipping,
+VoiceOver or physical-device audit. No production behavior or new binary upload
+was required. Full hosted personal-reference generation still needs acceptance.

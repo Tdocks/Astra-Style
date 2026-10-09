@@ -285,7 +285,18 @@ final class AstraStyleUITests: XCTestCase {
     }
 
     func testKyraQueuedPreviewOpensAndReturnsToChat() throws {
-        launchMockMain(extraArguments: ["-astra-test-chat-preview"])
+        assertQueuedPreviewFlow()
+    }
+
+    func testKyraQueuedPreviewLightAccessibilityText() throws {
+        assertQueuedPreviewFlow(extraArguments: [
+            "-astra-theme", "light",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        ])
+    }
+
+    private func assertQueuedPreviewFlow(extraArguments: [String] = []) {
+        launchMockMain(extraArguments: ["-astra-test-chat-preview"] + extraArguments)
         let ask = app.descendants(matching: .any)["kyra.ask"]
         awaitElement(ask, "Ask Kyra")
         ask.tap()
@@ -294,6 +305,7 @@ final class AstraStyleUITests: XCTestCase {
         prompt.tap()
         let preview = app.buttons["Open preview"]
         awaitElement(preview, "Queued preview action")
+        preview.scrollIntoView(in: app)
         preview.tap()
         awaitElement(app.staticTexts["Visual estimate"], "Studio detail sheet")
         awaitElement(app.staticTexts["This is a visual estimate, not a photograph."], "Completed preview after status polling")
