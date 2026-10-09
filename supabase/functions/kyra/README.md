@@ -56,8 +56,8 @@ by design (`daily-brief/README.md`); the `get_weather` tool reads this snapshot 
 unavailable. The shipped iOS `KyraRespondBody` does not send it yet; the field is accepted now so
 the client can add it without a server change.
 
-`studio_inspiration` is optional and accepts only a Studio generation UUID (one per message),
-never a storage path or URL. The function verifies that the caller owns a completed, undeleted
+`studio_inspiration` is optional and accepts only a Studio generation UUID (one per message), never
+a storage path or URL. The function verifies that the caller owns a completed, undeleted
 `inspiration` or `closet_inspiration` generation with its canonical result path, then creates a
 five-minute signed URL through the caller-scoped Storage client. Only that URL is passed to the
 stylist provider as image input; it is not written to message text or the context packet. Missing,

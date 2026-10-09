@@ -21,8 +21,7 @@ export function extractExportedStorageReferences(
   const add = (candidate: unknown, pattern: RegExp): void => {
     if (typeof candidate === "string" && pattern.test(candidate)) paths.add(candidate);
   };
-  const rows = (table: string): Record<string, unknown>[] =>
-    (tables[table] ?? []).filter(isRecord);
+  const rows = (table: string): Record<string, unknown>[] => (tables[table] ?? []).filter(isRecord);
 
   for (const row of rows("profiles")) {
     if (row["id"] !== owner) continue;

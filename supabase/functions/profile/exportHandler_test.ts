@@ -75,7 +75,8 @@ Deno.test("exports only the identity verified from the bearer token", async () =
 Deno.test("emits only validated owner photo references with an honest scope", async () => {
   const ownCutout = `users/${USER_ID}/closet/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png`;
   const ownSource = `users/${USER_ID}/closet/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg`;
-  const peerSource = `users/22222222-2222-4222-8222-222222222222/closet/cccccccc-cccc-4ccc-8ccc-cccccccccccc.jpg`;
+  const peerSource =
+    `users/22222222-2222-4222-8222-222222222222/closet/cccccccc-cccc-4ccc-8ccc-cccccccccccc.jpg`;
   const repository: PersonalDataExportRepository = {
     fetchForUser(userId) {
       return Promise.resolve({
@@ -95,8 +96,16 @@ Deno.test("emits only validated owner photo references with an honest scope", as
     { bucket: "user-content", path: ownCutout },
     { bucket: "user-content", path: ownSource },
   ]);
-  assertEquals(payload.data.storage_manifest_scope.includes("does not enumerate all Storage objects"), true);
-  assertEquals(payload.data.storage_manifest_scope.includes("does not verify whether referenced objects exist"), true);
+  assertEquals(
+    payload.data.storage_manifest_scope.includes("does not enumerate all Storage objects"),
+    true,
+  );
+  assertEquals(
+    payload.data.storage_manifest_scope.includes(
+      "does not verify whether referenced objects exist",
+    ),
+    true,
+  );
   assertEquals(payload.data.storage_manifest_scope.includes("does not include image files"), true);
 });
 
