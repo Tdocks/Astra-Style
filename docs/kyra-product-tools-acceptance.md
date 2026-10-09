@@ -72,3 +72,21 @@ confirmation and current owned-photo consent before calling its job service.
 Four executor tests plus two confirmation tests passed. Durable reference lookup,
 confirmation storage, native consent registration, Studio enum mapping, high-res
 support and per-turn job deduplication remain open; this is not deployed.
+
+## Existing reference identity and consent source
+
+Inspection of `reference_photo_key` in ADR 0026's deployed migration confirmed
+that saved `.jpg` filenames already contain reference UUIDs. `studioReferences.ts`
+resolves that UUID only under the verified user's folder, requires the path to
+remain in `body_profiles.appearance.reference_selfie_paths`, and requires a live
+owned Studio row with a current acknowledged server-accepted consent receipt.
+Only `id` is selected from Studio rows, excluding job leases and prompt contents.
+A photo never accepted by native Studio remains unavailable for chat generation;
+no consent is synthesized for it. This supersedes the earlier assumption that a
+new reference-identity schema is necessary.
+
+`studioRequest.ts` maps chat pose/background choices to existing API enums and
+passes the real Studio request parser. Current draft-only service cannot fulfill
+hi-res requests; these fail explicitly. Reference resolution and request mapping
+have six fixture tests. Full service wiring, hosted RLS/erasure races, persisted
+confirmation and per-turn job deduplication remain open. No deployment yet.
