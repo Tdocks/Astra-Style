@@ -50,3 +50,25 @@ remain to be implemented. It is not a completed search feature.
 Embedding-provider credential reuse confirmation is pending under the OpenAI
 API-key skill. Continue non-provider work while awaiting that answer. Budget
 filter currency context also needs explicit handling before hosted search acceptance.
+
+## Studio chat confirmation groundwork
+
+`tools/studioConfirmation.ts` and two passing tests cover conservative direct
+preview commands and affirmative replies bound to a server-owned selection key
+and cost prompt. Questions, negation, cancellation and mismatched selections do
+not authorize paid generation. This guard is not registered yet.
+
+Current saved photos use private storage paths, whereas the master tool schema
+uses reference UUIDs. Current Studio photo consent is attested by the native
+request, not available as a durable Kyra authorization record. Before enabling
+chat generation, implement durable consent/reference identity and persisted
+selection-bound confirmations; enforce owned items/photos and deduplicate jobs
+per approved turn. Never synthesize consent from a model tool argument or treat
+this isolated guard as completion of the Studio preview feature.
+
+The unregistered Studio preview executor now validates exclusive outfit/item
+selection, bounded UUID items and display options. It requires exact selection
+confirmation and current owned-photo consent before calling its job service.
+Four executor tests plus two confirmation tests passed. Durable reference lookup,
+confirmation storage, native consent registration, Studio enum mapping, high-res
+support and per-turn job deduplication remain open; this is not deployed.
