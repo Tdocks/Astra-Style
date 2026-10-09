@@ -205,7 +205,10 @@ export async function handleWardrobeScore(
     const limit = deps.rateLimiter.check(userId, deps.now().getTime());
     if (!limit.allowed) {
       return errorResponse(
-        rateLimited("Please wait a moment before refreshing your Wardrobe Score."),
+        rateLimited(
+          "Please wait a moment before refreshing your Wardrobe Score.",
+          limit.retryAfterSeconds,
+        ),
         requestId,
         { ...CORS_HEADERS, "Retry-After": String(limit.retryAfterSeconds) },
       );

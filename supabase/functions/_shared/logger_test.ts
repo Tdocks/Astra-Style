@@ -69,3 +69,64 @@ Deno.test("does not leak an Authorization/JWT-shaped field if ever passed by mis
   assertEquals(parsed.authorization, "[redacted]");
   assertEquals(parsed.jwt, "[redacted]");
 });
+
+Deno.test("redacts message-like and normalized private-field names", async () => {
+  const privateText = "a private prompt mentioning closet/owner/image.jpg";
+  const { logLines } = await captureConsole(() => {
+    createLogger("req-safe").warn("request_rejected", {
+      message: privateText,
+      DETAIL: privateText,
+      rawBody: privateText,
+      imageUrl: privateText,
+      storagePath: privateText,
+      latency_ms: 12,
+    });
+  });
+  const loggedLine = logLines[0]!;
+  const parsed = JSON.parse(loggedLine);
+  assertEquals(parsed.message, "[redacted]");
+  assertEquals(parsed.DETAIL, "[redacted]");
+  assertEquals(parsed.rawBody, "[redacted]");
+  assertEquals(parsed.imageUrl, "[redacted]");
+  assertEquals(parsed.storagePath, "[redacted]");
+  assertEquals(parsed.latency_ms, 12);
+  assertEquals(loggedLine.includes(privateText), false);
+});
+
+Deno.test("redacts standard credential and signed-payload aliases", async () => {
+  const sentinel = "sensitive-value-must-not-appear";
+  const { errorLines } = await captureConsole(() => {
+    createLogger("req-secrets").error("credential_probe", {
+      refresh_token: sentinel,
+      refreshToken: sentinel,
+      API_KEY: sentinel,
+      apiKey: sentinel,
+      service_role_key: sentinel,
+      serviceRoleKey: sentinel,
+      signed_payload: sentinel,
+      signedPayload: sentinel,
+      client_secret: sentinel,
+      clientSecret: sentinel,
+      secret: sentinel,
+    });
+  });
+  const parsed = JSON.parse(errorLines[0]!);
+  for (
+    const key of [
+      "refresh_token",
+      "refreshToken",
+      "API_KEY",
+      "apiKey",
+      "service_role_key",
+      "serviceRoleKey",
+      "signed_payload",
+      "signedPayload",
+      "client_secret",
+      "clientSecret",
+      "secret",
+    ]
+  ) {
+    assertEquals(parsed[key], "[redacted]");
+  }
+  assertEquals(errorLines[0]!.includes(sentinel), false);
+});

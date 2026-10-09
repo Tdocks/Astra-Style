@@ -282,7 +282,12 @@ export async function handleDeleteAccount(
         retry_after_seconds: rateLimitResult.retryAfterSeconds,
       });
       return errorResponse(
-        new AppError("rate_limited", 429, "Too many requests. Please try again shortly."),
+        new AppError(
+          "rate_limited",
+          429,
+          "Too many requests. Please try again shortly.",
+          rateLimitResult.retryAfterSeconds,
+        ),
         requestId,
         { ...CORS_HEADERS, "Retry-After": String(rateLimitResult.retryAfterSeconds) },
       );

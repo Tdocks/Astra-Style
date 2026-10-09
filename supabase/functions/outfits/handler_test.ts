@@ -275,6 +275,7 @@ Deno.test("generate: enforces the rate limiter and returns 429 once exceeded", a
     deps,
   );
   assertEquals(second.status, 429);
+  assertEquals(second.headers.get("Retry-After"), "60");
 });
 
 Deno.test(
@@ -625,6 +626,7 @@ Deno.test("rank: enforces the rate limiter", async () => {
     deps,
   );
   assertEquals(second.status, 429);
+  assertEquals(second.headers.get("Retry-After"), "60");
 });
 
 const WEAR_ENVELOPE = {

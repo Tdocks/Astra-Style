@@ -63,7 +63,8 @@ export async function handleBackgroundRemoval(req: Request, deps: {
     if (user.is_anonymous !== false) {
       throw new AppError("auth", 403, "Sign in to process this photo.");
     }
-    if (!deps.rateLimiter.check(user.id, Date.now()).allowed) throw rateLimited();
+    const limit = deps.rateLimiter.check(user.id, Date.now());
+    if (!limit.allowed) throw rateLimited(undefined, limit.retryAfterSeconds);
     const key = parseIdempotencyKey(req.headers.get("Idempotency-Key"));
     const { body } = parseEnvelope(await boundedJSON(req));
     if (typeof body !== "object" || body === null || Array.isArray(body)) {

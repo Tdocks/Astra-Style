@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { AppError } from "../_shared/errors.ts";
+import { createRateLimiter } from "../_shared/rateLimit.ts";
 import type {
   AppStoreSignedDataVerifier,
   VerifiedNotification,
@@ -85,6 +86,46 @@ Deno.test("notifications without subscription transaction data are ignored", asy
   assertEquals(store.pending.length, 0);
 });
 
+Deno.test("verified bundle rate limit returns its reset hint", async () => {
+  const store = memoryStore(false);
+  const rateLimiter = createRateLimiter({ limit: 1, windowMs: 60_000 });
+  await handleAppStoreWebhook("first", {
+    store,
+    verifier: verifierFor({ notification: { notificationUUID: "notification-first" } }),
+    rateLimiter,
+    now: () => NOW,
+  });
+  try {
+    await handleAppStoreWebhook("second", {
+      store,
+      verifier: verifierFor({ notification: { notificationUUID: "notification-second" } }),
+      rateLimiter,
+      now: () => NOW,
+    });
+    throw new Error("Expected the verified bundle limit to reject the second event.");
+  } catch (error) {
+    assertEquals(error instanceof AppError, true);
+    assertEquals(error instanceof AppError ? error.status : 0, 429);
+    assertEquals(error instanceof AppError ? error.retryAfterSeconds : undefined, 60);
+  }
+});
+
+Deno.test("an already-processed notification remains acknowledged after bundle throttling", async () => {
+  const store = memoryStore(true);
+  const existing = store.row;
+  if (!existing) throw new Error("Expected a seeded subscription row.");
+  store.row = { ...existing, app_store_last_notification_uuid: "notification-1" };
+  const rateLimiter = createRateLimiter({ limit: 1, windowMs: 60_000 });
+  rateLimiter.check("com.astrastyle.app", NOW.getTime());
+  const result = await handleAppStoreWebhook("duplicate", {
+    store,
+    verifier: verifierFor(),
+    rateLimiter,
+    now: () => NOW,
+  });
+  assertEquals(result, "ignored");
+});
+
 function verifierFor(overrides: {
   notification?: Partial<VerifiedNotification>;
   transaction?: Partial<VerifiedTransaction>;
@@ -96,6 +137,7 @@ function verifierFor(overrides: {
     signedDate: Date.parse("2026-09-30T11:00:00.000Z"),
     data: {
       environment: "Sandbox",
+      bundleId: "com.astrastyle.app",
       signedTransactionInfo: "transaction-jws",
       signedRenewalInfo: "renewal-jws",
     },
@@ -127,6 +169,12 @@ function memoryStore(hasSubscription: boolean): AppStoreWebhookStore & {
     updated: [] as PendingWebhookState[],
     pending: [] as PendingWebhookState[],
     deletedExpiredBefore: null as string | null,
+    hasProcessedNotificationUUID(notificationUUID: string) {
+      return Promise.resolve(
+        store.row?.app_store_last_notification_uuid === notificationUUID ||
+          store.pending.some((entry) => entry.notificationUUID === notificationUUID),
+      );
+    },
     fetchByOriginalTransactionId(originalTransactionId: string) {
       return Promise.resolve(
         store.row?.app_store_original_transaction_id === originalTransactionId ? store.row : null,
@@ -149,6 +197,7 @@ function memoryStore(hasSubscription: boolean): AppStoreWebhookStore & {
         expires_at: state.expiresAt,
         environment: state.environment,
         app_store_last_signed_at: state.signedAt,
+        app_store_last_notification_uuid: state.notificationUUID,
       };
       return Promise.resolve(store.row);
     },

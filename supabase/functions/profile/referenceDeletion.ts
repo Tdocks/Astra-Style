@@ -73,8 +73,14 @@ export async function handleReferenceDelete(
   try {
     if (req.method !== "DELETE") throw methodNotAllowed();
     const userID = await authenticateRequest(req, deps.authClient);
-    if (!limiter.check(userID, Date.now()).allowed) {
-      throw new AppError("rate_limited", 429, "Too many requests. Try again shortly.");
+    const limit = limiter.check(userID, Date.now());
+    if (!limit.allowed) {
+      throw new AppError(
+        "rate_limited",
+        429,
+        "Too many requests. Try again shortly.",
+        limit.retryAfterSeconds,
+      );
     }
     const path = await readPath(req, userID);
     const job = await deps.prepare(userID, path);

@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { appStoreSignedDataVerifier } from "../_shared/appStoreVerifier.ts";
-import { badRequest, errorResponse, serverError } from "../_shared/errors.ts";
+import { serverError } from "../_shared/errors.ts";
 import { readEdgeEnv } from "../_shared/supabaseClient.ts";
 import { createRouter } from "../_shared/routing.ts";
-import { resolveRequestId } from "../_shared/requestId.ts";
-import { handleAppStoreWebhook, type PendingWebhookState } from "./handler.ts";
+import { createRateLimiter } from "../_shared/rateLimit.ts";
+import { createAppStoreWebhookRoute } from "./route.ts";
+import type { PendingWebhookState } from "./handler.ts";
 import { mapStoredRow, type SubscriptionRow } from "../subscriptions/handler.ts";
 
 const env = readEdgeEnv();
@@ -13,6 +14,8 @@ if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configure
 const serviceRoleClient = createClient(env.supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+const inboundRateLimiter = createRateLimiter({ limit: 1200, windowMs: 60_000 });
+const verifiedBundleRateLimiter = createRateLimiter({ limit: 600, windowMs: 60_000 });
 
 async function fetchByOriginalTransactionId(
   originalTransactionId: string,
@@ -26,6 +29,18 @@ async function fetchByOriginalTransactionId(
 }
 
 const store = {
+  async hasProcessedNotificationUUID(notificationUUID: string): Promise<boolean> {
+    const [subscription, pending] = await Promise.all([
+      serviceRoleClient.from("subscriptions").select("user_id")
+        .eq("app_store_last_notification_uuid", notificationUUID).limit(1).maybeSingle(),
+      serviceRoleClient.from("pending_app_store_notifications").select("notification_uuid")
+        .eq("notification_uuid", notificationUUID).limit(1).maybeSingle(),
+    ]);
+    if (subscription.error || pending.error) {
+      throw serverError("Couldn't check App Store notification idempotency.");
+    }
+    return subscription.data !== null || pending.data !== null;
+  },
   fetchByOriginalTransactionId,
   async updateForOriginalTransactionId(
     state: PendingWebhookState,
@@ -76,41 +91,13 @@ const store = {
   },
 };
 
-async function webhookRoute(req: Request): Promise<Response> {
-  const requestId = resolveRequestId(req);
-  try {
-    const raw = await req.text();
-    if (raw.length > 100_000) throw badRequest("Apple notification is too large.");
-    let body: unknown;
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      throw badRequest("Apple notification body must be valid JSON.");
-    }
-    if (typeof body !== "object" || body === null || Array.isArray(body)) {
-      throw badRequest("Apple notification body must be an object.");
-    }
-    const signedPayload = (body as Record<string, unknown>)["signedPayload"];
-    if (typeof signedPayload !== "string" || signedPayload.length > 80_000) {
-      throw badRequest("Apple notification is missing its signed payload.");
-    }
-
-    const result = await handleAppStoreWebhook(signedPayload, {
-      store,
-      verifier: appStoreSignedDataVerifier,
-      now: () => new Date(),
-    });
-    return Response.json({ received: true, result }, {
-      status: 200,
-      headers: { "x-request-id": requestId },
-    });
-  } catch (error) {
-    if (typeof error === "object" && error !== null && "status" in error && "category" in error) {
-      return errorResponse(error as Parameters<typeof errorResponse>[0], requestId);
-    }
-    return errorResponse(serverError(), requestId);
-  }
-}
+const webhookRoute = createAppStoreWebhookRoute({
+  store,
+  verifier: appStoreSignedDataVerifier,
+  inboundRateLimiter,
+  verifiedBundleRateLimiter,
+  now: () => new Date(),
+});
 
 Deno.serve(createRouter("app-store", [
   { method: "POST", pattern: "/webhook", handler: webhookRoute },

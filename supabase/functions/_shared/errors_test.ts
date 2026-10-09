@@ -27,6 +27,13 @@ Deno.test("rateLimited produces a rate_limited category with status 429", () => 
   assertEquals(err.status, 429);
 });
 
+Deno.test("errorResponse preserves an exact rate limiter Retry-After value", () => {
+  const response = errorResponse(rateLimited("Retry soon.", 17), "req-limit");
+  assertEquals(response.status, 429);
+  assertEquals(response.headers.get("Retry-After"), "17");
+  assertEquals(response.headers.get("x-request-id"), "req-limit");
+});
+
 Deno.test("jsonResponse wraps data in the shared envelope shape", async () => {
   const response = jsonResponse({ hello: "world" }, { requestId: "req-1" });
   assertEquals(response.status, 200);

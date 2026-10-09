@@ -845,7 +845,12 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
         retry_after_seconds: burst.retryAfterSeconds,
       });
       return errorResponse(
-        new AppError("rate_limited", 429, "Too many requests. Please try again shortly."),
+        new AppError(
+          "rate_limited",
+          429,
+          "Too many requests. Please try again shortly.",
+          burst.retryAfterSeconds,
+        ),
         requestId,
         { ...CORS_HEADERS, "Retry-After": String(burst.retryAfterSeconds) },
       );

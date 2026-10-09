@@ -1,4 +1,5 @@
-import { badRequest, serverError } from "../_shared/errors.ts";
+import { AppError, badRequest, serverError } from "../_shared/errors.ts";
+import type { RateLimiter } from "../_shared/rateLimit.ts";
 import {
   AppStoreConfigurationError,
   type AppStoreSignedDataVerifier,
@@ -15,6 +16,7 @@ import {
 import { PREMIUM_PRODUCT_IDS } from "../subscriptions/schema.ts";
 
 export interface AppStoreWebhookStore {
+  hasProcessedNotificationUUID(notificationUUID: string): Promise<boolean>;
   fetchByOriginalTransactionId(originalTransactionId: string): Promise<SubscriptionRow | null>;
   updateForOriginalTransactionId(state: PendingWebhookState): Promise<SubscriptionRow | null>;
   upsertPending(state: PendingWebhookState): Promise<void>;
@@ -35,6 +37,7 @@ export interface PendingWebhookState {
 export interface AppStoreWebhookDependencies {
   readonly store: AppStoreWebhookStore;
   readonly verifier: AppStoreSignedDataVerifier;
+  readonly rateLimiter?: RateLimiter;
   readonly now: () => Date;
 }
 
@@ -50,6 +53,21 @@ export async function handleAppStoreWebhook(
   }
 
   const notificationUUID = required(notification.notificationUUID);
+  if (await deps.store.hasProcessedNotificationUUID(notificationUUID)) return "ignored";
+
+  const appLimit = deps.rateLimiter?.check(
+    notification.data?.bundleId ?? "unidentified-app",
+    deps.now().getTime(),
+  );
+  if (appLimit && !appLimit.allowed) {
+    throw new AppError(
+      "rate_limited",
+      429,
+      "Too many App Store notifications. Please retry shortly.",
+      appLimit.retryAfterSeconds,
+    );
+  }
+
   const notificationSignedAt = millisecondsToISO(notification.signedDate);
   if (!notificationSignedAt) throw badRequest("Apple notification is missing its signed date.");
   const signedTransactionInfo = notification.data?.signedTransactionInfo;

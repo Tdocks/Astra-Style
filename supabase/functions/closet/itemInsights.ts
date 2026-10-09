@@ -64,7 +64,12 @@ export async function handleItemInsights(
   try {
     const userId = await authenticateRequest(req, deps.authClient);
     const limit = deps.rateLimiter.check(userId, Date.now());
-    if (!limit.allowed) throw rateLimited("Please wait a moment before refreshing item insights.");
+    if (!limit.allowed) {
+      throw rateLimited(
+        "Please wait a moment before refreshing item insights.",
+        limit.retryAfterSeconds,
+      );
+    }
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(itemId)) {
       throw badRequest("Choose a valid closet item.");
     }

@@ -30,12 +30,22 @@ export class AppError extends Error {
   readonly category: ErrorCategory;
   /** HTTP status code this error should be returned with. */
   readonly status: number;
+  /** Retry hint for 429 responses produced by a rate limiter. */
+  readonly retryAfterSeconds?: number;
 
-  constructor(category: ErrorCategory, status: number, message: string) {
+  constructor(
+    category: ErrorCategory,
+    status: number,
+    message: string,
+    retryAfterSeconds?: number,
+  ) {
     super(message);
     this.name = "AppError";
     this.category = category;
     this.status = status;
+    if (retryAfterSeconds !== undefined && Number.isFinite(retryAfterSeconds)) {
+      this.retryAfterSeconds = Math.max(1, Math.ceil(retryAfterSeconds));
+    }
   }
 }
 
@@ -47,8 +57,11 @@ export function badRequest(message: string): AppError {
   return new AppError("validation", 400, message);
 }
 
-export function rateLimited(message = "Too many requests. Please try again shortly."): AppError {
-  return new AppError("rate_limited", 429, message);
+export function rateLimited(
+  message = "Too many requests. Please try again shortly.",
+  retryAfterSeconds?: number,
+): AppError {
+  return new AppError("rate_limited", 429, message, retryAfterSeconds);
 }
 
 export function serverError(message = "Internal server error."): AppError {
@@ -80,7 +93,7 @@ export function jsonResponse<T>(
   const body: ResponseEnvelope<T> = { data, error: null, request_id: opts.requestId };
   return new Response(JSON.stringify(body), {
     status: opts.status ?? 200,
-    headers: { ...JSON_HEADERS, ...(opts.extraHeaders ?? {}) },
+    headers: { ...JSON_HEADERS, "x-request-id": opts.requestId, ...(opts.extraHeaders ?? {}) },
   });
 }
 
@@ -97,6 +110,13 @@ export function errorResponse(
   };
   return new Response(JSON.stringify(body), {
     status: err.status,
-    headers: { ...JSON_HEADERS, ...(extraHeaders ?? {}) },
+    headers: {
+      ...JSON_HEADERS,
+      "x-request-id": requestId,
+      ...(err.retryAfterSeconds === undefined
+        ? {}
+        : { "Retry-After": String(err.retryAfterSeconds) }),
+      ...(extraHeaders ?? {}),
+    },
   });
 }

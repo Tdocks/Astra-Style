@@ -175,6 +175,52 @@ but it is explicitly **not** a security boundary. See the file's header
 comment for the migration path to a durable limiter behind the same
 `RateLimiter` interface.
 
+### Current endpoint budgets
+
+Limits below are fixed-window budgets shared by the listed routes in one
+function isolate. User-keyed limits use the authenticated user ID; App Store
+uses a global inbound key before signature verification and the verified
+bundle ID afterward. These numbers are not project-wide or cross-region quotas.
+
+| Routes | Budget |
+| --- | ---: |
+| `POST /profile/complete-onboarding` | 6/user/minute |
+| `GET /profile/export-data` | 2/user/hour |
+| `DELETE /profile/reference-photos` | 30/user/minute |
+| `POST /style-dna/generate` | 5/user/minute |
+| `POST /closet/remove-background`, `/closet/analyze-item`, `/closet/batch-analyze`, `GET /closet/batch-status/:id` | 30/user/minute, shared |
+| `GET /closet/wardrobe-score`, `GET /closet/items/:id/insights` | 5/user/minute, shared |
+| `GET /closet/items/:id/unlock-count` | 15/user/minute |
+| `POST /outfits/generate`, `/outfits/rank`, `/outfits/record-wear`, `/outfits/config/compatibility-weights` | 20/user/minute, shared |
+| `POST /daily-brief/generate` | 10/user/minute |
+| `POST /kyra/respond` | 10/user/minute |
+| `POST /products/extract`, `/products/evaluate`, `/products/unlocks` | 10/user/minute, shared |
+| `POST /studio/generate`, `/studio/export-hi-res` | 6/user/minute, shared |
+| `GET /studio/status/:id` | 120/user/minute |
+| `DELETE /studio/generations/:id` | 30/user/minute |
+| `POST /packing/generate` | 10/user/minute |
+| `POST /subscriptions/sync` | 20/user/minute |
+| `POST /lookbook/sign-images` | 60/user/minute |
+| `DELETE /account` | 3/user/minute |
+| `POST /app-store/webhook` | 1,200/inbound/minute, then 600/verified bundle/minute |
+
+The App Store webhook checks durable notification-UUID idempotency before
+the verified-bundle limiter, so an already-processed Apple retry can still
+receive its successful acknowledgement. Both webhook counters are also
+in-memory and per isolate. `Retry-After` is emitted from the limiter's
+computed reset time where a request is rejected.
+
+### Deployment and acceptance snapshot
+
+Release verification on 2026-10-09 found 14 deployed Edge Functions in
+`ACTIVE` state. Supabase `verify_jwt` metadata was enabled for caller
+endpoints; it was intentionally disabled only for `app-store` (Apple signed
+payload verification in the handler) and `studio-retention` (scheduler
+authorization). Hosted negative probes returned `401` for unauthenticated
+Studio access and `400` for an unsigned App Store notification. This records
+the verified deployment snapshot, not a claim that per-isolate limits are
+globally coordinated.
+
 ## The scoring seam — where the real `CompatibilityScorer` plugs in
 
 `outfits/scorer.ts` implements `OutfitScorer`, an interface with

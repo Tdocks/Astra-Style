@@ -13,11 +13,15 @@
 
 export function resolveRequestId(req: Request, bodyRequestId?: string | null): string {
   const header = req.headers.get("x-request-id") ?? req.headers.get("X-Request-Id");
-  if (header && header.trim().length > 0) {
+  if (header && isSafeRequestId(header.trim())) {
     return header.trim();
   }
-  if (bodyRequestId && bodyRequestId.trim().length > 0) {
+  if (bodyRequestId && isSafeRequestId(bodyRequestId.trim())) {
     return bodyRequestId.trim();
   }
   return crypto.randomUUID();
+}
+
+function isSafeRequestId(value: string): boolean {
+  return value.length > 0 && value.length <= 128 && /^[a-zA-Z0-9._:-]+$/.test(value);
 }

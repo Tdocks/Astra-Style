@@ -23,3 +23,11 @@ Deno.test("treats a blank header as absent and falls through to the body value",
   const req = new Request("https://example.com", { headers: { "X-Request-Id": "   " } });
   assertEquals(resolveRequestId(req, "from-body"), "from-body");
 });
+
+Deno.test("does not copy arbitrary user content into request-id logs", () => {
+  const req = new Request("https://example.com", {
+    headers: { "X-Request-Id": "closet photo https://private.example/image.jpg" },
+  });
+  const id = resolveRequestId(req, "a private prompt from the body");
+  assertMatch(id, UUID_PATTERN);
+});

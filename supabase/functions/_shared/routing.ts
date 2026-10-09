@@ -33,6 +33,7 @@
 
 import { CORS_HEADERS, handleCorsPreflight } from "./cors.ts";
 import { AppError, errorResponse, methodNotAllowed, notFound, serverError } from "./errors.ts";
+import { createLogger } from "./logger.ts";
 import { resolveRequestId } from "./requestId.ts";
 
 /**
@@ -137,12 +138,32 @@ export function createRouter(
   routes: readonly Route[],
 ): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
+    const requestId = resolveRequestId(req);
+    const startedAt = performance.now();
+    const logger = createLogger(requestId);
     const preflight = handleCorsPreflight(req);
     if (preflight) {
+      preflight.headers.set("x-request-id", requestId);
+      logger.info("edge_request.completed", {
+        endpoint: `${slug}:OPTIONS`,
+        method: "OPTIONS",
+        status: preflight.status,
+        latency_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
       return preflight;
     }
 
-    const requestId = resolveRequestId(req);
+    let endpoint = "unmatched";
+    const logCompletion = (response: Response): Response => {
+      logger.adoptRequestId(response.headers.get("x-request-id") ?? requestId);
+      logger.info("edge_request.completed", {
+        endpoint,
+        method: req.method.toUpperCase(),
+        status: response.status,
+        latency_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+      return response;
+    };
 
     let url: URL;
     try {
@@ -151,7 +172,9 @@ export function createRouter(
       // `req.url` inside Deno.serve is always absolute in practice; this
       // branch exists so a malformed URL from an unexpected runtime still
       // produces the standard envelope instead of an unhandled throw.
-      return errorResponse(serverError("Could not parse request URL."), requestId, CORS_HEADERS);
+      return logCompletion(
+        errorResponse(serverError("Could not parse request URL."), requestId, CORS_HEADERS),
+      );
     }
 
     const path = resolveRoutePath(url.pathname, slug);
@@ -164,8 +187,12 @@ export function createRouter(
         continue;
       }
       sawPathMatch = true;
+      if (endpoint === "unmatched") {
+        endpoint = `${slug}:${route.method.toUpperCase()} ${route.pattern}`;
+      }
       if (route.method.toUpperCase() === req.method.toUpperCase()) {
         match = { route, params };
+        endpoint = `${slug}:${route.method.toUpperCase()} ${route.pattern}`;
         break;
       }
     }
@@ -174,18 +201,18 @@ export function createRouter(
       const error = sawPathMatch
         ? methodNotAllowed(`${req.method} is not supported for this endpoint.`)
         : notFound("No such endpoint.");
-      return errorResponse(error, requestId, CORS_HEADERS);
+      return logCompletion(errorResponse(error, requestId, CORS_HEADERS));
     }
 
     try {
-      return await match.route.handler(req, match.params);
+      return logCompletion(await match.route.handler(req, match.params));
     } catch (err) {
       // Route handlers are expected to catch their own errors and build
       // their own envelopes (handler.ts owns logging, latency, etc.). This
       // is the last-resort net so a handler that throws anyway still
       // returns the standard envelope and never leaks a stack trace.
       const appError = err instanceof AppError ? err : serverError();
-      return errorResponse(appError, requestId, CORS_HEADERS);
+      return logCompletion(errorResponse(appError, requestId, CORS_HEADERS));
     }
   };
 }

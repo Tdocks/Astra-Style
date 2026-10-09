@@ -29,21 +29,49 @@ const REDACT_KEYS = new Set([
   "prompt",
   "natural_language_request",
   "naturalLanguageRequest",
+  "message",
+  "detail",
+  "error",
+  "body",
+  "request_body",
+  "raw_body",
+  "input",
+  "user_text",
+  "chat_message",
   "image",
   "image_url",
   "imageUrl",
+  "url",
+  "uri",
+  "path",
   "storage_path",
   "storagePath",
+  "headers",
   "authorization",
   "access_token",
   "accessToken",
+  "refresh_token",
+  "refreshToken",
+  "api_key",
+  "apiKey",
+  "service_role_key",
+  "serviceRoleKey",
+  "signed_payload",
+  "signedPayload",
+  "client_secret",
+  "clientSecret",
+  "secret",
   "jwt",
 ]);
+const NORMALIZED_REDACT_KEYS = new Set(
+  [...REDACT_KEYS].map((key) => key.toLowerCase().replaceAll(/[^a-z0-9]/g, "")),
+);
 
 function redact(fields: LogFields): LogFields {
   const safe: LogFields = {};
   for (const [key, value] of Object.entries(fields)) {
-    safe[key] = REDACT_KEYS.has(key) ? REDACTED_MARKER : value;
+    const normalizedKey = key.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
+    safe[key] = NORMALIZED_REDACT_KEYS.has(normalizedKey) ? REDACTED_MARKER : value;
   }
   return safe;
 }

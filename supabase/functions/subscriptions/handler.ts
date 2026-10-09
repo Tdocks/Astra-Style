@@ -24,6 +24,7 @@ export interface SubscriptionRow {
   readonly expires_at: string | null;
   readonly environment: string;
   readonly app_store_last_signed_at: string;
+  readonly app_store_last_notification_uuid?: string | null;
 }
 
 export interface PendingAppStoreState {
@@ -143,6 +144,9 @@ export function mapStoredRow(data: Record<string, unknown>): SubscriptionRow {
     environment: String(data["environment"]),
     app_store_last_signed_at: toIso8601Seconds(data["app_store_last_signed_at"]) ??
       "1970-01-01T00:00:00Z",
+    app_store_last_notification_uuid: typeof data["app_store_last_notification_uuid"] === "string"
+      ? data["app_store_last_notification_uuid"]
+      : null,
   };
 }
 

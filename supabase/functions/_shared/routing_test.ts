@@ -77,6 +77,33 @@ Deno.test("dispatches to the route matching path and method", async () => {
   assertEquals((await markerOf(res)).marker, "rank");
 });
 
+Deno.test("logs a privacy-safe endpoint, request id, status, and latency", async () => {
+  const lines: string[] = [];
+  const originalLog = console.log;
+  console.log = (line: unknown) => lines.push(String(line));
+  try {
+    const router = createRouter("closet", [okRoute("GET", "/items/:id", "item")]);
+    const response = await router(
+      new Request("https://example.supabase.co/closet/items/private-owner-id", {
+        method: "GET",
+        headers: { "X-Request-Id": "safe-req-1" },
+      }),
+    );
+    assertEquals(response.status, 200);
+  } finally {
+    console.log = originalLog;
+  }
+
+  assertEquals(lines.length, 1);
+  const line = lines[0]!;
+  const parsed = JSON.parse(line);
+  assertEquals(parsed.request_id, "safe-req-1");
+  assertEquals(parsed.endpoint, "closet:GET /items/:id");
+  assertEquals(parsed.status, 200);
+  assertEquals(typeof parsed.latency_ms, "number");
+  assertEquals(line.includes("private-owner-id"), false);
+});
+
 Deno.test("captures and URL-decodes :param segments", async () => {
   const router = createRouter("studio", [okRoute("GET", "/status/:id", "status")]);
   const res = await router(
@@ -122,11 +149,20 @@ Deno.test("returns 405, not 404, for a known path with the wrong method", async 
 
 Deno.test("answers CORS preflight 204 for any path, known or not", async () => {
   const router = makeRouter([okRoute("POST", "/generate", "generate")]);
+  const res = await router(
+    new Request("https://example.supabase.co/outfits/generate", {
+      method: "OPTIONS",
+      headers: { "X-Request-Id": "preflight-1" },
+    }),
+  );
+  assertEquals(res.status, 204);
+  assertEquals(res.headers.get("x-request-id"), "preflight-1");
+
   for (const path of ["/outfits/generate", "/outfits/unknown"]) {
-    const res = await router(
+    const response = await router(
       new Request(`https://example.supabase.co${path}`, { method: "OPTIONS" }),
     );
-    assertEquals(res.status, 204);
+    assertEquals(response.status, 204);
   }
 });
 

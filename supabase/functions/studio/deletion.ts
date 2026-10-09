@@ -75,8 +75,14 @@ export async function handleDelete(
     if (req.method !== "DELETE") throw methodNotAllowed();
     if (!isUUID(generationID)) throw badRequest("Generation id must be a UUID.");
     const userID = await authenticateRequest(req, deps.authClient);
-    if (!deletionLimiter.check(userID, Date.now()).allowed) {
-      throw new AppError("rate_limited", 429, "Too many requests. Try again shortly.");
+    const limit = deletionLimiter.check(userID, Date.now());
+    if (!limit.allowed) {
+      throw new AppError(
+        "rate_limited",
+        429,
+        "Too many requests. Try again shortly.",
+        limit.retryAfterSeconds,
+      );
     }
     const prepared = await deps.prepare(userID, generationID);
     createLogger(requestID).info("studio_delete.accepted", { status: prepared.status });

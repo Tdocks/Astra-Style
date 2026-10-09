@@ -233,7 +233,12 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
         retry_after_seconds: rateLimit.retryAfterSeconds,
       });
       return errorResponse(
-        new AppError("rate_limited", 429, "Too many requests. Please try again shortly."),
+        new AppError(
+          "rate_limited",
+          429,
+          "Too many requests. Please try again shortly.",
+          rateLimit.retryAfterSeconds,
+        ),
         requestId,
         { ...CORS_HEADERS, "Retry-After": String(rateLimit.retryAfterSeconds) },
       );

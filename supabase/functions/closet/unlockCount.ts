@@ -109,7 +109,10 @@ export async function handleScanUnlockCount(
     const ownerID = await authenticateRequest(req, deps.authClient);
     const limit = deps.rateLimiter.check(ownerID, deps.now().getTime());
     if (!limit.allowed) {
-      throw rateLimited("Please wait a moment before refreshing this outfit count.");
+      throw rateLimited(
+        "Please wait a moment before refreshing this outfit count.",
+        limit.retryAfterSeconds,
+      );
     }
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(itemID)) {
       throw badRequest("Choose a valid closet item.");
