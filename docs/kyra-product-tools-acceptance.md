@@ -304,3 +304,17 @@ Security advisors flag the confirmation table's intentional no-policy RLS as INF
 existing extension/anonymous-policy warnings remain and are not a clean security
 verdict. Hosted ask/yes/consent/provider checks and dedicated simulator sheet
 acceptance remain open. Native preview routing is not in TestFlight build 20 yet.
+
+## First v11 hosted conversation probe
+
+A disposable authenticated guest called Kyra v11 successfully at HTTP level
+(200), but the stored response reported `fallback_reason=provider_error`. This
+is a failed live stylist acceptance check, not a working conversation pass.
+The failure's exact provider status/code is not yet retrieved. The QA account
+delete returned 202; a live SQL check subsequently confirmed zero remaining
+users, threads and confirmation records for that fixture. Report:
+`/tmp/astra-kyra-v11-live-report.json`.
+
+Build 21 was started with the native preview action; its archive/upload producer
+remains active as session 80533 (`/tmp/astra-testflight21.log`). Build 20 remains
+the available internal release until upload, processing and group checks pass.
