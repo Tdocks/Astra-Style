@@ -121,11 +121,49 @@ end;
 $$;
 reset role;
 
-delete from auth.users where id=(select owner_id from unlock_cache_fixture);
+-- Model the managed Supabase Auth database role. It can remove auth users,
+-- but it deliberately has no direct UPDATE privilege on application
+-- profiles. The closet trigger must still maintain its counter during the
+-- FK cascade through its tightly scoped SECURITY DEFINER function.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname='astra_auth_delete_probe') then
+    create role astra_auth_delete_probe nologin;
+  end if;
+end;
+$$;
+grant usage on schema auth to astra_auth_delete_probe;
+grant select, delete on auth.users to astra_auth_delete_probe;
+do $$
+begin
+  if has_table_privilege('astra_auth_delete_probe','public.profiles','UPDATE') then
+    raise exception 'Auth deletion probe unexpectedly has direct profiles update access';
+  end if;
+  if has_function_privilege('astra_auth_delete_probe','public.bump_closet_state_version()','EXECUTE') or
+     has_function_privilege('anon','public.bump_closet_state_version()','EXECUTE') or
+     has_function_privilege('authenticated','public.bump_closet_state_version()','EXECUTE') or
+     has_function_privilege('service_role','public.bump_closet_state_version()','EXECUTE') then
+    raise exception 'Trigger-only closet version function is directly executable by a client role';
+  end if;
+  if not (select prosecdef from pg_proc where oid='public.bump_closet_state_version()'::regprocedure) then
+    raise exception 'Closet version trigger function must run with its narrow owner privileges';
+  end if;
+end;
+$$;
+select set_config('unlock_cache.delete_owner',owner_id::text,true) from unlock_cache_fixture;
+set local role astra_auth_delete_probe;
+delete from auth.users where id=current_setting('unlock_cache.delete_owner')::uuid;
+reset role;
 do $$
 begin
   if exists(select 1 from public.outfit_unlock_count_cache where user_id=(select owner_id from unlock_cache_fixture)) then
     raise exception 'account deletion did not cascade unlock cache rows';
+  end if;
+  if exists(select 1 from public.closet_items where user_id=(select owner_id from unlock_cache_fixture)) then
+    raise exception 'Auth-role account deletion did not cascade closet rows';
+  end if;
+  if exists(select 1 from public.profiles where id=(select owner_id from unlock_cache_fixture)) then
+    raise exception 'Auth-role account deletion did not cascade profile row';
   end if;
 end;
 $$;
