@@ -114,6 +114,10 @@ public actor MockStudioRepository: StudioRepository {
 
     public func failNextCollectionSave() { collectionSaveFailures += 1 }
 
+    public func fetchQuota() async throws -> StudioQuota {
+        StudioQuota(premium: true, limit: 20, used: 0, remaining: 20, resetsAt: Calendar.current.date(byAdding: .month, value: 1, to: .now))
+    }
+
     public func fetchGenerations() async throws -> [StudioGeneration] {
         Array(generations.values).sorted { $0.createdAt > $1.createdAt }
     }

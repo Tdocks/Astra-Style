@@ -9,6 +9,7 @@
 import Foundation
 
 public protocol StudioRepository: Sendable {
+    func fetchQuota() async throws -> StudioQuota
     func fetchGenerations() async throws -> [StudioGeneration]
     /// Loads a page of visible generations. Implementations should use stable
     /// ordering and exclude soft-deleted rows.
@@ -46,6 +47,7 @@ public protocol StudioRepository: Sendable {
 }
 
 public extension StudioRepository {
+    func fetchQuota() async throws -> StudioQuota { throw AstraError.server("Couldn't load your preview allowance.") }
     func updateImageDescription(id: UUID, description: String) async throws -> StudioGeneration {
         throw AstraError.server("Image descriptions are unavailable.")
     }
@@ -66,5 +68,34 @@ public extension StudioRepository {
         let all = try await fetchGenerations().filter { !$0.isDeleted }
         guard offset < all.count else { return [] }
         return Array(all.dropFirst(offset).prefix(limit))
+    }
+}
+
+
+public struct StudioQuota: Decodable, Sendable, Equatable {
+    public let premium: Bool
+    public let limit: Int
+    public let used: Int
+    public let remaining: Int
+    public let resetsAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case premium, limit, used, remaining
+        case resetsAt = "resets_at"
+    }
+
+    public init(premium: Bool, limit: Int, used: Int, remaining: Int, resetsAt: Date?) {
+        self.premium = premium
+        self.limit = limit
+        self.used = used
+        self.remaining = remaining
+        self.resetsAt = resetsAt
+    }
+
+    public var summary: String {
+        if let resetsAt {
+            return "\(remaining) of \(limit) previews remaining. Resets \(resetsAt.formatted(date: .abbreviated, time: .shortened))."
+        }
+        return remaining > 0 ? "Your free preview is available." : "Your free preview has been used. Premium includes a monthly preview allowance."
     }
 }

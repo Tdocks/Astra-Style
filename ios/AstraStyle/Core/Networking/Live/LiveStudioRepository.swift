@@ -20,6 +20,10 @@ public final class LiveStudioRepository: StudioRepository, @unchecked Sendable {
         self.supabase = supabase
     }
 
+    public func fetchQuota() async throws -> StudioQuota {
+        try await apiClient.send(.studioQuota, as: StudioQuota.self)
+    }
+
     public func fetchGenerations() async throws -> [StudioGeneration] {
         do {
             return try await supabase.from("studio_generations")

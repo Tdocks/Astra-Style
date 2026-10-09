@@ -26,6 +26,9 @@ struct StudioGenerationView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AstraSpacing.lg) {
+                    Text(viewModel.quotaSummary).astraText(.caption)
+                    Button("Refresh allowance") { Task { await viewModel.refreshQuota() } }
+                        .buttonStyle(.astraSecondary)
                     consentCopy
                     acknowledgment
                     if viewModel.hasGrantedConsent {

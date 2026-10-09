@@ -17,3 +17,9 @@ Local full SQL isolation suite passed, including previous-month exclusion, limit
 Eight simultaneous local submissions with a one-preview limit accepted exactly one job and rejected seven without extra allowances. Migration 20261009004701 is deployed; Studio v17 is ACTIVE with JWT verification and maps quota exhaustion to HTTP 429 with the UTC reset explanation. Hosted configuration is 20, RLS is enabled and authenticated UPDATE privilege is false. All 61 Studio backend tests passed. The advisor reports the intentional no-client-policy configuration table as INFO; existing unrelated warnings remain.
 
 Hosted premium request acceptance, quota-summary API and native remaining/reset display are still required. TestFlight remains build 21.
+
+## Allowance display implementation
+
+Added authenticated GET studio/quota with explicit verified-owner filters, exact counts and no-store response caching. Premium returns the configured monthly limit and UTC reset instant; free accounts return the lifetime trial count without a reset. The API is informational; the database transaction remains authoritative. Studio and Home inspiration display the returned allowance and provide refresh/error handling, refreshing after accepted submissions. Personal Studio no longer opens a paywall for every HTTP 429: only the existing free-trial exhaustion response triggers it.
+
+Simulator build passed; all 64 Studio backend tests passed, including UTC/year rollover, verified identity overriding caller-supplied owner and unauthenticated denial. This endpoint/display batch is not deployed or in TestFlight yet. Hosted API acceptance, native unit/UI verification and release remain open.

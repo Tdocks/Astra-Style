@@ -76,6 +76,9 @@ struct InspirationView: View {
                             VStack { quickEdits }
                         }
                     }
+                    Text(viewModel.quotaSummary).astraText(.caption)
+                    Button("Refresh allowance") { run { await viewModel.refreshQuota() } }
+                        .buttonStyle(.astraSecondary)
                     Text("Includes one free image estimate. Rerolls and edits use your image allowance; additional generations require Premium.")
                         .astraText(.caption)
                         .foregroundStyle(AstraColor.textMuted)

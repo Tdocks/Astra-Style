@@ -37,6 +37,7 @@ public final class StudioGenerationViewModel {
     public var preservesHair = true
 
     /// Nested paywall after the free Visualize trial. First open stays ungated.
+    private(set) var quotaSummary = "Preview allowance unavailable"
     public private(set) var pendingPaywall: PaywallContext?
     public var pollInterval: Duration = .seconds(2)
     public var maximumPollInterval: Duration = .seconds(8)
@@ -68,6 +69,7 @@ public final class StudioGenerationViewModel {
         if let body = try? await profileRepository.fetchBodyProfile() {
             existingReferencePath = body.appearance.referenceSelfiePaths.first
         }
+        await refreshQuota()
         phase = .ready
     }
 
@@ -119,15 +121,21 @@ public final class StudioGenerationViewModel {
                 consentTermsVersion: StudioConsentTerms.currentVersion
             )
             let job = try await studioRepository.startGeneration(request)
+            await refreshQuota()
             await completeGeneration(from: job)
         } catch let error as AstraError {
             phase = .failed(error)
-            if error.category == .rateLimited {
+            if error.category == .rateLimited && error.message.contains("free visual") {
                 pendingPaywall = .studioQuota
             }
         } catch {
             phase = .failed(AstraError(category: .unknown, message: error.localizedDescription))
         }
+    }
+
+    func refreshQuota() async {
+        do { quotaSummary = try await studioRepository.fetchQuota().summary }
+        catch { quotaSummary = "Couldn't load your preview allowance. Try again." }
     }
 
     public func clearPendingPaywall() {

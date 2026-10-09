@@ -29,6 +29,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     case evaluateProduct
     /// Discover Unlocks: HIS evaluated gaps, not a catalog dump.
     case listProductUnlocks
+    case studioQuota
     case generateStudio
     case studioStatus(id: UUID)
     case deleteStudioGeneration(id: UUID)
@@ -44,7 +45,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// HTTP method for the endpoint.
     public var method: HTTPMethod {
         switch self {
-        case .studioStatus, .batchAnalyzeClosetStatus, .exportPersonalData, .fetchWardrobeScore:
+        case .studioQuota, .studioStatus, .batchAnalyzeClosetStatus, .exportPersonalData, .fetchWardrobeScore:
             .get
         case .deleteAccount, .deleteStudioGeneration, .deleteReferencePhoto:
             .delete
@@ -72,6 +73,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .extractProduct: "products/extract"
         case .evaluateProduct: "products/evaluate"
         case .listProductUnlocks: "products/unlocks"
+        case .studioQuota: "studio/quota"
         case .generateStudio: "studio/generate"
         case .studioStatus(let id): "studio/status/\(id.uuidString)"
         case .deleteStudioGeneration(let id): "studio/generations/\(id.uuidString.lowercased())"

@@ -16,6 +16,7 @@ final class InspirationViewModel: Identifiable {
     private(set) var imageURL: URL?
     private(set) var error: String?
     private(set) var job: StudioGeneration?
+    private(set) var quotaSummary = "Preview allowance unavailable"
     private(set) var pendingPaywall: PaywallContext?
     private var lastCompletedJob: StudioGeneration?
     private var pendingItems: [ClosetItem] = []
@@ -34,6 +35,7 @@ final class InspirationViewModel: Identifiable {
 
     func prepare() async {
         guard isPreparing else { return }
+        await refreshQuota()
         defer { isPreparing = false }
         do {
             let profile = try await container.profileRepository.fetchCurrentProfile()
@@ -103,6 +105,7 @@ final class InspirationViewModel: Identifiable {
                 hasUserConsent: false
             )
             let initial = try await container.studioRepository.startGeneration(request)
+            await refreshQuota()
             job = initial
             pendingItems = items.filter { selectedItemIDs.contains($0.id) }
             try await finish(initial)
@@ -126,6 +129,11 @@ final class InspirationViewModel: Identifiable {
         "Help me refine today's \(closetOnly ? "closet-only look" : "style inspiration"). " +
         (closetOnly ? "Use only these owned pieces: " + renderedItems.map { "\($0.name) (\($0.id))" }.joined(separator: ", ") + ". " : "") +
         "Style adjustments so far: " + adjustments.joined(separator: "; ") + ". Current request: " + adjustment + ". " + context
+    }
+
+    func refreshQuota() async {
+        do { quotaSummary = try await container.studioRepository.fetchQuota().summary }
+        catch { quotaSummary = "Couldn't load your preview allowance. Try again." }
     }
 
     func clearPaywall() { pendingPaywall = nil }
