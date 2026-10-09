@@ -58,6 +58,11 @@ import {
 } from "../_shared/scoring/unlockCountCache.ts";
 import { type ComponentWeights, DEFAULT_WEIGHTS } from "../_shared/scoring/compatibility.ts";
 import type { CompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
+import {
+  loadOwnedPreferenceCoWearContext,
+  type OwnedScoringContextRepository,
+} from "../_shared/scoring/ownedScoringContext.ts";
+import type { PrunedGenerationOptions } from "../_shared/scoring/outfitGeneration.ts";
 
 /**
  * How long a retailer page gets before extraction gives up.
@@ -75,7 +80,7 @@ export interface OwnedGarment {
   readonly redundancy: RedundancyItem;
 }
 
-export interface ProductsDependencies {
+export interface ProductsDependencies extends OwnedScoringContextRepository {
   readonly extractionProvider: ProductExtractionProvider;
   /** Upserts on `canonical_url` and returns the resulting row. */
   readonly upsertCandidate: (row: ProductCandidateUpsertRow) => Promise<ProductCandidateRow>;
@@ -100,7 +105,11 @@ export interface ProductsDependencies {
   readonly computeUnlockCount?: (
     candidate: ScorableItem,
     closet: readonly ScorableItem[],
-    options: { readonly scoringContext: ScoringContext; readonly weights: ComponentWeights },
+    options: {
+      readonly scoringContext: ScoringContext;
+      readonly weights: ComponentWeights;
+      readonly generationOptions?: Partial<PrunedGenerationOptions>;
+    },
   ) => UnlockCountResult;
   readonly fetchLifestyle: (userID: string) => Promise<LifestyleInputs>;
   readonly fetchWardrobeGraph?: (userID: string) => Promise<"menswear_3_role" | "womenswear">;
@@ -225,12 +234,20 @@ export async function handleEvaluateProduct(
     weights: DEFAULT_WEIGHTS,
     version: 1,
   };
+  const scoringContext = {
+    ...await loadOwnedPreferenceCoWearContext(
+      deps,
+      userID,
+      new Set([...closet.map((garment) => garment.scorable.id), mapped.item.id]),
+    ),
+    wardrobeGraph,
+  };
 
   const unlockCount = await cachedUnlockCount({
     userID,
     candidate: mapped.item,
     closet: closet.map((garment) => garment.scorable),
-    scoringContext: { wardrobeGraph },
+    scoringContext,
     weights: weightConfig.weights,
     closetStateVersion,
     weightsVersion: weightConfig.version,
@@ -244,7 +261,7 @@ export async function handleEvaluateProduct(
     redundancyCandidate: mapped.redundancyItem,
     redundancyCloset: closet.map((g) => g.redundancy),
     lifestyle,
-    scoringContext: { wardrobeGraph },
+    scoringContext,
     compatibilityWeights: weightConfig.weights,
     unlockCountResult: unlockCount,
   });
@@ -286,7 +303,7 @@ export async function handleEvaluateProduct(
     unmeasured: [...new Set(evaluation.degraded)],
     alternatives: await buildAlternatives(row, closet, deps, weightConfig, {
       userID,
-      wardrobeGraph,
+      scoringContext,
       closetStateVersion,
     }),
   };
@@ -311,7 +328,7 @@ async function buildAlternatives(
   weightConfig: CompatibilityWeightsConfig,
   snapshot: {
     readonly userID: string;
-    readonly wardrobeGraph: "menswear_3_role" | "womenswear";
+    readonly scoringContext: ScoringContext;
     readonly closetStateVersion: number | null;
   },
 ): Promise<readonly AlternativeProductDTO[]> {
@@ -330,7 +347,7 @@ async function buildAlternatives(
       userID: snapshot.userID,
       candidate: mapped.item,
       closet: closet.map((g) => g.scorable),
-      scoringContext: { wardrobeGraph: snapshot.wardrobeGraph },
+      scoringContext: snapshot.scoringContext,
       weights: weightConfig.weights,
       closetStateVersion: snapshot.closetStateVersion,
       weightsVersion: weightConfig.version,
@@ -343,7 +360,7 @@ async function buildAlternatives(
       redundancyCandidate: mapped.redundancyItem,
       redundancyCloset: closet.map((g) => g.redundancy),
       lifestyle: { monthlyBudget: null, dressCode: null },
-      scoringContext: { wardrobeGraph: snapshot.wardrobeGraph },
+      scoringContext: snapshot.scoringContext,
       compatibilityWeights: weightConfig.weights,
       unlockCountResult: unlockCount,
     });
@@ -395,6 +412,14 @@ export async function handleListUnlocks(
   const closetStateVersion = await safeReadClosetStateVersion(deps, userID);
   const closet = await deps.fetchCloset(userID);
   const wardrobeGraph = await deps.fetchWardrobeGraph?.(userID) ?? "menswear_3_role";
+  const scoringContext: ScoringContext = {
+    ...await loadOwnedPreferenceCoWearContext(
+      deps,
+      userID,
+      new Set(closet.map((garment) => garment.scorable.id)),
+    ),
+    wardrobeGraph,
+  };
   const weightConfig = await deps.readCompatibilityWeights?.() ?? {
     weights: DEFAULT_WEIGHTS,
     version: 1,
@@ -415,7 +440,7 @@ export async function handleListUnlocks(
         userID,
         candidate: mapped.item,
         closet: scorableCloset,
-        scoringContext: { wardrobeGraph },
+        scoringContext,
         weights: weightConfig.weights,
         closetStateVersion,
         weightsVersion: weightConfig.version,
@@ -466,12 +491,19 @@ async function cachedUnlockCount(input: {
   const hypotheticalCandidate = asHypotheticalOwnership(candidate);
   const hypotheticalCloset = closet.map(asHypotheticalOwnership);
   const compute = deps.computeUnlockCount ?? computeUnlockCount;
+  const computeOptions = {
+    scoringContext,
+    weights,
+    generationOptions: {
+      scoreOptions: { colorNameOf: (item: ScorableItem) => item.colorName ?? null },
+    },
+  };
   const canCache = input.closetStateVersion !== null &&
     deps.readClosetStateVersion !== undefined &&
     deps.readUnlockCountCache !== undefined &&
     deps.writeUnlockCountCache !== undefined;
   if (!canCache) {
-    return compute(hypotheticalCandidate, hypotheticalCloset, { scoringContext, weights });
+    return compute(hypotheticalCandidate, hypotheticalCloset, computeOptions);
   }
 
   let key: string;
@@ -485,7 +517,7 @@ async function cachedUnlockCount(input: {
       weights,
     });
   } catch {
-    return compute(hypotheticalCandidate, hypotheticalCloset, { scoringContext, weights });
+    return compute(hypotheticalCandidate, hypotheticalCloset, computeOptions);
   }
   const versionBeforeLookup = await safeReadClosetStateVersion(deps, userID);
   if (versionBeforeLookup === input.closetStateVersion) {
@@ -497,7 +529,7 @@ async function cachedUnlockCount(input: {
     }
   }
 
-  const result = compute(hypotheticalCandidate, hypotheticalCloset, { scoringContext, weights });
+  const result = compute(hypotheticalCandidate, hypotheticalCloset, computeOptions);
   // A closet mutation during the DB read or scoring must not make an old
   // snapshot appear current. A later request can calculate against the new
   // version; this request simply skips persistence.

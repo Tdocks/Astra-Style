@@ -162,6 +162,7 @@ function computeCandidateCompatibility(
     qualityThreshold: 0,
     ...(compatibilityWeights !== undefined ? { weights: compatibilityWeights } : {}),
     ...(scoringContext !== undefined ? { context: scoringContext } : {}),
+    scoreOptions: { colorNameOf: (item) => item.colorName ?? null },
   });
 
   if (generated.qualifying.length > 0) {
@@ -177,6 +178,7 @@ function computeCandidateCompatibility(
     // shown.
     const detail = scoreOutfit(bestOutfit.items, scoringContext ?? {}, {
       ...(compatibilityWeights !== undefined ? { weights: compatibilityWeights } : {}),
+      colorNameOf: (item) => item.colorName ?? null,
     });
     return {
       score: unitClamp(bestOutfit.compatibilityScore / 100),
@@ -195,6 +197,7 @@ function computeCandidateCompatibility(
     if (owned.id === candidate.id) continue;
     const scored = scoreOutfit([candidate, owned], scoringContext ?? {}, {
       ...(compatibilityWeights !== undefined ? { weights: compatibilityWeights } : {}),
+      colorNameOf: (item) => item.colorName ?? null,
     });
     if (scored.score >= bestPair) {
       bestPair = scored.score;

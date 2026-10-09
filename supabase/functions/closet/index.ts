@@ -74,6 +74,13 @@ import type {
 } from "./schema.ts";
 import { handleItemInsights } from "./itemInsights.ts";
 import { handleWardrobeScore } from "./wardrobeScore.ts";
+import { handleScanUnlockCount } from "./unlockCount.ts";
+import { loadCompatibilityWeightsConfig } from "../_shared/scoring/compatibilityWeights.ts";
+import {
+  loadOwnedPreferenceCoWearContext,
+  preferenceContextFromRow,
+} from "../_shared/scoring/ownedScoringContext.ts";
+import { readAllUserIdBatches, readAllUserPages } from "../_shared/readPagination.ts";
 
 import { handleBackgroundRemoval } from "./backgroundRemovalHandler.ts";
 import { fallbackBackgroundRemoval } from "./backgroundRemoval.ts";
@@ -88,6 +95,7 @@ const env = readEdgeEnv();
 // work must stay job+poll so it cannot monopolise this budget.
 const rateLimiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
 const wardrobeScoreRateLimiter = createRateLimiter({ limit: 5, windowMs: 60_000 });
+const scanUnlockCountRateLimiter = createRateLimiter({ limit: 15, windowMs: 60_000 });
 
 function buildProvider(authorizationHeader: string): VisionAnalysisProvider {
   const mode = (Deno.env.get("VISION_ANALYSIS_PROVIDER") ?? "mock").toLowerCase();
@@ -340,6 +348,93 @@ function itemInsightsRoute(
   }, params["id"] ?? "");
 }
 
+function scanUnlockCountRoute(
+  req: Request,
+  params: Readonly<Record<string, string>>,
+): Promise<Response> {
+  const authorizationHeader = req.headers.get("Authorization") ?? "";
+  const caller = createUserScopedClient(env, authorizationHeader);
+  return handleScanUnlockCount(req, params["id"] ?? "", {
+    authClient: caller,
+    supabase: caller,
+    rateLimiter: scanUnlockCountRateLimiter,
+    now: () => new Date(),
+    async readWeights() {
+      return (await loadCompatibilityWeightsConfig(createServiceRoleClient(env))).weights;
+    },
+    async readOwnedScoringContext(ownerID, itemIDs) {
+      return await loadOwnedPreferenceCoWearContext(
+        {
+          async readPreferences(userId) {
+            const { data, error } = await caller
+              .from("style_profiles")
+              .select("preferred_colors,avoided_colors,preferred_fit,formality_preference")
+              .eq("user_id", userId)
+              .maybeSingle();
+            if (error) return undefined;
+            return preferenceContextFromRow(data as Record<string, unknown> | null);
+          },
+          async listWearHistory(userId) {
+            const data = await readAllUserPages(userId, async (ownerId, offset, limit) => {
+              const { data, error } = await caller.from("outfit_wears")
+                .select("outfit_id,rating")
+                .eq("user_id", ownerId)
+                .order("worn_at", { ascending: true })
+                .order("id", { ascending: true })
+                .range(offset, offset + limit - 1);
+              return { data, error };
+            });
+            if (data === null) return [];
+            return data.flatMap((value) => {
+              const row = value as { outfit_id?: unknown; rating?: unknown };
+              return typeof row.outfit_id === "string"
+                ? [{
+                  outfitId: row.outfit_id,
+                  rating: typeof row.rating === "number" ? row.rating : null,
+                }]
+                : [];
+            });
+          },
+          async listWornOutfitItems(userId, outfitIds) {
+            const data = await readAllUserIdBatches(
+              userId,
+              outfitIds,
+              async (ownerId, ids, offset, limit) => {
+                const { data, error } = await caller.from("outfit_items")
+                  .select("outfit_id,closet_item_id,role")
+                  .eq("user_id", ownerId)
+                  .in("outfit_id", [...ids])
+                  .not("closet_item_id", "is", null)
+                  .order("outfit_id", { ascending: true })
+                  .order("id", { ascending: true })
+                  .range(offset, offset + limit - 1);
+                return { data, error };
+              },
+            );
+            if (data === null) return [];
+            return data.flatMap((value) => {
+              const row = value as {
+                outfit_id?: unknown;
+                closet_item_id?: unknown;
+                role?: unknown;
+              };
+              return typeof row.outfit_id === "string" && typeof row.role === "string"
+                ? [{
+                  outfitId: row.outfit_id,
+                  closetItemId: typeof row.closet_item_id === "string" ? row.closet_item_id : null,
+                  category: row.role,
+                }]
+                : [];
+            });
+          },
+        },
+        ownerID,
+        itemIDs,
+      );
+    },
+  });
+}
+
 function backgroundRemovalRoute(req: Request): Promise<Response> {
   const caller = createUserScopedClient(env, req.headers.get("Authorization") ?? "");
   const key = Deno.env.get("BACKGROUND_REMOVAL_PROVIDER_API_KEY")?.trim() ?? "";
@@ -364,4 +459,5 @@ Deno.serve(createRouter("closet", [
   { method: "GET", pattern: "/batch-status/:id", handler: batchStatusRoute },
   { method: "GET", pattern: "/wardrobe-score", handler: wardrobeScoreRoute },
   { method: "GET", pattern: "/items/:id/insights", handler: itemInsightsRoute },
+  { method: "GET", pattern: "/items/:id/unlock-count", handler: scanUnlockCountRoute },
 ]));

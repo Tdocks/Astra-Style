@@ -74,7 +74,8 @@ import { toScoredOutfit } from "../_shared/scoring/wire.ts";
 import type { ScoredOutfitEnvelope } from "../_shared/scoring/wire.ts";
 import type { ScorableItem } from "../_shared/scoring/types.ts";
 import type { PreferenceContext, WeatherContext } from "../_shared/scoring/types.ts";
-import { coWearContext, resolveTargetFormality } from "./scoringContext.ts";
+import { loadOwnedPreferenceCoWearContext } from "../_shared/scoring/ownedScoringContext.ts";
+import { resolveTargetFormality } from "./scoringContext.ts";
 
 export interface ClosetRepository {
   /**
@@ -116,24 +117,20 @@ async function scoringContext(
   options: { occasionId?: string; naturalLanguageRequest?: string } = {},
   weather?: WeatherContext,
 ) {
-  const [preferences, occasion] = await Promise.all([
-    repository.readPreferences(userId),
+  const [ownedContext, occasion] = await Promise.all([
+    loadOwnedPreferenceCoWearContext(repository, userId, itemIds),
     options.occasionId
       ? repository.readOccasion(userId, options.occasionId)
       : Promise.resolve(null),
   ]);
   if (options.occasionId && !occasion) throw notFound("That occasion is unavailable.");
-  const wears = await repository.listWearHistory(userId);
-  const outfitIds = [...new Set(wears.map((wear) => wear.outfitId))];
-  const wornItems = outfitIds.length ? await repository.listWornOutfitItems(userId, outfitIds) : [];
   const targetFormalityScore = resolveTargetFormality(
     occasion?.dressCode,
     options.naturalLanguageRequest,
   );
   return {
-    ...(preferences ? { preferences } : {}),
+    ...ownedContext,
     ...(weather ? { weather } : {}),
-    ...coWearContext(itemIds, wears, wornItems),
     ...(targetFormalityScore === null ? {} : { targetFormalityScore }),
   };
 }

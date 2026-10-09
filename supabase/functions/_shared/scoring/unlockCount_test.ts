@@ -107,6 +107,80 @@ Deno.test("A candidate with no owned equivalence-class substitute is novel and c
   assert(result.unlockCount >= 1);
 });
 
+Deno.test("owned avoided-colour preference changes the purchase unlock count", () => {
+  const candidate = garment("candidate-shoe", "shoes", {
+    colorHex: "111111",
+    colorName: "black",
+  });
+  const top = garment("black-top", "top", { colorHex: "111111", colorName: "black" });
+  const bottom = garment("black-bottom", "bottom", { colorHex: "111111", colorName: "black" });
+  const weights = {
+    color: 0,
+    formality: 0,
+    silhouette: 0,
+    seasonWeather: 0,
+    userPreference: 1,
+    coWear: 0,
+    occasion: 0,
+    availability: 0,
+  };
+  const generationOptions = {
+    scoreOptions: { colorNameOf: (item: ScorableItem) => item.colorName ?? null },
+  };
+  const withoutPreference = computeUnlockCount(candidate, [top, bottom], {
+    weights,
+    generationOptions,
+  });
+  const withPreference = computeUnlockCount(candidate, [top, bottom], {
+    weights,
+    generationOptions,
+    scoringContext: {
+      preferences: {
+        preferredColors: [],
+        avoidedColors: ["black"],
+        preferredFit: null,
+        formalityPreferenceCenter: null,
+      },
+    },
+  });
+  assert(withoutPreference.unlockCount > 0);
+  assertEquals(withPreference.unlockCount, 0);
+});
+
+Deno.test("positive caller co-wear history can raise an outfit above the unlock quality bar", () => {
+  const candidate = garment("candidate-shoe", "shoes", { colorHex: "111111" });
+  const top = garment("top-history", "top", { colorHex: "111111" });
+  const bottom = garment("bottom-history", "bottom", { colorHex: "111111" });
+  const weights = {
+    color: 0,
+    formality: 0,
+    silhouette: 0,
+    seasonWeather: 0,
+    userPreference: 0,
+    coWear: 1,
+    occasion: 0,
+    availability: 0,
+  };
+  const generationOptions = { qualityThreshold: 0.8 };
+  const withoutHistory = computeUnlockCount(candidate, [top, bottom], {
+    weights,
+    generationOptions,
+  });
+  const withPositiveHistory = computeUnlockCount(candidate, [top, bottom], {
+    weights,
+    generationOptions,
+    scoringContext: {
+      coWearByRole: new Map([
+        ["shoes|top", { totalCoWears: 10, positiveCoWears: 10 }],
+        ["bottom|shoes", { totalCoWears: 10, positiveCoWears: 10 }],
+        ["bottom|top", { totalCoWears: 10, positiveCoWears: 10 }],
+      ]),
+    },
+  });
+  assertEquals(withoutHistory.unlockCount, 0);
+  assert(withPositiveHistory.unlockCount > 0);
+});
+
 Deno.test("Test 27 (§9): gap-filling flips true when a bucket goes from 1 pre-existing qualifying combo to >=2", () => {
   const top = garment("top", "top", { colorHex: "FFFFFF", formalityScore: 40, fit: "regular" });
   const bottom = garment("bottom", "bottom", {

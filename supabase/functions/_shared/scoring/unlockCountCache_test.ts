@@ -50,6 +50,30 @@ Deno.test("cache keys are stable SHA-256 values and include caller, candidate, g
   assertNotEquals(await key({ candidate: { ...CANDIDATE, secondaryColors: [navy.lch] } }), base);
   assertNotEquals(await key({ scoringContext: { wardrobeGraph: "womenswear" } }), base);
   assertNotEquals(await key({ scoringContext: { targetFormalityScore: 75 } }), base);
+  assertNotEquals(
+    await key({
+      scoringContext: {
+        preferences: {
+          preferredColors: ["navy"],
+          avoidedColors: [],
+          preferredFit: "regular",
+          formalityPreferenceCenter: 50,
+        },
+      },
+    }),
+    base,
+  );
+  assertNotEquals(
+    await key({
+      scoringContext: {
+        coWearByRole: new Map([[
+          "bottom|top",
+          { totalCoWears: 4, positiveCoWears: 4 },
+        ]]),
+      },
+    }),
+    base,
+  );
 });
 
 Deno.test("map context canonicalization ignores insertion order", async () => {

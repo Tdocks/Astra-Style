@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { MockProductExtractionProvider } from "../_shared/providers/mockProductExtraction.ts";
 import type { UnlockCountResult } from "../_shared/scoring/unlockCount.ts";
 import type { ProductCandidateRow } from "./candidateMapper.ts";
@@ -45,6 +45,9 @@ function dependencies(over: Partial<ProductsDependencies> = {}): ProductsDepende
     upsertCandidate: () => Promise.resolve(product()),
     fetchCandidate: () => Promise.resolve(product()),
     fetchCloset: () => Promise.resolve([]),
+    readPreferences: () => Promise.resolve(undefined),
+    listWearHistory: () => Promise.resolve([]),
+    listWornOutfitItems: () => Promise.resolve([]),
     fetchLifestyle: () => Promise.resolve({ monthlyBudget: null, dressCode: null }),
     fetchAlternatives: () => Promise.resolve([]),
     persistEvaluation: () => Promise.resolve({ created_at: "2026-10-09T00:00:00Z" }),
@@ -99,6 +102,65 @@ Deno.test("a cache hit reuses the unlock result without rewriting it", async () 
   assertEquals(writes, 0);
   assertEquals(computations, 0);
   assertEquals(cacheUserID, USER);
+});
+
+Deno.test("evaluation forwards caller preferences and positive co-wear into scoring and cache identity", async () => {
+  const contexts: import("../_shared/scoring/types.ts").ScoringContext[] = [];
+  const keys: string[] = [];
+  const run = (preferredColors: string[], rating: number) =>
+    handleEvaluateProduct(
+      { product_candidate_id: CANDIDATE_ID },
+      USER,
+      dependencies({
+        readPreferences: (userID) => {
+          assertEquals(userID, USER);
+          return Promise.resolve({
+            preferredColors,
+            avoidedColors: [],
+            preferredFit: "regular",
+            formalityPreferenceCenter: 50,
+          });
+        },
+        listWearHistory: (userID) => {
+          assertEquals(userID, USER);
+          return Promise.resolve([{ outfitId: "owned-outfit", rating }]);
+        },
+        listWornOutfitItems: (userID, outfitIDs) => {
+          assertEquals(userID, USER);
+          assertEquals(outfitIDs, ["owned-outfit"]);
+          return Promise.resolve([
+            { outfitId: "owned-outfit", closetItemId: "top-1", category: "top" },
+            { outfitId: "owned-outfit", closetItemId: "bottom-1", category: "bottom" },
+          ]);
+        },
+        readUnlockCountCache: () => Promise.resolve(null),
+        writeUnlockCountCache: (row) => {
+          keys.push(row.cache_key);
+          return Promise.resolve();
+        },
+        computeUnlockCount: (_candidate, _closet, options) => {
+          contexts.push(options.scoringContext);
+          return RESULT;
+        },
+      }),
+    );
+
+  await run(["navy"], 5);
+  await run(["black"], 5);
+  await run(["navy"], 1);
+  assertEquals(contexts[0]?.preferences?.preferredColors, ["navy"]);
+  assertEquals(contexts[0]?.coWearByRole?.get("bottom|top"), {
+    totalCoWears: 1,
+    positiveCoWears: 1,
+  });
+  assertEquals("targetFormalityScore" in contexts[0]!, false);
+  assertEquals("weather" in contexts[0]!, false);
+  assertEquals(contexts[2]?.coWearByRole?.get("bottom|top"), {
+    totalCoWears: 1,
+    positiveCoWears: 0,
+  });
+  assertNotEquals(keys[0], keys[1], "preference changes must miss the prior cache key");
+  assertNotEquals(keys[0], keys[2], "wear rating/history changes must miss the prior cache key");
 });
 
 Deno.test("a closet mutation during scoring prevents publishing the old snapshot", async () => {

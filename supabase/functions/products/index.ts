@@ -49,6 +49,8 @@ import { HtmlProductExtractionProvider } from "../_shared/providers/htmlProductE
 import type { ProductExtractionProvider } from "../_shared/providers/productExtraction.ts";
 import { mapClosetItemRowToScorableItem } from "../_shared/scoring/closetItemMapper.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
+import { preferenceContextFromRow } from "../_shared/scoring/ownedScoringContext.ts";
+import { readAllUserIdBatches, readAllUserPages } from "../_shared/readPagination.ts";
 import {
   handleEvaluateProduct,
   handleExtractProduct,
@@ -202,18 +204,19 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
     },
 
     async fetchCloset(userID) {
-      // `userID` is unused on purpose: `closet_items_select_own` scopes this
-      // by `auth.uid()` from the JWT already on `supabase`. Filtering here
-      // too would be a second, forgettable copy of the same rule.
-      void userID;
-      const { data, error } = await supabase
-        .from("closet_items")
-        .select(SCORABLE_COLUMNS)
-        .is("archived_at", null)
-        .order("id", { ascending: true });
-      if (error) throw serverError("Couldn't load your closet.");
+      const data = await readAllUserPages(userID, async (ownerId, offset, limit) => {
+        const { data, error } = await supabase
+          .from("closet_items")
+          .select(SCORABLE_COLUMNS)
+          .eq("user_id", ownerId)
+          .is("archived_at", null)
+          .order("id", { ascending: true })
+          .range(offset, offset + limit - 1);
+        return { data, error };
+      });
+      if (data === null) throw serverError("Couldn't load your closet.");
 
-      const rows = (data ?? []) as unknown as ClosetItemMapperRow[];
+      const rows = data as unknown as ClosetItemMapperRow[];
       return rows.flatMap((row): OwnedGarment[] => {
         const scorable = mapClosetItemRowToScorableItem(row);
         if (scorable === null) return [];
@@ -230,6 +233,71 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
             seasonality: scorable.seasonality,
           },
         }];
+      });
+    },
+
+    async readPreferences(userID) {
+      const { data, error } = await supabase
+        .from("style_profiles")
+        .select("preferred_colors,avoided_colors,preferred_fit,formality_preference")
+        .eq("user_id", userID)
+        .maybeSingle();
+      // This is an optional signal: missing or unreadable preferences retain
+      // the scorer's explicit cold-start prior.
+      if (error) return undefined;
+      return preferenceContextFromRow(data as Record<string, unknown> | null);
+    },
+
+    async listWearHistory(userID) {
+      const data = await readAllUserPages(userID, async (ownerId, offset, limit) => {
+        const { data, error } = await supabase
+          .from("outfit_wears")
+          .select("outfit_id,rating")
+          .eq("user_id", ownerId)
+          .order("worn_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + limit - 1);
+        return { data, error };
+      });
+      if (data === null) return [];
+      return data.flatMap((value) => {
+        const row = value as { outfit_id?: unknown; rating?: unknown };
+        return typeof row.outfit_id === "string"
+          ? [{
+            outfitId: row.outfit_id,
+            rating: typeof row.rating === "number" ? row.rating : null,
+          }]
+          : [];
+      });
+    },
+
+    async listWornOutfitItems(userID, outfitIDs) {
+      const data = await readAllUserIdBatches(
+        userID,
+        outfitIDs,
+        async (ownerId, ids, offset, limit) => {
+          const { data, error } = await supabase
+            .from("outfit_items")
+            .select("outfit_id,closet_item_id,role")
+            .eq("user_id", ownerId)
+            .in("outfit_id", [...ids])
+            .not("closet_item_id", "is", null)
+            .order("outfit_id", { ascending: true })
+            .order("id", { ascending: true })
+            .range(offset, offset + limit - 1);
+          return { data, error };
+        },
+      );
+      if (data === null) return [];
+      return data.flatMap((value) => {
+        const row = value as { outfit_id?: unknown; closet_item_id?: unknown; role?: unknown };
+        return typeof row.outfit_id === "string" && typeof row.role === "string"
+          ? [{
+            outfitId: row.outfit_id,
+            closetItemId: typeof row.closet_item_id === "string" ? row.closet_item_id : null,
+            category: row.role,
+          }]
+          : [];
       });
     },
 

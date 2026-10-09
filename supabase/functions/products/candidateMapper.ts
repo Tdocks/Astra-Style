@@ -347,6 +347,7 @@ export function mapProductCandidateRowToEvaluationInput(
     id: row.id,
     category: categoryWord,
     role,
+    colorName: resolvedColor ? colorWord : null,
     primaryColor: resolvedColor?.lch ?? null,
     isNeutral: resolvedColor?.isNeutral ?? false,
     secondaryColors,
