@@ -604,3 +604,27 @@ struct ScannerReviewViewModelCapTests {
         #expect(repository.lastCreated == nil)
     }
 }
+
+@Suite("Captured image upload format")
+struct CapturedImageUploadFormatTests {
+    @Test("Transparent PNG cutouts retain PNG metadata")
+    func pngMetadata() throws {
+        let format = try CapturedImageUploadFormat.detect(Data([137, 80, 78, 71, 13, 10, 26, 10]))
+        #expect(format.fileExtension == "png")
+        #expect(format.contentType == "image/png")
+    }
+
+    @Test("Prepared JPEG captures retain JPEG metadata")
+    func jpegMetadata() throws {
+        let format = try CapturedImageUploadFormat.detect(Data([255, 216, 255, 224]))
+        #expect(format.fileExtension == "jpg")
+        #expect(format.contentType == "image/jpeg")
+    }
+
+    @Test("Unsupported bytes are rejected")
+    func unsupportedBytes() {
+        #expect(throws: AstraError.self) {
+            try CapturedImageUploadFormat.detect(Data([1, 2, 3]))
+        }
+    }
+}

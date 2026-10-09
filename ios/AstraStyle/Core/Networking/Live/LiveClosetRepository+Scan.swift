@@ -217,15 +217,32 @@ extension LiveClosetRepository {
                 return try GuestLocalImageStore.save(imageData, userID: session.user.id)
             }
             let userID = session.user.id.uuidString.lowercased()
-            let path = "users/\(userID)/closet/\(UUID().uuidString.lowercased()).jpg"
+            let format = try CapturedImageUploadFormat.detect(imageData)
+            let path = "users/\(userID)/closet/\(UUID().uuidString.lowercased()).\(format.fileExtension)"
             _ = try await supabase.storage
                 .from("user-content")
-                .upload(path, data: imageData, options: FileOptions(contentType: "image/jpeg"))
+                .upload(path, data: imageData, options: FileOptions(contentType: format.contentType))
             return path
         } catch let error as AstraError {
             throw error
         } catch {
             throw AstraError.network("Couldn't upload that photo. Check your connection and try again.")
         }
+    }
+}
+
+/// Prepared captures are JPEG; Vision foreground masks are transparent PNG.
+/// Keep their actual format rather than labelling a cutout as JPEG.
+enum CapturedImageUploadFormat {
+    case jpeg
+    case png
+
+    var fileExtension: String { self == .png ? "png" : "jpg" }
+    var contentType: String { self == .png ? "image/png" : "image/jpeg" }
+
+    static func detect(_ data: Data) throws -> Self {
+        if data.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) { return .png }
+        if data.starts(with: [255, 216, 255]) { return .jpeg }
+        throw AstraError.validation("That photo format isn't supported.")
     }
 }
