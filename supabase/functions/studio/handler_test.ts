@@ -750,3 +750,33 @@ Deno.test("inspiration cannot edit a personal reference Studio result", async ()
   assertEquals(response.status, 400);
   assertEquals(deps.jobStore.rows.size, 1);
 });
+
+Deno.test("initial submission replay returns the same job after the free allowance is used", async () => {
+  const deps = buildDeps();
+  const key = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  let originalHash: string | undefined;
+  const insert = deps.jobStore.insert.bind(deps.jobStore);
+  deps.jobStore.insert = (row) => {
+    assertEquals(row.requestKey, key);
+    originalHash = row.requestHash;
+    assertEquals(originalHash?.length, 64);
+    return insert(row);
+  };
+  deps.jobStore.findSubmission = (user, requestedKey, hash) => {
+    assertEquals(user, USER_A_ID);
+    assertEquals(requestedKey, key);
+    if (originalHash) assertEquals(hash, originalHash);
+    return Promise.resolve([...deps.jobStore.rows.values()][0] ?? null);
+  };
+  const request = () => {
+    const req = generateRequest(VALID_LOOKING_JWT_A, generateBody());
+    req.headers.set("Idempotency-Key", key);
+    return req;
+  };
+  const first = await handleGenerate(request(), deps);
+  const replay = await handleGenerate(request(), deps);
+  assertEquals(first.status, 202);
+  assertEquals(replay.status, 202);
+  assertEquals((await first.json()).data.id, (await replay.json()).data.id);
+  assertEquals(deps.jobStore.rows.size, 1);
+});

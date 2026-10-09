@@ -26,14 +26,20 @@ function mapRow(data: Record<string, unknown>): StudioGenerationRow {
 export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
   return {
     async insert(row) {
-      const { data, error } = await supabase.rpc("enqueue_studio_generation", {
-        p_user_id: row.userId,
-        p_reference_image_path: row.referenceImagePath,
-        p_outfit_id: row.outfitId,
-        p_prompt_payload: row.promptPayload,
-        p_provider: row.provider,
-        p_retry_of: row.retryOf ?? null,
-      }).single();
+      const { data, error } = await supabase.rpc(
+        row.requestKey ? "enqueue_studio_generation_idempotent" : "enqueue_studio_generation",
+        {
+          ...(row.requestKey
+            ? { p_request_key: row.requestKey, p_request_hash: row.requestHash }
+            : {}),
+          p_user_id: row.userId,
+          p_reference_image_path: row.referenceImagePath,
+          p_outfit_id: row.outfitId,
+          p_prompt_payload: row.promptPayload,
+          p_provider: row.provider,
+          p_retry_of: row.retryOf ?? null,
+        },
+      ).single();
       if (error?.message?.includes("studio_trial_exhausted")) {
         throw new AppError(
           "rate_limited",
@@ -52,9 +58,42 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
           "That source estimate expired or was removed. Generate a fresh inspiration instead.",
         );
       }
+      if (error?.message?.includes("studio_request_conflict")) {
+        throw new AppError(
+          "validation",
+          409,
+          "This request key was already used for a different preview.",
+        );
+      }
+      if (error?.message?.includes("studio_request_removed")) {
+        throw new AppError("validation", 409, "That preview was removed. Start a new request.");
+      }
       if (error || !data) throw serverError("Couldn't enqueue the generation job.");
       return mapRow(data as Record<string, unknown>);
     },
+    async findSubmission(userId, key, hash) {
+      const { data, error } = await supabase.from("studio_submission_requests")
+        .select("request_hash,generation_id").eq("user_id", userId).eq("request_key", key)
+        .maybeSingle();
+      if (error) throw serverError("Couldn't check the preview request.");
+      if (!data) return null;
+      if (data.request_hash !== hash) {
+        throw new AppError(
+          "validation",
+          409,
+          "This request key was already used for a different preview.",
+        );
+      }
+      const { data: generation, error: lookupError } = await supabase.from("studio_generations")
+        .select("*").eq("user_id", userId).eq("id", data.generation_id).is("deleted_at", null)
+        .maybeSingle();
+      if (lookupError) throw serverError("Couldn't retrieve the preview request.");
+      if (!generation) {
+        throw new AppError("validation", 409, "That preview was removed. Start a new request.");
+      }
+      return mapRow(generation);
+    },
+
     async get(userId, id) {
       const { data, error } = await supabase.from("studio_generations").select("*")
         .eq("user_id", userId).eq("id", id).maybeSingle();

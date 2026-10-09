@@ -106,3 +106,19 @@ allowance, conflict rejection, tombstone rejection and authenticated RPC denial
 SQL coverage; concurrent/live checks and HTTP fingerprint/header wiring remain
 open. The migration is not deployed. CLI 2.101.0 was killed by macOS; migration
 creation succeeded through CLI 2.75.0, without changing migration history.
+
+## Studio API submission wiring
+
+`Idempotency-Key` is now parsed as a UUID; normalized parsed request bodies receive
+canonical SHA-256 fingerprints. The job store checks existing owner-bound
+requests before the trial quota and uses the atomic wrapper for initial keyed
+inserts. The quota branch rechecks after its allowance read to avoid returning a
+false limit error when another matching request just committed. Conflicting keys
+and removed jobs return 409. Existing explicit failed-job retry behavior remains.
+
+61 Studio tests passed (`/tmp/astra-submission-api-tests.log`), including canonical
+fingerprints and an initial-submit replay after the free allowance was spent.
+Entrypoint type checking and lint passed. Native API calls already send a stable
+UUID Idempotency-Key for generateStudio; the deployed backend currently ignores
+it. Migration must be deployed before this backend version. Concurrent database
+and hosted HTTP verification remain open; no deployment yet.

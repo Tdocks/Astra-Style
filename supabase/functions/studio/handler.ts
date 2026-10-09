@@ -66,6 +66,7 @@ import {
   type StudioGenerationDTO,
   toWireTimestamp,
 } from "./schema.ts";
+import { parseSubmissionKey, submissionFingerprint } from "./submissionKey.ts";
 import { isUUID } from "../_shared/validation.ts";
 
 /**
@@ -99,6 +100,8 @@ export interface StudioGenerationRow {
 }
 
 export interface StudioJobInsert {
+  requestKey?: string;
+  requestHash?: string;
   userId: string;
   referenceImagePath: string;
   outfitId: string | null;
@@ -115,6 +118,7 @@ export interface StudioJobPatch {
 }
 
 export interface StudioJobStore {
+  findSubmission?(userId: string, key: string, hash: string): Promise<StudioGenerationRow | null>;
   /** Inserts with `status = 'queued'` — the P6-STUDIO-04 contract. */
   insert(row: StudioJobInsert): Promise<StudioGenerationRow>;
   /** Returns null for missing AND for unowned (RLS) — same 404 either way. */
@@ -383,6 +387,7 @@ async function enqueueGeneration(
   body: GenerateRequestBody,
   userId: string,
   deps: StudioHandlerDeps,
+  submission?: { key: string; hash: string },
 ): Promise<StudioGenerationRow> {
   if (!body.mode) {
     assertConsentCurrent(body.consent);
@@ -453,6 +458,7 @@ async function enqueueGeneration(
     });
 
   return await deps.jobStore.insert({
+    ...(submission ? { requestKey: submission.key, requestHash: submission.hash } : {}),
     userId,
     referenceImagePath,
     outfitId: body.outfitId ?? null,
@@ -568,12 +574,42 @@ export async function handleGenerate(
     requestId = resolveRequestId(req, envelope.requestId);
     logger.adoptRequestId(requestId);
     const body = parseGenerateBody(envelope.body);
+    const key = parseSubmissionKey(req.headers.get("Idempotency-Key"));
+    const submission = key && body.kind !== "retry"
+      ? { key, hash: await submissionFingerprint(body) }
+      : undefined;
+    if (submission && deps.jobStore.findSubmission) {
+      const existing = await deps.jobStore.findSubmission(userId, submission.key, submission.hash);
+      if (existing) {
+        return jsonResponse(rowToDTO(existing), {
+          status: 202,
+          requestId,
+          extraHeaders: CORS_HEADERS,
+        });
+      }
+    }
 
     if (body.kind !== "retry") {
       const premium = await deps.hasActivePremiumSubscription(deps.now().toISOString());
       if (!premium) {
         const used = await deps.jobStore.countForUser(userId);
         if (used >= deps.freeStudioTrialGenerations) {
+          // Another submission may have committed between the first lookup
+          // and the allowance read. Return its job rather than a false 429.
+          if (submission && deps.jobStore.findSubmission) {
+            const replay = await deps.jobStore.findSubmission(
+              userId,
+              submission.key,
+              submission.hash,
+            );
+            if (replay) {
+              return jsonResponse(rowToDTO(replay), {
+                status: 202,
+                requestId,
+                extraHeaders: CORS_HEADERS,
+              });
+            }
+          }
           logger.warn("studio_generate.rate_limited", {
             user_id: userId,
             kind: "studio_trial_quota",
@@ -594,7 +630,7 @@ export async function handleGenerate(
 
     const row = body.kind === "retry"
       ? await enqueueRetry(body.retryOf, userId, deps)
-      : await enqueueGeneration(body, userId, deps);
+      : await enqueueGeneration(body, userId, deps, submission);
 
     logger.info("studio_generate.enqueued", {
       user_id: userId,
