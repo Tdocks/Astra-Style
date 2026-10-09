@@ -2,6 +2,7 @@ import PhotosUI
 import SwiftUI
 
 struct ReceiptCaptureView: View {
+    var onDone: (() -> Void)?
     var onItemSaved: ((ClosetItem) -> Void)?
     @State var viewModel: ReceiptCaptureViewModel
     @State private var photo: PhotosPickerItem?
@@ -34,7 +35,9 @@ struct ReceiptCaptureView: View {
                 }
                 if let saved = viewModel.savedItem {
                     Text("Saved \(saved.name) to your closet.").astraText(.headline)
-                    Button("Done") { dismiss() }.buttonStyle(.astraPrimary)
+                    Button("Done") {
+                        if let onDone { onDone() } else { dismiss() }
+                    }.buttonStyle(.astraPrimary)
                 } else if let form = viewModel.form {
                     ClosetItemFormView(viewModel: form)
                 }

@@ -43,6 +43,17 @@ struct ScannerDestinationView: View {
                     destinationContent(destination)
                 }
                 .toolbar {
+                    if path.isEmpty, route == .singleItem {
+                        ToolbarItem(placement: .primaryAction) {
+                            Menu("Capture mode") {
+                                Button("Receipt or label") { path.append(.receiptLabel) }
+                                    .accessibilityIdentifier("scanner.mode.receipt")
+                                Button("Batch closet photos") { path.append(.batchCloset) }
+                            }
+                            .accessibilityIdentifier("scanner.mode.menu")
+                        }
+                    }
+
                     if showsChromeClose {
                         ToolbarItem(placement: .cancellationAction) {
                             Button(String(localized: "Close", comment: "Dismiss scanner modal")) {
@@ -116,6 +127,14 @@ struct ScannerDestinationView: View {
         }
     }
 
+    private var receiptRoot: some View {
+        ReceiptCaptureView(onDone: { closeScanner() }, onItemSaved: onItemSaved, viewModel: ReceiptCaptureViewModel(
+            recognizer: LiveVisionLabelTextRecognizer(),
+            repository: container.closetRepository,
+            currentUserID: { await container.sessionStore.currentUserID() }
+        ))
+    }
+
     @ViewBuilder
     private var rootContent: some View {
         switch route {
@@ -124,11 +143,7 @@ struct ScannerDestinationView: View {
         case .batchCloset:
             batchRoot
         case .receiptLabel:
-            ReceiptCaptureView(onItemSaved: onItemSaved, viewModel: ReceiptCaptureViewModel(
-                recognizer: LiveVisionLabelTextRecognizer(),
-                repository: container.closetRepository,
-                currentUserID: { await container.sessionStore.currentUserID() }
-            ))
+            receiptRoot
         case .outfitMirror:
             FeaturePlaceholderView(
                 title: String(localized: "Mirror Photo", comment: "Scanner outfit mirror mode title"),
@@ -154,6 +169,10 @@ struct ScannerDestinationView: View {
                         .foregroundStyle(AstraColor.textSecondary)
                     }
                 }
+        case .receiptLabel:
+            receiptRoot
+        case .batchCloset:
+            batchRoot
         default:
             FeaturePlaceholderView(
                 title: String(localized: "Scan", comment: "Generic scanner placeholder"),

@@ -29,6 +29,20 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         return found
     }
 
+    func testReceiptCaptureIsReachableFromCloset() throws {
+        launchMockMain()
+        app.tapChromeTab("Closet")
+        let scan = app.buttons["closet.header.scan"]
+        awaitElement(scan, "Closet scan menu")
+        scan.tap()
+        let receipt = app.buttons["Receipt or label"]
+        awaitElement(receipt, "Receipt mode")
+        receipt.tap()
+        awaitElement(app.navigationBars["Receipt / label"], "Receipt capture screen")
+        awaitElement(app.buttons["Choose photo"], "Receipt photo import")
+        awaitElement(app.buttons["Take photo"], "Receipt camera action")
+    }
+
     /// Home opens the image flow without requiring a selfie or closet.
     func testHomeStyleInspiration() throws {
         launchMockMain()

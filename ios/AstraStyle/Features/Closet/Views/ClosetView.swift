@@ -371,39 +371,6 @@ public struct ClosetView: View {
         .accessibilityIdentifier("closet.header.addManually")
     }
 
-    /// Opens the scanner flow (spec §4 presents capture modally, and
-    /// `AppRouter.startScan()` is the one entry point for it).
-    ///
-    /// A `Menu` rather than a plain button, because batch is a peer of
-    /// single-item capture and not a setting on it. It costs the common case
-    /// one tap, which is the honest price of having two modes at all — the
-    /// alternative considered was hiding batch behind a long press, and an
-    /// affordance nobody can find is the same as the placeholder this
-    /// replaced.
-    private var scanButton: some View {
-        Menu {
-            Button(String(localized: "Scan One Piece", comment: "Closet scan menu: single item"),
-                   systemImage: "camera.viewfinder") {
-                router.startScan()
-            }
-            Button(String(localized: "Add Several at Once", comment: "Closet scan menu: batch"),
-                   systemImage: "square.stack.3d.up") {
-                router.startScan(mode: .batchCloset)
-            }
-        } label: {
-            Image(systemName: "camera.viewfinder")
-                .astraIcon(.emphasis)
-                // An icon is a fill, not text, so this is the plain
-                // champagne token (spec §3 / docs/07).
-                .foregroundStyle(AstraColor.accentChampagne)
-                .frame(minWidth: AstraSize.minTapTarget, minHeight: AstraSize.minTapTarget)
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(Text(String(localized: "Scan an item", comment: "VoiceOver label for the closet scan button")))
-        .accessibilityHint(Text(String(localized: "Adds a piece to your closet with the camera, one at a time or several together", comment: "VoiceOver hint for the closet scan button")))
-        .accessibilityIdentifier("closet.header.scan")
-    }
-
     // MARK: - Content
 
     @ViewBuilder
@@ -650,4 +617,43 @@ private var previewLooksViewModel: ClosetLooksViewModel {
     }
     .environment(AppRouter())
     .preferredColorScheme(.dark)
+}
+
+extension ClosetView {
+    /// Opens the scanner flow (spec §4 presents capture modally, and
+    /// `AppRouter.startScan()` is the one entry point for it).
+    ///
+    /// A `Menu` rather than a plain button, because batch is a peer of
+    /// single-item capture and not a setting on it. It costs the common case
+    /// one tap, which is the honest price of having two modes at all — the
+    /// alternative considered was hiding batch behind a long press, and an
+    /// affordance nobody can find is the same as the placeholder this
+    /// replaced.
+    private var scanButton: some View {
+        Menu {
+            Button(String(localized: "Scan One Piece", comment: "Closet scan menu: single item"),
+                   systemImage: "camera.viewfinder") {
+                router.startScan()
+            }
+            Button("Receipt or label", systemImage: "doc.text.viewfinder") {
+                router.startScan(mode: .receiptLabel)
+            }
+            .accessibilityIdentifier("closet.scan.receipt")
+            Button(String(localized: "Add Several at Once", comment: "Closet scan menu: batch"),
+                   systemImage: "square.stack.3d.up") {
+                router.startScan(mode: .batchCloset)
+            }
+        } label: {
+            Image(systemName: "camera.viewfinder")
+                .astraIcon(.emphasis)
+                // An icon is a fill, not text, so this is the plain
+                // champagne token (spec §3 / docs/07).
+                .foregroundStyle(AstraColor.accentChampagne)
+                .frame(minWidth: AstraSize.minTapTarget, minHeight: AstraSize.minTapTarget)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Text(String(localized: "Scan an item", comment: "VoiceOver label for the closet scan button")))
+        .accessibilityHint(Text(String(localized: "Adds a piece to your closet with the camera, one at a time or several together", comment: "VoiceOver hint for the closet scan button")))
+        .accessibilityIdentifier("closet.header.scan")
+    }
 }
