@@ -103,10 +103,13 @@ public final class AstraAPIClient: @unchecked Sendable {
     public func send<Body: Encodable & Sendable, Payload: Decodable & Sendable>(
         _ endpoint: AstraEndpoint,
         body: Body,
+        idempotencyKey suppliedIdempotencyKey: String? = nil,
         as payloadType: Payload.Type
     ) async throws -> Payload {
         let requestID = UUID().uuidString
-        let idempotencyKey = endpoint.requiresIdempotencyKey ? UUID().uuidString : nil
+        let idempotencyKey = endpoint.requiresIdempotencyKey
+            ? (suppliedIdempotencyKey ?? UUID().uuidString)
+            : nil
         let policy = endpoint.retryPolicy == .default ? retryPolicy : endpoint.retryPolicy
 
         var attempt = 0

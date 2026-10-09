@@ -278,6 +278,8 @@ public final class ClosetViewModel {
     /// Held rather than fired and forgotten so `awaitPendingImageResolution()`
     /// can be a real guarantee instead of a sleep.
     private var imageResolutionTask: Task<Void, Never>?
+    /// Invalidates URL results from a pass that was suspended across reload.
+    var imageResolutionGeneration = UUID()
     var wardrobeScoreRequestID = UUID()
 
     public init(
@@ -637,12 +639,15 @@ public final class ClosetViewModel {
         guard imageURLsByItemID[item.id] == nil, !attemptedImageItemIDs.contains(item.id) else { return }
         pendingImageItemIDs.insert(item.id)
         guard imageResolutionTask == nil else { return }
+        let generation = imageResolutionGeneration
         imageResolutionTask = Task {
             // One hop, so every tile that appeared in this frame has had a
             // chance to register before the pending set is drained.
             await Task.yield()
-            await drainPendingImages()
-            imageResolutionTask = nil
+            await drainPendingImages(for: generation)
+            if imageResolutionGeneration == generation {
+                imageResolutionTask = nil
+            }
         }
     }
 
@@ -660,18 +665,27 @@ public final class ClosetViewModel {
     /// Public so a test can drive the pass deterministically rather than
     /// racing the scheduler.
     public func drainPendingImages() async {
+        await drainPendingImages(for: imageResolutionGeneration)
+    }
+
+    private func drainPendingImages(for generation: UUID) async {
+        guard generation == imageResolutionGeneration else { return }
         guard !isResolvingImages else { return }
         isResolvingImages = true
-        defer { isResolvingImages = false }
+        defer {
+            if generation == imageResolutionGeneration {
+                isResolvingImages = false
+            }
+        }
 
         while !pendingImageItemIDs.isEmpty {
             // A reload cancels the pass in flight: the URLs it is about to
             // write describe a closet that has already been replaced.
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == imageResolutionGeneration else { return }
             let batch = pendingImageItemIDs
             pendingImageItemIDs.removeAll()
             attemptedImageItemIDs.formUnion(batch)
-            await resolveImages(forItemIDs: batch)
+            await resolveImages(forItemIDs: batch, generation: generation)
         }
     }
 
@@ -697,8 +711,10 @@ public final class ClosetViewModel {
     /// resolved URLs and the "already tried this one" set are both dropped
     /// rather than carried forward.
     private func resetImageResolution() {
+        imageResolutionGeneration = UUID()
         imageResolutionTask?.cancel()
         imageResolutionTask = nil
+        isResolvingImages = false
         imageURLsByItemID.removeAll()
         imageFallbackURLsByItemID.removeAll()
         attemptedImageItemIDs.removeAll()

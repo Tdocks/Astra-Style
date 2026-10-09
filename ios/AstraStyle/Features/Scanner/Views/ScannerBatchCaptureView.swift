@@ -54,7 +54,8 @@ struct ScannerBatchCaptureView: View {
                     message(
                         title: String(localized: "That batch didn't go through",
                                       comment: "Batch scan failure title"),
-                        body: error.message
+                        body: error.message,
+                        canRetryPendingBatch: viewModel.canRetryPendingBatch
                     )
                 case .capReached(let limit):
                     capReached(limit: limit)
@@ -106,6 +107,9 @@ struct ScannerBatchCaptureView: View {
                 pickedItems = []
                 await viewModel.importImages(payloads, selectedCount: selectedCount)
             }
+        }
+        .task {
+            await viewModel.restorePendingBatch()
         }
     }
 
@@ -215,7 +219,7 @@ struct ScannerBatchCaptureView: View {
         }
     }
 
-    private func message(title: String, body: String) -> some View {
+    private func message(title: String, body: String, canRetryPendingBatch: Bool = false) -> some View {
         VStack(spacing: AstraSpacing.md) {
             Text(title)
                 .astraText(.headline)
@@ -225,8 +229,28 @@ struct ScannerBatchCaptureView: View {
                 .astraText(.body)
                 .foregroundStyle(AstraColor.textSecondary)
                 .multilineTextAlignment(.center)
-            picker(label: String(localized: "Try again", comment: "Batch scan retry"))
-                .accessibilityIdentifier("scanner.batch.retry")
+            if canRetryPendingBatch {
+                Button {
+                    Task { await viewModel.retryPendingBatch() }
+                } label: {
+                    Text(String(localized: "Retry this batch", comment: "Resume failed batch"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.astraPrimary)
+                .accessibilityIdentifier("scanner.batch.retryPending")
+
+                Button {
+                    Task { await viewModel.discardPendingBatch() }
+                } label: {
+                    Text(String(localized: "Discard this batch", comment: "Abandon uploaded batch"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("scanner.batch.discardPending")
+            } else {
+                picker(label: String(localized: "Try again", comment: "Batch scan retry"))
+                    .accessibilityIdentifier("scanner.batch.retry")
+            }
         }
     }
 

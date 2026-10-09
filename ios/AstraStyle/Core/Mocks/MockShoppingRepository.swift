@@ -24,6 +24,8 @@ public actor MockShoppingRepository: ShoppingRepository {
     public private(set) var evaluationCalls = 0
     private var purchaseHistoryError: AstraError?
     private var evaluationHistoryError: AstraError?
+    private var wishlistError: AstraError?
+    private var purchasedError: AstraError?
 
     public init(shopTheLookCandidateFixture: Bool = false) {
         catalog = [
@@ -102,6 +104,14 @@ public actor MockShoppingRepository: ShoppingRepository {
 
     public func setEvaluationHistoryError(_ error: AstraError?) {
         evaluationHistoryError = error
+    }
+
+    public func setWishlistError(_ error: AstraError?) {
+        wishlistError = error
+    }
+
+    public func setPurchasedError(_ error: AstraError?) {
+        purchasedError = error
     }
 
     public func seedCandidate(_ candidate: ProductCandidate) {
@@ -243,11 +253,13 @@ public actor MockShoppingRepository: ShoppingRepository {
     }
 
     public func fetchWishlist() async throws -> [ProductCandidate] {
-        catalog.filter { wishlist.contains($0.id) && !purchased.contains($0.id) }
+        if let wishlistError { throw wishlistError }
+        return catalog.filter { wishlist.contains($0.id) && !purchased.contains($0.id) }
     }
 
     public func fetchPurchased() async throws -> [ProductCandidate] {
-        catalog.filter { purchased.contains($0.id) }
+        if let purchasedError { throw purchasedError }
+        return catalog.filter { purchased.contains($0.id) }
     }
 
     public func addToWishlist(candidateID: UUID) async throws {

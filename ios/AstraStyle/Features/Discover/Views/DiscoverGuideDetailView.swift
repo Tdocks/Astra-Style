@@ -49,7 +49,7 @@ struct DiscoverGuideDetailView: View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             Text(kindLabel(guide.kind))
                 .astraText(.caption)
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
             Text(guide.title)
                 .astraText(.title1)
                 .foregroundStyle(AstraColor.textPrimary)
@@ -97,7 +97,7 @@ struct DiscoverGuideDetailView: View {
                 if let destination = source.destination {
                     Link(source.title, destination: destination)
                         .astraText(.callout)
-                        .foregroundStyle(AstraColor.accentChampagne)
+                        .foregroundStyle(AstraColor.accentChampagneAccessible)
                         .accessibilityIdentifier("discover.guide.source.\(guideID).\(source.id)")
                 }
             }

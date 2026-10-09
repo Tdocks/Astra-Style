@@ -35,6 +35,7 @@ struct ProfileDestinationView: View {
                     authRepository: container.authRepository,
                     currentUserID: { await container.sessionStore.currentUserID() },
                     purgeLocalProfileCache: { ownerID in
+                        try await FileScannerBatchPendingStore.live.remove(ownerID: ownerID)
                         try await cachePurger?.purgeLocalProfileCache(ownerID: ownerID)
                         try await kyraCachePurger?.purgeCachedKyraHistory(ownerID: ownerID)
                         try await shoppingCachePurger?.purgeCachedShoppingEvaluations(ownerID: ownerID)

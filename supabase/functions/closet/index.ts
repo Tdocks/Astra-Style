@@ -63,6 +63,7 @@ import {
   type AnalysisJobStore,
   handleAnalyzeItem,
   handleBatchAnalyze,
+  handleBatchCancel,
   handleBatchStatus,
   type IdempotencyStore,
   type JobStatus,
@@ -94,11 +95,18 @@ const env = readEdgeEnv();
 // the isolate (and the user's provider budget), not any one endpoint. Batch
 // work must stay job+poll so it cannot monopolise this budget.
 const rateLimiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
-const wardrobeScoreRateLimiter = createRateLimiter({ limit: 5, windowMs: 60_000 });
-const scanUnlockCountRateLimiter = createRateLimiter({ limit: 15, windowMs: 60_000 });
+const wardrobeScoreRateLimiter = createRateLimiter({
+  limit: 5,
+  windowMs: 60_000,
+});
+const scanUnlockCountRateLimiter = createRateLimiter({
+  limit: 15,
+  windowMs: 60_000,
+});
 
 function buildProvider(authorizationHeader: string): VisionAnalysisProvider {
-  const mode = (Deno.env.get("VISION_ANALYSIS_PROVIDER") ?? "mock").toLowerCase();
+  const mode = (Deno.env.get("VISION_ANALYSIS_PROVIDER") ?? "mock")
+    .toLowerCase();
   const apiKey = Deno.env.get("VISION_PROVIDER_API_KEY");
   if (mode === "openai" && !apiKey) {
     // The failure this whole comment block exists for. Loud, once per cold
@@ -131,7 +139,8 @@ function buildProvider(authorizationHeader: string): VisionAnalysisProvider {
       // wrong guess here would have looked like a working analyser.
       model: Deno.env.get("VISION_PROVIDER_MODEL") ?? "gpt-5.6-luna",
       async loadImageBytes(storagePath: string): Promise<Uint8Array> {
-        const { data, error } = await supabase.storage.from("user-content").download(storagePath);
+        const { data, error } = await supabase.storage.from("user-content")
+          .download(storagePath);
         if (error || !data) {
           throw serverError("Couldn't load the uploaded image for analysis.");
         }
@@ -145,7 +154,8 @@ function buildProvider(authorizationHeader: string): VisionAnalysisProvider {
 async function sha256Hex(canonical: string): Promise<string> {
   const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function supabaseIdempotencyStore(
@@ -172,12 +182,13 @@ function supabaseIdempotencyStore(
       };
     },
     async put(userId, key, requestHash, responsePayload) {
-      const { error } = await supabase.from("closet_analysis_idempotency").insert({
-        user_id: userId,
-        idempotency_key: key,
-        request_hash: requestHash,
-        response_payload: responsePayload,
-      });
+      const { error } = await supabase.from("closet_analysis_idempotency")
+        .insert({
+          user_id: userId,
+          idempotency_key: key,
+          request_hash: requestHash,
+          response_payload: responsePayload,
+        });
       if (error) {
         // A concurrent insert of the same key is fine — the next read will
         // replay whoever won. Other errors are real.
@@ -189,10 +200,28 @@ function supabaseIdempotencyStore(
   };
 }
 
-function supabaseJobStore(authorizationHeader: string): AnalysisJobStore {
-  const supabase = createUserScopedClient(env, authorizationHeader);
+function supabaseJobStore(): AnalysisJobStore {
+  // Job rows are server-owned: a caller must not be able to forge a queued
+  // job or clear another poll's lease through direct table updates. Every
+  // query still includes the JWT-derived owner from the validated handler.
+  const supabase = createServiceRoleClient(env);
+  const getByIdempotencyKey: AnalysisJobStore["getByIdempotencyKey"] = async (
+    userId,
+    idempotencyKey,
+  ) => {
+    const { data, error } = await supabase
+      .from("closet_analysis_jobs")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+    if (error) {
+      throw serverError("Couldn't load the batch analysis request.");
+    }
+    return data ? mapStoredJob(data as Record<string, unknown>) : null;
+  };
   return {
-    async create(userId, items) {
+    async create(userId, items, idempotencyKey, requestHash) {
       // Persist the handler's AnalyzeItemElement shape; the wire uses
       // snake_case, so convert for storage consistency with the request log.
       const storedItems = items.map((item) => ({
@@ -207,27 +236,41 @@ function supabaseJobStore(authorizationHeader: string): AnalysisJobStore {
           }
           : null,
       }));
+      const row = {
+        user_id: userId,
+        status: "queued",
+        items: storedItems,
+        results: [],
+        idempotency_key: idempotencyKey ?? null,
+        request_hash: requestHash ?? null,
+      };
       const { data, error } = await supabase
         .from("closet_analysis_jobs")
-        .insert({
-          user_id: userId,
-          status: "queued",
-          items: storedItems,
-          results: [],
+        .upsert(row, {
+          onConflict: "user_id,idempotency_key",
+          ignoreDuplicates: true,
         })
         .select("*")
-        .single();
+        .maybeSingle();
       if (error || !data) {
-        throw serverError("Couldn't enqueue the batch analysis job.");
+        if (error) {
+          throw serverError("Couldn't enqueue the batch analysis job.");
+        }
+        const existing = idempotencyKey ? await getByIdempotencyKey(userId, idempotencyKey) : null;
+        if (!existing) {
+          throw serverError("Couldn't recover the batch analysis job.");
+        }
+        return existing;
       }
       return mapStoredJob(data as Record<string, unknown>);
     },
+    getByIdempotencyKey,
     async get(userId, jobId) {
-      void userId;
       const { data, error } = await supabase
         .from("closet_analysis_jobs")
         .select("*")
         .eq("id", jobId)
+        .eq("user_id", userId)
         .maybeSingle();
       if (error) {
         throw serverError("Couldn't load the batch analysis job.");
@@ -237,18 +280,120 @@ function supabaseJobStore(authorizationHeader: string): AnalysisJobStore {
       }
       return mapStoredJob(data as Record<string, unknown>);
     },
-    async save(job) {
-      const { error } = await supabase
+    async claimNext(userId, jobId, token, claimedAt, leaseUntil) {
+      const { data, error } = await supabase
+        .from("closet_analysis_jobs")
+        .update({
+          status: "generating",
+          processing_token: token,
+          processing_until: leaseUntil.toISOString(),
+        })
+        .eq("id", jobId)
+        .eq("user_id", userId)
+        .in("status", ["queued", "generating"])
+        .or(
+          `processing_until.is.null,processing_until.lt.${claimedAt.toISOString()}`,
+        )
+        .select("*")
+        .maybeSingle();
+      if (error) {
+        throw serverError("Couldn't claim the batch analysis job.");
+      }
+      return data ? mapStoredJob(data as Record<string, unknown>) : null;
+    },
+    async saveClaimed(job, token) {
+      const { data, error } = await supabase
         .from("closet_analysis_jobs")
         .update({
           status: job.status,
           results: job.results,
           error_message: job.errorMessage ?? null,
+          processing_token: null,
+          processing_until: null,
         })
-        .eq("id", job.id);
+        .eq("id", job.id)
+        .eq("user_id", job.userId)
+        .eq("processing_token", token)
+        .select("id")
+        .maybeSingle();
       if (error) {
         throw serverError("Couldn't update the batch analysis job.");
       }
+      return data !== null;
+    },
+    async releaseClaim(userId, jobId, token) {
+      const { error } = await supabase
+        .from("closet_analysis_jobs")
+        .update({ processing_token: null, processing_until: null })
+        .eq("id", jobId)
+        .eq("user_id", userId)
+        .eq("processing_token", token);
+      if (error) {
+        throw serverError("Couldn't release the batch analysis job claim.");
+      }
+    },
+    async cancelByIdempotencyKey(userId, idempotencyKey, now) {
+      const tombstoneHash = await sha256Hex("closet-batch-cancelled-v1");
+      const { error: insertError } = await supabase
+        .from("closet_analysis_jobs")
+        .upsert({
+          user_id: userId,
+          idempotency_key: idempotencyKey,
+          request_hash: tombstoneHash,
+          status: "failed",
+          items: [],
+          results: [],
+          error_message: "Cancelled by the owner.",
+          processing_token: null,
+          processing_until: null,
+        }, {
+          onConflict: "user_id,idempotency_key",
+          ignoreDuplicates: true,
+        });
+      if (insertError) {
+        throw serverError("Couldn't fence the batch cancellation.");
+      }
+
+      const existing = await getByIdempotencyKey(userId, idempotencyKey);
+      if (!existing) {
+        throw serverError("Couldn't verify the batch cancellation fence.");
+      }
+      if (
+        existing.requestHash === tombstoneHash && existing.status === "failed" &&
+        existing.items.length === 0
+      ) return true;
+      if (existing.status === "complete" || existing.status === "failed") return true;
+
+      const { data, error } = await supabase
+        .from("closet_analysis_jobs")
+        .update({
+          status: "failed",
+          items: [],
+          results: [],
+          error_message: "Cancelled by the owner.",
+          processing_token: null,
+          processing_until: null,
+        })
+        .eq("user_id", userId)
+        .eq("idempotency_key", idempotencyKey)
+        // Compare the exact observed state. If a worker completes or fails
+        // between this read and update, the CAS affects no row and preserves
+        // the worker's results.
+        .eq("status", existing.status)
+        .or(
+          `processing_until.is.null,processing_until.lte.${now.toISOString()}`,
+        )
+        .select("id")
+        .maybeSingle();
+      if (error) {
+        throw serverError("Couldn't cancel the batch analysis job.");
+      }
+      if (data) return true;
+
+      const afterRace = await getByIdempotencyKey(userId, idempotencyKey);
+      // The cancellation tombstone guarantees the row exists. A still-active
+      // processing lease is the only case whose photos must remain in place.
+      return afterRace?.status === "complete" || afterRace?.status === "failed";
     },
   };
 }
@@ -256,16 +401,22 @@ function supabaseJobStore(authorizationHeader: string): AnalysisJobStore {
 function mapStoredJob(data: Record<string, unknown>): AnalysisJobRow {
   const rawItems = (data["items"] as Array<Record<string, unknown>>) ?? [];
   const items: AnalyzeItemElement[] = rawItems.map((entry) => {
-    const hintsRaw = entry["device_hints"] as Record<string, unknown> | null | undefined;
+    const hintsRaw = entry["device_hints"] as
+      | Record<string, unknown>
+      | null
+      | undefined;
     return {
       requestId: entry["request_id"] as string,
       storagePath: entry["storage_path"] as string,
       imageType: (entry["image_type"] as string) ?? "front",
       deviceHints: hintsRaw
         ? {
-          dominantColorsRgb: (hintsRaw["dominant_colors_rgb"] as string[]) ?? [],
+          dominantColorsRgb: (hintsRaw["dominant_colors_rgb"] as string[]) ??
+            [],
           detectedText: (hintsRaw["detected_text"] as string[]) ?? [],
-          approximateCategory: hintsRaw["approximate_category"] as string | undefined,
+          approximateCategory: hintsRaw["approximate_category"] as
+            | string
+            | undefined,
         }
         : undefined,
     };
@@ -277,6 +428,8 @@ function mapStoredJob(data: Record<string, unknown>): AnalysisJobRow {
     items,
     results: (data["results"] as ClosetItemAnalysisBatchItemDTO[]) ?? [],
     errorMessage: (data["error_message"] as string | null) ?? undefined,
+    idempotencyKey: (data["idempotency_key"] as string | null) ?? undefined,
+    requestHash: (data["request_hash"] as string | null) ?? undefined,
   };
 }
 
@@ -299,9 +452,10 @@ function batchAnalyzeRoute(req: Request): Promise<Response> {
   return handleBatchAnalyze(req, {
     authClient: createUserScopedClient(env, authorizationHeader),
     provider: buildProvider(authorizationHeader),
-    jobStore: supabaseJobStore(authorizationHeader),
+    jobStore: supabaseJobStore(),
     rateLimiter,
     now: () => new Date(),
+    hashRequest: sha256Hex,
   });
 }
 
@@ -316,12 +470,24 @@ function batchStatusRoute(
     {
       authClient: createUserScopedClient(env, authorizationHeader),
       provider: buildProvider(authorizationHeader),
-      jobStore: supabaseJobStore(authorizationHeader),
+      jobStore: supabaseJobStore(),
       rateLimiter,
       now: () => new Date(),
+      hashRequest: sha256Hex,
     },
     params["id"] ?? "",
   );
+}
+
+function batchCancelRoute(req: Request): Promise<Response> {
+  const authorizationHeader = req.headers.get("Authorization") ??
+    req.headers.get("authorization") ?? "";
+  return handleBatchCancel(req, {
+    authClient: createUserScopedClient(env, authorizationHeader),
+    jobStore: supabaseJobStore(),
+    rateLimiter,
+    now: () => new Date(),
+  });
 }
 
 function wardrobeScoreRoute(req: Request): Promise<Response> {
@@ -340,7 +506,10 @@ function itemInsightsRoute(
   req: Request,
   params: Readonly<Record<string, string>>,
 ): Promise<Response> {
-  const client = createUserScopedClient(env, req.headers.get("Authorization") ?? "");
+  const client = createUserScopedClient(
+    env,
+    req.headers.get("Authorization") ?? "",
+  );
   return handleItemInsights(req, {
     authClient: client,
     supabase: client,
@@ -360,7 +529,9 @@ function scanUnlockCountRoute(
     rateLimiter: scanUnlockCountRateLimiter,
     now: () => new Date(),
     async readWeights() {
-      return (await loadCompatibilityWeightsConfig(createServiceRoleClient(env))).weights;
+      return (await loadCompatibilityWeightsConfig(
+        createServiceRoleClient(env),
+      )).weights;
     },
     async readOwnedScoringContext(ownerID, itemIDs) {
       return await loadOwnedPreferenceCoWearContext(
@@ -368,22 +539,29 @@ function scanUnlockCountRoute(
           async readPreferences(userId) {
             const { data, error } = await caller
               .from("style_profiles")
-              .select("preferred_colors,avoided_colors,preferred_fit,formality_preference")
+              .select(
+                "preferred_colors,avoided_colors,preferred_fit,formality_preference",
+              )
               .eq("user_id", userId)
               .maybeSingle();
             if (error) return undefined;
-            return preferenceContextFromRow(data as Record<string, unknown> | null);
+            return preferenceContextFromRow(
+              data as Record<string, unknown> | null,
+            );
           },
           async listWearHistory(userId) {
-            const data = await readAllUserPages(userId, async (ownerId, offset, limit) => {
-              const { data, error } = await caller.from("outfit_wears")
-                .select("outfit_id,rating")
-                .eq("user_id", ownerId)
-                .order("worn_at", { ascending: true })
-                .order("id", { ascending: true })
-                .range(offset, offset + limit - 1);
-              return { data, error };
-            });
+            const data = await readAllUserPages(
+              userId,
+              async (ownerId, offset, limit) => {
+                const { data, error } = await caller.from("outfit_wears")
+                  .select("outfit_id,rating")
+                  .eq("user_id", ownerId)
+                  .order("worn_at", { ascending: true })
+                  .order("id", { ascending: true })
+                  .range(offset, offset + limit - 1);
+                return { data, error };
+              },
+            );
             if (data === null) return [];
             return data.flatMap((value) => {
               const row = value as { outfit_id?: unknown; rating?: unknown };
@@ -418,7 +596,8 @@ function scanUnlockCountRoute(
                 closet_item_id?: unknown;
                 role?: unknown;
               };
-              return typeof row.outfit_id === "string" && typeof row.role === "string"
+              return typeof row.outfit_id === "string" &&
+                  typeof row.role === "string"
                 ? [{
                   outfitId: row.outfit_id,
                   closetItemId: typeof row.closet_item_id === "string" ? row.closet_item_id : null,
@@ -436,9 +615,13 @@ function scanUnlockCountRoute(
 }
 
 function backgroundRemovalRoute(req: Request): Promise<Response> {
-  const caller = createUserScopedClient(env, req.headers.get("Authorization") ?? "");
+  const caller = createUserScopedClient(
+    env,
+    req.headers.get("Authorization") ?? "",
+  );
   const key = Deno.env.get("BACKGROUND_REMOVAL_PROVIDER_API_KEY")?.trim() ?? "";
-  const enabled = Deno.env.get("BACKGROUND_REMOVAL_PROVIDER") === "removebg" && key.length > 0;
+  const enabled = Deno.env.get("BACKGROUND_REMOVAL_PROVIDER") === "removebg" &&
+    key.length > 0;
   return handleBackgroundRemoval(req, {
     authClient: caller,
     rateLimiter,
@@ -446,18 +629,29 @@ function backgroundRemovalRoute(req: Request): Promise<Response> {
     run: (source, adequate, ctx) =>
       fallbackBackgroundRemoval(source, adequate, ctx, {
         provider: new RemoveBgBackgroundRemovalProvider(key),
-        reservations: new SupabaseRemovalReservations(createServiceRoleClient(env)),
+        reservations: new SupabaseRemovalReservations(
+          createServiceRoleClient(env),
+        ),
         storage: new SupabaseRemovalStorage(caller, ctx.userId),
       }),
   });
 }
 
 Deno.serve(createRouter("closet", [
-  { method: "POST", pattern: "/remove-background", handler: backgroundRemovalRoute },
+  {
+    method: "POST",
+    pattern: "/remove-background",
+    handler: backgroundRemovalRoute,
+  },
   { method: "POST", pattern: "/analyze-item", handler: analyzeItemRoute },
   { method: "POST", pattern: "/batch-analyze", handler: batchAnalyzeRoute },
+  { method: "POST", pattern: "/batch-cancel", handler: batchCancelRoute },
   { method: "GET", pattern: "/batch-status/:id", handler: batchStatusRoute },
   { method: "GET", pattern: "/wardrobe-score", handler: wardrobeScoreRoute },
   { method: "GET", pattern: "/items/:id/insights", handler: itemInsightsRoute },
-  { method: "GET", pattern: "/items/:id/unlock-count", handler: scanUnlockCountRoute },
+  {
+    method: "GET",
+    pattern: "/items/:id/unlock-count",
+    handler: scanUnlockCountRoute,
+  },
 ]));

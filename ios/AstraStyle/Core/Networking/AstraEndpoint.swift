@@ -24,6 +24,8 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// Poll endpoint for `batchAnalyzeCloset` jobs (HANDOFF §9.3 — batch is
     /// job+poll, never an in-request fan-out on the shared `closet` isolate).
     case batchAnalyzeClosetStatus(id: UUID)
+    /// Cancels an accepted batch before an active worker lease advances it.
+    case cancelBatchAnalysis
     case generateOutfits
     case rankOutfits
     case generateDailyBrief
@@ -74,6 +76,7 @@ public enum AstraEndpoint: Sendable, Equatable {
         case .fetchScanUnlockCount(let id): "closet/items/\(id.uuidString.lowercased())/unlock-count"
         case .batchAnalyzeCloset: "closet/batch-analyze"
         case .batchAnalyzeClosetStatus(let id): "closet/batch-status/\(id.uuidString.lowercased())"
+        case .cancelBatchAnalysis: "closet/batch-cancel"
         case .generateOutfits: "outfits/generate"
         case .rankOutfits: "outfits/rank"
         case .generateDailyBrief: "daily-brief/generate"
@@ -106,7 +109,7 @@ public enum AstraEndpoint: Sendable, Equatable {
     /// mobile retry cannot double-charge (docs/08 §0.1, HANDOFF §9.2).
     public var requiresIdempotencyKey: Bool {
         switch self {
-        case .removeClosetBackground, .analyzeClosetItem, .batchAnalyzeCloset, .generateStudio, .exportStudioHiRes:
+        case .removeClosetBackground, .analyzeClosetItem, .batchAnalyzeCloset, .cancelBatchAnalysis, .generateStudio, .exportStudioHiRes:
             true
         default:
             false
@@ -123,7 +126,7 @@ public enum AstraEndpoint: Sendable, Equatable {
             // tightening of the vision budget is a one-line change here
             // rather than a silent share with unrelated endpoints.
             .paidProvider
-        case .batchAnalyzeCloset, .batchAnalyzeClosetStatus:
+        case .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .cancelBatchAnalysis:
             // Enqueue/poll are cheap; status polls are frequent and should
             // not stampede the isolate after a blip.
             .batchJob

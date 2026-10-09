@@ -94,6 +94,10 @@ extension LiveClosetRepository {
         try await uploadCaptured(imageData: data, includeThumbnail: true)
     }
 
+    public func uploadClosetCaptureImage(_ data: Data, requestID: UUID) async throws -> String {
+        try await uploadCaptured(imageData: data, includeThumbnail: true, requestID: requestID)
+    }
+
     public func deleteCapturedImage(atPath storagePath: String) async throws {
         let owner = await currentUserID()
         if GuestLocalImageStore.isLocal(storagePath) {
@@ -143,6 +147,13 @@ extension LiveClosetRepository {
     }
 
     public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        try await batchAnalyzeItems(requests, idempotencyKey: UUID().uuidString.lowercased())
+    }
+
+    public func batchAnalyzeItems(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String
+    ) async throws -> ClosetItemAnalysisBatch {
         struct BatchRequest: Encodable, Sendable {
             let items: [AnalyzeRequestElement]
         }
@@ -160,39 +171,97 @@ extension LiveClosetRepository {
         // storage that nothing will ever reference. Caller-supplied paths
         // are excluded for the same reason as the single-item path.
         var uploadedHere: [String] = []
-        let job: ClosetItemAnalysisBatchJob
-        do {
-            for request in requests {
+        for request in requests {
+            do {
                 let element = try await uploadedElement(for: request)
                 if request.storagePath?.isEmpty != false {
                     uploadedHere.append(element.storagePath)
                 }
                 elements.append(element)
+            } catch {
+                for path in uploadedHere {
+                    try? await deleteCapturedImage(atPath: path)
+                }
+                throw error
             }
-            if elements.allSatisfy({ GuestLocalImageStore.isLocal($0.storagePath) }) {
-                return ClosetItemAnalysisBatch(results: requests.map { request in
-                    ClosetItemAnalysisBatchItem(
-                        id: request.id,
-                        outcome: .analyzed(ClosetItemAnalysisResult.guestLocalPlaceholder())
-                    )
-                })
-            }
+        }
+        if elements.allSatisfy({ GuestLocalImageStore.isLocal($0.storagePath) }) {
+            return ClosetItemAnalysisBatch(results: requests.map { request in
+                ClosetItemAnalysisBatchItem(
+                    id: request.id,
+                    outcome: .analyzed(ClosetItemAnalysisResult.guestLocalPlaceholder())
+                )
+            })
+        }
+        let job: ClosetItemAnalysisBatchJob
+        do {
             job = try await apiClient.send(
                 .batchAnalyzeCloset,
                 body: BatchRequest(items: elements),
+                idempotencyKey: idempotencyKey,
                 as: ClosetItemAnalysisBatchJob.self
             )
         } catch {
-            for path in uploadedHere {
-                try? await deleteCapturedImage(atPath: path)
-            }
-            throw error
+            let astra = batchAstraError(error)
+            // The server might have accepted the request before the response
+            // was lost, and the API client may have already retried the POST.
+            // Even an HTTP rejection on the final attempt cannot prove that
+            // no earlier attempt inserted the job. Keep deterministic uploads
+            // so this key can replay or be safely cancelled.
+            throw ClosetBatchAnalysisFailure.enqueueUncertain(astra)
         }
         // Polling sits outside the compensating scope on purpose: once the
         // job is enqueued the server owns those objects, and a poll that
         // times out is not a reason to delete images a job is still working
         // through.
-        return try await pollBatchJob(id: job.jobID, expectedCount: requests.count)
+        do {
+            return try await pollBatchJob(id: job.jobID, expectedCount: requests.count)
+        } catch let failure as ClosetBatchAnalysisFailure {
+            throw failure
+        } catch {
+            throw ClosetBatchAnalysisFailure.accepted(
+                jobID: job.jobID,
+                underlying: batchAstraError(error)
+            )
+        }
+    }
+
+    public func resumeBatchAnalysis(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String,
+        acceptedJobID: UUID?,
+        isRetry: Bool
+    ) async throws -> ClosetItemAnalysisBatch {
+        _ = isRetry
+        guard let acceptedJobID else {
+            return try await batchAnalyzeItems(requests, idempotencyKey: idempotencyKey)
+        }
+        do {
+            return try await pollBatchJob(id: acceptedJobID, expectedCount: requests.count)
+        } catch let failure as ClosetBatchAnalysisFailure {
+            throw failure
+        } catch {
+            throw ClosetBatchAnalysisFailure.accepted(
+                jobID: acceptedJobID,
+                underlying: batchAstraError(error)
+            )
+        }
+    }
+
+    public func cancelBatchAnalysis(idempotencyKey: String) async throws {
+        struct CancelRequest: Encodable, Sendable {}
+        struct CancelResponse: Decodable, Sendable {
+            let cancelled: Bool
+        }
+        let response = try await apiClient.send(
+            .cancelBatchAnalysis,
+            body: CancelRequest(),
+            idempotencyKey: idempotencyKey,
+            as: CancelResponse.self
+        )
+        guard response.cancelled else {
+            throw AstraError.server("The batch cancellation was not confirmed.")
+        }
     }
 
     /// Polls `GET /closet/batch-status/:id` until the job is terminal.
@@ -214,10 +283,10 @@ extension LiveClosetRepository {
                 as: ClosetItemAnalysisBatchJobStatusPayload.self
             )
             if payload.status == .failed {
-                throw AstraError.server(
+                throw ClosetBatchAnalysisFailure.terminalFailure(AstraError.server(
                     payload.errorMessage ?? "Batch analysis failed.",
                     requestID: nil
-                )
+                ))
             }
             if payload.status.isTerminal {
                 return payload.asBatch
@@ -226,6 +295,11 @@ extension LiveClosetRepository {
             delayNanoseconds = min(delayNanoseconds * 2, maxDelayNanoseconds)
         }
         throw AstraError.server("Batch analysis timed out before completing.", requestID: nil)
+    }
+
+    private func batchAstraError(_ error: Error) -> AstraError {
+        if let astra = error as? AstraError { return astra }
+        return AstraError.network("That batch could not be analysed. Try again in a moment.")
     }
 
     // MARK: - Helpers
@@ -256,7 +330,11 @@ extension LiveClosetRepository {
         try await uploadCaptured(imageData: imageData, includeThumbnail: false)
     }
 
-    private func uploadCaptured(imageData: Data, includeThumbnail: Bool) async throws -> String {
+    private func uploadCaptured(
+        imageData: Data,
+        includeThumbnail: Bool,
+        requestID: UUID? = nil
+    ) async throws -> String {
         let format = try CapturedImageUploadFormat.detect(imageData)
         let thumbnailData = includeThumbnail
             ? try ClosetImageThumbnailer.thumbnailData(from: imageData)
@@ -264,16 +342,24 @@ extension LiveClosetRepository {
         do {
             let session = try await supabase.auth.session
             if session.user.isAnonymous {
-                return try saveGuestCapture(imageData, thumbnailData: thumbnailData, ownerID: session.user.id)
+                return try saveGuestCapture(
+                    imageData,
+                    thumbnailData: thumbnailData,
+                    ownerID: session.user.id,
+                    requestID: requestID
+                )
             }
             let userID = session.user.id.uuidString.lowercased()
-            let path = "users/\(userID)/closet/\(UUID().uuidString.lowercased()).\(format.fileExtension)"
+            let fileID = requestID?.uuidString.lowercased() ?? UUID().uuidString.lowercased()
+            let folder = requestID == nil ? "closet" : "closet/batch"
+            let path = "users/\(userID)/\(folder)/\(fileID).\(format.fileExtension)"
             return try await uploadRemoteCapture(
                 imageData,
                 thumbnailData: thumbnailData,
                 format: format,
                 path: path,
-                ownerID: session.user.id
+                ownerID: session.user.id,
+                upsert: requestID != nil
             )
         } catch let error as AstraError {
             throw error
@@ -282,8 +368,14 @@ extension LiveClosetRepository {
         }
     }
 
-    private func saveGuestCapture(_ data: Data, thumbnailData: Data?, ownerID: UUID) throws -> String {
-        let path = try GuestLocalImageStore.save(data, userID: ownerID)
+    private func saveGuestCapture(
+        _ data: Data,
+        thumbnailData: Data?,
+        ownerID: UUID,
+        requestID: UUID? = nil
+    ) throws -> String {
+        let path = try requestID.map { try GuestLocalImageStore.save(data, userID: ownerID, fileID: $0) }
+            ?? GuestLocalImageStore.save(data, userID: ownerID)
         guard let thumbnailData else { return path }
         do {
             _ = try GuestLocalImageStore.saveThumbnail(thumbnailData, for: path, userID: ownerID)
@@ -299,7 +391,8 @@ extension LiveClosetRepository {
         thumbnailData: Data?,
         format: CapturedImageUploadFormat,
         path: String,
-        ownerID: UUID
+        ownerID: UUID,
+        upsert: Bool = false
     ) async throws -> String {
         if let thumbnailData {
             let transport = ClosetCaptureUploadTransport(
@@ -308,7 +401,7 @@ extension LiveClosetRepository {
                     _ = try await self.supabase.storage.from("user-content").upload(
                         path,
                         data: bytes,
-                        options: FileOptions(contentType: contentType)
+                        options: FileOptions(contentType: contentType, upsert: upsert)
                     )
                 },
                 removeObjects: { paths in
@@ -327,18 +420,25 @@ extension LiveClosetRepository {
             )
         }
 
-        return try await uploadOriginalCapture(data, format: format, path: path, ownerID: ownerID)
+        return try await uploadOriginalCapture(
+            data,
+            format: format,
+            path: path,
+            ownerID: ownerID,
+            upsert: upsert
+        )
     }
 
     private func uploadOriginalCapture(
         _ data: Data,
         format: CapturedImageUploadFormat,
         path: String,
-        ownerID: UUID
+        ownerID: UUID,
+        upsert: Bool = false
     ) async throws -> String {
         do {
             _ = try await supabase.storage.from("user-content")
-                .upload(path, data: data, options: FileOptions(contentType: format.contentType))
+                .upload(path, data: data, options: FileOptions(contentType: format.contentType, upsert: upsert))
             try await requireSameOwner(as: ownerID)
             return path
         } catch {

@@ -31,6 +31,7 @@ struct ScannerDestinationView: View {
     @State private var captureViewModel: ScannerCaptureViewModel?
     @State private var reviewViewModel: ScannerReviewViewModel?
     @State private var batchViewModel: ScannerBatchViewModel?
+    @State private var batchReviewProgressAlert = false
     /// Drafts from a batch that have NOT been reviewed yet. The one on
     /// screen is popped off when it is pushed, so this plus the review
     /// screen's own draft is the whole set of uploaded-but-unsaved objects.
@@ -66,55 +67,26 @@ struct ScannerDestinationView: View {
                 }
         }
         .presentationBackground(AstraColor.backgroundPrimary)
+        .alert(
+            String(localized: "Couldn't save review progress", comment: "Batch review journal failure title"),
+            isPresented: $batchReviewProgressAlert
+        ) {
+            Button(String(localized: "OK", comment: "Dismiss review progress alert"), role: .cancel) {}
+        } message: {
+            Text(String(
+                localized: "Your place in this batch could not be saved. Try again before continuing.",
+                comment: "Batch review journal failure message"
+            ))
+        }
         // Covers the swipe-dismiss, which reaches neither Close button.
         .onDisappear {
-            discardUnsavedUpload()
-            discardQueuedBatch()
-            container.captureDraftStore.removeAll()
-        }
-    }
-
-    /// Every exit that is not a save runs through here.
-    ///
-    /// The capture is already in `user-content` by the time the review
-    /// screen renders — `uploadCapturedImage` runs before the user has
-    /// decided anything — so leaving without saving strands the object with
-    /// nothing referencing it. Dropping the local draft, which is all this
-    /// used to do, removes the only thing that knew the path.
-    ///
-    /// The `Task` captures the view model strongly on purpose: it has to
-    /// outlive the dismissal that fires immediately after, or the cleanup
-    /// is cancelled by the very action that made it necessary. The view
-    /// model's own guard makes the call a no-op after a successful save.
-    private func discardUnsavedUpload() {
-        guard let viewModel = reviewViewModel else { return }
-        Task { await viewModel.discardUnsavedUpload() }
-    }
-
-    private func closeScanner() {
-        discardUnsavedUpload()
-        discardQueuedBatch()
-        container.captureDraftStore.removeAll()
-        dismiss()
-    }
-
-    /// A batch uploads every image before the user reviews any of them, so
-    /// abandoning after garment three strands seventeen objects in
-    /// `user-content` that nothing will ever reference. `discardUnsavedUpload`
-    /// only knows about the one on screen.
-    ///
-    /// The paths are read out before the `Task` starts, because the draft
-    /// store is cleared by the caller on the very next line — reading them
-    /// inside would find an empty store.
-    private func discardQueuedBatch() {
-        let paths = batchQueue.compactMap { container.captureDraftStore.draft(id: $0)?.storagePath }
-        batchQueue = []
-        guard !paths.isEmpty else { return }
-        let repository = container.closetRepository
-        Task {
-            for path in paths {
-                try? await repository.deleteCapturedImage(atPath: path)
+            // A batch journal is deliberately retained across an unplanned
+            // disappearance so the app can restore review after relaunch.
+            if batchViewModel?.hasPendingBatch != true {
+                discardUnsavedUpload()
+                discardQueuedBatch()
             }
+            container.captureDraftStore.removeAll()
         }
     }
 
@@ -236,32 +208,14 @@ struct ScannerDestinationView: View {
                         batchViewModel = ScannerBatchViewModel(
                             dependencies: .init(
                                 draftStore: container.captureDraftStore,
-                                closetRepository: container.closetRepository
+                                closetRepository: container.closetRepository,
+                                currentOwnerID: { await container.sessionStore.currentUserID() },
+                                pendingStore: FileScannerBatchPendingStore.live
                             )
                         )
                     }
                 }
         }
-    }
-
-    /// Moves to the next garment in a batch, or finishes.
-    ///
-    /// Returns false when there is nothing left, so the caller can do
-    /// whatever it does at the end of a single-item scan instead. Clearing
-    /// `reviewViewModel` is what makes the pushed destination rebuild — the
-    /// review screen keys its `.task` on `draftID`, and the path length is
-    /// unchanged, so without this the same view model would be reused for a
-    /// different garment.
-    private func advanceBatch() -> Bool {
-        guard !batchQueue.isEmpty, !path.isEmpty else { return false }
-        let next = batchQueue.removeFirst()
-        reviewViewModel = nil
-        // Replace rather than append: appending would leave a twenty-deep
-        // stack of finished garments behind the one on screen, each of
-        // whose drafts has already been removed from the store.
-        path.removeLast()
-        path.append(.review(capturedImageID: next))
-        return true
     }
 
     @ViewBuilder
@@ -271,46 +225,30 @@ struct ScannerDestinationView: View {
                 ScannerReviewView(
                     viewModel: reviewViewModel,
                     onFinished: {
-                        // The unwrapped local from the `if let` above — the
-                        // same instance `ScannerReviewView` was handed, so
-                        // this reads the garment that screen actually saved.
-                        if let saved = reviewViewModel.savedItem {
-                            onItemSaved?(saved)
+                        Task {
+                            await finishReview(
+                                draftID: draftID,
+                                savedItem: reviewViewModel.savedItem
+                            )
                         }
-                        // Mid-batch this is "next garment", not "done". The
-                        // draft store is NOT cleared here, because the
-                        // remaining drafts are the rest of the queue.
-                        container.captureDraftStore.remove(id: draftID)
-                        if advanceBatch() { return }
-                        container.captureDraftStore.removeAll()
-                        dismiss()
                     },
                     onRetake: {
-                        // Retake is the abandonment the user is most likely
-                        // to repeat — three attempts at one garment leave
-                        // three orphans without this.
-                        discardUnsavedUpload()
-                        Task { await container.pendingScanQueue.remove(id: draftID) }
-                        container.captureDraftStore.remove(id: draftID)
-                        self.reviewViewModel = nil
-                        // In a batch there is no camera to go back to and
-                        // no way to re-shoot this one garment here, so
-                        // Retake means "skip it" — the photograph is gone
-                        // (discarded above) and the queue moves on. The
-                        // user re-picks it in another batch, or scans it
-                        // singly.
-                        if advanceBatch() { return }
-                        if path.isEmpty {
-                            dismiss()
-                        } else {
-                            path.removeLast()
-                            Task { await captureViewModel?.retake() }
+                        Task {
+                            await skipReviewDraft(draftID, viewModel: reviewViewModel)
                         }
                     }
                 )
             } else {
                 ProgressView()
                     .tint(AstraColor.accentChampagne)
+            }
+        }
+        .onChange(of: reviewViewModel?.phase) { _, newPhase in
+            guard newPhase == .saved else { return }
+            Task {
+                guard let batchViewModel,
+                      !(await batchViewModel.markDraftConsumed(draftID, saved: true)) else { return }
+                batchReviewProgressAlert = true
             }
         }
         .task(id: draftID) {
@@ -329,6 +267,117 @@ struct ScannerDestinationView: View {
                     )
                 )
             }
+        }
+    }
+
+}
+
+private extension ScannerDestinationView {
+    /// Every exit that is not a save runs through here.
+    ///
+    /// The capture is already in `user-content` by the time the review
+    /// screen renders — `uploadCapturedImage` runs before the user has
+    /// decided anything — so leaving without saving strands the object with
+    /// nothing referencing it. Dropping the local draft, which is all this
+    /// used to do, removes the only thing that knew the path.
+    ///
+    /// The `Task` captures the view model strongly on purpose: it has to
+    /// outlive the dismissal that fires immediately after, or the cleanup
+    /// is cancelled by the very action that made it necessary. The view
+    /// model's own guard makes the call a no-op after a successful save.
+    func discardUnsavedUpload() {
+        guard let viewModel = reviewViewModel else { return }
+        Task { await viewModel.discardUnsavedUpload() }
+    }
+
+    func closeScanner() {
+        if let batchViewModel, batchViewModel.hasPendingBatch {
+            Task { await batchViewModel.discardPendingBatch() }
+        } else {
+            discardUnsavedUpload()
+            discardQueuedBatch()
+        }
+        container.captureDraftStore.removeAll()
+        dismiss()
+    }
+
+    /// A batch uploads every image before the user reviews any of them, so
+    /// abandoning after garment three strands seventeen objects in
+    /// `user-content` that nothing will ever reference. `discardUnsavedUpload`
+    /// only knows about the one on screen.
+    ///
+    /// The paths are read out before the `Task` starts, because the draft
+    /// store is cleared by the caller on the very next line — reading them
+    /// inside would find an empty store.
+    func discardQueuedBatch() {
+        let paths = batchQueue.compactMap { container.captureDraftStore.draft(id: $0)?.storagePath }
+        batchQueue = []
+        guard !paths.isEmpty else { return }
+        let repository = container.closetRepository
+        Task {
+            for path in paths {
+                try? await repository.deleteCapturedImage(atPath: path)
+            }
+        }
+    }
+
+    /// Moves to the next garment in a batch, or finishes.
+    ///
+    /// Returns false when there is nothing left, so the caller can do
+    /// whatever it does at the end of a single-item scan instead. Clearing
+    /// `reviewViewModel` is what makes the pushed destination rebuild — the
+    /// review screen keys its `.task` on `draftID`, and the path length is
+    /// unchanged, so without this the same view model would be reused for a
+    /// different garment.
+    func advanceBatch() -> Bool {
+        guard !batchQueue.isEmpty, !path.isEmpty else { return false }
+        let next = batchQueue.removeFirst()
+        reviewViewModel = nil
+        // Replace rather than append: appending would leave a twenty-deep
+        // stack of finished garments behind the one on screen, each of
+        // whose drafts has already been removed from the store.
+        path.removeLast()
+        path.append(.review(capturedImageID: next))
+        return true
+    }
+
+    @MainActor
+    func finishReview(draftID: UUID, savedItem: ClosetItem?) async {
+        if savedItem != nil {
+            if let batchViewModel,
+               !(await batchViewModel.markDraftConsumed(draftID, saved: true)) {
+                batchReviewProgressAlert = true
+                return
+            }
+            batchReviewProgressAlert = false
+            if let savedItem { onItemSaved?(savedItem) }
+        }
+        container.captureDraftStore.remove(id: draftID)
+        if advanceBatch() { return }
+        container.captureDraftStore.removeAll()
+        dismiss()
+    }
+
+    @MainActor
+    func skipReviewDraft(_ draftID: UUID, viewModel: ScannerReviewViewModel) async {
+        if batchViewModel?.hasPendingBatch == true {
+            guard let batchViewModel,
+                  await batchViewModel.markDraftConsumed(draftID, saved: false) else {
+                batchReviewProgressAlert = true
+                return
+            }
+        } else {
+            await viewModel.discardUnsavedUpload()
+        }
+        await container.pendingScanQueue.remove(id: draftID)
+        container.captureDraftStore.remove(id: draftID)
+        reviewViewModel = nil
+        if advanceBatch() { return }
+        if path.isEmpty {
+            dismiss()
+        } else {
+            path.removeLast()
+            await captureViewModel?.retake()
         }
     }
 }

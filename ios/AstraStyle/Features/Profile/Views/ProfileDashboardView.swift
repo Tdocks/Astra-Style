@@ -10,18 +10,26 @@ import SwiftUI
 struct ProfileDashboardCard: View {
     @State private var viewModel: ProfileDashboardViewModel
     @Environment(AppRouter.self) private var router
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(viewModel: ProfileDashboardViewModel) {
         _viewModel = State(wrappedValue: viewModel)
     }
 
-    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: AstraSpacing.md),
+            count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xs) {
             Text(String(localized: "Your closet at a glance", comment: "Profile dashboard section title"))
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("profile.dashboard.title")
             AstraCard {
                 switch viewModel.phase {
                 case .loading:
@@ -88,6 +96,7 @@ struct ProfileDashboardCard: View {
                 Text(String(localized: "Most worn colors", comment: "Profile most worn colors heading"))
                     .astraText(.caption)
                     .foregroundStyle(AstraColor.textMuted)
+                    .accessibilityAddTraits(.isHeader)
                 Text(data.wornColors.map { color in
                     let count = color.wears == 1
                         ? String(localized: "1 wear", comment: "Singular garment wear count")

@@ -11,7 +11,7 @@ import Foundation
 public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     private var items: [UUID: ClosetItem]
     private let previewBatchFailureIndex: Int?
-    private let imagesByItemID: [UUID: [ClosetItemImage]]
+    private var imagesByItemID: [UUID: [ClosetItemImage]]
     private var monthlyVersatilityScores: [String: Int] = [:]
     private var scanUnlockCountResults: [UUID: ScanUnlockCountResult] = [:]
     private var wardrobeScoreSnapshot: WardrobeScoreSnapshot?
@@ -95,6 +95,10 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
         return [
             ClosetItemImage(id: UUID(), closetItemID: itemID, imageType: .front, storagePath: "preview/\(itemID.uuidString)-front.jpg", isPrimary: true)
         ]
+    }
+
+    public func setImages(_ images: [ClosetItemImage], forItem itemID: UUID) {
+        imagesByItemID[itemID] = images
     }
 
     /// The canned analysis the mock backend serves.

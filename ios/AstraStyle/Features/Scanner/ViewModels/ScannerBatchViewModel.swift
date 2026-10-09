@@ -106,6 +106,8 @@ public final class ScannerBatchViewModel {
     public struct Dependencies {
         public let draftStore: CaptureDraftStore
         public let closetRepository: ClosetRepository
+        public let currentOwnerID: @Sendable () async -> UUID?
+        public let pendingStore: any ScannerBatchPendingStoring
         /// Defaults to the shipping pipeline. Injected because
         /// `CapturePreparation` needs genuinely decodable image bytes and a
         /// unit test should not have to carry a JPEG fixture to exercise
@@ -119,6 +121,8 @@ public final class ScannerBatchViewModel {
         public init(
             draftStore: CaptureDraftStore,
             closetRepository: ClosetRepository,
+            currentOwnerID: @escaping @Sendable () async -> UUID? = { nil },
+            pendingStore: any ScannerBatchPendingStoring = InMemoryScannerBatchPendingStore(),
             prepare: @escaping (Data) throws -> CapturePreparation.Prepared = {
                 try CapturePreparation.prepareForUpload($0)
             },
@@ -128,6 +132,8 @@ public final class ScannerBatchViewModel {
         ) {
             self.draftStore = draftStore
             self.closetRepository = closetRepository
+            self.currentOwnerID = currentOwnerID
+            self.pendingStore = pendingStore
             self.prepare = prepare
             self.deviceHints = deviceHints
         }
@@ -143,11 +149,13 @@ public final class ScannerBatchViewModel {
     /// because of it. Nothing here interpolates a filename, a storage path
     /// or anything about the garment — only which of a fixed set of things
     /// went wrong, and how many times.
-    private static let logger = Logger(subsystem: "app.astrastyle", category: "scanner.batch")
+    static let logger = Logger(subsystem: "app.astrastyle", category: "scanner.batch")
 
-    public private(set) var phase: Phase = .idle
+    public internal(set) var phase: Phase = .idle
 
-    private let dependencies: Dependencies
+    let dependencies: Dependencies
+    var pendingBatch: PendingBatch?
+    var consumptionWrites: [UUID: Task<Bool, Never>] = [:]
 
     public init(dependencies: Dependencies) {
         self.dependencies = dependencies
@@ -164,84 +172,69 @@ public final class ScannerBatchViewModel {
         }
     }
 
-    // MARK: - The flow
+    /// A failed request can still have an accepted server job. Keep its
+    /// uploaded paths and stable key so Retry resumes that job rather than
+    /// uploading the same photos again.
+    public var canRetryPendingBatch: Bool { pendingBatch?.isComplete == false }
+    public var hasPendingBatch: Bool { pendingBatch != nil }
 
-    /// - Parameters:
-    ///   - images: the payloads the photo library actually handed over.
-    ///   - selectedCount: how many the user picked. **Not** `images.count`.
-    ///
-    /// Those two differ whenever `loadTransferable` returns nil, which on a
-    /// real phone happens for photos that live in iCloud and are not on the
-    /// device. This method previously took only the array and set
-    /// `selected = images.count`, so every photo the library declined to
-    /// hand over vanished before the accounting began: the summary reported
-    /// a clean batch that was several garments short, and `Outcome` — the
-    /// type that exists precisely to make that impossible — never saw them.
-    /// The caller has to say what was asked for, because it is the only one
-    /// that knows.
-    public func importImages(_ images: [Data], selectedCount: Int) async {
-        let couldNotLoad = max(0, selectedCount - images.count)
-        guard !images.isEmpty else {
-            let nothingLoaded = Outcome(couldNotLoad: couldNotLoad, selected: selectedCount)
-            logOutcome(nothingLoaded)
-            phase = .ready(nothingLoaded)
-            return
-        }
-
-        let accepted = Array(images.prefix(BatchScanLimits.maxItemsPerBatch))
-        var outcome = Outcome(
-            skippedOverLimit: images.count - accepted.count,
-            couldNotLoad: couldNotLoad,
-            selected: selectedCount
-        )
-
-        let prepared = prepareAll(accepted, outcome: &outcome)
-        guard !prepared.isEmpty else {
-            logOutcome(outcome)
-            phase = .ready(outcome)
-            return
-        }
-
-        let uploaded = await uploadAll(prepared, outcome: &outcome)
-        guard !uploaded.isEmpty else {
-            logOutcome(outcome)
-            phase = .ready(outcome)
-            return
-        }
-
-        await analyzeAll(uploaded, outcome: &outcome)
-    }
-
-    private func logOutcome(_ outcome: Outcome) {
-        guard !outcome.isCompletelyClean else {
-            Self.logger.info("batch clean: \(outcome.readyCount, privacy: .public) ready")
-            return
-        }
-        let analysis = outcome.analysisFailures.isEmpty
-            ? "none"
-            : outcome.analysisFailures
-                .map { "\($0.key.rawValue)=\($0.value)" }
-                .sorted()
-                .joined(separator: ",")
-        Self.logger.error(
-            "batch lost \(outcome.lostCount, privacy: .public)/\(outcome.selected, privacy: .public) — couldNotLoad=\(outcome.couldNotLoad, privacy: .public) overLimit=\(outcome.skippedOverLimit, privacy: .public) unreadable=\(outcome.unreadable, privacy: .public) uploadFailed=\(outcome.uploadFailed, privacy: .public) analysis=\(analysis, privacy: .public)"
+    public func retryPendingBatch() async {
+        guard let pendingBatch, !pendingBatch.isComplete else { return }
+        var outcome = pendingBatch.outcome
+        await analyzeAll(
+            pendingBatch.uploaded,
+            idempotencyKey: pendingBatch.idempotencyKey,
+            acceptedJobID: pendingBatch.acceptedJobID,
+            isRetry: true,
+            outcome: &outcome
         )
     }
 
-    // MARK: - Stages
-
-    private struct Candidate {
+    struct Candidate {
         let id: UUID
         let capture: PreparedCapture
     }
 
-    private struct Uploaded {
+    struct Uploaded {
         let id: UUID
         let capture: PreparedCapture
         let storagePath: String
+        var analysis: ClosetItemAnalysisResult?
+        var analysisFailureReason: ClosetItemAnalysisFailureReason?
     }
 
-    private func prepareAll(_ images: [Data], outcome: inout Outcome) -> [Candidate] {
+    struct PendingBatch {
+        let uploaded: [Uploaded]
+        let idempotencyKey: String
+        let outcome: Outcome
+        let ownerID: UUID
+        var acceptedJobID: UUID?
+        var isComplete: Bool
+        var consumedDraftIDs: Set<UUID>
+        var discardedDraftIDs: Set<UUID>
+
+        init(
+            uploaded: [Uploaded],
+            idempotencyKey: String,
+            outcome: Outcome,
+            ownerID: UUID,
+            acceptedJobID: UUID?,
+            isComplete: Bool = false,
+            consumedDraftIDs: Set<UUID> = [],
+            discardedDraftIDs: Set<UUID> = []
+        ) {
+            self.uploaded = uploaded
+            self.idempotencyKey = idempotencyKey
+            self.outcome = outcome
+            self.ownerID = ownerID
+            self.acceptedJobID = acceptedJobID
+            self.isComplete = isComplete
+            self.consumedDraftIDs = consumedDraftIDs
+            self.discardedDraftIDs = discardedDraftIDs
+        }
+    }
+
+    func prepareAll(_ images: [Data], outcome: inout Outcome) -> [Candidate] {
         phase = .preparing(done: 0, total: images.count)
         var candidates: [Candidate] = []
         candidates.reserveCapacity(images.count)
@@ -272,7 +265,7 @@ public final class ScannerBatchViewModel {
     /// leg is bandwidth-bound on a phone, and firing twenty at once makes
     /// every one of them slower and the first result later.
     ///
-    private func uploadAll(_ candidates: [Candidate], outcome: inout Outcome) async -> [Uploaded] {
+    func uploadAll(_ candidates: [Candidate], outcome: inout Outcome) async -> [Uploaded] {
         phase = .uploading(done: 0, total: candidates.count)
         var uploaded: [Uploaded] = []
         uploaded.reserveCapacity(candidates.count)
@@ -280,7 +273,7 @@ public final class ScannerBatchViewModel {
         for (index, candidate) in candidates.enumerated() {
             do {
                 let path = try await dependencies.closetRepository
-                    .uploadClosetCaptureImage(candidate.capture.prepared.data)
+                    .uploadClosetCaptureImage(candidate.capture.prepared.data, requestID: candidate.id)
                 uploaded.append(Uploaded(
                     id: candidate.id,
                     capture: candidate.capture,
@@ -303,89 +296,4 @@ public final class ScannerBatchViewModel {
         return uploaded
     }
 
-    private func analyzeAll(_ uploaded: [Uploaded], outcome: inout Outcome) async {
-        phase = .analyzing(total: uploaded.count)
-
-        let requests = uploaded.map { item in
-            ClosetItemAnalysisRequest(
-                id: item.id,
-                imageData: item.capture.prepared.data,
-                // Supplying the path makes the repository skip its own
-                // upload — and, more to the point, is the only way this
-                // flow learns where each image landed. `batchAnalyzeItems`
-                // returns analyses keyed by request id and nothing else, so
-                // a caller that let it upload would have no storage path to
-                // build a `ClosetItemImage` from and could never save what
-                // it had just paid to analyse.
-                storagePath: item.storagePath,
-                imageType: .front,
-                deviceHints: item.capture.deviceHints
-            )
-        }
-
-        let batch: ClosetItemAnalysisBatch
-        do {
-            batch = try await dependencies.closetRepository.batchAnalyzeItems(requests)
-        } catch let error as FreeTierClosetError {
-            await discard(uploaded.map(\.storagePath))
-            phase = capPhase(for: error)
-            return
-        } catch {
-            await discard(uploaded.map(\.storagePath))
-            let astra = asAstraError(error)
-            Self.logger.error("batch analysis threw: \(astra.message, privacy: .public)")
-            phase = .failed(astra)
-            return
-        }
-
-        var strandedPaths: [String] = []
-        for item in uploaded {
-            if let analysis = batch.result(for: item.id) {
-                dependencies.draftStore.put(CaptureDraft(
-                    id: item.id,
-                    prepared: item.capture.prepared,
-                    deviceHints: item.capture.deviceHints,
-                    storagePath: item.storagePath,
-                    analysis: analysis
-                ))
-                outcome.draftIDs.append(item.id)
-            } else {
-                let reason = batch.failure(for: item.id)?.reason ?? .unknown
-                outcome.analysisFailures[reason, default: 0] += 1
-                // No draft will ever reference this object. Leaving it
-                // costs the user storage for a garment they never got.
-                strandedPaths.append(item.storagePath)
-            }
-        }
-        await discard(strandedPaths)
-
-        logOutcome(outcome)
-        phase = .ready(outcome)
-    }
-
-    // MARK: - Helpers
-
-    private func capPhase(for error: FreeTierClosetError) -> Phase {
-        switch error {
-        case .capReached(let limit):
-            .capReached(limit: limit)
-        }
-    }
-
-    /// Best-effort cleanup. A delete that fails is not worth failing the
-    /// user's batch over, but it is worth attempting for every path rather
-    /// than stopping at the first refusal.
-    private func discard(_ paths: [String]) async {
-        for path in paths {
-            try? await dependencies.closetRepository.deleteCapturedImage(atPath: path)
-        }
-    }
-
-    private func asAstraError(_ error: Error) -> AstraError {
-        if let astra = error as? AstraError { return astra }
-        return AstraError.network(String(
-            localized: "That batch could not be analysed. Try again in a moment.",
-            comment: "Scanner batch analysis failure"
-        ))
-    }
 }

@@ -163,6 +163,22 @@ struct InspirationViewModelTests {
         }
     }
 
+    @Test("An authorized weather failure does not ask the user to grant permission again")
+    func authorizedWeatherUnavailable() async {
+        let weather = CountingWeatherService(authorization: .authorized, fails: true)
+        let model = InspirationViewModel(
+            closetOnly: false,
+            container: .preview(),
+            weatherService: weather,
+            currentOwnerID: { SampleData.userID }
+        )
+        await model.prepare()
+        #expect(weather.snapshotCalls == 1)
+        #expect(model.contextSummary.contains("Weather temporarily unavailable"))
+        #expect(!model.contextSummary.contains("Weather unavailable — enable it on Home"))
+        #expect(model.chatPrompt.contains("Weather unavailable. Do not invent conditions."))
+    }
+
     @Test("Inspiration does not fetch weather before permission is granted")
     func weatherPermissionGate() async {
         for authorization in [WeatherLocationAuthorization.denied, .notDetermined] {
@@ -186,9 +202,11 @@ private final class CountingWeatherService: WeatherService, @unchecked Sendable 
     private let lock = NSLock()
     private let authorization: WeatherLocationAuthorization
     private var calls = 0
+    private let fails: Bool
 
-    init(authorization: WeatherLocationAuthorization) {
+    init(authorization: WeatherLocationAuthorization, fails: Bool = false) {
         self.authorization = authorization
+        self.fails = fails
     }
 
     var snapshotCalls: Int {
@@ -200,6 +218,7 @@ private final class CountingWeatherService: WeatherService, @unchecked Sendable 
 
     func currentSnapshot() async throws -> WeatherSnapshot {
         lock.withLock { calls += 1 }
+        if fails { throw AstraError.network("Weather fixture unavailable") }
         return SampleData.weatherSnapshot
     }
 }

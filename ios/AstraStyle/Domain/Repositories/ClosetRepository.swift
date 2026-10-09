@@ -37,6 +37,9 @@ public protocol ClosetRepository: Sendable {
     /// Kyra attachments) keep using `uploadCapturedImage` and do not create
     /// unreferenced display variants.
     func uploadClosetCaptureImage(_ data: Data) async throws -> String
+    /// Batch captures use a stable request identity so an interrupted upload
+    /// can safely overwrite its own object and resume after relaunch.
+    func uploadClosetCaptureImage(_ data: Data, requestID: UUID) async throws -> String
 
     /// Deletes a capture that was uploaded but never became a
     /// `ClosetItemImage` — a scan the user retook, closed out of, or whose
@@ -79,6 +82,20 @@ public protocol ClosetRepository: Sendable {
     /// one image, not the other four.
     func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch
 
+    /// Retry/resume form for a remote batch job. Keep this key stable until
+    /// the uploaded batch reaches a terminal result.
+    func batchAnalyzeItems(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String
+    ) async throws -> ClosetItemAnalysisBatch
+    func resumeBatchAnalysis(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String,
+        acceptedJobID: UUID?,
+        isRetry: Bool
+    ) async throws -> ClosetItemAnalysisBatch
+    func cancelBatchAnalysis(idempotencyKey: String) async throws
+
     func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem
     func updateItem(_ item: ClosetItem) async throws -> ClosetItem
     func archiveItem(id: UUID) async throws
@@ -110,6 +127,30 @@ public protocol ClosetRepository: Sendable {
 }
 
 extension ClosetRepository {
+    public func batchAnalyzeItems(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String
+    ) async throws -> ClosetItemAnalysisBatch {
+        _ = idempotencyKey
+        return try await batchAnalyzeItems(requests)
+    }
+
+    public func resumeBatchAnalysis(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String,
+        acceptedJobID: UUID?,
+        isRetry: Bool
+    ) async throws -> ClosetItemAnalysisBatch {
+        _ = acceptedJobID
+        _ = isRetry
+        return try await batchAnalyzeItems(requests, idempotencyKey: idempotencyKey)
+    }
+
+    public func cancelBatchAnalysis(idempotencyKey: String) async throws {
+        _ = idempotencyKey
+        throw AstraError.unimplemented("Batch cancellation is unavailable.")
+    }
+
     public func fetchMonthlyHistoryItems(createdOrPurchasedBefore: Date) async throws -> [ClosetItem] {
         try await fetchItems().filter { item in
             item.createdAt < createdOrPurchasedBefore || item.purchaseDate.map { $0 < createdOrPurchasedBefore } == true
@@ -147,6 +188,24 @@ public struct MonthlyVersatilityHistory: Equatable, Sendable {
 public enum ScanUnlockCountResult: Equatable, Sendable {
     case count(Int)
     case unmeasurable
+}
+
+/// Batch operations can fail before the server accepts a job, while the
+/// enqueue outcome is unknown, or after a job is already durable. Keeping
+/// those phases distinct prevents the client from deleting images that an
+/// accepted analysis job still needs.
+public enum ClosetBatchAnalysisFailure: Error, Sendable {
+    case rejected(AstraError)
+    case enqueueUncertain(AstraError)
+    case accepted(jobID: UUID, underlying: AstraError)
+    case terminalFailure(AstraError)
+
+    public var underlying: AstraError {
+        switch self {
+        case .rejected(let error), .enqueueUncertain(let error), .terminalFailure(let error): error
+        case .accepted(_, let error): error
+        }
+    }
 }
 
 /// The 0–100 composite Wardrobe Score plus its component breakdown
@@ -241,6 +300,11 @@ public struct WardrobeScoreSnapshot: Hashable, Sendable {
 public extension ClosetRepository {
     func uploadClosetCaptureImage(_ data: Data) async throws -> String {
         try await uploadCapturedImage(data)
+    }
+
+    func uploadClosetCaptureImage(_ data: Data, requestID: UUID) async throws -> String {
+        _ = requestID
+        return try await uploadClosetCaptureImage(data)
     }
 
     func removeBackground(storagePath: String) async throws -> String? { nil }

@@ -20,11 +20,34 @@ struct ProfileShoppingStatsCard: View {
             Text(String(localized: "Saved", comment: "Profile wishlist section"))
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
-            if viewModel.savedCount > 0 {
+                .accessibilityAddTraits(.isHeader)
+            content
+        }
+        .task { await viewModel.onAppear() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch viewModel.state {
+        case .loading:
+            HStack(spacing: AstraSpacing.sm) {
+                ProgressView().tint(AstraColor.accentChampagne)
+                Text(String(localized: "Loading your saved and purchased items…", comment: "Profile shopping counts loading"))
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget, alignment: .leading)
+            .accessibilityIdentifier("profile.shoppingStats.loading")
+        case .loaded(let savedCount, let purchasedCount):
+            let line = String(
+                localized: "\(savedCount) saved · \(purchasedCount) purchased",
+                comment: "Profile wishlist and purchased counts"
+            )
+            if savedCount > 0 {
                 Button {
                     router.push(ProfileRoute.savedItems)
                 } label: {
-                    cardContent(showChevron: true)
+                    cardContent(line: line, showChevron: true)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("profile.savedRow")
@@ -33,17 +56,29 @@ struct ProfileShoppingStatsCard: View {
                     comment: "Saved row hint"
                 )))
             } else {
-                cardContent(showChevron: false)
+                cardContent(line: line, showChevron: false)
             }
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                Text(message)
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(String(localized: "Try again", comment: "Retry Profile shopping counts")) {
+                    Task { await viewModel.retry() }
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("profile.shoppingStats.retry")
+            }
+            .accessibilityIdentifier("profile.shoppingStats.error")
         }
-        .task { await viewModel.onAppear() }
     }
 
-    private func cardContent(showChevron: Bool) -> some View {
+    private func cardContent(line: String, showChevron: Bool) -> some View {
         AstraCard {
             HStack(spacing: AstraSpacing.md) {
                 VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
-                    Text(viewModel.line)
+                    Text(line)
                         .astraText(.body)
                         .foregroundStyle(AstraColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -72,25 +107,45 @@ struct ProfileShoppingStatsCard: View {
 @MainActor
 @Observable
 final class ProfileShoppingStatsViewModel {
-    private(set) var line = String(
-        localized: "Saved and purchased items will show here.",
-        comment: "Profile shopping stats placeholder"
-    )
-    private(set) var savedCount = 0
+    enum State: Equatable, Sendable {
+        case loading
+        case loaded(savedCount: Int, purchasedCount: Int)
+        case failed(String)
+    }
+
+    private(set) var state: State = .loading
 
     private let shoppingRepository: ShoppingRepository
+    private var loadGeneration = UUID()
 
     init(shoppingRepository: ShoppingRepository) {
         self.shoppingRepository = shoppingRepository
     }
 
     func onAppear() async {
-        let saved = (try? await shoppingRepository.fetchWishlist())?.count ?? 0
-        let bought = (try? await shoppingRepository.fetchPurchased())?.count ?? 0
-        savedCount = saved
-        line = String(
-            localized: "\(saved) saved · \(bought) purchased",
-            comment: "Profile wishlist and purchased counts"
-        )
+        await load()
+    }
+
+    func retry() async {
+        await load()
+    }
+
+    private func load() async {
+        loadGeneration = UUID()
+        let generation = loadGeneration
+        state = .loading
+        do {
+            async let savedItems = shoppingRepository.fetchWishlist()
+            async let purchasedItems = shoppingRepository.fetchPurchased()
+            let (saved, purchased) = try await (savedItems, purchasedItems)
+            guard loadGeneration == generation else { return }
+            state = .loaded(savedCount: saved.count, purchasedCount: purchased.count)
+        } catch let error as AstraError {
+            guard loadGeneration == generation else { return }
+            state = .failed(error.message)
+        } catch {
+            guard loadGeneration == generation else { return }
+            state = .failed(String(localized: "Your shopping counts couldn't load. Check your connection and try again.", comment: "Profile shopping stats error"))
+        }
     }
 }

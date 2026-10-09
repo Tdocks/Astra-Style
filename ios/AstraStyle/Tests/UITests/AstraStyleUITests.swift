@@ -446,7 +446,9 @@ extension AstraStyleUITests {
         review.tap()
         let wearCount = app.staticTexts["monthlyReview.statValue.looks-worn"]
         awaitElement(wearCount, "Monthly Review wear count")
-        XCTAssertEqual(wearCount.label, "1", "A successful wear action should persist one visible wear record")
+        // Home opens the most recently completed month. Today's successful
+        // wear must not leak into that historical review.
+        XCTAssertEqual(wearCount.label, "0", "Today's wear must be excluded from last month's review")
     }
 
 }

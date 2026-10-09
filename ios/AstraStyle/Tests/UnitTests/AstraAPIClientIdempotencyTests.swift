@@ -103,6 +103,34 @@ struct AstraAPIClientIdempotencyTests {
         #expect(keys[0]?.isEmpty == false)
     }
 
+    @Test("A batch resume reuses its caller-owned key across retries")
+    func batchResumeReusesSuppliedKeyAcrossRetries() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 2
+        IdempotencyStubURLProtocol.successBody = Data(
+            #"{"data":{"job_id":"11111111-1111-4111-8111-111111111111","status":"queued"},"error":null,"request_id":"batch"}"#.utf8
+        )
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+                                    session: URLSession(configuration: configuration), retryPolicy: .none)
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+
+        _ = try await client.send(
+            .batchAnalyzeCloset,
+            body: AstraEmptyPayload(),
+            idempotencyKey: "stable-scanner-batch-key",
+            as: ClosetItemAnalysisBatchJob.self
+        )
+
+        #expect(IdempotencyStubURLProtocol.capturedIdempotencyKeys == [
+            "stable-scanner-batch-key",
+            "stable-scanner-batch-key",
+            "stable-scanner-batch-key"
+        ])
+    }
+
     @Test("High-resolution export sends a nonempty idempotency key")
     func hiResExportRequiresIdempotencyKey() async throws {
         IdempotencyStubURLProtocol.reset()

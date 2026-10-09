@@ -19,7 +19,7 @@ private struct GridImageResolutionPlan {
 
 extension ClosetViewModel {
     /// N path lookups, then exactly one signing request.
-    func resolveImages(forItemIDs itemIDs: Set<UUID>) async {
+    func resolveImages(forItemIDs itemIDs: Set<UUID>, generation: UUID) async {
         // Captured as a local so the child tasks below capture the
         // already-`Sendable` repository rather than this `@MainActor`
         // view model.
@@ -58,6 +58,7 @@ extension ClosetViewModel {
         }
 
         guard !pathsByItemID.isEmpty else { return }
+        guard generation == imageResolutionGeneration, !Task.isCancelled else { return }
 
         do {
             // THE batch call. One request for the whole screenful, not one
@@ -68,18 +69,12 @@ extension ClosetViewModel {
                 storagePaths: Array(plan.paths),
                 prefetching: plan.prefetchPaths
             )
+            // Reload clears resolved URLs and advances the generation. A
+            // signer that finishes after that point must not repopulate the
+            // grid with a URL for the closet snapshot that was replaced.
+            guard generation == imageResolutionGeneration, !Task.isCancelled else { return }
             for (itemID, paths) in pathsByItemID {
-                if let url = signed[paths.primary] {
-                    imageURLsByItemID[itemID] = url
-                    if let fallbackPath = paths.fallback, let fallbackURL = signed[fallbackPath] {
-                        imageFallbackURLsByItemID[itemID] = fallbackURL
-                    }
-                } else if let fallbackPath = paths.fallback, let fallbackURL = signed[fallbackPath] {
-                    // Storage may report an absent variant inside a
-                    // successful batch-sign response. Display the existing
-                    // original/cutout immediately at tile decode size.
-                    imageURLsByItemID[itemID] = fallbackURL
-                }
+                applySignedURLs(signed, to: itemID, paths: paths)
             }
         } catch {
             // Signing failing is not the closet failing to load. The
@@ -88,7 +83,31 @@ extension ClosetViewModel {
             // which the tiles already render honestly. Surface it as the
             // connectivity condition it almost always is rather than
             // replacing a working screen with an error page.
-            isOffline = await networkMonitor.isOffline()
+            await updateConnectivityAfterImageFailure(generation: generation)
+        }
+    }
+
+    private func updateConnectivityAfterImageFailure(generation: UUID) async {
+        guard generation == imageResolutionGeneration else { return }
+        let offline = await networkMonitor.isOffline()
+        guard generation == imageResolutionGeneration, !Task.isCancelled else { return }
+        isOffline = offline
+    }
+
+    private func applySignedURLs(
+        _ signed: [String: URL],
+        to itemID: UUID,
+        paths: GridImagePaths
+    ) {
+        if let url = signed[paths.primary] {
+            imageURLsByItemID[itemID] = url
+            if let fallbackPath = paths.fallback, let fallbackURL = signed[fallbackPath] {
+                imageFallbackURLsByItemID[itemID] = fallbackURL
+            }
+        } else if let fallbackPath = paths.fallback, let fallbackURL = signed[fallbackPath] {
+            // Storage may report an absent variant inside a successful
+            // batch-sign response. Keep its source image as the fallback.
+            imageURLsByItemID[itemID] = fallbackURL
         }
     }
 

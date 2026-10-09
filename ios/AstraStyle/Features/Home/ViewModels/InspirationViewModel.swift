@@ -324,7 +324,9 @@ private extension InspirationViewModel {
             }
         }
         lines.append("Weather unavailable. Do not invent conditions.")
-        summary.append("Weather unavailable — enable it on Home")
+        summary.append(weatherService.currentAuthorization() == .authorized
+            ? "Weather temporarily unavailable"
+            : "Weather unavailable — enable it on Home")
         return true
     }
 

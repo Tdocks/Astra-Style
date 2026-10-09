@@ -22,6 +22,7 @@ struct StyleMemoriesView: View {
                 AstraSectionHeader(
                     title: String(localized: "Style Memories", comment: "Style memories screen title")
                 )
+                .accessibilityAddTraits(.isHeader)
 
                 Text(String(
                     localized: "These are the style notes Kyra uses to make her advice more personal. Remove any note you no longer want her to use.",
@@ -100,7 +101,7 @@ struct StyleMemoriesView: View {
                 VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                     Text(memoryTypeLabel(memory.memoryType))
                         .astraText(.caption)
-                        .foregroundStyle(AstraColor.accentChampagne)
+                        .foregroundStyle(AstraColor.accentChampagneAccessible)
                     Text(memory.content)
                         .astraText(.body)
                         .foregroundStyle(AstraColor.textPrimary)

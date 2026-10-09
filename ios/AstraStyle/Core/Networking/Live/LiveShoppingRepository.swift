@@ -17,6 +17,21 @@ import Foundation
 import Supabase
 
 public final class LiveShoppingRepository: ShoppingRepository, @unchecked Sendable {
+    struct WishlistRow: Decodable, Sendable, Equatable {
+        let id: UUID
+        let productCandidateID: UUID
+        let purchasedAt: Date?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case productCandidateID = "product_candidate_id"
+            case purchasedAt = "purchased_at"
+        }
+    }
+
+    private static let wishlistPageSize = 500
+    private static let productCandidatePageSize = 100
+
     private let apiClient: AstraAPIClient
     private let supabase: SupabaseClient
     private let evaluationCache: ShoppingEvaluationCaching?
@@ -307,7 +322,7 @@ extension LiveShoppingRepository {
         let ownerID = try await shoppingUserID()
         do {
             let selected = try await fetchRecentEvaluationRows(ownerID: ownerID, limit: limit)
-            let candidates = try await fetchCandidates(ids: selected.map(\.productCandidateID))
+            let candidates = try await fetchCandidates(ids: selected.map(\.productCandidateID), ownerID: ownerID)
             let decisions = selected.map { evaluation in
                 ProductDecisionSnapshot(candidate: candidates[evaluation.productCandidateID], evaluation: evaluation)
             }
@@ -358,17 +373,26 @@ extension LiveShoppingRepository {
         return latestByCandidate.values.sorted { $0.createdAt > $1.createdAt }.prefix(min(limit, 50)).map { $0 }
     }
 
-    private func fetchCandidates(ids: [UUID]) async throws -> [UUID: ProductCandidate] {
+    private func fetchCandidates(ids: [UUID], ownerID: UUID) async throws -> [UUID: ProductCandidate] {
         var candidatesByID: [UUID: ProductCandidate] = [:]
-        for chunk in ids.chunked(into: 100) {
+        for chunk in Self.candidateIDChunks(ids) {
+            try Task.checkCancellation()
             let candidates: [ProductCandidate] = try await supabase.from("product_candidates")
                 .select()
                 .in("id", values: chunk)
                 .execute()
                 .value
+            try Task.checkCancellation()
+            try await verifyActiveShoppingOwner(ownerID)
             candidatesByID.merge(candidates.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
         }
         return candidatesByID
+    }
+
+    /// The same bounded chunks used by wishlist and decision candidate reads.
+    /// Kept testable so a large saved list cannot regress to one long `.in` URL.
+    static func candidateIDChunks(_ ids: [UUID]) -> [[UUID]] {
+        ids.chunked(into: productCandidatePageSize)
     }
 
     public func fetchCachedDecision(candidateID: UUID) async throws -> ProductDecisionSnapshot? {
@@ -433,35 +457,36 @@ extension LiveShoppingRepository {
     }
 
     private func fetchWishlistRows(purchased: Bool) async throws -> [ProductCandidate] {
-        struct Row: Decodable, Sendable {
-            let productCandidateID: UUID
-            let purchasedAt: Date?
-            enum CodingKeys: String, CodingKey {
-                case productCandidateID = "product_candidate_id"
-                case purchasedAt = "purchased_at"
-            }
-        }
         do {
             let ownerID = try await shoppingUserID()
-            let rows: [Row] = try await supabase.from("wishlist_items")
-                .select("product_candidate_id, purchased_at")
-                .eq("user_id", value: ownerID)
-                .execute()
-                .value
-            let ids = rows
-                .filter { purchased ? $0.purchasedAt != nil : $0.purchasedAt == nil }
-                .map(\.productCandidateID)
+            let rows = try await Self.collectWishlistPages { offset, limit in
+                var query = supabase.from("wishlist_items")
+                    .select("id, product_candidate_id, purchased_at")
+                    .eq("user_id", value: ownerID)
+                if purchased {
+                    query = query.not("purchased_at", operator: .is, value: "null")
+                } else {
+                    query = query.is("purchased_at", value: nil)
+                }
+                let page: [WishlistRow] = try await query
+                    .order("created_at", ascending: false)
+                    .order("id", ascending: true)
+                    .range(from: offset, to: offset + limit - 1)
+                    .execute()
+                    .value
+                try await verifyActiveShoppingOwner(ownerID)
+                return page
+            }
+            let ids = rows.map(\.productCandidateID)
             guard !ids.isEmpty else {
                 try await verifyActiveShoppingOwner(ownerID)
                 return []
             }
-            let candidates: [ProductCandidate] = try await supabase.from("product_candidates")
-                .select()
-                .in("id", values: ids)
-                .execute()
-                .value
+            let candidatesByID = try await fetchCandidates(ids: ids, ownerID: ownerID)
             try await verifyActiveShoppingOwner(ownerID)
-            return candidates
+            return ids.compactMap { candidatesByID[$0] }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as AstraError {
             throw error
         } catch {
@@ -470,6 +495,27 @@ extension LiveShoppingRepository {
                     ? "Couldn't load purchased items."
                     : "Couldn't load your saved items."
             )
+        }
+    }
+
+    /// Collects stable pages from the caller's owner-scoped wishlist query.
+    /// Kept separate from PostgREST so row-cap behavior is covered offline.
+    static func collectWishlistPages(
+        pageSize: Int = wishlistPageSize,
+        fetchPage: @Sendable (Int, Int) async throws -> [WishlistRow]
+    ) async throws -> [WishlistRow] {
+        guard pageSize > 0 else {
+            throw AstraError.validation("That saved-item page is invalid.")
+        }
+        var rows: [WishlistRow] = []
+        var offset = 0
+        while true {
+            try Task.checkCancellation()
+            let page = try await fetchPage(offset, pageSize)
+            try Task.checkCancellation()
+            rows.append(contentsOf: page)
+            if page.count < pageSize { return rows }
+            offset += page.count
         }
     }
 

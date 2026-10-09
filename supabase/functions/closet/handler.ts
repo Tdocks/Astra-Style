@@ -34,6 +34,7 @@ import {
   type AnalyzeItemElement,
   type AnalyzeItemRequestBody,
   assertOwnsStoragePath,
+  type BatchAnalyzeRequestBody,
   type BatchJobEnqueueDTO,
   type BatchJobStatusDTO,
   type ClosetItemAnalysisBatchItemDTO,
@@ -72,12 +73,17 @@ import {
  * timeout can honestly come from.
  */
 const PROVIDER_TIMEOUT_MS = 20_000;
+// A worker holds a job claim longer than the maximum provider call so a slow
+// but valid response cannot be duplicated by another status poll.
+const BATCH_JOB_CLAIM_LEASE_MS = 60_000;
 
 export interface IdempotencyStore {
   get(
     userId: string,
     key: string,
-  ): Promise<{ requestHash: string; responsePayload: ClosetItemAnalysisResultDTO } | null>;
+  ): Promise<
+    { requestHash: string; responsePayload: ClosetItemAnalysisResultDTO } | null
+  >;
   put(
     userId: string,
     key: string,
@@ -95,12 +101,36 @@ export interface AnalysisJobRow {
   items: AnalyzeItemElement[];
   results: ClosetItemAnalysisBatchItemDTO[];
   errorMessage?: string;
+  idempotencyKey?: string;
+  requestHash?: string;
 }
 
 export interface AnalysisJobStore {
-  create(userId: string, items: AnalyzeItemElement[]): Promise<AnalysisJobRow>;
+  create(
+    userId: string,
+    items: AnalyzeItemElement[],
+    idempotencyKey?: string,
+    requestHash?: string,
+  ): Promise<AnalysisJobRow>;
+  getByIdempotencyKey(
+    userId: string,
+    idempotencyKey: string,
+  ): Promise<AnalysisJobRow | null>;
   get(userId: string, jobId: string): Promise<AnalysisJobRow | null>;
-  save(job: AnalysisJobRow): Promise<void>;
+  claimNext(
+    userId: string,
+    jobId: string,
+    token: string,
+    claimedAt: Date,
+    leaseUntil: Date,
+  ): Promise<AnalysisJobRow | null>;
+  saveClaimed(job: AnalysisJobRow, token: string): Promise<boolean>;
+  releaseClaim(userId: string, jobId: string, token: string): Promise<void>;
+  cancelByIdempotencyKey(
+    userId: string,
+    idempotencyKey: string,
+    now: Date,
+  ): Promise<boolean>;
 }
 
 export interface AnalyzeHandlerDeps {
@@ -118,6 +148,7 @@ export interface BatchHandlerDeps {
   jobStore: AnalysisJobStore;
   rateLimiter: RateLimiter;
   now: () => Date;
+  hashRequest: (canonical: string) => Promise<string>;
 }
 
 async function readJsonBody(req: Request): Promise<unknown> {
@@ -138,6 +169,17 @@ function canonicalAnalyzeBody(body: AnalyzeItemRequestBody): string {
     storage_path: body.storagePath,
     image_type: body.imageType,
     device_hints: body.deviceHints ?? null,
+  });
+}
+
+function canonicalBatchBody(body: BatchAnalyzeRequestBody): string {
+  return JSON.stringify({
+    items: body.items.map((item) => ({
+      request_id: item.requestId,
+      storage_path: item.storagePath,
+      image_type: item.imageType,
+      device_hints: item.deviceHints ?? null,
+    })),
   });
 }
 
@@ -193,7 +235,10 @@ async function analyzeOne(
       // failure of item creation. For batch we still surface per-item
       // failure when the image itself is unusable; for retryable provider
       // faults we return a failed outcome the client can retry.
-      if (err.code === "INVALID_INPUT" || err.code === "CONTENT_MODERATION_REJECTED") {
+      if (
+        err.code === "INVALID_INPUT" ||
+        err.code === "CONTENT_MODERATION_REJECTED"
+      ) {
         return {
           request_id: element.requestId,
           error: {
@@ -249,7 +294,10 @@ export async function handleAnalyzeItem(
 
     const userId = await authenticateRequest(req, deps.authClient);
 
-    const rateLimitResult = deps.rateLimiter.check(userId, deps.now().getTime());
+    const rateLimitResult = deps.rateLimiter.check(
+      userId,
+      deps.now().getTime(),
+    );
     if (!rateLimitResult.allowed) {
       logger.warn("closet_analyze_item.rate_limited", {
         user_id: userId,
@@ -263,7 +311,10 @@ export async function handleAnalyzeItem(
           rateLimitResult.retryAfterSeconds,
         ),
         requestId,
-        { ...CORS_HEADERS, "Retry-After": String(rateLimitResult.retryAfterSeconds) },
+        {
+          ...CORS_HEADERS,
+          "Retry-After": String(rateLimitResult.retryAfterSeconds),
+        },
       );
     }
 
@@ -374,8 +425,67 @@ export async function handleBatchAnalyze(
 
     const userId = await authenticateRequest(req, deps.authClient);
 
-    const rateLimitResult = deps.rateLimiter.check(userId, deps.now().getTime());
+    const idempotencyKey = parseIdempotencyKey(
+      req.headers.get("Idempotency-Key") ?? req.headers.get("idempotency-key"),
+    );
+
+    const rawJson = await readJsonBody(req);
+    const envelope = parseEnvelope(rawJson);
+    requestId = resolveRequestId(req, envelope.requestId);
+    logger.adoptRequestId(requestId);
+    const body = parseBatchAnalyzeBody(envelope.body);
+
+    for (const item of body.items) {
+      assertOwnsStoragePath(item.storagePath, userId);
+    }
+
+    const requestHash = await deps.hashRequest(canonicalBatchBody(body));
+    const existing = await deps.jobStore.getByIdempotencyKey(
+      userId,
+      idempotencyKey,
+    );
+    if (existing) {
+      if (existing.requestHash !== requestHash) {
+        throw new AppError(
+          "validation",
+          409,
+          "Idempotency-Key was reused with a different batch.",
+        );
+      }
+      return jsonResponse({ job_id: existing.id, status: existing.status }, {
+        status: 202,
+        requestId,
+        extraHeaders: CORS_HEADERS,
+      });
+    }
+
+    const rateLimitResult = deps.rateLimiter.check(
+      userId,
+      deps.now().getTime(),
+    );
     if (!rateLimitResult.allowed) {
+      // A concurrent first submission may have committed after the lookup
+      // above. Let a retry observe that accepted job even if the new-job
+      // limiter is now exhausted.
+      const accepted = await deps.jobStore.getByIdempotencyKey(
+        userId,
+        idempotencyKey,
+      );
+      if (accepted) {
+        if (accepted.requestHash !== requestHash) {
+          throw new AppError(
+            "validation",
+            409,
+            "Idempotency-Key was reused with a different batch.",
+          );
+        }
+        return jsonResponse({ job_id: accepted.id, status: accepted.status }, {
+          status: 202,
+          requestId,
+          extraHeaders: CORS_HEADERS,
+        });
+      }
+
       logger.warn("closet_batch_analyze.rate_limited", {
         user_id: userId,
         retry_after_seconds: rateLimitResult.retryAfterSeconds,
@@ -388,23 +498,31 @@ export async function handleBatchAnalyze(
           rateLimitResult.retryAfterSeconds,
         ),
         requestId,
-        { ...CORS_HEADERS, "Retry-After": String(rateLimitResult.retryAfterSeconds) },
+        {
+          ...CORS_HEADERS,
+          "Retry-After": String(rateLimitResult.retryAfterSeconds),
+        },
       );
-    }
-
-    const rawJson = await readJsonBody(req);
-    const envelope = parseEnvelope(rawJson);
-    requestId = resolveRequestId(req, envelope.requestId);
-    logger.adoptRequestId(requestId);
-    const body = parseBatchAnalyzeBody(envelope.body);
-
-    for (const item of body.items) {
-      assertOwnsStoragePath(item.storagePath, userId);
     }
 
     // Enqueue only — do NOT analyze here. A sync fan-out on this path would
     // saturate the shared closet isolate and starve analyze-item (HANDOFF §9.3).
-    const job = await deps.jobStore.create(userId, body.items);
+    const job = await deps.jobStore.create(
+      userId,
+      body.items,
+      idempotencyKey,
+      requestHash,
+    );
+    // The database's unique owner/key index arbitrates simultaneous first
+    // submissions. A racing request with a different body may receive the
+    // winner's row from create(); compare the stored hash before returning it.
+    if (job.requestHash !== requestHash) {
+      throw new AppError(
+        "validation",
+        409,
+        "Idempotency-Key was reused with a different batch.",
+      );
+    }
     const payload: BatchJobEnqueueDTO = {
       job_id: job.id,
       status: job.status,
@@ -509,7 +627,10 @@ export async function handleBatchStatus(
 
     const userId = await authenticateRequest(req, deps.authClient);
 
-    const rateLimitResult = deps.rateLimiter.check(userId, deps.now().getTime());
+    const rateLimitResult = deps.rateLimiter.check(
+      userId,
+      deps.now().getTime(),
+    );
     if (!rateLimitResult.allowed) {
       return errorResponse(
         new AppError(
@@ -519,7 +640,10 @@ export async function handleBatchStatus(
           rateLimitResult.retryAfterSeconds,
         ),
         requestId,
-        { ...CORS_HEADERS, "Retry-After": String(rateLimitResult.retryAfterSeconds) },
+        {
+          ...CORS_HEADERS,
+          "Retry-After": String(rateLimitResult.retryAfterSeconds),
+        },
       );
     }
 
@@ -531,12 +655,38 @@ export async function handleBatchStatus(
       throw notFound("No batch analysis job with that id.");
     }
 
-    const advanced = await advanceJob(existing, deps.provider, requestId);
-    if (
-      advanced.status !== existing.status ||
-      advanced.results.length !== existing.results.length
-    ) {
-      await deps.jobStore.save(advanced);
+    let advanced = existing;
+    if (existing.status !== "complete" && existing.status !== "failed") {
+      const claimTime = deps.now();
+      const token = crypto.randomUUID();
+      const claimed = await deps.jobStore.claimNext(
+        userId,
+        jobId,
+        token,
+        claimTime,
+        new Date(claimTime.getTime() + BATCH_JOB_CLAIM_LEASE_MS),
+      );
+      if (claimed) {
+        try {
+          const completedStep = await advanceJob(
+            claimed,
+            deps.provider,
+            requestId,
+          );
+          const saved = await deps.jobStore.saveClaimed(completedStep, token);
+          advanced = saved ? completedStep : (await deps.jobStore.get(userId, jobId)) ?? existing;
+        } catch (error) {
+          // Provider failures are normally converted to per-item outcomes.
+          // If infrastructure throws, release only this claim so the next
+          // poll can retry immediately instead of waiting for lease expiry.
+          await deps.jobStore.releaseClaim(userId, jobId, token);
+          throw error;
+        }
+      } else {
+        // Another poll owns the lease. Return current progress without
+        // invoking the provider a second time.
+        advanced = (await deps.jobStore.get(userId, jobId)) ?? existing;
+      }
     }
 
     const payload: BatchJobStatusDTO = {
@@ -578,6 +728,73 @@ export async function handleBatchStatus(
         error_name: err instanceof Error ? err.name : "unknown",
       });
     }
+    return errorResponse(appError, requestId, CORS_HEADERS);
+  }
+}
+
+export async function handleBatchCancel(
+  req: Request,
+  deps: Pick<BatchHandlerDeps, "authClient" | "jobStore" | "rateLimiter" | "now">,
+): Promise<Response> {
+  const startedAtMs = deps.now().getTime();
+  const preflight = handleCorsPreflight(req);
+  if (preflight) return preflight;
+  const requestId = resolveRequestId(req);
+  const logger = createLogger(requestId);
+
+  try {
+    if (req.method !== "POST") {
+      throw methodNotAllowed("POST /closet/batch-cancel only accepts POST.");
+    }
+    const userId = await authenticateRequest(req, deps.authClient);
+    const rateLimitResult = deps.rateLimiter.check(userId, deps.now().getTime());
+    if (!rateLimitResult.allowed) {
+      return errorResponse(
+        new AppError(
+          "rate_limited",
+          429,
+          "Too many requests. Please try again shortly.",
+          rateLimitResult.retryAfterSeconds,
+        ),
+        requestId,
+        {
+          ...CORS_HEADERS,
+          "Retry-After": String(rateLimitResult.retryAfterSeconds),
+        },
+      );
+    }
+    const key = parseIdempotencyKey(
+      req.headers.get("Idempotency-Key") ?? req.headers.get("idempotency-key"),
+    );
+    const cancelled = await deps.jobStore.cancelByIdempotencyKey(
+      userId,
+      key,
+      deps.now(),
+    );
+    if (!cancelled) {
+      throw new AppError(
+        "validation",
+        409,
+        "This batch is being processed. Keep its photos and try again shortly.",
+      );
+    }
+    logger.info("closet_batch_analyze.cancelled", {
+      user_id: userId,
+      idempotency_key: key,
+      latency_ms: deps.now().getTime() - startedAtMs,
+    });
+    return jsonResponse({ cancelled: true }, {
+      status: 200,
+      requestId,
+      extraHeaders: CORS_HEADERS,
+    });
+  } catch (error) {
+    const appError = error instanceof AppError ? error : serverError();
+    logger.warn("closet_batch_analyze.cancel_rejected", {
+      category: appError.category,
+      status: appError.status,
+      latency_ms: deps.now().getTime() - startedAtMs,
+    });
     return errorResponse(appError, requestId, CORS_HEADERS);
   }
 }

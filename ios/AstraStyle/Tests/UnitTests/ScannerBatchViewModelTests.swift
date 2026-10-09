@@ -20,6 +20,8 @@ import Testing
 @MainActor
 struct ScannerBatchViewModelTests {
 
+    private let ownerID = testOwnerID()
+
     @Test("A clean batch produces one pre-analysed draft per photo, in submission order")
     func cleanBatchProducesOrderedDrafts() async throws {
         let store = CaptureDraftStore()
@@ -107,20 +109,138 @@ struct ScannerBatchViewModelTests {
         #expect(repository.liveStoragePaths.count == 2)
     }
 
-    @Test("A batch that throws leaves nothing in storage")
-    func wholeBatchFailureCleansUpEveryUpload() async throws {
+    @Test("An ambiguous batch failure retries the accepted job without reuploading")
+    func ambiguousBatchFailureResumesSameJob() async throws {
         let repository = BatchMockClosetRepository()
-        repository.batchError = AstraError.network("offline")
+        repository.batchError = AstraError.network("response lost after enqueue")
         let model = makeModel(store: CaptureDraftStore(), repository: repository)
 
-        await model.importImages(payloads(4), selectedCount: 4)
+        await model.importImages(payloads(3), selectedCount: 3)
 
         guard case .failed = model.phase else {
             Issue.record("expected .failed, got \(model.phase)")
             return
         }
-        #expect(repository.uploadCount == 4)
+        #expect(model.canRetryPendingBatch)
+        #expect(repository.uploadCount == 3)
+        let acceptedPaths = repository.lastBatchStoragePaths
+        let firstKey = try #require(repository.batchIdempotencyKeys.first)
+        #expect(repository.liveStoragePaths.count == 3)
+
+        repository.batchError = nil
+        await model.retryPendingBatch()
+
+        let outcome = try #require(readyOutcome(model))
+        #expect(outcome.readyCount == 3)
+        #expect(repository.uploadCount == 3)
+        #expect(repository.batchCallCount == 2)
+        #expect(repository.lastBatchStoragePaths == acceptedPaths)
+        #expect(repository.batchIdempotencyKeys == [firstKey, firstKey])
+        #expect(!model.canRetryPendingBatch)
+    }
+
+    @Test("A durable-record write failure cleans uploads before any enqueue")
+    func failedPendingRecordWriteDoesNotEnqueueOrLeakUploads() async {
+        let repository = BatchMockClosetRepository()
+        let model = makeModel(
+            store: CaptureDraftStore(),
+            repository: repository,
+            pendingStore: ThrowingSavePendingStore()
+        )
+
+        await model.importImages(payloads(2), selectedCount: 2)
+
+        guard case .failed = model.phase else {
+            Issue.record("expected a visible local persistence failure")
+            return
+        }
+        #expect(repository.uploadCount == 2)
+        #expect(repository.batchCallCount == 0)
         #expect(repository.liveStoragePaths.isEmpty)
+        #expect(!model.canRetryPendingBatch)
+    }
+
+    @Test("Explicitly discarding an ambiguous batch cleans its retained uploads")
+    func discardPendingBatchCleansUploads() async {
+        let repository = BatchMockClosetRepository()
+        repository.batchError = AstraError.network("enqueue result unknown")
+        let model = makeModel(store: CaptureDraftStore(), repository: repository)
+
+        await model.importImages(payloads(2), selectedCount: 2)
+        #expect(model.canRetryPendingBatch)
+        #expect(repository.liveStoragePaths.count == 2)
+
+        await model.discardPendingBatch()
+
+        #expect(repository.liveStoragePaths.isEmpty)
+        #expect(!model.canRetryPendingBatch)
+        #expect(model.phase == .idle)
+    }
+
+    @Test("An accepted batch restores after recreating the view model for the same owner")
+    func pendingBatchRestoresForOwnerAfterRelaunch() async throws {
+        let pendingStore = InMemoryScannerBatchPendingStore()
+        let repository = BatchMockClosetRepository()
+        repository.batchError = AstraError.network("response lost after enqueue")
+        let first = makeModel(
+            store: CaptureDraftStore(),
+            repository: repository,
+            pendingStore: pendingStore,
+            ownerID: ownerID
+        )
+        await first.importImages(payloads(2), selectedCount: 2)
+        let originalKey = try #require(repository.batchIdempotencyKeys.first)
+
+        repository.batchError = nil
+        let relaunched = makeModel(
+            store: CaptureDraftStore(),
+            repository: repository,
+            pendingStore: pendingStore,
+            ownerID: ownerID
+        )
+        await relaunched.restorePendingBatch()
+        #expect(relaunched.canRetryPendingBatch)
+        await relaunched.retryPendingBatch()
+
+        #expect(readyOutcome(relaunched)?.readyCount == 2)
+        #expect(repository.uploadCount == 2)
+        #expect(repository.batchIdempotencyKeys == [originalKey, originalKey])
+    }
+
+    @Test("A different owner cannot restore another account's pending batch")
+    func pendingBatchDoesNotCrossOwners() async throws {
+        let pendingStore = InMemoryScannerBatchPendingStore()
+        let repository = BatchMockClosetRepository()
+        repository.batchError = AstraError.network("response lost after enqueue")
+        let first = makeModel(
+            store: CaptureDraftStore(),
+            repository: repository,
+            pendingStore: pendingStore,
+            ownerID: ownerID
+        )
+        await first.importImages(payloads(1), selectedCount: 1)
+
+        let otherOwner = makeModel(
+            store: CaptureDraftStore(),
+            repository: repository,
+            pendingStore: pendingStore,
+            ownerID: UUID()
+        )
+        await otherOwner.restorePendingBatch()
+        #expect(!otherOwner.canRetryPendingBatch)
+        #expect(otherOwner.phase == .idle)
+    }
+
+    @Test("A validation response after enqueue preserves uploads for safe retry")
+    func validationResponsePreservesPossiblyAcceptedBatch() async {
+        let repository = BatchMockClosetRepository()
+        repository.batchError = AstraError.validation("invalid batch")
+        let model = makeModel(store: CaptureDraftStore(), repository: repository)
+
+        await model.importImages(payloads(2), selectedCount: 2)
+
+        #expect(repository.liveStoragePaths.count == 2)
+        #expect(model.canRetryPendingBatch)
     }
 
     @Test("Hitting the free-tier cap surfaces the cap, not a generic failure")
@@ -201,12 +321,30 @@ struct ScannerBatchViewModelTests {
     }
 }
 
+private actor ThrowingSavePendingStore: ScannerBatchPendingStoring {
+    func save(_ record: ScannerBatchPendingRecord) async throws {
+        _ = record
+        throw AstraError.server("disk unavailable")
+    }
+
+    func load(ownerID: UUID) async throws -> ScannerBatchPendingRecord? {
+        _ = ownerID
+        return nil
+    }
+
+    func remove(ownerID: UUID) async throws {
+        _ = ownerID
+    }
+}
+
 // MARK: - Helpers
 
 @MainActor
-private func makeModel(
+func makeModel(
     store: CaptureDraftStore,
     repository: ClosetRepository,
+    pendingStore: any ScannerBatchPendingStoring = InMemoryScannerBatchPendingStore(),
+    ownerID: UUID = testOwnerID(),
     unpreparable: Set<Int> = []
 ) -> ScannerBatchViewModel {
     // Payload byte 0 is the index, so the `prepare` seam can refuse a
@@ -214,6 +352,8 @@ private func makeModel(
     ScannerBatchViewModel(dependencies: .init(
         draftStore: store,
         closetRepository: repository,
+        currentOwnerID: { ownerID },
+        pendingStore: pendingStore,
         prepare: { data in
             let index = Int(data.first ?? 0)
             if unpreparable.contains(index) {
@@ -230,20 +370,25 @@ private func makeModel(
     ))
 }
 
-private func payloads(_ count: Int) -> [Data] {
+func testOwnerID() -> UUID {
+    UUID(uuidString: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA") ?? UUID()
+}
+
+func payloads(_ count: Int) -> [Data] {
     (0..<count).map { Data([UInt8($0 % 256), 0xFF, 0xD8]) }
 }
 
 @MainActor
-private func readyOutcome(_ model: ScannerBatchViewModel) -> ScannerBatchViewModel.Outcome? {
+func readyOutcome(_ model: ScannerBatchViewModel) -> ScannerBatchViewModel.Outcome? {
     guard case .ready(let outcome) = model.phase else { return nil }
     return outcome
 }
 
-private final class BatchMockClosetRepository: ClosetRepository, @unchecked Sendable {
+final class BatchMockClosetRepository: ClosetRepository, @unchecked Sendable {
     var uploadCount = 0
     var batchCallCount = 0
     var batchError: Error?
+    private(set) var batchIdempotencyKeys: [String] = []
     /// Positions within the submitted batch that come back failed.
     var failIndices: Set<Int> = []
     /// Submission positions whose UPLOAD throws, as distinct from whose
@@ -261,7 +406,19 @@ private final class BatchMockClosetRepository: ClosetRepository, @unchecked Send
         }
         uploadCount += 1
         _ = data
-        let path = "users/test/closet/\(UUID().uuidString.lowercased()).jpg"
+        let path = "users/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/closet/\(UUID().uuidString.lowercased()).jpg"
+        liveStoragePaths.insert(path)
+        return path
+    }
+
+    func uploadClosetCaptureImage(_ data: Data, requestID: UUID) async throws -> String {
+        let path = "users/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/closet/batch/\(requestID.uuidString.lowercased()).jpg"
+        if failUploadIndices.contains(uploadCount) {
+            uploadCount += 1
+            throw AstraError.network("upload failed")
+        }
+        if !liveStoragePaths.contains(path) { uploadCount += 1 }
+        _ = data
         liveStoragePaths.insert(path)
         return path
     }
@@ -270,8 +427,20 @@ private final class BatchMockClosetRepository: ClosetRepository, @unchecked Send
         liveStoragePaths.remove(storagePath)
     }
 
+    func cancelBatchAnalysis(idempotencyKey: String) async throws {
+        _ = idempotencyKey
+    }
+
     func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        try await batchAnalyzeItems(requests, idempotencyKey: UUID().uuidString)
+    }
+
+    func batchAnalyzeItems(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String
+    ) async throws -> ClosetItemAnalysisBatch {
         batchCallCount += 1
+        batchIdempotencyKeys.append(idempotencyKey)
         lastBatchStoragePaths = requests.map(\.storagePath)
         if let batchError {
             lastBatchRequestIDs = []

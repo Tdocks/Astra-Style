@@ -17,10 +17,14 @@ public enum GuestLocalImageStore: Sendable {
     }
 
     public static func save(_ data: Data, userID: UUID) throws -> String {
+        try save(data, userID: userID, fileID: UUID())
+    }
+
+    public static func save(_ data: Data, userID: UUID, fileID: UUID) throws -> String {
         let directory = try directoryURL(userID: userID)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let format = try CapturedImageUploadFormat.detect(data)
-        let name = UUID().uuidString.lowercased() + "." + format.fileExtension
+        let name = fileID.uuidString.lowercased() + "." + format.fileExtension
         let fileURL = directory.appendingPathComponent(name)
         try data.write(to: fileURL, options: .atomic)
         return pathPrefix + userID.uuidString.lowercased() + "/" + name

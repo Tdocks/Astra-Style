@@ -182,7 +182,7 @@ Deno.test("README endpoint budgets match configured limiters and registered rout
     const configPattern = new RegExp(
       `createRateLimiter\\(\\{\\s*limit:\\s*${limit},\\s*windowMs:\\s*${
         windowMs.replaceAll("*", "\\*")
-      }\\s*\\}\\)`,
+      },?\\s*\\}\\)`,
     );
     if (!configPattern.test(source)) {
       throw new Error(`README budget does not match ${file}`);

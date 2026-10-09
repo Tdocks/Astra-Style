@@ -138,6 +138,7 @@ struct StyleDNAView: View {
                 Text(identity.displayName)
                     .astraText(.displayL)
                     .foregroundStyle(AstraColor.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("profile.styleDNA.identity")
             } else {
                 Text(String(localized: "Kyra hasn't called a direction yet.", comment: "Style DNA no identity"))
@@ -159,6 +160,7 @@ struct StyleDNAView: View {
                 title: String(localized: "Also in the mix", comment: "Style DNA section title"),
                 eyebrow: String(localized: "SECONDARY INFLUENCES", comment: "Style DNA section eyebrow")
             )
+            .accessibilityAddTraits(.isHeader)
             AstraWrappingHStack(spacing: AstraSpacing.xs) {
                 ForEach(influences, id: \.self) { influence in
                     StyleDNAInfluencePill(title: influence.displayName)
@@ -173,6 +175,7 @@ struct StyleDNAView: View {
                 title: String(localized: "How it should sit", comment: "Style DNA section title"),
                 eyebrow: String(localized: "SILHOUETTE", comment: "Style DNA section eyebrow")
             )
+            .accessibilityAddTraits(.isHeader)
             if !silhouette.headline.isEmpty {
                 Text(silhouette.headline)
                     .astraText(.title2)
@@ -192,6 +195,7 @@ struct StyleDNAView: View {
                 title: String(localized: "Pieces worth owning", comment: "Style DNA section title"),
                 eyebrow: String(localized: "SIGNATURE", comment: "Style DNA section eyebrow")
             )
+            .accessibilityAddTraits(.isHeader)
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 if index > 0 { Divider().overlay(AstraColor.divider) }
                 StyleDNASignatureRow(recommendation: item)
@@ -205,6 +209,7 @@ struct StyleDNAView: View {
                 title: String(localized: "Start here", comment: "Style DNA section title"),
                 eyebrow: String(localized: "IN ORDER", comment: "Style DNA section eyebrow")
             )
+            .accessibilityAddTraits(.isHeader)
             ForEach(priorities) { priority in
                 StyleDNAPriorityRow(priority: priority)
             }

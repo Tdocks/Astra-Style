@@ -451,6 +451,9 @@ extension PersonalStyleFeatureUITests {
         app.tapChromeTab("Studio")
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")).firstMatch
         awaitElement(card, "Completed Studio estimate"); card.tap()
+        let statusHeading = app.staticTexts["studio.detail.status"]
+        awaitElement(statusHeading, "Studio estimate status heading")
+        XCTAssertTrue(statusHeading.exists, "Studio estimate status must remain exposed to accessibility")
         let edit = app.buttons["studio.detail.editDescription"]
         awaitElement(edit, "Edit image description"); edit.scrollIntoView(in: app); edit.tap()
         let field = app.textViews["studio.description.text"].exists ? app.textViews["studio.description.text"] : app.textFields["studio.description.text"]

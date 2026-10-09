@@ -78,6 +78,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository, ClosetItemCacheP
         try await base.uploadClosetCaptureImage(data)
     }
 
+    public func uploadClosetCaptureImage(_ data: Data, requestID: UUID) async throws -> String {
+        try await base.uploadClosetCaptureImage(data, requestID: requestID)
+    }
+
     public func deleteCapturedImage(atPath storagePath: String) async throws {
         try await base.deleteCapturedImage(atPath: storagePath)
     }
@@ -101,6 +105,13 @@ public struct FreeTierCappedClosetRepository: ClosetRepository, ClosetItemCacheP
     /// trimming would need to pick WHICH five — a choice the user is better
     /// placed to make by choosing fewer photographs.
     public func batchAnalyzeItems(_ requests: [ClosetItemAnalysisRequest]) async throws -> ClosetItemAnalysisBatch {
+        try await batchAnalyzeItems(requests, idempotencyKey: UUID().uuidString.lowercased())
+    }
+
+    public func batchAnalyzeItems(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String
+    ) async throws -> ClosetItemAnalysisBatch {
         if await isEntitledToPremium() == false {
             let activeCount = try await base.fetchItems().count
             let headroom = await capLimit() - activeCount
@@ -108,7 +119,36 @@ public struct FreeTierCappedClosetRepository: ClosetRepository, ClosetItemCacheP
                 throw FreeTierClosetError.capReached(limit: await capLimit())
             }
         }
-        return try await base.batchAnalyzeItems(requests)
+        return try await base.batchAnalyzeItems(requests, idempotencyKey: idempotencyKey)
+    }
+
+    public func resumeBatchAnalysis(
+        _ requests: [ClosetItemAnalysisRequest],
+        idempotencyKey: String,
+        acceptedJobID: UUID?,
+        isRetry: Bool
+    ) async throws -> ClosetItemAnalysisBatch {
+        // New submissions must respect the current cap. An explicit retry
+        // must reach the idempotency lookup even if the cap changed after the
+        // first request: an accepted job still owns its photos and can be
+        // polled safely. The server's save trigger owns the final cap check.
+        if !isRetry, await isEntitledToPremium() == false {
+            let activeCount = try await base.fetchItems().count
+            let headroom = await capLimit() - activeCount
+            guard headroom >= requests.count else {
+                throw FreeTierClosetError.capReached(limit: await capLimit())
+            }
+        }
+        return try await base.resumeBatchAnalysis(
+            requests,
+            idempotencyKey: idempotencyKey,
+            acceptedJobID: acceptedJobID,
+            isRetry: isRetry
+        )
+    }
+
+    public func cancelBatchAnalysis(idempotencyKey: String) async throws {
+        try await base.cancelBatchAnalysis(idempotencyKey: idempotencyKey)
     }
 
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {

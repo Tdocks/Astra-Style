@@ -69,6 +69,7 @@ struct EndpointDeploymentMappingTests {
         .fetchScanUnlockCount(id: UUID()),
         .batchAnalyzeCloset,
         .batchAnalyzeClosetStatus(id: UUID()),
+        .cancelBatchAnalysis,
         .generateOutfits,
         .rankOutfits,
         .generateDailyBrief,
@@ -95,7 +96,7 @@ struct EndpointDeploymentMappingTests {
     private static func assertCovered(_ endpoint: AstraEndpoint) {
         switch endpoint {
         case .completeOnboarding, .exportPersonalData, .deleteReferencePhoto, .generateStyleDNA, .removeClosetBackground, .analyzeClosetItem, .fetchWardrobeScore, .fetchItemInsights, .fetchScanUnlockCount,
-             .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .generateOutfits, .rankOutfits,
+             .batchAnalyzeCloset, .batchAnalyzeClosetStatus, .cancelBatchAnalysis, .generateOutfits, .rankOutfits,
              .generateDailyBrief, .kyraRespond, .extractProduct,
              .evaluateProduct, .listProductUnlocks, .studioQuota, .generateStudio, .exportStudioHiRes, .studioStatus, .deleteStudioGeneration,
              .generatePacking, .syncSubscriptions, .appStoreWebhook,

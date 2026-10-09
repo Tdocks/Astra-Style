@@ -49,6 +49,8 @@ struct StudioGenerationDetailView: View {
                         Text(statusCopy(generation.status))
                             .astraText(.title2)
                             .foregroundStyle(AstraColor.textPrimary)
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityIdentifier("studio.detail.status")
                         if let message = generation.errorMessage {
                             Text(message)
                                 .astraText(.callout)

@@ -23,6 +23,7 @@ struct ReferencePhotosView: View {
                 AstraSectionHeader(
                     title: String(localized: "Reference Photos", comment: "Reference photo privacy screen title")
                 )
+                .accessibilityAddTraits(.isHeader)
                 explanation
                 removalStatus
                 content

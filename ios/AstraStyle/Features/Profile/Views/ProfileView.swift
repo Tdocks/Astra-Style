@@ -79,6 +79,8 @@ public struct ProfileView: View {
             .astraText(.displayL)
             .foregroundStyle(AstraColor.textPrimary)
             .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("profile.title")
     }
 
     private var styleDNARow: some View {
@@ -188,6 +190,7 @@ public struct ProfileView: View {
             Text(String(localized: "About", comment: "Profile about section title"))
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
+                .accessibilityAddTraits(.isHeader)
             AstraCard {
                 VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
                     Text("Astra Style")

@@ -320,7 +320,7 @@ private struct DiscoverEditorialRail: View {
                 if let season = guide.season {
                     Text(seasonLabel(season))
                         .astraText(.caption)
-                        .foregroundStyle(AstraColor.accentChampagne)
+                        .foregroundStyle(AstraColor.accentChampagneAccessible)
                 }
                 if let label = guide.visibleCommercialLabel {
                     Text(label)

@@ -1,4 +1,4 @@
-// P7-DS-01 draft: accessibility XXXL layout audit for five high-use screens.
+// P7-DS-01: accessibility XXXL audit for high-use screens and critical actions.
 // Uses the existing mock backend and the production More-tab helper.
 
 import XCTest
@@ -13,11 +13,11 @@ final class DynamicTypeCriticalScreensUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testDarkAccessibilityXXXLOnFiveCriticalScreens() throws {
+    func testDarkAccessibilityXXXLOnCriticalScreens() throws {
         try audit(theme: "dark")
     }
 
-    func testLightAccessibilityXXXLOnFiveCriticalScreens() throws {
+    func testLightAccessibilityXXXLOnCriticalScreens() throws {
         try audit(theme: "light")
     }
 
@@ -25,6 +25,7 @@ final class DynamicTypeCriticalScreensUITests: XCTestCase {
         launchMain(theme: theme)
         auditHome(theme: theme)
         auditClosetAndOutfitDetail(theme: theme)
+        auditStudioAndProfile(theme: theme)
         auditPopulatedKyraConversation(theme: theme)
         auditPaywall(theme: theme)
     }
@@ -101,6 +102,33 @@ final class DynamicTypeCriticalScreensUITests: XCTestCase {
         capture("P7-DS-01-\(theme)-AX5-outfit-actions")
         app.navigationBars.buttons.firstMatch.tap()
         require(closetTitle, "Closet after returning from outfit detail")
+    }
+
+    private func auditStudioAndProfile(theme: String) {
+        app.tapChromeTab("Studio", timeout: timeout)
+        require(app.navigationBars["Style Studio"], "Studio gallery title")
+        let studioAction = anyElement("studio.empty.start")
+        require(studioAction, "Studio's empty-state create action")
+        studioAction.scrollIntoView(in: app, maxSwipes: 14)
+        assertReachable(studioAction, "Studio create action", avoidTabBar: true)
+        capture("P7-DS-01-\(theme)-AX5-studio")
+
+        app.tapChromeTab("Profile", timeout: timeout)
+        let profileTitle = anyElement("profile.title")
+        require(profileTitle, "Profile heading")
+        XCTAssertTrue(profileTitle.isHittable, "Profile heading should remain visible at AX5")
+        capture("P7-DS-01-\(theme)-AX5-profile")
+
+        let dashboardTitle = anyElement("profile.dashboard.title")
+        dashboardTitle.scrollIntoView(in: app, maxSwipes: 14)
+        require(dashboardTitle, "Profile closet dashboard heading")
+        XCTAssertTrue(dashboardTitle.isHittable, "Profile dashboard heading should remain reachable at AX5")
+        capture("P7-DS-01-\(theme)-AX5-profile-dashboard")
+
+        let notifications = anyElement("profile.notificationsRow")
+        notifications.scrollIntoView(in: app, maxSwipes: 14)
+        assertReachable(notifications, "Profile notifications action", avoidTabBar: true)
+        capture("P7-DS-01-\(theme)-AX5-profile-action")
     }
 
     private func auditPopulatedKyraConversation(theme: String) {

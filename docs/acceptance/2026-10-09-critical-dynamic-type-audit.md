@@ -19,3 +19,22 @@ the finalized result bundle retains the tests, screenshots and failure records.
 
 The wider P7-DS-01 scope requires auditing other screens. That work and the
 separate real-device VoiceOver flow remain open.
+
+## Expanded Studio and Profile coverage
+
+The 18:03 simulator run passed all 45 item-detail, item-form and care-persistence
+unit tests, followed by both expanded AX5 UI tests (dark 161.981 seconds,
+light 154.521 seconds). Studio's create action and Profile's heading, closet
+statistics section and notifications action are now covered alongside the
+original Home, Closet, Outfit detail, Kyra and Paywall checks. Profile statistics
+use a single column at accessibility sizes; headings expose header traits.
+Discover source links and style-memory labels use the accessible champagne
+text token in light appearance.
+
+Result bundle: `/tmp/astra-inspiration-build/Logs/Test/Test-AstraStyle-2026.10.09_18-03-00--0400.xcresult`.
+Export: `/tmp/astra-priority-ax5-screens/manifest.json`. Root visually inspected
+the Studio entry and Profile dashboard screenshots in both appearances.
+These are mock simulator fixtures, not hosted Profile statistics acceptance
+or a physical VoiceOver run. No clipped text was observed in those four
+screenshots; scroll reachability is asserted by the UI tests. Wider screen
+coverage, selection-border contrast and physical VoiceOver remain open.

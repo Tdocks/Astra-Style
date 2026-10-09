@@ -22,6 +22,7 @@ struct PrivacyAndDataView: View {
                 AstraSectionHeader(
                     title: String(localized: "Privacy & Data", comment: "Privacy and data controls screen title")
                 )
+                .accessibilityAddTraits(.isHeader)
 
                 styleMemoriesRow
                 referencePhotosRow

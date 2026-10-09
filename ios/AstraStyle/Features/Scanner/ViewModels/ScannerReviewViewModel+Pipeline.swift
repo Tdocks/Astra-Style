@@ -1,4 +1,5 @@
 import CoreGraphics
+import CryptoKit
 import Foundation
 import ImageIO
 
@@ -6,7 +7,7 @@ extension ScannerReviewViewModel {
     /// A lost response must not turn one capture into another garment on retry.
     func saveIdentity(for owner: UUID) -> (item: UUID, image: UUID) {
         if let identity = saveIdentities[owner] { return identity }
-        let identity = (item: UUID(), image: UUID())
+        let identity = scannerSaveIdentity(owner: owner, draftID: draftID)
         saveIdentities[owner] = identity
         return identity
     }
@@ -249,4 +250,22 @@ extension ScannerReviewViewModel {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+}
+
+func scannerSaveIdentity(owner: UUID, draftID: UUID) -> (item: UUID, image: UUID) {
+    (
+        item: scannerSaveID(owner: owner, draftID: draftID, purpose: "item"),
+        image: scannerSaveID(owner: owner, draftID: draftID, purpose: "image")
+    )
+}
+
+private func scannerSaveID(owner: UUID, draftID: UUID, purpose: String) -> UUID {
+    let input = Data("scanner-save-v1:\(owner.uuidString.lowercased()):\(draftID.uuidString.lowercased()):\(purpose)".utf8)
+    var bytes = Array(SHA256.hash(data: input).prefix(16))
+    bytes[6] = (bytes[6] & 0x0F) | 0x50
+    bytes[8] = (bytes[8] & 0x3F) | 0x80
+    return UUID(uuid: (
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    ))
 }
