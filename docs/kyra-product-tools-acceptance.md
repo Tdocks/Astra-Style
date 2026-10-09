@@ -209,3 +209,20 @@ rejection. Type checking and lint passed. The repository is not yet called by th
 production handler; database adapter integration, runtime cancellation, final
 enqueue-time expiry checks and hosted acceptance remain open. No deployment or
 new native build was performed for this intermediate server layer.
+
+## Preview dispatch and cross-turn submission identity
+
+The tool registry now dispatches `generate_studio_preview` to the real executor
+when preview services are injected, retaining the explicit unavailable result
+when they are absent. The live definition describes photo consent, allowance
+confirmation and the current draft-only limit. The HTTP adapter accepts a saved
+proposal and uses its confirmation UUID across approving turns; it rejects
+expired or mismatched selections immediately before a submission. Direct commands
+continue to use their persisted user-message UUID.
+
+129 Kyra tests passed (`/tmp/astra-kyra-preview-registry-tests.log`), including
+same-proposal request-key reuse across distinct turns and zero submission calls
+for expired/changed proposals. Lint and production-entrypoint type checks passed.
+Production handler/index injection, deterministic cost-prompt persistence,
+reference context, cancellation/closure, native job display and hosted acceptance
+remain open. This change is committed server code, not a deployment.

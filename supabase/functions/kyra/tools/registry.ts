@@ -60,9 +60,15 @@ import {
   type AnalyzeProductDeps,
   executeAnalyzeProduct,
 } from "./analyzeProduct.ts";
+import {
+  executeGenerateStudioPreview,
+  generateStudioPreviewDefinition,
+  type GenerateStudioPreviewDeps,
+} from "./generateStudioPreview.ts";
 import { executePhase6Stub, PHASE6_STUB_DEFINITIONS } from "./phase6Stubs.ts";
 
 export interface ToolRegistryDeps {
+  readonly generateStudioPreview?: GenerateStudioPreviewDeps;
   readonly analyzeProduct?: AnalyzeProductDeps;
   readonly searchCloset: SearchClosetDeps;
   readonly rankOutfits: RankOutfitsDeps;
@@ -98,6 +104,8 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
     ...PHASE6_STUB_DEFINITIONS.map((definition) =>
       definition.name === "analyze_product" && deps.analyzeProduct
         ? analyzeProductDefinition
+        : definition.name === "generate_studio_preview" && deps.generateStudioPreview
+        ? generateStudioPreviewDefinition
         : definition
     ),
   ];
@@ -108,6 +116,10 @@ export function buildToolRegistry(deps: ToolRegistryDeps): ToolRegistry {
     definitions,
     async execute(name, args) {
       switch (name) {
+        case "generate_studio_preview":
+          return deps.generateStudioPreview
+            ? await executeGenerateStudioPreview(args, deps.generateStudioPreview)
+            : executePhase6Stub(name);
         case "analyze_product":
           return deps.analyzeProduct
             ? await executeAnalyzeProduct(args, deps.analyzeProduct)

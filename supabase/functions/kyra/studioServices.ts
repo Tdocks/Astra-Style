@@ -6,10 +6,13 @@ import { CURRENT_STUDIO_CONSENT_TERMS_VERSION } from "../studio/schema.ts";
 import { buildStudioReferenceReads, resolveConsentedStudioReference } from "./studioReferences.ts";
 import { studioRequestBody } from "./studioRequest.ts";
 import type { GenerateStudioPreviewDeps } from "./tools/generateStudioPreview.ts";
+import { studioSelectionKey } from "./tools/generateStudioPreview.ts";
+import type { SavedStudioConfirmation } from "./studioConfirmations.ts";
 import type { PendingStudioConfirmation } from "./tools/studioConfirmation.ts";
 
-/** The verified, persisted user message UUID is the submission key. One turn
- * cannot create a second paid selection: Studio rejects changed fingerprints.
+/** Explicit generation commands use the persisted user-message UUID. Replies
+ * approving a saved proposal reuse its confirmation UUID across turns, so
+ * concurrent/retried approvals cannot consume a second generation.
  */
 export function buildStudioPreviewServices(
   env: EdgeEnv,
@@ -20,6 +23,7 @@ export function buildStudioPreviewServices(
     messageID: string;
     userText: string;
     pending: PendingStudioConfirmation | null;
+    confirmedProposal?: SavedStudioConfirmation | null;
   },
   fetcher: typeof fetch = fetch,
 ): GenerateStudioPreviewDeps {
@@ -38,6 +42,19 @@ export function buildStudioPreviewServices(
         buildStudioReferenceReads(supabase, turn.userID),
       ),
     async enqueue(selection, reference) {
+      const proposal = turn.confirmedProposal;
+      if (
+        proposal &&
+        (!Number.isFinite(Date.parse(proposal.expiresAt)) ||
+          Date.parse(proposal.expiresAt) <= Date.now() ||
+          proposal.selectionKey !== studioSelectionKey(selection))
+      ) {
+        throw new AppError(
+          "validation",
+          409,
+          "This preview confirmation expired or changed. Ask for a new preview.",
+        );
+      }
       const body = studioRequestBody(selection, reference);
       const response = await fetcher(`${env.supabaseUrl}/functions/v1/studio/generate`, {
         method: "POST",
@@ -45,7 +62,7 @@ export function buildStudioPreviewServices(
           Authorization: authorization,
           apikey: env.supabaseAnonKey,
           "Content-Type": "application/json",
-          "Idempotency-Key": turn.messageID,
+          "Idempotency-Key": proposal?.id ?? turn.messageID,
         },
         body: JSON.stringify({ body }),
         signal: AbortSignal.timeout(20_000),

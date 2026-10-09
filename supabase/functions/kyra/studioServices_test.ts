@@ -70,3 +70,45 @@ Deno.test("preview service rejects another owner's response and preserves quota/
     assertEquals(error.status, status);
   }
 });
+
+Deno.test("saved approval reuses its key across turns and rejects expiry or changed selection", async () => {
+  const proposalID = "77777777-7777-4777-8777-777777777777";
+  const { studioSelectionKey } = await import("./tools/generateStudioPreview.ts");
+  const proposal = {
+    id: proposalID,
+    promptMessageID: messageID,
+    selection,
+    selectionKey: studioSelectionKey(selection),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+  let calls = 0;
+  const fetcher: typeof fetch = (_input, init) => {
+    calls++;
+    assertEquals(new Headers(init?.headers).get("Idempotency-Key"), proposalID);
+    return Promise.resolve(
+      Response.json({ data: { id: jobID, user_id: userID, status: "queued" } }),
+    );
+  };
+  for (const id of [messageID, jobID]) {
+    const service = buildStudioPreviewServices(env, "Bearer fixture-user", client(), {
+      ...turn,
+      messageID: id,
+      confirmedProposal: proposal,
+    }, fetcher);
+    await service.enqueue(selection, reference);
+  }
+  for (
+    const invalid of [
+      { ...proposal, expiresAt: new Date(Date.now() - 1).toISOString() },
+      { ...proposal, selectionKey: "different" },
+    ]
+  ) {
+    const service = buildStudioPreviewServices(env, "Bearer fixture-user", client(), {
+      ...turn,
+      confirmedProposal: invalid,
+    }, fetcher);
+    const error = await assertRejects(() => service.enqueue(selection, reference), AppError);
+    assertEquals(error.status, 409);
+  }
+  assertEquals(calls, 2);
+});

@@ -1,3 +1,5 @@
+import type { StylistToolDefinition } from "../../_shared/providers/stylistReasoning.ts";
+import { generateStudioPreviewDefinition as previewSchema } from "./phase6Stubs.ts";
 import { AppError } from "../../_shared/errors.ts";
 import { isUUID } from "../../_shared/validation.ts";
 import { type PendingStudioConfirmation, studioGenerationConfirmed } from "./studioConfirmation.ts";
@@ -112,3 +114,9 @@ export async function executeGenerateStudioPreview(
     throw error;
   }
 }
+
+export const generateStudioPreviewDefinition: StylistToolDefinition = {
+  ...previewSchema,
+  description:
+    "Queue a draft Studio preview using an owned outfit or closet items and a saved consented reference photo. Explain that it uses the generation allowance and obtain confirmation for the exact selection. Return missing consent or quota outcomes honestly; never invent a generation ID. High-resolution previews are not available yet.",
+};
