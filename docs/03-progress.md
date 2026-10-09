@@ -61,12 +61,12 @@ lands data layers, protocols, and models long before the screens that use them.
 | 2 — Identity | 18 | 16 | 2 | 0 |
 | 3 — Closet | 27 | 15 | 12 | 0 |
 | 4 — Outfit intelligence | 26 | 20 | 5 | 1 |
-| 5 — Kyra | 22 | 18 | 4 | 0 |
+| 5 — Kyra | 22 | 19 | 3 | 0 |
 | 6 — Studio and commerce | 25 | 13 | 10 | 2 |
 | 7 — Monetization and hardening | 36 | 5 | 24 | 7 |
-| **Total** | **179** | **104** | **65** | **10** |
+| **Total** | **179** | **105** | **64** | **10** |
 
-Read that table carefully before drawing a conclusion from it. 104 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 105 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -353,7 +353,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P5-KYRA-14 | Done | Five structured card renderers hydrate owned item/outfit references; unavailable references degrade honestly. |
 | P5-KYRA-15 | Done | Ask Kyra global action and tappable suggested prompts are implemented; mock-backed UI flow renders an outfit card. Home offers separate style-inspiration and closet-only outfit chats; outfit detail opens a conversation with that look attached for swap and formality changes. `PersonalStyleFeatureUITests.testHomeStyleInspiration`, `.testHomeClosetBasedOutfit`, and `.testOutfitSpecificKyraChat` cover the flows. |
 | P5-KYRA-16 | Partial | `KyraSpeechInputController` requests microphone and Speech access only after a mic tap, records to a temporary local file, requires on-device recognition, caps recording at 45 seconds, and deletes the audio after transcription/cancellation. The composer has recording/transcribing/error states. **Real-device permission, interruption, and recognition acceptance has not run.** |
-| P5-KYRA-17 | Partial | `StyleMemoriesView` + `StyleMemoriesViewModel` display only user-visible notes, confirm deletion, preserve a row and report an error if delete fails; Profile → Privacy & Data and the Kyra memories route reach it. Unit and UI coverage was added. **Authenticated production read/delete acceptance remains open.** |
+| P5-KYRA-17 | Done | The memory UI lists only user-visible preferences, confirms deletion and preserves rows on failure. Native unit and simulator UI coverage passed. `kyra/live_memory_acceptance.ts` verified hosted visible-only listing, hard deletion and a before/after live conversation: the saved preference was used before removal and absent after. Normal synthetic-account deletion completed; root independently confirmed zero Auth/memory/thread rows and the completed receipt. The Kyra backend suite passes 148 tests. See `docs/acceptance/2026-10-09-p5-kyra-17-live-memory-acceptance.md`. |
 | P5-KYRA-18 | Partial | `LiveKyraRepository` fully implements the protocol. `AstraModelContainer` states Kyra threads are "network-first and simply not cached" — **the offline-cache criterion is unmet by design.** |
 | P5-KYRA-19 | Done | New conversations count the caller's daily threads in Postgres; entitled premium accounts skip the configured free-tier limit. |
 | P5-CORE-01 | Done | `KyraStructuredResponse` custom decoding defaults missing optional arrays and maps unknown intent to `.general`; invalid individual cards/actions are dropped without losing valid siblings. |
