@@ -186,6 +186,10 @@ if [[ $test_exit -eq 0 ]]; then
   test_psql -f "$TESTS_DIR/37_studio_submission_idempotency.sql"
   test_exit=$?
 fi
+if [[ $test_exit -eq 0 ]]; then
+  test_psql -f "$TESTS_DIR/38_kyra_studio_confirmations.sql"
+  test_exit=$?
+fi
 set -e
 echo
 

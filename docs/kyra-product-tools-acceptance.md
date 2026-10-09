@@ -160,3 +160,21 @@ request header ownership and wrong-owner/quota/conflict response tests. Lint and
 entrypoint type checks passed. This adapter is not registered or deployed yet:
 reference IDs must be exposed in owned context, selection-bound confirmation
 must persist between turns, and native job presentation/polling needs acceptance.
+
+## Selection-bound confirmation storage
+
+Unapplied migration `20261009001316_kyra_studio_confirmations.sql` adds a
+server-only, conversation-owned confirmation record with a 30-minute expiry.
+Preparation reuses an unchanged active selection, closes a changed/expired one,
+and validates the conversation owner. RLS and revoked client grants prevent
+clients from reading or preparing these records. The service role has an explicit
+conversation SELECT grant; the first fixture run identified and corrected its
+absence before any deployment.
+
+The complete scratch SQL/RLS suite passed, including unchanged selection reuse,
+selection replacement, expiry replacement, peer-thread rejection and client
+read/RPC denial (`/tmp/astra-kyra-confirmation-final-rls.log`). Scratch DB removed.
+This schema is not deployed. Runtime wiring must persist the record only for an
+actually stored/displayed cost question, bind it to that assistant prompt,
+reject closed/expired pending choices, and use its confirmation ID as the stable
+Studio key across affirmative retries. Those steps remain open.
