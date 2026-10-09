@@ -27,6 +27,9 @@ The scratch RLS suite includes a limited role that can delete auth.users but can
 update profiles, proving the cascade no longer depends on broad managed-role grants.
 It also retains the direct scoring-version forgery rejection assertion.
 Saved suite log: /tmp/astra-fk-indexes-rls.log (all assertions passed).
+Root independently reran the complete scratch suite after aligning the deployed
+migration filenames: /tmp/astra-root-auth-cascade-rls.log, all assertions passed;
+the scratch database was dropped at completion.
 
 ## Index audit
 
