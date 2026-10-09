@@ -37,6 +37,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
         await isAnonymous() ? GuestLimits.maxClosetItems : FreeTierLimits.maxClosetItems
     }
 
+    public func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {
+        try await base.fetchItemInsights(id: id)
+    }
+
     public func fetchItems() async throws -> [ClosetItem] {
         try await base.fetchItems()
     }

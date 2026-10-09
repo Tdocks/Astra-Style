@@ -70,6 +70,7 @@ public struct ClosetItemDetailView: View {
         }
         .onChange(of: viewModel.savedEditCount) { _, _ in
             editingItem = nil
+            Task { await viewModel.loadInsights() }
         }
         .sheet(item: $editingItem) { item in
             editorSheet(for: item)

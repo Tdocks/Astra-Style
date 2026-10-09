@@ -334,6 +334,8 @@ public final class ClosetItemDetailViewModel {
         detail.item = item
         apply(detail)
         savedEditCount += 1
+        insights = nil
+        insightsError = nil
     }
 
     /// Incremented every time the editor reports a save.
@@ -509,15 +511,21 @@ public enum ClosetItemDetailCopy {
 public extension ClosetItemDetailViewModel {
     func loadInsights() async {
         guard !isLoadingInsights else { return }
+        let revision = savedEditCount
         isLoadingInsights = true
         insightsError = nil
-        defer { isLoadingInsights = false }
+        defer {
+            isLoadingInsights = false
+            if revision != savedEditCount { Task { await loadInsights() } }
+        }
         do {
             let result = try await closetRepository.fetchItemInsights(id: itemID)
             let items = try await closetRepository.fetchItems()
+            guard revision == savedEditCount else { return }
             insightItems = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
             insights = result
         } catch {
+            guard revision == savedEditCount else { return }
             insightsError = (error as? AstraError)?.message ?? "Couldn't load item insights. Try again."
         }
     }

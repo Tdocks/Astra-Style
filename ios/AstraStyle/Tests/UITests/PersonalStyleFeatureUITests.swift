@@ -466,3 +466,28 @@ extension PersonalStyleFeatureUITests {
         XCTAssertFalse(save.isEnabled, "Saving must require a photo and permission")
     }
 }
+
+@MainActor
+extension PersonalStyleFeatureUITests {
+    func testClosetItemInsightsAreReachable() throws {
+        launchMockMain()
+        app.tapChromeTab("Closet")
+        let item = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "closet.grid.item.")
+        ).firstMatch
+        item.scrollIntoView(in: app)
+        awaitElement(item, "Closet piece")
+        item.tap()
+        let insights = app.staticTexts["closet.item.insights.title"]
+        insights.scrollIntoView(in: app)
+        awaitElement(insights, "Item insights section")
+        let pairings = app.staticTexts["closet.item.insights.pairings"]
+        pairings.scrollIntoView(in: app)
+        awaitElement(pairings, "Pairing suggestions")
+        XCTAssertFalse(app.buttons["Retry insights"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Item insights"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+}

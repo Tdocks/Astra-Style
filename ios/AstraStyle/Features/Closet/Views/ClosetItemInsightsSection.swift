@@ -6,7 +6,7 @@ struct ClosetItemInsightsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.md) {
-            Text("Closet insights").astraText(.title2)
+            Text("Closet insights").astraText(.title2).accessibilityIdentifier("closet.item.insights.title")
             if viewModel.isLoadingInsights {
                 ProgressView("Loading insights…")
             }
@@ -28,7 +28,7 @@ struct ClosetItemInsightsSection: View {
                         pieceButton(item, detail: "\(similar.similarity)/100 similarity")
                     }
                 }
-                Text("Best pairings").astraText(.headline)
+                Text("Best pairings").astraText(.headline).accessibilityIdentifier("closet.item.insights.pairings")
                 Text("Ranked using outfit compatibility, comparing two pieces. These are starting points for a look; today's weather and calendar aren't included here.")
                     .astraText(.caption)
                 if insights.pairings.isEmpty {
@@ -56,7 +56,7 @@ struct ClosetItemInsightsSection: View {
                 }
             }
         }
-        .accessibilityIdentifier("closet.item.insights")
+
     }
 
     private func pieceButton(_ item: ClosetItem, detail: String) -> some View {

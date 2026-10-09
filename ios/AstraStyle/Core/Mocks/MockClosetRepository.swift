@@ -206,3 +206,24 @@ public actor MockClosetRepository: ClosetRepository {
         return previousScore
     }
 }
+
+public extension MockClosetRepository {
+    /// Explicit preview fixture, not a second implementation of server scoring.
+    func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights {
+        let target = try await fetchItem(id: id)
+        let active = try await fetchItems()
+        let similar = active.filter { $0.id != id && $0.category == target.category }.prefix(2)
+        let pairings = active.filter {
+            $0.id != id && $0.category != target.category && $0.laundryState == .clean && $0.availabilityState == .available
+        }.prefix(3)
+        let payload: [String: Any] = [
+            "redundancyScore": similar.isEmpty ? 0 : 72,
+            "similarItems": similar.map { ["itemId": $0.id.uuidString, "similarity": 72] as [String: Any] },
+            "pairings": pairings.map { ["itemId": $0.id.uuidString, "score": 76, "missingInputs": ["weather", "calendar"]] as [String: Any] },
+            "savedOutfitIds": [],
+            "replacementReason": target.condition == .damaged ? "recorded_damage" : NSNull(),
+            "missingRedundancyInputs": target.fit == nil ? ["fit"] : []
+        ]
+        return try JSONDecoder().decode(ClosetItemInsights.self, from: JSONSerialization.data(withJSONObject: payload))
+    }
+}

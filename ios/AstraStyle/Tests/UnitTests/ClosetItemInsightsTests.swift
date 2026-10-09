@@ -27,4 +27,24 @@ struct ClosetItemInsightsTests {
         #expect(result.missingRedundancyInputs == ["fit"])
         #expect(result.replacementReason == nil)
     }
+    @Test("Editing invalidates prior insights and refreshes recorded condition")
+    @MainActor
+    func editRefresh() async throws {
+        var item = ClosetItem(id: UUID(), userID: UUID(), name: "Test shirt", category: .top, condition: .good)
+        let repository = MockClosetRepository(items: [item])
+        let model = ClosetItemDetailViewModel(itemID: item.id, closetRepository: repository,
+                                              imageURLResolver: MockClosetImageURLResolver())
+        await model.onAppear()
+        #expect(model.insights?.replacementReason == nil)
+        #expect(model.insights != nil)
+        item.condition = .damaged
+        let saved = try await repository.updateItem(item)
+        model.applyEditedItem(saved)
+        #expect(model.insights == nil)
+        await model.loadInsights()
+        #expect(model.insights?.replacementReason == "recorded_damage")
+        #expect(model.insightItems[item.id]?.condition == .damaged)
+        #expect(model.insightsError == nil)
+    }
+
 }
