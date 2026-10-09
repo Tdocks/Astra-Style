@@ -230,19 +230,3 @@ extension LiveClosetRepository {
         }
     }
 }
-
-/// Prepared captures are JPEG; Vision foreground masks are transparent PNG.
-/// Keep their actual format rather than labelling a cutout as JPEG.
-enum CapturedImageUploadFormat {
-    case jpeg
-    case png
-
-    var fileExtension: String { self == .png ? "png" : "jpg" }
-    var contentType: String { self == .png ? "image/png" : "image/jpeg" }
-
-    static func detect(_ data: Data) throws -> Self {
-        if data.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) { return .png }
-        if data.starts(with: [255, 216, 255]) { return .jpeg }
-        throw AstraError.validation("That photo format isn't supported.")
-    }
-}

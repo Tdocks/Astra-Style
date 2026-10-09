@@ -83,6 +83,15 @@ struct GuestAuthTests {
         try GuestLocalImageStore.delete(path)
     }
 
+    @Test("Guest transparent cutouts retain PNG filenames and bytes")
+    func guestPNGBytesRoundTrip() throws {
+        let data = Data([137, 80, 78, 71, 13, 10, 26, 10])
+        let path = try GuestLocalImageStore.save(data, userID: UUID())
+        defer { try? GuestLocalImageStore.delete(path) }
+        #expect(path.hasSuffix(".png"))
+        #expect(GuestLocalImageStore.jpegData(for: path) == data)
+    }
+
     @Test("Guest JPEG bytes round-trip for migration onto Storage")
     func guestBytesRoundTrip() throws {
         let data = Data([0xFF, 0xD8, 0xFF, 0xD9])
