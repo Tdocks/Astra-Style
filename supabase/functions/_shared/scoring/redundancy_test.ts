@@ -115,3 +115,21 @@ Deno.test("labFromLCh round-trips a neutral colour to ~zero chroma in Lab", () =
   assertAlmostEquals(lab.a, 0, 1e-9);
   assertAlmostEquals(lab.b, 0, 1e-9);
 });
+
+Deno.test("Duplicate-heavy fixture scores every repeated garment as redundant", () => {
+  const navy = rgbToLab({ r: 20, g: 30, b: 70 });
+  const wardrobe = Array.from({ length: 12 }, (_, index) =>
+    item(`navy-shirt-${index}`, {
+      primaryColorLab: navy,
+      formalityScore: 40,
+      fit: "regular",
+      materials: ["cotton"],
+      seasonality: ["spring", "summer"],
+    }));
+  for (const garment of wardrobe) {
+    const score = redundancyScore(garment, wardrobe);
+    assert(score >= 0.85, `Repeated garment must score as redundant, got ${score}`);
+    assertAlmostEquals(score, 1, 1e-9);
+    assertAlmostEquals(redundancyScore(garment, [garment]), 0);
+  }
+});
