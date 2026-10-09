@@ -85,8 +85,13 @@ struct InspirationView: View {
                         .foregroundStyle(AstraColor.textMuted)
                     Button("Talk through this with Kyra") {
                         let prompt = viewModel.chatPrompt
+                        let generationID = viewModel.imageURL == nil ? nil : viewModel.job?.id
                         dismiss()
-                        router.startAskKyra(initialPrompt: prompt, autoSend: true)
+                        router.startAskKyra(
+                            initialPrompt: prompt,
+                            studioGenerationID: generationID,
+                            autoSend: true
+                        )
                     }
                     .buttonStyle(.astraSecondary)
                 }

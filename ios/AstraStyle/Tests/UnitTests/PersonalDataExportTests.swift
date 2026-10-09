@@ -42,6 +42,39 @@ struct PersonalDataExportTests {
         #expect(roundTrip == export)
     }
 
+    @Test("Preserves optional Storage references when sharing an export")
+    func preservesStorageManifestOnRoundTrip() throws {
+        let json = Data(
+            """
+            {
+              "schema_version": 1,
+              "exported_at": "2026-10-08T14:00:00.000Z",
+              "owner_user_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "table_counts": { "profiles": 1 },
+              "tables": { "profiles": [] },
+              "referenced_storage_objects": [
+                { "bucket": "user-content", "path": "users/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatars/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg" }
+              ],
+              "storage_manifest_scope": "Referenced paths only; no image files included."
+            }
+            """.utf8
+        )
+
+        let export = try JSONDecoder().decode(PersonalDataExport.self, from: json)
+        #expect(export.referencedStorageObjects == [
+            PersonalDataExportStorageReference(
+                bucket: "user-content",
+                path: "users/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatars/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg"
+            ),
+        ])
+        #expect(export.storageManifestScope == "Referenced paths only; no image files included.")
+
+        let encoded = try JSONEncoder().encode(export)
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(object["referenced_storage_objects"] != nil)
+        #expect(object["storage_manifest_scope"] as? String == "Referenced paths only; no image files included.")
+    }
+
     @Test("The preview repository produces a shareable local file")
     @MainActor
     func mockExportIsAFile() async throws {

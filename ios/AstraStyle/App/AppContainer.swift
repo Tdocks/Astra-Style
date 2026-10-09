@@ -259,7 +259,7 @@ extension AppContainer {
     /// Preview / early-UI dependency graph. Every dependency is an
     /// in-memory mock from `Core/Mocks`, seeded with believable sample data
     /// so SwiftUI previews render without a backend (spec §31).
-    public static func preview() -> AppContainer {
+    public static func preview(outfitRepository: (any OutfitRepository)? = nil) -> AppContainer {
         // Explicitly pass the preview Supabase client rather than relying
         // on `SessionStore`'s default parameter, which otherwise evaluates
         // `AstraEnvironment.current` and will `preconditionFailure` in a
@@ -294,7 +294,7 @@ extension AppContainer {
             profileRepository: MockProfileRepository(bodyProfile: referenceBody, studioRepository: mockStudioRepository),
             closetRepository: freeTierCappedClosetRepository,
             closetImageURLResolver: MockClosetImageURLResolver(),
-            outfitRepository: MockOutfitRepository(),
+            outfitRepository: outfitRepository ?? MockOutfitRepository(),
             kyraRepository: MockKyraRepository(previewGenerationID: chatPreviewID),
             studioRepository: mockStudioRepository,
             studioEstimateExporter: MockStudioEstimateExporter(),

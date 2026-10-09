@@ -10,6 +10,7 @@ import Foundation
 public actor MockKyraRepository: KyraRepository {
     private var threads: [KyraThread] = []
     private var messagesByThread: [UUID: [KyraMessage]] = [:]
+    public private(set) var sentMessages: [KyraOutgoingMessage] = []
     private var memories: [StyleMemory] = [
         StyleMemory(id: UUID(), userID: SampleData.userID, memoryType: .preference, content: "Prefers tapered trousers over slim-straight.", confidence: 0.86),
         StyleMemory(id: UUID(), userID: SampleData.userID, memoryType: .dislike, content: "Dislikes busy logo branding.", confidence: 0.91),
@@ -27,6 +28,7 @@ public actor MockKyraRepository: KyraRepository {
     }
 
     public func send(threadID: UUID?, message: KyraOutgoingMessage) async throws -> KyraMessage {
+        sentMessages.append(message)
         let resolvedThreadID = threadID ?? UUID()
         if !threads.contains(where: { $0.id == resolvedThreadID }) {
             threads.append(KyraThread(id: resolvedThreadID, userID: SampleData.userID, title: String(message.text.prefix(40)), lastMessageAt: .now))

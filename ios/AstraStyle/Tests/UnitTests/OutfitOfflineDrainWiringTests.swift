@@ -19,6 +19,16 @@ import Testing
 @Suite("Offline queue wiring — a queued outfit write actually gets replayed")
 struct OutfitOfflineDrainWiringTests {
 
+    private actor FailingOfflineQueue: OfflineMutationQueue {
+        func enqueue(_ mutation: OfflineMutation) async throws {
+            throw AstraError.server("queue persistence failed")
+        }
+        func pendingMutations() async -> [OfflineMutation] { [] }
+        func drain(apply: @Sendable (OfflineMutation) async throws -> Void) async {}
+        func remove(id: UUID) async {}
+        func clear() async {}
+    }
+
     // MARK: - Doubles
 
     private actor StubOutfitWriter: OutfitWriting {
@@ -63,7 +73,7 @@ struct OutfitOfflineDrainWiringTests {
     }
 
     private func makeRepository(
-        queue: InMemoryOfflineMutationQueue,
+        queue: OfflineMutationQueue,
         writer: some OutfitWriting
     ) -> LiveOutfitRepository {
         LiveOutfitRepository(
@@ -94,6 +104,17 @@ struct OutfitOfflineDrainWiringTests {
         #expect(pending.count == 1)
         #expect(pending.first?.entity == .outfit)
         #expect(pending.first?.operation == .update)
+    }
+
+    @Test("Failed durable enqueue surfaces outfit update and wear actions")
+    func failedQueuePersistenceSurfacesOutfitMutations() async throws {
+        let repository = makeRepository(queue: FailingOfflineQueue(), writer: StubOutfitWriter(shouldFail: true))
+        let look = outfit("Unqueued layers")
+
+        await #expect(throws: AstraError.self) { try await repository.updateOutfit(look) }
+        await #expect(throws: AstraError.self) {
+            try await repository.recordWear(outfitID: look.id, wornAt: .now, occasion: nil, rating: nil, feedback: nil)
+        }
     }
 
     @Test("A later successful call replays the whole backlog, oldest first")

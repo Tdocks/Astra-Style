@@ -20,7 +20,7 @@ struct KyraDestinationView: View {
 
     var body: some View {
         switch route {
-        case .thread(let threadID, let initialPrompt, let outfitID, let autoSend):
+        case .thread(let threadID, let initialPrompt, let outfitID, let studioGenerationID, let autoSend):
             NavigationStack {
                 KyraConversationView(
                     viewModel: KyraConversationViewModel(
@@ -34,6 +34,7 @@ struct KyraDestinationView: View {
                         analyticsClient: container.analyticsClient,
                         initialPrompt: initialPrompt,
                         contextualOutfitID: outfitID,
+                        contextualStudioGenerationID: studioGenerationID,
                         autoSendInitialPrompt: autoSend
                     )
                 )

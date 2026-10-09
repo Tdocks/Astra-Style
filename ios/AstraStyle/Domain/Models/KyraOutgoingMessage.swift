@@ -24,5 +24,6 @@ public struct KyraOutgoingMessage: Sendable {
         case productLink(URL)
         case closetItem(closetItemID: UUID)
         case outfit(outfitID: UUID)
+        case studioInspiration(generationID: UUID)
     }
 }

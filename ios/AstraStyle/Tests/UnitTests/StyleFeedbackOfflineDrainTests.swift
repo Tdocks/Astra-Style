@@ -17,6 +17,16 @@ import Testing
 @Suite("Offline queue wiring — a queued style_feedback write actually gets replayed")
 struct StyleFeedbackOfflineDrainTests {
 
+    private actor FailingOfflineQueue: OfflineMutationQueue {
+        func enqueue(_ mutation: OfflineMutation) async throws {
+            throw AstraError.server("queue persistence failed")
+        }
+        func pendingMutations() async -> [OfflineMutation] { [] }
+        func drain(apply: @Sendable (OfflineMutation) async throws -> Void) async {}
+        func remove(id: UUID) async {}
+        func clear() async {}
+    }
+
     private actor StubOutfitWriter: OutfitWriting {
         private var shouldFail: Bool
         private(set) var createdFeedbackIDs: [UUID] = []
@@ -40,7 +50,7 @@ struct StyleFeedbackOfflineDrainTests {
     }
 
     private func makeRepository(
-        queue: InMemoryOfflineMutationQueue,
+        queue: OfflineMutationQueue,
         writer: some OutfitWriting
     ) -> LiveOutfitRepository {
         LiveOutfitRepository(
@@ -66,6 +76,15 @@ struct StyleFeedbackOfflineDrainTests {
         #expect(pending.count == 1)
         #expect(pending.first?.entity == .styleFeedback)
         #expect(pending.first?.operation == .create)
+    }
+
+    @Test("Failed durable enqueue surfaces the feedback action")
+    func failedQueuePersistenceSurfacesFeedback() async throws {
+        let repository = makeRepository(queue: FailingOfflineQueue(), writer: StubOutfitWriter(shouldFail: true))
+
+        await #expect(throws: AstraError.self) {
+            try await repository.recordFeedback(targetType: .outfit, targetID: UUID(), signal: .skipped)
+        }
     }
 
     @Test("A later successful drain replays the queued style_feedback write")

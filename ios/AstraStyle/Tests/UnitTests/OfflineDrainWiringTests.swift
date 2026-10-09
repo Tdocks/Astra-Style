@@ -89,7 +89,7 @@ struct OfflineDrainWiringTests {
     private func makeRepository(
         queue: InMemoryOfflineMutationQueue,
         writer: some ClosetWriting,
-        userID: UUID? = nil
+        userID: UUID
     ) -> LiveClosetRepository {
         LiveClosetRepository(
             apiClient: AstraAPIClient(environment: .preview),
@@ -100,8 +100,8 @@ struct OfflineDrainWiringTests {
         )
     }
 
-    private func item(_ name: String) -> ClosetItem {
-        ClosetItem(id: UUID(), userID: UUID(), name: name, category: .top)
+    private func item(_ name: String, owner: UUID) -> ClosetItem {
+        ClosetItem(id: UUID(), userID: owner, name: name, category: .top)
     }
 
     // MARK: - Tests
@@ -109,8 +109,9 @@ struct OfflineDrainWiringTests {
     @Test("A failed create is queued and the local value is returned")
     func failedCreateIsQueued() async throws {
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: StubClosetWriter(shouldFail: true))
-        let garment = item("Oxford Shirt")
+        let owner = UUID()
+        let repository = makeRepository(queue: queue, writer: StubClosetWriter(shouldFail: true), userID: owner)
+        let garment = item("Oxford Shirt", owner: owner)
 
         let returned = try await repository.createItem(garment, images: [])
 
@@ -125,10 +126,11 @@ struct OfflineDrainWiringTests {
     func successfulWriteDrainsTheBacklog() async throws {
         let writer = StubClosetWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let owner = UUID()
+        let repository = makeRepository(queue: queue, writer: writer, userID: owner)
 
-        let first = item("Merino Sweater")
-        var second = item("Chore Coat")
+        let first = item("Merino Sweater", owner: owner)
+        var second = item("Chore Coat", owner: owner)
         second.updatedAt = Date(timeIntervalSince1970: 2_000)
         _ = try await repository.createItem(first, images: [])
         _ = try await repository.updateItem(second)
@@ -142,7 +144,7 @@ struct OfflineDrainWiringTests {
         olderRemote.name = "Older remote name"
         olderRemote.updatedAt = Date(timeIntervalSince1970: 1_000)
         await writer.seedRemote(olderRemote)
-        let third = item("Chukka Boots")
+        let third = item("Chukka Boots", owner: owner)
         _ = try await repository.createItem(third, images: [])
 
         #expect(await queue.pendingMutations().isEmpty)
@@ -155,9 +157,10 @@ struct OfflineDrainWiringTests {
     func successfulReadDrains() async throws {
         let writer = StubClosetWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let owner = UUID()
+        let repository = makeRepository(queue: queue, writer: writer, userID: owner)
 
-        let garment = item("Selvedge Denim")
+        let garment = item("Selvedge Denim", owner: owner)
         _ = try await repository.createItem(garment, images: [])
         #expect(await queue.pendingMutations().count == 1)
 
@@ -180,9 +183,10 @@ struct OfflineDrainWiringTests {
     func failedReplayCountsAnAttempt() async throws {
         let writer = StubClosetWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let owner = UUID()
+        let repository = makeRepository(queue: queue, writer: writer, userID: owner)
 
-        let garment = item("Wool Overcoat")
+        let garment = item("Wool Overcoat", owner: owner)
         _ = try await repository.createItem(garment, images: [])
         #expect(await queue.pendingMutations().first?.attemptCount == 0)
 
@@ -201,12 +205,13 @@ struct OfflineDrainWiringTests {
         // a plain stop-at-first-failure drain it would wedge the queue and the
         // closet write behind it would never replay.
         let writer = StubClosetWriter(shouldFail: true)
+        let owner = UUID()
         let queue = InMemoryOfflineMutationQueue(seed: [
             OfflineMutation(entity: .outfit, operation: .update, payloadData: Data("{}".utf8))
         ])
-        let repository = makeRepository(queue: queue, writer: writer)
+        let repository = makeRepository(queue: queue, writer: writer, userID: owner)
 
-        let garment = item("Trench Coat")
+        let garment = item("Trench Coat", owner: owner)
         _ = try await repository.createItem(garment, images: [])
         await writer.setShouldFail(false)
         await repository.drainPendingMutations()
@@ -218,13 +223,31 @@ struct OfflineDrainWiringTests {
         #expect(await writer.created == [garment.id], "The closet write behind it must still replay")
     }
 
+    @Test("A closet mutation for another account stays queued and is not attempted")
+    func peerClosetMutationIsNotReplayed() async throws {
+        let writer = StubClosetWriter(shouldFail: false)
+        let queue = InMemoryOfflineMutationQueue()
+        let peerItem = item("Peer blazer", owner: UUID())
+        try await queue.enqueue(OfflineMutation(entity: .closetItem, operation: .create,
+                                            payloadData: try JSONEncoder.astraDefault.encode(peerItem)))
+        let repository = makeRepository(queue: queue, writer: writer, userID: UUID())
+
+        await repository.drainPendingMutations()
+
+        let pending = await queue.pendingMutations()
+        #expect(pending.count == 1)
+        #expect(pending.first?.attemptCount == 0)
+        #expect(await writer.created.isEmpty)
+    }
+
     @Test("Two concurrent drains do not replay the same mutation twice")
     func concurrentDrainsDoNotDoubleApply() async throws {
         let writer = StubClosetWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
-        let repository = makeRepository(queue: queue, writer: writer)
+        let owner = UUID()
+        let repository = makeRepository(queue: queue, writer: writer, userID: owner)
 
-        let garment = item("Field Watch")
+        let garment = item("Field Watch", owner: owner)
         _ = try await repository.createItem(garment, images: [])
         await writer.setShouldFail(false)
 
@@ -240,7 +263,7 @@ struct OfflineDrainWiringTests {
         for partial in [false, true] {
             let queue = InMemoryOfflineMutationQueue()
             let writer = StubClosetWriter(shouldFail: true)
-            let garment = item("Offline shirt")
+            let garment = item("Offline shirt", owner: UUID())
             let repository = makeRepository(queue: queue, writer: writer, userID: garment.userID)
             let photo = ClosetItemImage(id: UUID(), closetItemID: garment.id, imageType: .front,
                                         storagePath: "owned-source.jpg", backgroundRemovedPath: "owned-cutout.png")

@@ -55,7 +55,7 @@ extension OfflineMutation {
 @ModelActor
 public actor SwiftDataOfflineMutationQueue: OfflineMutationQueue {
 
-    public func enqueue(_ mutation: OfflineMutation) async {
+    public func enqueue(_ mutation: OfflineMutation) async throws {
         let row = PersistedOfflineMutation(
             id: mutation.id,
             entityRaw: mutation.entity.rawValue,
@@ -65,7 +65,14 @@ public actor SwiftDataOfflineMutationQueue: OfflineMutationQueue {
             attemptCount: mutation.attemptCount
         )
         modelContext.insert(row)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            // Keep a failed insert from being committed by a later save on
+            // this actor's context; do not roll back unrelated context state.
+            modelContext.delete(row)
+            throw error
+        }
     }
 
     public func pendingMutations() async -> [OfflineMutation] {

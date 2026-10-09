@@ -53,7 +53,7 @@ public extension LiveOutfitRepository {
                 freeText: freeText
             )
             let payload = try JSONEncoder.astraDefault.encode(feedback)
-            await offlineQueue.enqueue(OfflineMutation(entity: .styleFeedback, operation: .create, payloadData: payload))
+            try await offlineQueue.enqueue(OfflineMutation(entity: .styleFeedback, operation: .create, payloadData: payload))
             return feedback
         }
     }

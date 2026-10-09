@@ -18,10 +18,9 @@
 //    `fetchItems` serves the last cached active closet when one exists, so
 //    an authenticated offline cold start shows garments rather than only
 //    an error state.
-//  * `archiveItem`, `markWorn` and `updateLaundryState` do NOT queue yet —
-//    the queue's payload is an encoded `ClosetItem`, and those three only
-//    have an id (or need a read-modify-write) at the point of failure.
-//    They surface the error instead of pretending to have succeeded.
+//  * Archive, wear and laundry changes use the same encoded-item mutation
+//    queue as ordinary edits. Archive requires a cached owned item; wear and
+//    laundry perform a cached/server read-modify-write before queueing.
 //  * `drainPendingMutations()` replays the backlog and IS actually called:
 //    after every successful `fetchItems`, `createItem`, `updateItem` and
 //    `archiveItem`. That is what makes "connectivity coming back mid-session
@@ -114,15 +113,19 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
                     .execute()
                     .value
             }
+            let visibleItems: [ClosetItem]
             if let userID = await currentUserID() {
-                await cache.replaceAll(items, for: userID)
+                visibleItems = await itemsPreservingPendingMutations(items, for: userID)
+                await cache.replaceAll(visibleItems, for: userID)
+            } else {
+                visibleItems = items
             }
             // A successful read is the cheapest reliable signal that the
             // network is back, and the closet list is the screen a returning
             // user lands on — so it is the natural moment to flush anything
             // that was written while offline.
             await drainPendingMutations()
-            return items
+            return visibleItems.filter { !$0.isArchived }
         } catch {
             if let userID = await currentUserID() {
                 let cached = await cache.items(for: userID).filter { !$0.isArchived }
@@ -196,8 +199,6 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
         }
     }
 
-    /// - Note: Does not queue. See this file's header for why archive, wear
-    ///   and laundry writes surface their error instead.
     public func archiveItem(id: UUID) async throws {
         do {
             try await writer.archive(id: id)
@@ -206,7 +207,16 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
             }
             await drainPendingMutations()
         } catch {
-            throw AstraError.network("Couldn't archive that item while offline. It will sync when you're back online.")
+            guard let userID = await currentUserID(),
+                  var item = await cache.items(for: userID).first(where: { $0.id == id && !$0.isArchived }) else {
+                throw AstraError.network("Couldn't archive that item, and it isn't available in your saved closet to queue for sync.")
+            }
+            // Archive is a destructive local intent; carry its timestamp into
+            // the LWW comparison so a freshly queued archive does not look
+            // older merely because the cached row predates the user action.
+            item.updatedAt = .now
+            try await queueMutation(.delete, item: item)
+            await cache.archive(id: id, for: userID, archivedAt: .now)
         }
     }
 
@@ -216,6 +226,7 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
             item.wearCount += 1
             item.lastWornAt = wornAt
             item.laundryState = .wornOnce
+            item.updatedAt = .now
             return try await updateItem(item)
         } catch {
             throw AstraError.server("Couldn't record that wear.")
@@ -224,15 +235,12 @@ public final class LiveClosetRepository: ClosetRepository, @unchecked Sendable {
 
     public func updateLaundryState(id: UUID, state: LaundryState) async throws -> ClosetItem {
         do {
-            return try await supabase.from("closet_items")
-                .update(["laundry_state": state])
-                .eq("id", value: id)
-                .select()
-                .single()
-                .execute()
-                .value
+            var item = try await fetchItem(id: id)
+            item.laundryState = state
+            item.updatedAt = .now
+            return try await updateItem(item)
         } catch {
-            throw AstraError.server("Couldn't update laundry status.")
+            throw AstraError.network("Couldn't update laundry status or save it for sync.")
         }
     }
 

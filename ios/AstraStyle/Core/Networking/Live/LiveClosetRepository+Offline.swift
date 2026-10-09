@@ -1,6 +1,32 @@
 import Foundation
 
 extension LiveClosetRepository {
+    /// Merge queued local intent into a newly fetched snapshot before it is
+    /// cached or shown. Otherwise a reconnect read can erase optimistic edits
+    /// immediately before the same request starts draining them.
+    func itemsPreservingPendingMutations(_ serverItems: [ClosetItem], for owner: UUID) async -> [ClosetItem] {
+        var byID = Dictionary(uniqueKeysWithValues: serverItems.filter { $0.userID == owner }.map { ($0.id, $0) })
+        for mutation in await offlineQueue.pendingMutations() where mutation.entity == .closetItem {
+            if mutation.operation == .create,
+               let payload = try? JSONDecoder.astraDefault.decode(ClosetCreateMutationPayload.self, from: mutation.payloadData) {
+                guard payload.item.userID == owner else { continue }
+                byID[payload.item.id] = payload.item
+                continue
+            }
+            guard let item = try? JSONDecoder.astraDefault.decode(ClosetItem.self, from: mutation.payloadData),
+                  item.userID == owner else { continue }
+            switch mutation.operation {
+            case .create, .update:
+                byID[item.id] = item
+            case .delete:
+                var archived = item
+                archived.archivedAt = archived.archivedAt ?? mutation.enqueuedAt
+                byID[item.id] = archived
+            }
+        }
+        return byID.values.sorted { $0.createdAt > $1.createdAt }
+    }
+
     /// Replays everything the offline queue is holding, oldest first.
     ///
     /// Called after every successful network call in this type. The queue
@@ -18,15 +44,22 @@ extension LiveClosetRepository {
 
         let writer = self.writer
         let conflictRecorder = self.conflictRecorder
+        let currentUserID = self.currentUserID
         await offlineQueue.drain { mutation in
             guard mutation.entity == .closetItem else { throw OfflineMutationNotHandled() }
             if mutation.operation == .create,
                let payload = try? JSONDecoder.astraDefault.decode(ClosetCreateMutationPayload.self, from: mutation.payloadData) {
+                guard let owner = await currentUserID(), payload.item.userID == owner else {
+                    throw OfflineMutationNotHandled()
+                }
                 try await Self.replayCreate(payload.item, images: payload.images, writer: writer)
                 return
             }
             // Previously queued item-only payloads remain readable.
             let item = try JSONDecoder.astraDefault.decode(ClosetItem.self, from: mutation.payloadData)
+            guard let owner = await currentUserID(), item.userID == owner else {
+                throw OfflineMutationNotHandled()
+            }
             try await Self.replayClosetMutation(
                 mutation,
                 item: item,
@@ -62,10 +95,13 @@ extension LiveClosetRepository {
     }
 
     func queueMutation(_ operation: OfflineMutation.Operation, item: ClosetItem, images: [ClosetItemImage] = []) async throws {
+        guard let owner = await currentUserID(), owner == item.userID else {
+            throw AstraError.server("Couldn't save this closet change for the current account.")
+        }
         let payload = operation == .create && !images.isEmpty
             ? try JSONEncoder.astraDefault.encode(ClosetCreateMutationPayload(item: item, images: images))
             : try JSONEncoder.astraDefault.encode(item)
-        await offlineQueue.enqueue(
+        try await offlineQueue.enqueue(
             OfflineMutation(entity: .closetItem, operation: operation, payloadData: payload)
         )
     }

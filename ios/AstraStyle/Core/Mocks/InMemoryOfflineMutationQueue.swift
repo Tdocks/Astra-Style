@@ -17,7 +17,7 @@ public actor InMemoryOfflineMutationQueue: OfflineMutationQueue {
         mutations = seed
     }
 
-    public func enqueue(_ mutation: OfflineMutation) async {
+    public func enqueue(_ mutation: OfflineMutation) async throws {
         mutations.append(mutation)
     }
 

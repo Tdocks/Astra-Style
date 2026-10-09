@@ -13,6 +13,8 @@ public struct PersonalDataExport: Codable, Sendable, Equatable {
     public let ownerUserID: String
     public let tableCounts: [String: Int]
     public let tables: [String: [PersonalDataJSONValue]]
+    public let referencedStorageObjects: [PersonalDataExportStorageReference]?
+    public let storageManifestScope: String?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -20,7 +22,14 @@ public struct PersonalDataExport: Codable, Sendable, Equatable {
         case ownerUserID = "owner_user_id"
         case tableCounts = "table_counts"
         case tables
+        case referencedStorageObjects = "referenced_storage_objects"
+        case storageManifestScope = "storage_manifest_scope"
     }
+}
+
+public struct PersonalDataExportStorageReference: Codable, Sendable, Equatable {
+    public let bucket: String
+    public let path: String
 }
 
 public indirect enum PersonalDataJSONValue: Codable, Sendable, Equatable {

@@ -127,7 +127,7 @@ public final class LiveKyraRepository: KyraRepository, @unchecked Sendable {
 
 /// `POST /kyra/respond` request body (spec §6.20 input kinds -> §11
 /// context packet's "Requested task").
-private struct KyraRespondBody: Encodable, Sendable {
+struct KyraRespondBody: Encodable, Sendable {
     let threadID: UUID?
     let text: String
     let attachments: [AttachmentBody]
@@ -173,6 +173,9 @@ private struct KyraRespondBody: Encodable, Sendable {
             case .outfit(let outfitID):
                 type = "outfit"
                 value = outfitID.uuidString
+            case .studioInspiration(let generationID):
+                type = "studio_inspiration"
+                value = generationID.uuidString
             }
         }
     }

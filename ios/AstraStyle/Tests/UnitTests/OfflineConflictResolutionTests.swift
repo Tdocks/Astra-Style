@@ -175,7 +175,8 @@ struct OfflineConflictResolutionTests {
     private func makeRepository(
         queue: InMemoryOfflineMutationQueue,
         writer: some ClosetWriting,
-        conflictRecorder: OfflineConflictRecording
+        conflictRecorder: OfflineConflictRecording,
+        owner: UUID
     ) -> LiveClosetRepository {
         LiveClosetRepository(
             apiClient: AstraAPIClient(environment: .preview),
@@ -183,7 +184,8 @@ struct OfflineConflictResolutionTests {
             supabase: AstraSupabaseClientFactory.previewClient,
             writer: writer,
             conflictRecorder: conflictRecorder,
-            cache: InMemoryClosetItemCache()
+            cache: InMemoryClosetItemCache(),
+            currentUserID: { owner }
         )
     }
 
@@ -193,7 +195,7 @@ struct OfflineConflictResolutionTests {
         on queue: InMemoryOfflineMutationQueue
     ) async throws {
         let payload = try JSONEncoder.astraDefault.encode(item)
-        await queue.enqueue(
+        try await queue.enqueue(
             OfflineMutation(entity: .closetItem, operation: operation, payloadData: payload)
         )
     }
@@ -206,7 +208,7 @@ struct OfflineConflictResolutionTests {
         let recorder = InMemoryOfflineConflictRecorder()
         let queue = InMemoryOfflineMutationQueue()
         try await enqueue(.update, item: local, on: queue)
-        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder)
+        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder, owner: local.userID)
 
         await repository.drainPendingMutations()
 
@@ -223,7 +225,7 @@ struct OfflineConflictResolutionTests {
         let recorder = InMemoryOfflineConflictRecorder()
         let queue = InMemoryOfflineMutationQueue()
         try await enqueue(.update, item: local, on: queue)
-        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder)
+        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder, owner: local.userID)
 
         await repository.drainPendingMutations()
 
@@ -247,7 +249,7 @@ struct OfflineConflictResolutionTests {
         let recorder = InMemoryOfflineConflictRecorder()
         let queue = InMemoryOfflineMutationQueue()
         try await enqueue(.delete, item: local, on: queue)
-        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder)
+        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder, owner: local.userID)
 
         await repository.drainPendingMutations()
 
@@ -269,7 +271,7 @@ struct OfflineConflictResolutionTests {
         let recorder = InMemoryOfflineConflictRecorder()
         let queue = InMemoryOfflineMutationQueue()
         try await enqueue(.create, item: local, on: queue)
-        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder)
+        let repository = makeRepository(queue: queue, writer: writer, conflictRecorder: recorder, owner: local.userID)
 
         await repository.drainPendingMutations()
 

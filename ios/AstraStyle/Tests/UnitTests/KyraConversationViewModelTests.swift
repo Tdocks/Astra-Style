@@ -80,6 +80,40 @@ struct KyraConversationViewModelTests {
         #expect(!model.showsSuggestedPrompts)
     }
 
+    @Test("Studio image context is attached to the handoff and follow-up turns")
+    func studioInspirationContextPersistsForConversation() async throws {
+        let repository = MockKyraRepository()
+        let generationID = UUID()
+        let model = KyraConversationViewModel(
+            threadID: nil,
+            kyraRepository: repository,
+            outfitRepository: MockOutfitRepository(),
+            closetRepository: MockClosetRepository(),
+            shoppingRepository: MockShoppingRepository(),
+            imageURLResolver: MockClosetImageURLResolver(),
+            networkMonitor: StaticNetworkReachabilityMonitor(offline: false),
+            analyticsClient: NoOpAnalyticsClient(),
+            initialPrompt: "Help refine my generated flat lay.",
+            contextualStudioGenerationID: generationID,
+            autoSendInitialPrompt: true
+        )
+
+        await model.onAppear()
+        await model.send(prompt: "Make it more casual.")
+        let messages = await repository.sentMessages
+
+        #expect(messages.count == 2)
+        for message in messages {
+            #expect(message.attachments.count == 1)
+            if let attachment = message.attachments.first,
+               case .studioInspiration(let attachedGenerationID) = attachment {
+                #expect(attachedGenerationID == generationID)
+            } else {
+                Issue.record("each contextual turn should reference the selected Studio image")
+            }
+        }
+    }
+
     @Test("Analytics records the intent and never the prompt text")
     func analyticsCarriesIntentOnly() async throws {
         let analytics = SpyAnalyticsClient()

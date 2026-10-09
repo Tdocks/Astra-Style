@@ -206,7 +206,13 @@ public enum KyraRoute: Hashable, Sendable {
     /// minting a fresh `UUID()` — an id the database had never heard of,
     /// which the first send would then have posted as if it named a real
     /// thread. Optional is the honest shape.
-    case thread(threadID: UUID?, initialPrompt: String?, outfitID: UUID?, autoSend: Bool)
+    case thread(
+        threadID: UUID?,
+        initialPrompt: String?,
+        outfitID: UUID?,
+        studioGenerationID: UUID?,
+        autoSend: Bool
+    )
     case memories
     case productCard(productID: UUID)
 }
@@ -361,12 +367,14 @@ public final class AppRouter {
         threadID: UUID? = nil,
         initialPrompt: String? = nil,
         outfitID: UUID? = nil,
+        studioGenerationID: UUID? = nil,
         autoSend: Bool = false
     ) {
         presentModal(.askKyra(.thread(
             threadID: threadID,
             initialPrompt: initialPrompt,
             outfitID: outfitID,
+            studioGenerationID: studioGenerationID,
             autoSend: autoSend
         )))
     }

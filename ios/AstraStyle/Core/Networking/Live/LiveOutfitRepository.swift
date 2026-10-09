@@ -251,7 +251,7 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
             return updated
         } catch {
             let payload = try JSONEncoder.astraDefault.encode(outfit)
-            await offlineQueue.enqueue(OfflineMutation(entity: .outfit, operation: .update, payloadData: payload))
+            try await offlineQueue.enqueue(OfflineMutation(entity: .outfit, operation: .update, payloadData: payload))
             await cache.upsert(outfit, items: nil)
             return outfit
         }
@@ -334,7 +334,7 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
                 feedback: feedback
             )
             let payload = try JSONEncoder.astraDefault.encode(wear)
-            await offlineQueue.enqueue(OfflineMutation(entity: .outfitWear, operation: .create, payloadData: payload))
+            try await offlineQueue.enqueue(OfflineMutation(entity: .outfitWear, operation: .create, payloadData: payload))
             return wear
         }
     }

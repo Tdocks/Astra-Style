@@ -21,8 +21,10 @@ public actor MockOutfitRepository: OutfitRepository {
     /// below, which is an unrelated free-text field on `outfit_wears` —
     /// same word, two different columns on two different tables.
     private var feedbackEntries: [StyleFeedback] = []
+    private let failsOutfitGeneration: Bool
 
-    public init() {
+    public init(failsOutfitGeneration: Bool = false) {
+        self.failsOutfitGeneration = failsOutfitGeneration
         var seededOutfits = [SampleData.heroOutfit: SampleData.heroOutfitItems()]
         for outfit in SampleData.alternativeOutfits {
             seededOutfits[outfit] = []
@@ -52,7 +54,10 @@ public actor MockOutfitRepository: OutfitRepository {
     }
 
     public func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation] {
-        [
+        if failsOutfitGeneration {
+            throw AstraError.network("Outfit suggestions are unavailable.")
+        }
+        return [
             OutfitRecommendation(
                 id: SampleData.heroOutfit.id,
                 name: SampleData.heroOutfit.name,

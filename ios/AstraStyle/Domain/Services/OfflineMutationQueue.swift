@@ -85,10 +85,11 @@ public struct OfflineMutationNotHandled: Error, Sendable {
 }
 
 public protocol OfflineMutationQueue: Sendable {
-    /// Adds a mutation to the end of the queue. Mutations are always
-    /// replayed in FIFO order, so an `update` enqueued after a `create` for
-    /// the same entity is guaranteed to apply after it.
-    func enqueue(_ mutation: OfflineMutation) async
+    /// Adds a mutation to the end of the queue. Throws if durable enqueue
+    /// fails; callers must not report an offline write as accepted until
+    /// this succeeds. Mutations are replayed in FIFO order, so an `update`
+    /// enqueued after a `create` for the same entity applies after it.
+    func enqueue(_ mutation: OfflineMutation) async throws
 
     /// All pending mutations, oldest first.
     func pendingMutations() async -> [OfflineMutation]

@@ -53,7 +53,10 @@ final class InspirationViewModel: Identifiable {
             var summary: [String] = []
             if container.weatherService.currentAuthorization() == .authorized,
                let weather = try? await container.weatherService.currentSnapshot() {
-                lines.append("Weather: \(weather.condition.rawValue), \(weather.temperatureLow)–\(weather.temperatureHigh) °C; precipitation probability \(weather.precipitationChance.map(String.init(describing:)) ?? "unknown"); season \(weather.season?.rawValue ?? "unknown")")
+                // `WeatherSnapshot` is populated in Fahrenheit by
+                // `LiveWeatherService`; keep the unit truthful in the prompt
+                // sent to both image generation and contextual Kyra chat.
+                lines.append("Weather: \(weather.condition.rawValue), \(weather.temperatureLow)–\(weather.temperatureHigh) °F; precipitation probability \(weather.precipitationChance.map(String.init(describing:)) ?? "unknown"); season \(weather.season?.rawValue ?? "unknown")")
                 summary.append("Current weather included")
             } else {
                 lines.append("Weather unavailable. Do not invent conditions.")
@@ -73,14 +76,29 @@ final class InspirationViewModel: Identifiable {
             contextSummary = summary.joined(separator: " · ")
             if closetOnly {
                 items = try await container.closetRepository.fetchItems().filter { !$0.isArchived && $0.isWearableToday }
-                let recommendations = try await container.outfitRepository.generateOutfits(.init(naturalLanguageRequest: String(("What should I wear today? Use only my closet. " + context).prefix(500)), desiredCount: 1))
-                selectedItemIDs = Set(recommendations.first?.itemIDs ?? [])
-                selectedItemIDs.formIntersection(Set(items.map(\.id)))
-                if selectedItemIDs.isEmpty { error = "Choose the pieces you want to include below." }
+                await loadClosetSuggestions()
             }
         } catch {
             self.error = (error as? AstraError)?.message ?? "Couldn't load your style context. Close and try again."
             contextSummary = "Some context couldn't load"
+        }
+    }
+
+    private func loadClosetSuggestions() async {
+        do {
+            let request = OutfitGenerationRequest(
+                naturalLanguageRequest: String(("What should I wear today? Use only my closet. " + context).prefix(500)),
+                desiredCount: 1
+            )
+            let recommendations = try await container.outfitRepository.generateOutfits(request)
+            selectedItemIDs = Set(recommendations.first?.itemIDs ?? [])
+            selectedItemIDs.formIntersection(Set(items.map(\.id)))
+            if selectedItemIDs.isEmpty { error = "Choose the pieces you want to include below." }
+        } catch {
+            // Outfit recommendations are a convenience, not a prerequisite
+            // for manual closet selection. Keep the picker usable when that
+            // separate endpoint is unavailable.
+            self.error = "Couldn't suggest a set right now. Choose the pieces you want to include below."
         }
     }
 

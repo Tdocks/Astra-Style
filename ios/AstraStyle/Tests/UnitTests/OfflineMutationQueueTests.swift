@@ -23,9 +23,9 @@ struct OfflineMutationQueueTests {
         let second = OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data("second".utf8))
         let third = OfflineMutation(entity: .outfit, operation: .create, payloadData: Data("third".utf8))
 
-        await queue.enqueue(first)
-        await queue.enqueue(second)
-        await queue.enqueue(third)
+        try await queue.enqueue(first)
+        try await queue.enqueue(second)
+        try await queue.enqueue(third)
 
         let pending = await queue.pendingMutations()
         #expect(pending.map(\.id) == [first.id, second.id, third.id])
@@ -36,8 +36,8 @@ struct OfflineMutationQueueTests {
         let queue = InMemoryOfflineMutationQueue()
         let first = OfflineMutation(entity: .closetItem, operation: .create, payloadData: Data())
         let second = OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data())
-        await queue.enqueue(first)
-        await queue.enqueue(second)
+        try await queue.enqueue(first)
+        try await queue.enqueue(second)
 
         let recorder = AppliedOrderRecorder()
         await queue.drain { mutation in
@@ -55,9 +55,9 @@ struct OfflineMutationQueueTests {
         let first = OfflineMutation(entity: .closetItem, operation: .create, payloadData: Data())
         let second = OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data())
         let third = OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data())
-        await queue.enqueue(first)
-        await queue.enqueue(second)
-        await queue.enqueue(third)
+        try await queue.enqueue(first)
+        try await queue.enqueue(second)
+        try await queue.enqueue(third)
 
         struct SimulatedFailure: Error {}
         let recorder = AppliedOrderRecorder()
@@ -81,8 +81,8 @@ struct OfflineMutationQueueTests {
         let queue = InMemoryOfflineMutationQueue()
         let first = OfflineMutation(entity: .closetItem, operation: .create, payloadData: Data())
         let second = OfflineMutation(entity: .closetItem, operation: .update, payloadData: Data())
-        await queue.enqueue(first)
-        await queue.enqueue(second)
+        try await queue.enqueue(first)
+        try await queue.enqueue(second)
 
         await queue.remove(id: first.id)
 
@@ -93,8 +93,8 @@ struct OfflineMutationQueueTests {
     @Test("clear() empties the queue")
     func clearEmptiesQueue() async throws {
         let queue = InMemoryOfflineMutationQueue()
-        await queue.enqueue(OfflineMutation(entity: .closetItem, operation: .create, payloadData: Data()))
-        await queue.enqueue(OfflineMutation(entity: .outfit, operation: .update, payloadData: Data()))
+        try await queue.enqueue(OfflineMutation(entity: .closetItem, operation: .create, payloadData: Data()))
+        try await queue.enqueue(OfflineMutation(entity: .outfit, operation: .update, payloadData: Data()))
 
         await queue.clear()
 

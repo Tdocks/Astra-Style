@@ -104,6 +104,7 @@ public final class KyraConversationViewModel {
     private let hydrator: KyraCardHydrator
     private let initialPrompt: String?
     private let contextualOutfitID: UUID?
+    private let contextualStudioGenerationID: UUID?
     private let autoSendInitialPrompt: Bool
     private var didSendInitialPrompt = false
     private var connectivityTask: Task<Void, Never>?
@@ -119,6 +120,7 @@ public final class KyraConversationViewModel {
         analyticsClient: AnalyticsClient,
         initialPrompt: String? = nil,
         contextualOutfitID: UUID? = nil,
+        contextualStudioGenerationID: UUID? = nil,
         autoSendInitialPrompt: Bool = false
     ) {
         self.threadID = threadID
@@ -129,6 +131,7 @@ public final class KyraConversationViewModel {
         self.analyticsClient = analyticsClient
         self.initialPrompt = initialPrompt
         self.contextualOutfitID = contextualOutfitID
+        self.contextualStudioGenerationID = contextualStudioGenerationID
         self.autoSendInitialPrompt = autoSendInitialPrompt
         self.hydrator = KyraCardHydrator(
             outfitRepository: outfitRepository,
@@ -282,7 +285,7 @@ public final class KyraConversationViewModel {
             id: localID,
             role: .user,
             text: text,
-            attachmentLabels: drafts.map(\.label) + (contextualOutfitID == nil ? [] : [String(localized: "Current outfit")]),
+            attachmentLabels: drafts.map(\.label) + (contextualOutfitID == nil ? [] : [String(localized: "Current outfit")]) + (contextualStudioGenerationID == nil ? [] : [String(localized: "Studio inspiration")]),
             pending: KyraTranscriptEntry.PendingSend(
                 text: text,
                 drafts: drafts,
@@ -330,9 +333,8 @@ public final class KyraConversationViewModel {
                 wireAttachments.append(.outfit(outfitID: outfit.id))
             }
         }
-        if let contextualOutfitID {
-            wireAttachments.append(.outfit(outfitID: contextualOutfitID))
-        }
+        if let contextualOutfitID { wireAttachments.append(.outfit(outfitID: contextualOutfitID)) }
+        if let contextualStudioGenerationID { wireAttachments.append(.studioInspiration(generationID: contextualStudioGenerationID)) }
         return KyraOutgoingMessage(text: text, attachments: wireAttachments)
     }
 
