@@ -60,13 +60,13 @@ lands data layers, protocols, and models long before the screens that use them.
 | 1 — Foundation | 25 | 18 | 7 | 0 |
 | 2 — Identity | 18 | 17 | 1 | 0 |
 | 3 — Closet | 27 | 15 | 12 | 0 |
-| 4 — Outfit intelligence | 26 | 20 | 5 | 1 |
+| 4 — Outfit intelligence | 26 | 21 | 5 | 0 |
 | 5 — Kyra | 22 | 20 | 2 | 0 |
 | 6 — Studio and commerce | 25 | 21 | 3 | 1 |
 | 7 — Monetization and hardening | 36 | 7 | 23 | 6 |
-| **Total** | **179** | **118** | **53** | **8** |
+| **Total** | **179** | **119** | **53** | **7** |
 
-Read that table carefully before drawing a conclusion from it. 118 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 119 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -320,7 +320,7 @@ deliberately a placeholder scorer, not the real one.
 | P4-CORE-01 | Partial | `LiveWeatherService` uses WeatherKit + CoreLocation after contextual permission; the local recommendation and Kyra paths now call it when authorization is already granted. The device sends a season label derived locally from latitude and date, never raw coordinates. No last-known forecast fallback exists, and real-device provider acceptance remains open. |
 | P4-TEST-01 | Done | Each of the eight components has clear-pass and clear-fail relative-ordering fixtures in `subscores/color_test.ts`, `formality_test.ts`, `silhouette_test.ts`, and `context_test.ts` (which covers season/weather, user preference, co-wear, occasion, and availability). `compatibility_test.ts` verifies the documented default weights and that reweighting changes the aggregate in the expected direction. These files passed in the 970-test backend run on 2026-10-09 (`/tmp/astra-owned-context-full-backend-tests.log`); the old claim that seven sub-scorers do not exist is stale. |
 | P4-TEST-02 | Done | `wardrobeScore_test.ts` verifies the price anti-goal and bounded score across closet sizes; `unlockCount_test.ts` covers deterministic results and a changed count after adding the missing role; `products/handler_cache_test.ts` covers persistent cache reuse. All ticket acceptance criteria passed in the 970-test backend run on 2026-10-09. The separate user-facing generation and Wear This flow is covered by P4-TEST-04. |
-| P4-TEST-03 | Not started | `PendingIntegrationRequirementsTests.dailyBriefGeneration()` is a deliberate placeholder, `.disabled()` with the reason stated. |
+| P4-TEST-03 | Done | Real-handler/scorer integration tests and a guarded hosted harness verify seeded owner-only outfit references, measured weather/calendar context, replay, and explicit regeneration. Live testing found and fixed JSONB key-order replay instability. The fixed deployment passed live acceptance with disposable production fixtures; normal deletion and zero remaining fixture rows were independently verified. The obsolete disabled native placeholder was removed. See `docs/acceptance/2026-10-09-daily-brief-live-acceptance.md`. |
 | P4-TEST-04 | Partial | `AstraStyleUITests.testGenerateOutfit` now opens the user-facing closet builder, generates exactly three recommendations, checks the generated owned pieces, chooses one, verifies its top fills the canvas, saves it, and checks the Studio and Kyra refinement actions. `testMarkOutfitWorn` performs Wear This and verifies Monthly Review shows exactly one recorded wear. Both tests passed in the 2026-10-09 simulator run (`/tmp/astra-recommendation-scanner-product-verified.log`). The only ticket criterion still unverified is a CI pass. |
 
 ---

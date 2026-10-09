@@ -61,16 +61,9 @@ struct PendingIntegrationRequirementsTests {
         // Replace this body with the real integration test and remove the trait.
     }
 
-    @Test(
-        "Daily Brief generation against a live `daily-brief/generate` Edge Function",
-        .disabled(
-            "Not implemented: requires a deployed Edge Function backed by a live StylistReasoningProvider + weather provider. Owner: P4-OUTFIT. Spec §22 'Integration tests: Daily Brief generation'."
-        )
-    )
-    func dailyBriefGeneration() {
-        // Intentionally empty: the `.disabled` reason above IS the report.
-        // Replace this body with the real integration test and remove the trait.
-    }
+    // Daily Brief production-path and live integration coverage now lives in
+    // supabase/functions/daily-brief/{production_integration_test,hosted_acceptance}.ts.
+    // See docs/acceptance/2026-10-09-daily-brief-live-acceptance.md.
 
     @Test(
         "Product evaluation against a live `products/evaluate` Edge Function",
