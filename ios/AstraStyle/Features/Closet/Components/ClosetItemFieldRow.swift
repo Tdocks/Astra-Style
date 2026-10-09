@@ -153,19 +153,20 @@ struct ClosetItemLinkFieldRow: View {
 /// "Unavailable" for the jacket at the tailor) are corrections, not
 /// reflexes, and belong with the field they correct.
 struct ClosetItemLaundryFieldRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let label: String
     let laundryState: LaundryState
     let isUpdating: Bool
     let onChange: (LaundryState) -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: AstraSpacing.md) {
+        layout {
             Text(label)
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Spacer(minLength: AstraSpacing.sm)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: AstraSpacing.sm) }
 
             if isUpdating {
                 ProgressView()
@@ -185,6 +186,7 @@ struct ClosetItemLaundryFieldRow: View {
             .tint(AstraColor.accentChampagneAccessible)
             .disabled(isUpdating)
             .frame(minHeight: AstraSize.minTapTarget)
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
@@ -194,6 +196,12 @@ struct ClosetItemLaundryFieldRow: View {
     /// The picker writes through a closure rather than a stored binding so
     /// the view model stays the only thing that can change the item, and
     /// so the write can be async and roll back.
+    private var layout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: AstraSpacing.sm))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: AstraSpacing.md))
+    }
+
     private var selection: Binding<LaundryState> {
         Binding(
             get: { laundryState },

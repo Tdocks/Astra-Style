@@ -495,6 +495,15 @@ extension PersonalStyleFeatureUITests {
 @MainActor
 extension PersonalStyleFeatureUITests {
     func testItemGalleryOpensSavedLook() throws {
+        try verifyItemGallery()
+    }
+
+    func testItemGalleryAtLargestTextSize() throws {
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        try verifyItemGallery()
+    }
+
+    private func verifyItemGallery() throws {
         launchMockMain()
         app.tapChromeTab("Closet")
         let search = app.textFields["Name, brand, or colour"]
