@@ -87,6 +87,7 @@ public final class ScannerReviewViewModel {
     public internal(set) var localPreviewData: Data?
     public internal(set) var signedPreviewURL: URL?
     public internal(set) var storagePath: String?
+    private var cachedCutout: (source: String, path: String)?
     public internal(set) var analysis: ClosetItemAnalysisResult?
     public internal(set) var ocrText: String?
     /// Phase-3 simplified unlock count after a successful save (P3-SCAN-11).
@@ -242,6 +243,11 @@ public final class ScannerReviewViewModel {
             backgroundRemovedPath: await uploadedCutoutPath() ?? analysis?.normalizedImagePath,
             isPrimary: true
         )
+        // Dismissal can clear the capture while segmentation/upload is awaited.
+        guard self.storagePath == storagePath else {
+            phase = .missingDraft
+            return
+        }
 
         do {
             try await persistSavedItem(item, images: [image])
@@ -298,6 +304,7 @@ public final class ScannerReviewViewModel {
     /// the setting back on is instant instead of a re-scan of the whole
     /// wardrobe.
     private func uploadedCutoutPath() async -> String? {
+        if let cachedCutout, cachedCutout.source == storagePath { return cachedCutout.path }
         guard let data = localPreviewData else { return nil }
         // Off the main actor: this is a Vision request and a full-frame
         // re-encode, and the review screen is on screen while it runs.
@@ -305,15 +312,6 @@ public final class ScannerReviewViewModel {
             BackgroundRemoval.cutout(from: data)
         }.value
         return await persistCutoutOrFallback(cutout)
-    }
-
-    func persistCutoutOrFallback(_ cutout: Data?) async -> String? {
-        if let cutout {
-            // A failed upload of a usable device cutout is not a segmentation failure.
-            return try? await closetRepository.uploadCapturedImage(cutout)
-        }
-        guard let storagePath, !GuestLocalImageStore.isLocal(storagePath) else { return nil }
-        return try? await closetRepository.removeBackground(storagePath: storagePath)
     }
 
     /// Removes the uploaded capture when the user leaves without saving.
@@ -339,15 +337,19 @@ public final class ScannerReviewViewModel {
     public func discardUnsavedUpload() async {
         guard phase != .saved, let path = storagePath else { return }
         storagePath = nil
+        let cutoutPath = cachedCutout?.path
+        cachedCutout = nil
         if var draft = draftStore.draft(id: draftID) {
             draft.storagePath = nil
             draft.signedPreviewURL = nil
             draftStore.update(draft)
         }
-        do {
-            try await closetRepository.deleteCapturedImage(atPath: path)
-        } catch {
-            Self.logger.error("Abandoned scan capture left in storage: \(error.localizedDescription, privacy: .public)")
+        for pendingPath in Set([path] + (cutoutPath.map { [$0] } ?? [])) {
+            do {
+                try await closetRepository.deleteCapturedImage(atPath: pendingPath)
+            } catch {
+                Self.logger.error("Abandoned scan photo cleanup failed.")
+            }
         }
     }
 
@@ -361,5 +363,28 @@ public final class ScannerReviewViewModel {
         guard isLowConfidence(field) else { return nil }
         return String(localized: "Kyra isn’t sure — check this.",
                       comment: "Low-confidence field footnote on scan review")
+    }
+}
+
+extension ScannerReviewViewModel {
+    func persistCutoutOrFallback(_ cutout: Data?) async -> String? {
+        guard let source = storagePath else { return nil }
+        if let cachedCutout, cachedCutout.source == source { return cachedCutout.path }
+        let result: String?
+        if let cutout {
+            // Upload failure of a usable device mask is not segmentation failure.
+            result = try? await closetRepository.uploadCapturedImage(cutout)
+        } else if !GuestLocalImageStore.isLocal(source) {
+            result = try? await closetRepository.removeBackground(storagePath: source)
+        } else {
+            return nil
+        }
+        guard let result else { return nil }
+        guard storagePath == source else {
+            try? await closetRepository.deleteCapturedImage(atPath: result)
+            return nil
+        }
+        cachedCutout = (source, result)
+        return result
     }
 }

@@ -404,10 +404,11 @@ private func waitUntilReady(_ model: ScannerReviewViewModel) async throws {
     Issue.record("Expected ready, got \(model.phase)")
 }
 
-private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
+final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
     var fallbackCount = 0
     var fallbackPath: String?
     var fallbackError: AstraError?
+    var uploadHook: (@MainActor @Sendable () async -> Void)?
     var uploadCount = 0
     var analyzeCount = 0
     var uploadError: AstraError?
@@ -446,6 +447,7 @@ private final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sen
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
 
     func uploadCapturedImage(_ data: Data) async throws -> String {
+        await uploadHook?()
         uploadCount += 1
         _ = data
         if let uploadError {
@@ -564,7 +566,7 @@ private final class FlippingNetworkMonitor: NetworkReachabilityMonitoring, @unch
     }
 }
 
-private struct ReviewMockURLResolver: ClosetImageURLResolving {
+struct ReviewMockURLResolver: ClosetImageURLResolving {
     func resolve(storagePath: String) async throws -> URL {
         guard let encoded = storagePath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "https://example.test/sign/\(encoded)") else {
@@ -611,88 +613,5 @@ struct ScannerReviewViewModelCapTests {
         await model.save()
         #expect(model.phase == .capReached(limit: FreeTierLimits.maxClosetItems))
         #expect(repository.lastCreated == nil)
-    }
-}
-
-@Suite("Captured image upload format")
-struct CapturedImageUploadFormatTests {
-    @Test("Transparent PNG cutouts retain PNG metadata")
-    func pngMetadata() throws {
-        let format = try CapturedImageUploadFormat.detect(Data([137, 80, 78, 71, 13, 10, 26, 10]))
-        #expect(format.fileExtension == "png")
-        #expect(format.contentType == "image/png")
-    }
-
-    @Test("Prepared JPEG captures retain JPEG metadata")
-    func jpegMetadata() throws {
-        let format = try CapturedImageUploadFormat.detect(Data([255, 216, 255, 224]))
-        #expect(format.fileExtension == "jpg")
-        #expect(format.contentType == "image/jpeg")
-    }
-
-    @Test("Unsupported bytes are rejected")
-    func unsupportedBytes() {
-        #expect(throws: AstraError.self) {
-            try CapturedImageUploadFormat.detect(Data([1, 2, 3]))
-        }
-    }
-}
-
-@Suite("Scanner fallback path contract")
-struct ClosetCutoutPathTests {
-    @Test("Fallback endpoint requires authentication and stable idempotency")
-    func endpointContract() {
-        #expect(AstraEndpoint.removeClosetBackground.path == "closet/remove-background")
-        #expect(AstraEndpoint.removeClosetBackground.method == .post)
-        #expect(AstraEndpoint.removeClosetBackground.requiresAuthentication)
-        #expect(AstraEndpoint.removeClosetBackground.requiresIdempotencyKey)
-    }
-    @Test("Fallback accepts only a canonical owned source and deterministic output")
-    func ownedPath() throws {
-        let owner = UUID()
-        let source = "users/\(owner.uuidString.lowercased())/closet/\(UUID().uuidString.lowercased()).jpg"
-        #expect(try ClosetCutoutPath.expectedOutput(source: source, owner: owner) == String(source.dropLast(4)) + "-cutout.png")
-        for path in [source + "/../other.jpg", source.replacingOccurrences(of: ".jpg", with: ".png"),
-                     source.replacingOccurrences(of: owner.uuidString.lowercased(), with: UUID().uuidString.lowercased())] {
-            #expect(throws: AstraError.self) { try ClosetCutoutPath.expectedOutput(source: path, owner: owner) }
-        }
-    }
-}
-
-@Suite("Scanner fallback invocation")
-@MainActor
-struct ScannerFallbackInvocationTests {
-    @Test("Server fallback is used only for missing device cutouts and skips guest paths")
-    func serverFallbackGating() async {
-        let repository = ReviewMockClosetRepository()
-        repository.fallbackPath = "users/test/closet/fixture-cutout.png"
-        let model = makeModel(repository: repository)
-        model.storagePath = "users/test/closet/fixture.jpg"
-        let path = await model.persistCutoutOrFallback(nil)
-        #expect(path == repository.fallbackPath)
-        #expect(repository.fallbackCount == 1)
-        model.storagePath = "guest-local/fixture.jpg"
-        #expect(await model.persistCutoutOrFallback(nil) == nil)
-        #expect(repository.fallbackCount == 1)
-    }
-
-    @Test("Usable device cutout upload failure does not invoke paid fallback")
-    func deviceUploadFailureDoesNotProcessAgain() async {
-        let repository = ReviewMockClosetRepository()
-        repository.uploadError = .network("fixture upload failure")
-        let model = makeModel(repository: repository)
-        model.storagePath = "users/test/closet/fixture.jpg"
-        #expect(await model.persistCutoutOrFallback(Data([1])) == nil)
-        #expect(repository.uploadCount == 1)
-        #expect(repository.fallbackCount == 0)
-    }
-
-    private func makeModel(repository: ClosetRepository) -> ScannerReviewViewModel {
-        let owner = UUID()
-        return ScannerReviewViewModel(draftID: UUID(), dependencies: .init(
-            draftStore: CaptureDraftStore(), closetRepository: repository,
-            imageURLResolver: ReviewMockURLResolver(), pendingScanQueue: InMemoryPendingScanQueue(),
-            networkMonitor: StaticNetworkReachabilityMonitor(offline: false), currentUserID: { owner }
-        ))
     }
 }
