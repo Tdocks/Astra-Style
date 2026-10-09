@@ -29,6 +29,7 @@ import { MockImageGenerationProvider } from "../_shared/providers/mockImageGener
 import {
   advanceGeneration,
   handleGenerate,
+  handleHiResExport,
   handleStatus,
   type StudioGenerationRow,
   type StudioHandlerDeps,
@@ -99,6 +100,126 @@ Deno.test("duplicate retry requests return the same queued job", async () => {
   assertEquals(deps.jobStore.rows.size, 2);
 });
 
+Deno.test("Premium hi-res export copies source context, queues once, and uses current photo consent", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  deps.providerName = "openai";
+  const sourceID = await enqueueOne(deps);
+  const source = deps.jobStore.rows.get(sourceID)!;
+  source.status = "complete";
+  source.resultImagePath = `users/${USER_A_ID}/studio/${sourceID}/result.png`;
+  source.promptPayload["prompt"] = "exact stored prompt";
+  source.promptPayload["garments"] = FIXTURE_GARMENTS;
+  deps.jobStore.rows.set(sourceID, source);
+
+  const consent = {
+    acknowledged: true,
+    terms_version: CURRENT_STUDIO_CONSENT_TERMS_VERSION,
+  };
+  const first = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_A, { source_generation_id: sourceID, consent }),
+    deps,
+  );
+  assertEquals(first.status, 202);
+  const firstData = (await envelopeOf(first)).data!;
+  const child = deps.jobStore.rows.get(firstData["id"] as string)!;
+  assertEquals(child.status, "queued");
+  assertEquals(child.referenceImagePath, source.referenceImagePath);
+  assertEquals(child.promptPayload["prompt"], "exact stored prompt");
+  assertEquals(child.promptPayload["garments"], FIXTURE_GARMENTS);
+  assertEquals(child.promptPayload["resolution"], "hi_res");
+  assertEquals(
+    (child.promptPayload["hi_res_export_consent"] as Record<string, unknown>)["terms_version"],
+    CURRENT_STUDIO_CONSENT_TERMS_VERSION,
+  );
+  assertEquals(source.promptPayload["resolution"], "draft");
+
+  let submittedResolution: string | undefined;
+  const provider = deps.provider;
+  deps.provider = {
+    async submitGeneration(request, ctx) {
+      submittedResolution = request.resolution;
+      return await provider.submitGeneration(request, ctx);
+    },
+    pollStatus: (id, ctx) => provider.pollStatus(id, ctx),
+  };
+  const firstPoll = await handleStatus(
+    statusRequest(VALID_LOOKING_JWT_A, child.id),
+    deps,
+    child.id,
+  );
+  assertEquals(firstPoll.status, 200);
+  assertEquals(submittedResolution, "hi_res");
+
+  const replay = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_A, { source_generation_id: sourceID, consent }),
+    deps,
+  );
+  assertEquals((await envelopeOf(replay)).data?.["id"], child.id);
+  assertEquals(deps.jobStore.rows.size, 2);
+});
+
+Deno.test("hi-res export of a flat-lay edit does not request identity-photo consent", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  deps.providerName = "openai";
+  const sourceID = await enqueueOne(deps);
+  const source = deps.jobStore.rows.get(sourceID)!;
+  source.status = "complete";
+  source.promptPayload["mode"] = "inspiration";
+  source.resultImagePath = `users/${USER_A_ID}/studio/${sourceID}/result.png`;
+  // This is a prior Studio result used for an edit, not a user's identity photo.
+  source.referenceImagePath = source.resultImagePath;
+  deps.jobStore.rows.set(sourceID, source);
+  const response = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_A, { source_generation_id: sourceID }),
+    deps,
+  );
+  assertEquals(response.status, 202);
+  const created = deps.jobStore.rows.get(((await envelopeOf(response)).data?.["id"]) as string)!;
+  assertEquals(created.referenceImagePath, source.resultImagePath);
+  assertEquals(created.promptPayload["hi_res_export_consent"], undefined);
+});
+
+Deno.test("hi-res export rejects peer, incomplete, deleted, and expired sources before enqueue", async () => {
+  const deps = buildDeps();
+  deps.hasActivePremiumSubscription = () => Promise.resolve(true);
+  const sourceID = await enqueueOne(deps);
+  const source = deps.jobStore.rows.get(sourceID)!;
+  source.status = "complete";
+  source.resultImagePath = `users/${USER_A_ID}/studio/${sourceID}/result.png`;
+
+  const peer = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_B, { source_generation_id: sourceID }),
+    deps,
+  );
+  assertEquals(peer.status, 404);
+  source.status = "generating";
+  deps.jobStore.rows.set(sourceID, source);
+  const incomplete = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_A, { source_generation_id: sourceID }),
+    deps,
+  );
+  assertEquals(incomplete.status, 404);
+  source.status = "complete";
+  source.deletedAt = "2026-08-17T08:00:00Z";
+  deps.jobStore.rows.set(sourceID, source);
+  const deleted = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_A, { source_generation_id: sourceID }),
+    deps,
+  );
+  assertEquals(deleted.status, 404);
+  source.deletedAt = null;
+  source.retentionExpiresAt = "2026-08-17T08:59:59Z";
+  deps.jobStore.rows.set(sourceID, source);
+  const expired = await handleHiResExport(
+    hiResRequest(VALID_LOOKING_JWT_A, { source_generation_id: sourceID }),
+    deps,
+  );
+  assertEquals(expired.status, 404);
+  assertEquals(deps.jobStore.rows.size, 1);
+});
+
 Deno.test("non-retryable provider failures cannot bypass quota via retry", async () => {
   const deps = buildDeps();
   const id = await enqueueOne(deps);
@@ -114,6 +235,29 @@ Deno.test("non-retryable provider failures cannot bypass quota via retry", async
   assertEquals(response.status, 400);
   assertEquals(deps.jobStore.rows.size, 1);
   await response.body?.cancel();
+});
+
+Deno.test("hi-res retry validates the fresh export consent instead of the source draft receipt", async () => {
+  const deps = buildDeps();
+  const id = await enqueueOne(deps);
+  const row = deps.jobStore.rows.get(id)!;
+  row.status = "failed";
+  row.promptPayload["resolution"] = "hi_res";
+  row.promptPayload["is_retryable_failure"] = true;
+  row.promptPayload["consent"] = { acknowledged: true, terms_version: "2020-01-01" };
+  row.promptPayload["hi_res_export_consent"] = {
+    acknowledged: true,
+    terms_version: CURRENT_STUDIO_CONSENT_TERMS_VERSION,
+  };
+  deps.jobStore.rows.set(id, row);
+
+  const response = await handleGenerate(
+    generateRequest(VALID_LOOKING_JWT_A, { retry_of: id }),
+    deps,
+  );
+  assertEquals(response.status, 202);
+  const retryID = (await envelopeOf(response)).data?.["id"] as string;
+  assertEquals(deps.jobStore.rows.get(retryID)?.promptPayload["resolution"], "hi_res");
 });
 
 const VALID_LOOKING_JWT_A =
@@ -148,6 +292,46 @@ function memoryJobStore(): StudioJobStore & { rows: Map<string, StudioGeneration
   const nowIso = () => new Date("2026-08-17T09:00:00Z").toISOString();
   return {
     rows,
+    enqueueHiResExport(userId, sourceGenerationId, consent, provider) {
+      const source = rows.get(sourceGenerationId);
+      if (!source || source.userId !== userId) throw new Error("source unavailable");
+      const existing = [...rows.values()].find((candidate) =>
+        candidate.promptPayload["hi_res_source_generation_id"] === sourceGenerationId
+      );
+      if (existing) return Promise.resolve(structuredClone(existing));
+      const promptPayload = {
+        ...structuredClone(source.promptPayload),
+        resolution: "hi_res",
+        hi_res_source_generation_id: sourceGenerationId,
+        ...(source.referenceImagePath.length > 0 &&
+            source.promptPayload["mode"] !== "inspiration" &&
+            source.promptPayload["mode"] !== "closet_inspiration"
+          ? {
+            hi_res_export_consent: {
+              acknowledged: consent.acknowledged,
+              terms_version: consent.termsVersion,
+              attested_at: nowIso(),
+            },
+          }
+          : {}),
+      };
+      const child: StudioGenerationRow = {
+        id: crypto.randomUUID(),
+        userId,
+        referenceImagePath: source.referenceImagePath,
+        outfitId: source.outfitId,
+        promptPayload,
+        status: "queued",
+        resultImagePath: null,
+        provider,
+        errorMessage: null,
+        deletedAt: null,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      rows.set(child.id, structuredClone(child));
+      return Promise.resolve(structuredClone(child));
+    },
     insert(row) {
       if (row.retryOf) {
         const existingID = retries.get(row.retryOf);
@@ -296,6 +480,16 @@ function generateRequest(jwt: string | null, body: unknown): Request {
     method: "POST",
     headers,
     body: JSON.stringify({ request_id: crypto.randomUUID(), body }),
+  });
+}
+
+function hiResRequest(jwt: string | null, body: unknown, method = "POST"): Request {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+  return new Request("http://localhost/studio/export-hi-res", {
+    method,
+    headers,
+    body: method === "POST" ? JSON.stringify({ body }) : undefined,
   });
 }
 

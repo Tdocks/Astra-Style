@@ -91,6 +91,21 @@ export interface RetryRequestBody {
   readonly retryOf: string;
 }
 
+export interface HiResExportRequestBody {
+  readonly sourceGenerationId: string;
+  readonly consent: StudioConsentBlock;
+}
+
+/** Parses the explicit POST export action. GET/status never creates work. */
+export function parseHiResExportBody(rawBody: unknown): HiResExportRequestBody {
+  const record = requireRecord(rawBody, "body");
+  const sourceGenerationId = record["source_generation_id"];
+  if (!isUUID(sourceGenerationId)) {
+    throw badRequest("body.source_generation_id must be a UUID string.");
+  }
+  return { sourceGenerationId, consent: parseConsent(record["consent"]) };
+}
+
 /** Parses the outer `AstraRequestEnvelope` and returns its (still-raw) `body`. */
 export function parseEnvelope(raw: unknown): { requestId?: string; body: unknown } {
   if (!isRecord(raw)) {

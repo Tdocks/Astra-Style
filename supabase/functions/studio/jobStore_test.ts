@@ -120,6 +120,49 @@ Deno.test("enqueue delegates ownership, payload and retry identity to the atomic
   }]);
 });
 
+Deno.test("hi-res export delegates source, consent, Premium and reservation checks to its atomic RPC", async () => {
+  const { calls, store } = fakeClient();
+  const row = await store.enqueueHiResExport(
+    "owner",
+    "source-generation",
+    { acknowledged: true, termsVersion: "2026-08-17" },
+    "openai",
+  );
+  assertEquals(row.id, "job");
+  assertEquals(calls[0], ["rpc", "enqueue_studio_hi_res_export", {
+    p_user_id: "owner",
+    p_source_generation_id: "source-generation",
+    p_provider: "openai",
+    p_consent_acknowledged: true,
+    p_consent_terms_version: "2026-08-17",
+  }]);
+});
+
+Deno.test("hi-res RPC errors map Premium, provider, consent and unavailable source safely", async () => {
+  const cases = [
+    ["studio_hi_res_premium_required", 403],
+    ["studio_hi_res_provider_unavailable", 503],
+    ["studio_export_consent_required", 400],
+    ["studio_export_source_unavailable", 404],
+    ["studio_export_already_removed", 409],
+  ] as const;
+  for (const [rpcError, expectedStatus] of cases) {
+    const { store } = fakeClient(rpcError);
+    const error = await assertRejects(
+      () =>
+        store.enqueueHiResExport(
+          "owner",
+          "source-generation",
+          { acknowledged: false, termsVersion: "" },
+          "mock",
+        ),
+      AppError,
+    );
+    assertEquals(error.status, expectedStatus);
+    assertEquals(error.message.includes(rpcError), false);
+  }
+});
+
 Deno.test("database allowance rejection maps to a safe 429 without leaking SQL", async () => {
   const { store } = fakeClient("studio_trial_exhausted");
   const error = await assertRejects(

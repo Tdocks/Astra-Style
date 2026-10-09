@@ -25,6 +25,52 @@ function mapRow(data: Record<string, unknown>): StudioGenerationRow {
  * by the verified user ID, including leases and allowance reads (ADR 0022). */
 export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
   return {
+    async enqueueHiResExport(userId, sourceGenerationId, consent, provider) {
+      const { data, error } = await supabase.rpc("enqueue_studio_hi_res_export", {
+        p_user_id: userId,
+        p_source_generation_id: sourceGenerationId,
+        p_provider: provider,
+        p_consent_acknowledged: consent.acknowledged,
+        p_consent_terms_version: consent.termsVersion || null,
+      }).single();
+      if (error?.message?.includes("studio_monthly_quota_exhausted")) {
+        throw new AppError(
+          "rate_limited",
+          429,
+          "You've used your monthly Studio render allowance. It resets on the first day of next month (UTC).",
+        );
+      }
+      if (error?.message?.includes("studio_hi_res_premium_required")) {
+        throw new AppError("auth", 403, "High-resolution export is available with Premium.");
+      }
+      if (error?.message?.includes("studio_hi_res_premium_required")) {
+        throw new AppError("auth", 403, "High-resolution export is available with Premium.");
+      }
+      if (error?.message?.includes("studio_hi_res_provider_unavailable")) {
+        throw new AppError(
+          "provider",
+          503,
+          "High-resolution export is temporarily unavailable. Try again later.",
+        );
+      }
+      if (error?.message?.includes("studio_export_already_removed")) {
+        throw new AppError("validation", 409, "That high-resolution export was already removed.");
+      }
+      if (error?.message?.includes("studio_export_consent_required")) {
+        throw badRequest(
+          "Confirm the current reference-photo terms before exporting this estimate.",
+        );
+      }
+      if (error?.message?.includes("studio_export_source_unavailable")) {
+        throw new AppError(
+          "validation",
+          404,
+          "That Studio estimate is no longer available to export.",
+        );
+      }
+      if (error || !data) throw serverError("Couldn't queue the high-resolution export.");
+      return mapRow(data as Record<string, unknown>);
+    },
     async insert(row) {
       const { data, error } = await supabase.rpc(
         row.requestKey ? "enqueue_studio_generation_idempotent" : "enqueue_studio_generation",

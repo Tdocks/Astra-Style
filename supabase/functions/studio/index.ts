@@ -37,7 +37,12 @@ import type {
 } from "../_shared/providers/imageGeneration.ts";
 import { MockImageGenerationProvider } from "../_shared/providers/mockImageGeneration.ts";
 import { OpenAIImageGenerationProvider } from "../_shared/providers/openaiImageGeneration.ts";
-import { handleGenerate, handleStatus, type StudioGarmentSource } from "./handler.ts";
+import {
+  handleGenerate,
+  handleHiResExport,
+  handleStatus,
+  type StudioGarmentSource,
+} from "./handler.ts";
 
 import { handleQuota, readQuota } from "./quota.ts";
 import { supabaseJobStore } from "./jobStore.ts";
@@ -250,10 +255,21 @@ async function hasActivePremiumSubscription(
 }
 
 Deno.serve(createRouter("studio", [
-  { method: "GET", pattern: "/quota", handler: (req) => handleQuota(
-    req, createUserScopedClient(env, req.headers.get("authorization") ?? ""),
-    (userID) => readQuota(jobClient, userID, new Date()),
-  ) },
+  {
+    method: "POST",
+    pattern: "/export-hi-res",
+    handler: (req) => handleHiResExport(req, depsFor(req)),
+  },
+  {
+    method: "GET",
+    pattern: "/quota",
+    handler: (req) =>
+      handleQuota(
+        req,
+        createUserScopedClient(env, req.headers.get("authorization") ?? ""),
+        (userID) => readQuota(jobClient, userID, new Date()),
+      ),
+  },
   {
     method: "DELETE",
     pattern: "/generations/:id",

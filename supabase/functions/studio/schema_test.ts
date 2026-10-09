@@ -13,6 +13,7 @@ import {
   assertOwnedReferencePath,
   CURRENT_STUDIO_CONSENT_TERMS_VERSION,
   parseGenerateBody,
+  parseHiResExportBody,
   toWireTimestamp,
 } from "./schema.ts";
 
@@ -150,4 +151,18 @@ Deno.test("closet inspiration requires pieces and bounds context", () => {
   assertThrows(() =>
     parseGenerateBody({ mode: "inspiration", source_generation_id: "not-a-uuid" })
   );
+});
+
+Deno.test("hi-res export accepts only a source UUID and parses fresh consent", () => {
+  const parsed = parseHiResExportBody({
+    source_generation_id: OUTFIT_ID,
+    consent: { acknowledged: true, terms_version: CURRENT_STUDIO_CONSENT_TERMS_VERSION },
+    user_id: OTHER_USER_ID,
+    reference_image_path: `users/${OTHER_USER_ID}/references/photo.jpg`,
+    prompt: "caller prompt must be ignored",
+  });
+  assertEquals(parsed.sourceGenerationId, OUTFIT_ID);
+  assertEquals(parsed.consent.acknowledged, true);
+  assertEquals(parsed.consent.termsVersion, CURRENT_STUDIO_CONSENT_TERMS_VERSION);
+  assertThrows(() => parseHiResExportBody({ source_generation_id: "invalid" }), AppError);
 });

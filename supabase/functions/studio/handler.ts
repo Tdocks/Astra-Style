@@ -61,8 +61,10 @@ import {
   assertOwnedReferencePath,
   CURRENT_STUDIO_CONSENT_TERMS_VERSION,
   type GenerateRequestBody,
+  type HiResExportRequestBody,
   parseEnvelope,
   parseGenerateBody,
+  parseHiResExportBody,
   type StudioGenerationDTO,
   toWireTimestamp,
 } from "./schema.ts";
@@ -133,6 +135,13 @@ export interface StudioJobStore {
   release(userId: string, id: string, token: string): Promise<void>;
   /** Own rows only — used to enforce the one free Visualize trial. */
   countForUser(userId: string): Promise<number>;
+  /** Atomically validates, deduplicates and reserves a Premium hi-res child. */
+  enqueueHiResExport(
+    userId: string,
+    sourceGenerationId: string,
+    consent: HiResExportRequestBody["consent"],
+    provider: string,
+  ): Promise<StudioGenerationRow>;
 }
 
 /**
@@ -513,11 +522,15 @@ async function enqueueRetry(
   // attestation must still be against the CURRENT terms. This is the
   // "no path reaches the provider without it" property — a cached job
   // resubmission does not grandfather old consent.
-  const consent = original.promptPayload["consent"] as Record<string, unknown> | undefined;
+  const consent =
+    (original.promptPayload["resolution"] === "hi_res"
+      ? original.promptPayload["hi_res_export_consent"]
+      : original.promptPayload["consent"]) as Record<string, unknown> | undefined;
   if (
     original.promptPayload["mode"] !== "inspiration" &&
     original.promptPayload["mode"] !== "closet_inspiration" &&
-    consent?.["terms_version"] !== CURRENT_STUDIO_CONSENT_TERMS_VERSION
+    (consent?.["acknowledged"] !== true ||
+      consent?.["terms_version"] !== CURRENT_STUDIO_CONSENT_TERMS_VERSION)
   ) {
     throw badRequest(
       "The consent terms have changed since you confirmed this photo. Please confirm the updated terms and try again.",
@@ -671,6 +684,79 @@ export async function handleGenerate(
     } else {
       logger.error("studio_generate.unexpected_error", {
         latency_ms: latencyMs,
+        error_name: err instanceof Error ? err.name : "unknown",
+      });
+    }
+    return errorResponse(appError, requestId, CORS_HEADERS);
+  }
+}
+
+/** Explicit Premium export action. It only queues a new row; rendering still
+ * happens from the existing owner-scoped status poll. */
+export async function handleHiResExport(
+  req: Request,
+  deps: StudioHandlerDeps,
+): Promise<Response> {
+  const startedAtMs = deps.now().getTime();
+  const preflight = handleCorsPreflight(req);
+  if (preflight) return preflight;
+  let requestId = resolveRequestId(req);
+  const logger = createLogger(requestId);
+  try {
+    if (req.method !== "POST") {
+      throw methodNotAllowed("POST /studio/export-hi-res only accepts POST.");
+    }
+    const userId = await authenticateRequest(req, deps.authClient);
+    const limit = deps.generateRateLimiter.check(userId, deps.now().getTime());
+    if (!limit.allowed) {
+      return errorResponse(
+        new AppError("rate_limited", 429, "Too many requests. Please try again shortly."),
+        requestId,
+        { ...CORS_HEADERS, "Retry-After": String(limit.retryAfterSeconds) },
+      );
+    }
+    const envelope = parseEnvelope(await readJsonBody(req));
+    requestId = resolveRequestId(req, envelope.requestId);
+    logger.adoptRequestId(requestId);
+    const body = parseHiResExportBody(envelope.body);
+    const source = await deps.jobStore.get(userId, body.sourceGenerationId);
+    const now = deps.now();
+    if (
+      !source || source.status !== "complete" || source.deletedAt !== null ||
+      !source.resultImagePath || source.resultImagePath !==
+        `users/${userId.toLowerCase()}/studio/${source.id.toLowerCase()}/result.png` ||
+      (source.retentionExpiresAt != null && Date.parse(source.retentionExpiresAt) <= now.getTime())
+    ) {
+      throw notFound("Choose a completed, available estimate from your Studio history.");
+    }
+    // Premium, provider readiness, photo-path ownership, and fresh consent
+    // are checked in the reservation RPC. That lets an accepted export
+    // replay safely after a subscription or terms change without reserving
+    // another render.
+    const row = await deps.jobStore.enqueueHiResExport(
+      userId,
+      source.id,
+      body.consent,
+      deps.providerName,
+    );
+    logger.info("studio_hi_res_export.enqueued", {
+      user_id: userId,
+      generation_id: row.id,
+      source_generation_id: source.id,
+      latency_ms: deps.now().getTime() - startedAtMs,
+    });
+    return jsonResponse(rowToDTO(row), { status: 202, requestId, extraHeaders: CORS_HEADERS });
+  } catch (err) {
+    const appError = err instanceof AppError ? err : serverError();
+    if (err instanceof AppError) {
+      logger.warn("studio_hi_res_export.rejected", {
+        category: appError.category,
+        status: appError.status,
+        latency_ms: deps.now().getTime() - startedAtMs,
+      });
+    } else {
+      logger.error("studio_hi_res_export.unexpected_error", {
+        latency_ms: deps.now().getTime() - startedAtMs,
         error_name: err instanceof Error ? err.name : "unknown",
       });
     }
