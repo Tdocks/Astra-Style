@@ -90,3 +90,19 @@ passes the real Studio request parser. Current draft-only service cannot fulfill
 hi-res requests; these fail explicitly. Reference resolution and request mapping
 have six fixture tests. Full service wiring, hosted RLS/erasure races, persisted
 confirmation and per-turn job deduplication remain open. No deployment yet.
+
+## Durable submission deduplication
+
+New, unapplied migration `20261009000514_studio_submission_idempotency.sql`
+adds a server-only request ledger and service-only enqueue wrapper. The wrapper
+shares the existing per-user transaction lock, binds a request UUID to a SHA-256
+request fingerprint and one generation, returns that generation for a replay,
+rejects changed fingerprints and rejects removed jobs. The original atomic
+allowance RPC still creates the first job, inside the same transaction.
+
+All scratch SQL/RLS suites passed including test 37: same job ID on replay, one
+allowance, conflict rejection, tombstone rejection and authenticated RPC denial
+(`/tmp/astra-submission-rls.log`). Scratch database was removed. This is sequential
+SQL coverage; concurrent/live checks and HTTP fingerprint/header wiring remain
+open. The migration is not deployed. CLI 2.101.0 was killed by macOS; migration
+creation succeeded through CLI 2.75.0, without changing migration history.
