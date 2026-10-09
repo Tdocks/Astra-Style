@@ -169,6 +169,19 @@ struct KyraConversationViewModelTests {
 
         #expect(model.canPerform(wear, in: reply))
         #expect(!model.canPerform(studio, in: reply))
+        let generationID = UUID()
+        let preview = KyraSuggestedAction(
+            id: "studio-preview:\(generationID.uuidString)", label: "Open preview", kind: .startStudioGeneration
+        )
+        #expect(model.canPerform(preview, in: reply))
+        await model.perform(preview, in: reply.id)
+        #expect(model.pendingStudioGenerationID == generationID)
+        model.clearPendingStudioPreview()
+        #expect(model.pendingStudioGenerationID == nil)
+        let malformed = KyraSuggestedAction(id: "studio-preview:invalid", label: "Open", kind: .startStudioGeneration)
+        #expect(!model.canPerform(malformed, in: reply))
+        await model.perform(preview, in: UUID())
+        #expect(model.pendingStudioGenerationID == nil)
         #expect(!model.canPerform(schedule, in: reply))
 
         // Without an outfit card in the message there is nothing for a

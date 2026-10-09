@@ -163,7 +163,7 @@ must persist between turns, and native job presentation/polling needs acceptance
 
 ## Selection-bound confirmation storage
 
-Unapplied migration `20261009001316_kyra_studio_confirmations.sql` adds a
+Unapplied migration `20261009002825_kyra_studio_confirmations.sql` adds a
 server-only, conversation-owned confirmation record with a 30-minute expiry.
 Preparation reuses an unchanged active selection, closes a changed/expired one,
 and validates the conversation owner. RLS and revoked client grants prevent
@@ -287,3 +287,20 @@ server action on a successful approved submission. Backend lint/type checks pass
 The simulator build and twelve existing chat view-model tests passed
 (`/tmp/astra-kyra-preview-native-tests.log`, TEST SUCCEEDED). New action-specific native tests and simulator UI
 acceptance remain open. No TestFlight upload or hosted deployment was performed.
+
+## Hosted deployment — 2026-10-08
+
+Applied confirmation migration `20261009002825_kyra_studio_confirmations.sql`
+(the local filename now matches the hosted migration history). Live privilege
+checks confirm authenticated clients cannot read the table or execute preparation.
+Kyra v11 is ACTIVE with JWT verification enabled, deploying 66 dependency files
+and the explicit import map. Product analysis and chat preview services are now
+registered on the hosted backend; product search remains unavailable.
+
+The focused native chat run passed twelve tests, including valid preview routing,
+clearing the sheet destination, malformed action rejection and absent transcript
+entry rejection (`/tmp/astra-kyra-preview-native-action-tests.log`, TEST SUCCEEDED).
+Security advisors flag the confirmation table's intentional no-policy RLS as INFO;
+existing extension/anonymous-policy warnings remain and are not a clean security
+verdict. Hosted ask/yes/consent/provider checks and dedicated simulator sheet
+acceptance remain open. Native preview routing is not in TestFlight build 20 yet.
