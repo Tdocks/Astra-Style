@@ -10,7 +10,7 @@
 // imported by handler tests, which stay offline against a fake provider.
 //
 // Every vendor concept — model ids, `tool_calls` wire shape, finish reasons,
-// the chat-completions envelope — stays inside this file. The interface's
+// the Responses envelope — stays inside this file. The interface's
 // header forbids widening it with vendor-shaped fields, and nothing here
 // does: tiers map to model ids HERE (`docs/09` §1 assigns tiers as policy;
 // the adapter owns what a tier means this month), and the handler never
@@ -71,6 +71,12 @@ export class LiveStylistProvider implements StylistReasoningProvider {
   private readonly apiKey: string;
   private readonly modelForTier: Readonly<Record<ModelTier, string>>;
   private readonly fetchImpl: typeof fetch;
+  // Ephemeral, request/owner/model-scoped encrypted reasoning replay. Never
+  // persisted in messages or logs. Hard bounds and TTL prevent isolate growth.
+  private readonly replay = new Map<
+    string,
+    { expires: number; calls: Map<string, Record<string, unknown>[]> }
+  >();
 
   constructor(deps: LiveStylistProviderDeps) {
     this.apiKey = deps.apiKey;
@@ -84,7 +90,12 @@ export class LiveStylistProvider implements StylistReasoningProvider {
   ): Promise<StylistCompletionResult> {
     const model = this.modelForTier[request.tier];
 
-    const messages: Array<Record<string, unknown>> = [
+    const replayKey = JSON.stringify([ctx.userId, ctx.requestId, model]);
+    for (const [key, entry] of this.replay) {
+      if (entry.expires <= Date.now()) this.replay.delete(key);
+    }
+    const cache = this.replay.get(replayKey);
+    const input: Array<Record<string, unknown>> = [
       { role: "system", content: request.systemPrompt },
       {
         role: "system",
@@ -94,54 +105,57 @@ export class LiveStylistProvider implements StylistReasoningProvider {
     ];
     for (const message of request.messages) {
       if (message.role === "tool") {
-        messages.push({
-          role: "tool",
-          tool_call_id: message.toolCallId ?? "",
-          content: message.content,
+        input.push({
+          type: "function_call_output",
+          call_id: message.toolCallId ?? "",
+          output: message.content,
         });
       } else if (message.role === "assistant" && (message.toolCalls?.length ?? 0) > 0) {
-        messages.push({
-          role: "assistant",
-          content: message.content.length > 0 ? message.content : null,
-          tool_calls: (message.toolCalls ?? []).map((call) => ({
-            id: call.id,
-            type: "function",
-            function: { name: call.name, arguments: JSON.stringify(call.arguments) },
-          })),
-        });
+        if (message.content) input.push({ role: "assistant", content: message.content });
+        for (const call of message.toolCalls ?? []) {
+          const saved = cache?.calls.get(call.id);
+          input.push(
+            ...(saved ??
+              [{
+                type: "function_call",
+                call_id: call.id,
+                name: call.name,
+                arguments: JSON.stringify(call.arguments),
+              }]),
+          );
+        }
       } else {
-        messages.push({ role: message.role, content: message.content });
+        input.push({ role: message.role, content: message.content });
       }
     }
-
     const body: Record<string, unknown> = {
       model,
-      messages,
-      max_completion_tokens: request.maxOutputTokens,
-      // `strict: false`: the Kyra response schema uses optional properties
-      // and anyOf card variants, which strict mode rejects wholesale.
-      // Conformance is enforced server-side by parseKyraStructuredResponse
-      // plus the docs/06 §6 repair path, which exists for exactly this.
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "kyra_response", strict: false, schema: request.responseSchema },
-      },
-    };
-    if (request.tools.length > 0) {
-      body["tools"] = request.tools.map((tool) => ({
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parametersSchema,
+      input,
+      store: false,
+      include: ["reasoning.encrypted_content"],
+      reasoning: { effort: request.tier === "luna" ? "low" : "medium" },
+      max_output_tokens: request.maxOutputTokens,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "kyra_response",
+          strict: false,
+          schema: request.responseSchema,
         },
-      }));
-    }
+      },
+      tools: request.tools.map((tool) => ({
+        type: "function",
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parametersSchema,
+        strict: false,
+      })),
+    };
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ctx.timeoutMs);
     try {
-      const response = await this.fetchImpl("https://api.openai.com/v1/chat/completions", {
+      const response = await this.fetchImpl("https://api.openai.com/v1/responses", {
         method: "POST",
         signal: controller.signal,
         headers: {
@@ -184,49 +198,73 @@ export class LiveStylistProvider implements StylistReasoningProvider {
 
       const json: unknown = await response.json();
       const root = asRecord(json);
-      const choices = root?.["choices"];
-      const firstChoice = Array.isArray(choices) ? asRecord(choices[0]) : null;
-      const message = asRecord(firstChoice?.["message"]);
-      if (message === null) {
-        throw new ProviderError("INVALID_INPUT", false, "Stylist provider returned no message.");
+      const output = root?.["output"];
+      if (!Array.isArray(output)) {
+        throw new ProviderError("INVALID_INPUT", false, "Stylist provider returned no output.");
       }
-
       const toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> = [];
-      const rawToolCalls = message["tool_calls"];
-      if (Array.isArray(rawToolCalls)) {
-        for (const rawCall of rawToolCalls) {
-          const call = asRecord(rawCall);
-          const fn = asRecord(call?.["function"]);
-          if (call === null || fn === null) continue;
-          const id = call["id"];
-          const name = fn["name"];
-          if (typeof id !== "string" || typeof name !== "string") continue;
-          toolCalls.push({ id, name, arguments: parseToolArguments(fn["arguments"]) });
+      const texts: string[] = [];
+      let refused = false;
+      const reasoningItems: Record<string, unknown>[] = [];
+      const calls = new Map(cache?.calls ?? []);
+      for (const raw of output) {
+        const item = asRecord(raw);
+        if (!item) continue;
+        if (item.type === "reasoning") reasoningItems.push(item);
+        if (
+          item.type === "function_call" && typeof item.call_id === "string" &&
+          typeof item.name === "string"
+        ) {
+          toolCalls.push({
+            id: item.call_id,
+            name: item.name,
+            arguments: parseToolArguments(item.arguments),
+          });
+          calls.set(item.call_id, [...reasoningItems.splice(0), item]);
+        }
+        if (item.type === "message" && Array.isArray(item.content)) {
+          for (const rawPart of item.content) {
+            const part = asRecord(rawPart);
+            if (part?.type === "output_text" && typeof part.text === "string") {
+              texts.push(part.text);
+            }
+            if (part?.type === "refusal") refused = true;
+          }
         }
       }
-
-      const rawFinish = firstChoice?.["finish_reason"];
+      if (toolCalls.length) {
+        if (calls.size > 64 || JSON.stringify([...calls]).length > 512_000) {
+          throw new ProviderError(
+            "INVALID_INPUT",
+            false,
+            "Stylist tool history exceeded its limit.",
+          );
+        }
+        if (!this.replay.has(replayKey) && this.replay.size >= 128) {
+          const oldest = this.replay.keys().next().value;
+          if (oldest !== undefined) this.replay.delete(oldest);
+        }
+        this.replay.set(replayKey, { expires: Date.now() + 300_000, calls });
+      }
+      const incomplete = asRecord(root?.incomplete_details);
       const finishReason: StylistCompletionResult["finishReason"] =
-        rawFinish === "tool_calls" || toolCalls.length > 0
-          ? "tool_calls"
-          : rawFinish === "length"
+        incomplete?.reason === "max_output_tokens"
           ? "length"
-          : rawFinish === "content_filter"
+          : refused || incomplete?.reason === "content_filter"
           ? "content_filter"
+          : toolCalls.length
+          ? "tool_calls"
           : "stop";
-
-      const usage = asRecord(root?.["usage"]);
-      const inputTokens = typeof usage?.["prompt_tokens"] === "number" ? usage["prompt_tokens"] : 0;
-      const outputTokens = typeof usage?.["completion_tokens"] === "number"
-        ? usage["completion_tokens"]
-        : 0;
-
+      const usage = asRecord(root?.usage);
       return {
-        message: typeof message["content"] === "string" ? message["content"] : "",
+        message: texts.join(""),
         toolCalls,
         finishReason,
-        usage: { inputTokens, outputTokens },
-        modelIdentifier: typeof root?.["model"] === "string" ? root["model"] : model,
+        usage: {
+          inputTokens: typeof usage?.input_tokens === "number" ? usage.input_tokens : 0,
+          outputTokens: typeof usage?.output_tokens === "number" ? usage.output_tokens : 0,
+        },
+        modelIdentifier: typeof root?.model === "string" ? root.model : model,
       };
     } catch (err) {
       if (err instanceof ProviderError) {

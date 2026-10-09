@@ -335,3 +335,21 @@ https://developers.openai.com/api/docs/guides/reasoning?api-mode=chat .
 The current adapter still uses Chat Completions; Responses migration and hosted
 acceptance remain open. Build 21's archive completed and upload is actively
 running as session 80533; no processing/internal availability verdict yet.
+
+## Responses migration and successful hosted reply
+
+Kyra v14 is ACTIVE with JWT verification. The adapter now uses Responses,
+store=false, explicit reasoning effort, Responses function/output mappings and
+bounded ephemeral encrypted reasoning replay (ADR 0032). 135 Kyra tests passed
+(`/tmp/astra-kyra-responses-tests.log`); lint and entrypoint type checking passed.
+The next hosted probe returned a real nonempty reply with no fallback, persisted
+two conversation messages, and denied client confirmation reads/preparation with
+403. QA deletion returned 202; live SQL verified zero remaining user/thread rows.
+Report `/tmp/astra-kyra-v12-live-report.json` now records this latest v14 probe.
+Hosted preview generation, multi-step tool behavior and native sheet UI acceptance
+remain open.
+
+TestFlight 1.0.0 (21), build ID aa507aee-4135-411d-b51e-d2550e9eb683, is VALID
+and IN_BETA_TESTING with Internal group membership verified. en-US notes saved.
+It contains the native queued-preview action. External review is not submitted;
+the public group still uses build 11. Upload log `/tmp/astra-testflight21.log`.

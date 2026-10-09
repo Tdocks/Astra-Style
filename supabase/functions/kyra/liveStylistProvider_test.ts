@@ -33,6 +33,7 @@ function provider(
     modelForTier: { luna: "model-luna", terra: "model-terra", sol: "model-terra" },
     fetchImpl: async (input, init) => {
       const req = new Request(input as string | URL, init);
+      assertEquals(req.url, "https://api.openai.com/v1/responses");
       captured.push(JSON.parse(await req.clone().text()) as Record<string, unknown>);
       return await handler(req);
     },
@@ -52,8 +53,9 @@ Deno.test("maps the Astra-shaped request onto the vendor wire, tier onto model i
     () =>
       okResponse({
         model: "model-luna-2026-08",
-        choices: [{ message: { content: '{"ok":true}' }, finish_reason: "stop" }],
-        usage: { prompt_tokens: 120, completion_tokens: 40 },
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: '{"ok":true}' }] }],
+        usage: { input_tokens: 120, output_tokens: 40 },
       }),
     captured,
   );
@@ -63,12 +65,15 @@ Deno.test("maps the Astra-shaped request onto the vendor wire, tier onto model i
   assertEquals(sent["model"], "model-luna");
   // No temperature on the wire — the pinned models reject non-default values.
   assertEquals(sent["temperature"], undefined);
-  const messages = sent["messages"] as Array<Record<string, unknown>>;
+  assertEquals(sent["store"], false);
+  assertEquals(sent["reasoning"], { effort: "low" });
+  assertEquals(sent["include"], ["reasoning.encrypted_content"]);
+  const messages = sent["input"] as Array<Record<string, unknown>>;
   assertEquals(messages[0]!["role"], "system");
   assert(String(messages[1]!["content"]).includes("CONTEXT PACKET"));
   const tools = sent["tools"] as Array<Record<string, unknown>>;
   assertEquals(tools.length, 1);
-  assertEquals((tools[0]!["function"] as Record<string, unknown>)["name"], "get_weather");
+  assertEquals(tools[0]!["name"], "get_weather");
 
   assertEquals(result.message, '{"ok":true}');
   assertEquals(result.finishReason, "stop");
@@ -81,8 +86,9 @@ Deno.test("terra tier selects the terra model", async () => {
   const live = provider(
     () =>
       okResponse({
-        choices: [{ message: { content: "{}" }, finish_reason: "stop" }],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: "{}" }] }],
+        usage: { input_tokens: 1, output_tokens: 1 },
       }),
     captured,
   );
@@ -95,18 +101,14 @@ Deno.test("vendor tool_calls parse into Astra-shaped tool calls with JSON argume
   const live = provider(
     () =>
       okResponse({
-        choices: [{
-          message: {
-            content: null,
-            tool_calls: [{
-              id: "call_abc",
-              type: "function",
-              function: { name: "search_closet", arguments: '{"category":["top"]}' },
-            }],
-          },
-          finish_reason: "tool_calls",
+        status: "completed",
+        output: [{
+          type: "function_call",
+          call_id: "call_abc",
+          name: "search_closet",
+          arguments: '{"category":["top"]}',
         }],
-        usage: { prompt_tokens: 10, completion_tokens: 5 },
+        usage: { input_tokens: 10, output_tokens: 5 },
       }),
     captured,
   );
@@ -122,8 +124,9 @@ Deno.test("assistant tool-call turns and tool results round-trip onto the vendor
   const live = provider(
     () =>
       okResponse({
-        choices: [{ message: { content: "{}" }, finish_reason: "stop" }],
-        usage: { prompt_tokens: 1, completion_tokens: 1 },
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: "{}" }] }],
+        usage: { input_tokens: 1, output_tokens: 1 },
       }),
     captured,
   );
@@ -141,17 +144,14 @@ Deno.test("assistant tool-call turns and tool results round-trip onto the vendor
     }),
     CTX,
   );
-  const messages = captured[0]!["messages"] as Array<Record<string, unknown>>;
+  const messages = captured[0]!["input"] as Array<Record<string, unknown>>;
   // [system, context, user, assistant(tool_calls), tool]
-  const assistant = messages[3]!;
-  const toolCalls = assistant["tool_calls"] as Array<Record<string, unknown>>;
-  assertEquals(
-    (toolCalls[0]!["function"] as Record<string, unknown>)["arguments"],
-    '{"date_range_days":3}',
-  );
+  const call = messages[3]!;
+  assertEquals(call["type"], "function_call");
+  assertEquals(call["arguments"], '{"date_range_days":3}');
   const tool = messages[4]!;
-  assertEquals(tool["role"], "tool");
-  assertEquals(tool["tool_call_id"], "call_1");
+  assertEquals(tool["type"], "function_call_output");
+  assertEquals(tool["call_id"], "call_1");
 });
 
 Deno.test("vendor errors map onto the shared taxonomy with honest retryability", async () => {
@@ -189,4 +189,53 @@ Deno.test("provider rejection diagnostics retain identifiers without echoed priv
   const error = await assertRejects(() => live.complete(request(), CTX), ProviderError);
   assertEquals(error.rejectionDetails, { code: "unsupported_value", parameter: "response_format" });
   assert(!error.message.includes("private prompt"));
+});
+
+Deno.test("encrypted reasoning is replayed with its tool call inside the same request", async () => {
+  const captured: Array<Record<string, unknown>> = [];
+  let step = 0;
+  const live = provider(() =>
+    okResponse(
+      step++ === 0
+        ? {
+          status: "completed",
+          output: [
+            {
+              type: "reasoning",
+              id: "rs_fixture",
+              summary: [],
+              encrypted_content: "opaque-encrypted-fixture",
+            },
+            {
+              type: "function_call",
+              id: "fc_fixture",
+              call_id: "call_1",
+              name: "get_weather",
+              arguments: "{}",
+            },
+          ],
+        }
+        : {
+          status: "completed",
+          output: [{ type: "message", content: [{ type: "output_text", text: "{}" }] }],
+        },
+    ), captured);
+  const first = await live.complete(request(), CTX);
+  const next = request({
+    messages: [
+      { role: "user", content: "What should I wear?" },
+      { role: "assistant", content: "", toolCalls: first.toolCalls },
+      { role: "tool", content: "{}", toolCallId: "call_1" },
+    ],
+  });
+  await live.complete(next, CTX);
+  const replay = captured[1]?.input as Array<Record<string, unknown>>;
+  assert(
+    replay.some((item) =>
+      item.type === "reasoning" && item.encrypted_content === "opaque-encrypted-fixture"
+    ),
+  );
+  await live.complete(next, { ...CTX, userId: "peer" });
+  const peer = captured[2]?.input as Array<Record<string, unknown>>;
+  assert(!peer.some((item) => item.type === "reasoning"));
 });

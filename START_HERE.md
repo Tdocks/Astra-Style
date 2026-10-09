@@ -19,13 +19,23 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `20`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `21`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — 2026-10-08
+## Current internal release — build 21 (2026-10-08)
+
+Version **1.0.0 (21)** is VALID and IN_BETA_TESTING in Internal
+(build ID `aa507aee-4135-411d-b51e-d2550e9eb683`), with group membership and
+en-US testing notes verified. Adds Open preview in Kyra chat, routing to existing
+Studio progress/results. Twelve native chat tests passed, including focused
+action routing checks. Backend Kyra v14 uses Responses; one hosted styling reply
+passed without fallback. Full hosted preview and device acceptance remain open.
+External review is not submitted; the public group still uses build 11.
+
+## Previous internal release — build 20
 
 Version **1.0.0 (20)** is **VALID** and **IN_BETA_TESTING** in the Internal group
 (build ID `5cba6279-9473-450e-bdff-6783bc30b096`). Build 20 adds runtime
