@@ -59,12 +59,12 @@ lands data layers, protocols, and models long before the screens that use them.
 |---|---|---|---|---|
 | 1 — Foundation | 25 | 15 | 10 | 0 |
 | 2 — Identity | 18 | 14 | 4 | 0 |
-| 3 — Closet | 27 | 15 | 9 | 3 |
+| 3 — Closet | 27 | 15 | 10 | 2 |
 | 4 — Outfit intelligence | 26 | 17 | 7 | 2 |
 | 5 — Kyra | 22 | 18 | 4 | 0 |
 | 6 — Studio and commerce | 25 | 12 | 10 | 3 |
 | 7 — Monetization and hardening | 36 | 4 | 23 | 9 |
-| **Total** | **179** | **95** | **67** | **17** |
+| **Total** | **179** | **95** | **68** | **16** |
 
 Read that table carefully before drawing a conclusion from it. 95 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
@@ -269,7 +269,7 @@ pgvector ordering test.
 | P3-SCAN-09 | Done | `ScannerReviewView` + `ScannerReviewViewModel`: every suggested field is editable; low-confidence fields use `isLowConfidence(_:)` with a text footnote (“Kyra isn’t sure — check this”) so meaning is not colour-alone (§19); Save writes the edited `ClosetItem` + `ClosetItemImage` through `createItem` and logs `closetItemAdded` / `scanCorrected`. Capture Continue pushes `.review(capturedImageID:)` via `CaptureDraftStore`. Cutout is the prepared JPEG until Vision/P3-SCAN-10 — not faked. Tests: `ScannerReviewViewModelTests`. |
 | P3-SCAN-10 | Not started | No server-side background removal. |
 | P3-SCAN-11 | Done | Post-save unlock report on `ScannerReviewView` (phase `.saved` + Done). Count from `ScanOutfitUnlockEstimator.newlyUnlockedCount` — complementary-category partners in the active closet (Phase-3-era heuristic; revisit against `P4-OUTFIT-09`). Zero is shown honestly, never a fabricated positive. Tests: `ScanOutfitUnlockEstimatorTests`. `HomeBriefData.purchaseOpportunity` remains nil (different surface). |
-| P3-SCAN-12 | Not started | No receipt or mirror capture modes. |
+| P3-SCAN-12 | Partial | ReceiptCaptureView/ViewModel implement camera/import, on-device OCR and editable purchase suggestions through ClosetItemFormView. Simulator build, strict lint and four ReceiptSuggestionsTests passed. Real-image OCR, UI/accessibility acceptance and mirror-reference capture remain open. |
 | P3-CLOSET-01 | Done | `20260728100300_closet.sql` creates both tables with all spec columns + `embedding vector(1536)`; RLS applied and cross-user isolation asserted; live in production. |
 | P3-CLOSET-02 | Done | Full CRUD via Postgrest; writes queue on failure and drain on the next success (`OfflineDrainWiringTests`). **Reads now cache through `ClosetItemCaching`:** `SwiftDataClosetItemCache` / `InMemoryClosetItemCache` backed by `PersistedClosetItem`; `LiveClosetRepository.fetchItems` write-through on success and serves active cached rows when the network fetch fails (authenticated offline cold start). Create/update (including offline-queued) upsert the cache; archive updates it. Tests: `Tests/UnitTests/LiveClosetRepositoryCacheTests.swift`. |
 | P3-CLOSET-03 | Done | `Features/Closet/Views/ClosetView.swift` + `ClosetCategoryView.swift`, `ViewModels/ClosetViewModel.swift`, `Routing/ClosetDestinationView.swift`, `Components/` (category tile, grid tile, skeleton, empty state, error state, offline banner), wired into `MainTabView.closetTab` in place of `FeaturePlaceholderView`. **Both acceptance criteria met.** Criterion 1: a category tile pushes `ClosetRoute.category(_)` to a grid of that category alone. Criterion 2: the scan button calls `AppRouter.startScan()`, which presents the real `ScannerDestinationView` / `ScannerCaptureView` from `P3-SCAN-01` (no longer a `FeaturePlaceholderView`). The §6.14 header is complete: filter button (`P3-CLOSET-05`), metrics row and view-mode toggle (`P3-CLOSET-04`), laid out with `ViewThatFits`. "All items" still has no `ClosetRoute` case — the eighth tile scrolls to the whole-closet grid already on the page. Search narrows on name, brand and colour and composes with filters through `narrowed(_:)`. Tests: `Tests/UnitTests/ClosetViewModelTests.swift`. |
@@ -548,4 +548,4 @@ Build 22 release confirmation: VALID, Internal IN_BETA_TESTING, group membership
 
 Replaced the receipt/label route placeholder with camera/import, on-device Vision OCR, recognized-text review and the existing editable closet item form. Suggestions include a conservative explicit total, currency only when identified and unambiguous ISO purchase date; refunds/grouped amounts and ambiguous totals are left blank. The receipt total may cover multiple items, which the screen explicitly asks the user to review. Successful save is acknowledged and forwarded to the parent scanner callback. Receipt image bytes stay local and are not uploaded by this flow.
 
-Simulator build and strict lint passed. Parser tests are running; real receipt/label image acceptance, UI/accessibility layouts and TestFlight release remain open. Mirror-photo capture remains unimplemented. P3-SCAN-12 remains Not started in the ticket table until this new branch of its acceptance is verified; no completion claim or ticket-count change yet.
+Simulator build and strict lint passed. Four receipt suggestion tests passed; real receipt/label image acceptance, UI/accessibility layouts and TestFlight release remain open. Mirror-photo capture remains unimplemented. P3-SCAN-12 is Partial: the receipt branch is implemented, while full OCR/UI acceptance and mirror-photo capture remain open.
