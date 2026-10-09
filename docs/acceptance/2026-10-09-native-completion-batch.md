@@ -1,6 +1,6 @@
 # Native completion batch — verification record
 
-Status: in progress, not release acceptance. The current internal TestFlight build remains 30 until release 31 is separately archived, uploaded, processed, and checked.
+Status: scoped native verification passed; release upload remains pending. The current internal TestFlight build remains 30 until release 31 is separately archived, uploaded, processed, and checked.
 
 ## Implemented scope
 
@@ -24,3 +24,7 @@ Logs: `/tmp/astra-combined-v5-guides-weather-preview-verification-2.log`. First-
 ## Separate outstanding gates
 
 This record does not prove live provider image fidelity, physical-device camera/voice/calendar/weather/push/purchase behavior, Apple notification acceptance, counsel approval, a full production-user end-to-end run, or the Dynamic Type/VoiceOver audit. Thumbnail and semantic Studio cache drafts are separate and are not included in this native batch.
+
+## Final focused verification
+
+The corrected article-navigation test passed all four article categories, article routing, and brand disclosure/source assertions in 123.396 seconds; xcodebuild ended with TEST SUCCEEDED. The immediately preceding run passed saved-history/explicit refresh and all 1,082 Swift tests. These results close P5-KYRA-18, P6-SHOP-10, P6-STUDIO-09, P6-STUDIO-10, and P6-CORE-01. Final article log: `/tmp/astra-discover-article-navigation-verification.log`. The scoped batch is committed; TestFlight processing and physical-device acceptance remain separate.
