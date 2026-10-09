@@ -144,3 +144,19 @@ unapplied/undeployed notes above describe intermediate checkpoints.
 Build 20's existing stable submission keys now use this backend protection; no
 new native build is necessary for this deployment. Kyra preview service wiring
 and persisted confirmations remain open.
+
+## Kyra-to-Studio service adapter
+
+`studioServices.ts` now translates a verified chat turn to the owned Studio API.
+The persisted user-message UUID is its Idempotency-Key, so repeated tool attempts
+reuse the deployed submission ledger; changing the selection in that same turn
+returns a conflict. Requests forward the caller JWT and use only the configured
+Studio URL. Returned jobs must belong to that user. Quota/conflict failures are
+clear domain outcomes. Queue timing is an approximate 120-second estimate,
+not a guaranteed completion time; completed/failed replay states are retained.
+
+127 Kyra tests passed (`/tmp/astra-kyra-studio-service-tests.log`), including
+request header ownership and wrong-owner/quota/conflict response tests. Lint and
+entrypoint type checks passed. This adapter is not registered or deployed yet:
+reference IDs must be exposed in owned context, selection-bound confirmation
+must persist between turns, and native job presentation/polling needs acceptance.

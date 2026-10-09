@@ -1,3 +1,4 @@
+import { AppError } from "../../_shared/errors.ts";
 import { isUUID } from "../../_shared/validation.ts";
 import { type PendingStudioConfirmation, studioGenerationConfirmed } from "./studioConfirmation.ts";
 
@@ -23,7 +24,7 @@ export interface GenerateStudioPreviewDeps {
    */
   enqueue(selection: StudioPreviewSelection, reference: ConsentedStudioReference): Promise<{
     generationId: string;
-    status: "queued" | "generating";
+    status: "queued" | "generating" | "complete" | "failed";
     estimatedSeconds: number;
   }>;
 }
@@ -90,10 +91,24 @@ export async function executeGenerateStudioPreview(
         "Open Studio to confirm a saved reference photo and the current photo-consent terms before generating.",
     };
   }
-  const job = await deps.enqueue(selection, reference);
-  return {
-    generation_id: job.generationId,
-    status: job.status,
-    estimated_seconds: job.estimatedSeconds,
-  };
+  try {
+    const job = await deps.enqueue(selection, reference);
+    return {
+      generation_id: job.generationId,
+      status: job.status,
+      estimated_seconds: job.estimatedSeconds,
+    };
+  } catch (error) {
+    if (error instanceof AppError && error.status < 500) {
+      return {
+        error: error.status === 429
+          ? "QUOTA_EXCEEDED"
+          : error.status === 409
+          ? "PREVIEW_REQUEST_CONFLICT"
+          : "PREVIEW_UNAVAILABLE",
+        detail: error.message,
+      };
+    }
+    throw error;
+  }
 }
