@@ -194,3 +194,18 @@ The complete scratch SQL/RLS suite passed, including latest-prompt binding and
 rejection of a user-message prompt (`/tmp/astra-kyra-prompt-binding-rls.log`).
 The scratch database was dropped. Live deployment, runtime confirmation handling,
 cancellation/expiry enforcement and native job presentation remain open.
+
+## Private confirmation repository
+
+`studioConfirmations.ts` implements owner/thread-scoped preparation, pending
+lookup and closure against the server-only confirmation table. Hydration requires
+an unexpired, unclosed record, the same last assistant-message ID, a valid preview
+selection and its exact normalized selection key. The service-role client is
+injected; the module does not create credentials or read wardrobe data.
+
+128 Kyra tests passed (`/tmp/astra-kyra-confirmation-store-tests.log`), including
+owner/thread/prompt mismatch, expiry, closure, invalid reference and selection-key
+rejection. Type checking and lint passed. The repository is not yet called by the
+production handler; database adapter integration, runtime cancellation, final
+enqueue-time expiry checks and hosted acceptance remain open. No deployment or
+new native build was performed for this intermediate server layer.
