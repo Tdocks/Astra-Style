@@ -74,6 +74,7 @@ struct ClosetItemInsightsSection: View {
                         Text(look.outfit.name).astraText(.headline)
                         Button("Open look") { router.push(ClosetRoute.outfitDetail(outfitID: look.id)) }
                             .buttonStyle(.astraSecondary)
+                            .accessibilityIdentifier("closet.item.insights.openLook")
                     }
                     .frame(width: AstraSize.silhouetteCardWidth)
                 }

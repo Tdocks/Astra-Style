@@ -491,3 +491,28 @@ extension PersonalStyleFeatureUITests {
         add(screenshot)
     }
 }
+
+@MainActor
+extension PersonalStyleFeatureUITests {
+    func testItemGalleryOpensSavedLook() throws {
+        launchMockMain()
+        app.tapChromeTab("Closet")
+        let search = app.textFields["Name, brand, or colour"]
+        search.scrollIntoView(in: app)
+        awaitElement(search, "Closet search")
+        search.tap()
+        search.typeText("Knit Polo\n")
+        let item = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "closet.grid.item.")
+        ).firstMatch
+        item.scrollIntoView(in: app)
+        awaitElement(item, "Saved-look garment")
+        item.tap()
+        let open = app.buttons["closet.item.insights.openLook"]
+        open.scrollIntoView(in: app, maxSwipes: 12)
+        awaitElement(open, "Saved look gallery action")
+        XCTAssertTrue(app.staticTexts["Client Meeting, Elevated Casual"].exists)
+        open.tap()
+        awaitElement(app.buttons["outfitDetail.action.askKyra"], "Saved outfit detail")
+    }
+}

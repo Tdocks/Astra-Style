@@ -592,3 +592,5 @@ Item-insights refresh/UI follow-up: edits clear previous insight values and trig
 ## 2026-10-08 — Item-insights saved-look gallery
 
 Replaced numbered links with real outfit names and garment-photo silhouettes when look data loads, reusing LookHydrator's batched signing. Item-detail routing injects the outfit repository; archived looks are excluded, slot order preserved and missing photos keep garments named. Gallery failure leaves fallback links usable and reports the error separately. Eighteen native insight/item-detail tests, simulator build and changed-file strict lint passed. Gallery UI navigation/layout, largest text, live signing and authenticated hosted acceptance remain open. Changes are not in TestFlight build 23.
+
+Item gallery navigation acceptance: one simulator UI test passed, verifying Closet search → Knit Polo → its named saved-look gallery → outfit detail. Changed files passed strict lint. The test uses mock data; live photo signing, largest-text/VoiceOver and hosted insight acceptance remain open.
