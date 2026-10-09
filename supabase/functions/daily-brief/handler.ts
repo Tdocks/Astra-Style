@@ -264,8 +264,7 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
         const refreshingMissingWeather = body.weatherSnapshot !== null &&
           !hasStoredWeather(existing.weather_snapshot);
         const refreshingSchedule = body.scheduleSnapshot !== null &&
-          JSON.stringify(existing.schedule_snapshot ?? {}) !==
-            JSON.stringify(body.scheduleSnapshot);
+          !sameJsonValue(existing.schedule_snapshot ?? {}, body.scheduleSnapshot);
         refreshingMeasuredContext = refreshingMissingWeather || refreshingSchedule;
         if (!refreshingMeasuredContext) {
           logger.info("daily_brief_generate.returned_existing", {
@@ -339,6 +338,41 @@ export async function handleGenerateDailyBrief(req: Request, deps: HandlerDeps):
 
     return errorResponse(appError, requestId, CORS_HEADERS);
   }
+}
+
+/**
+ * Compare JSON-shaped snapshots without relying on object property order.
+ * PostgreSQL `jsonb` may return an object with a different key order than the
+ * request used to write it. Arrays remain ordered, and missing/undefined keys
+ * remain distinct from keys whose value is explicitly `null`.
+ */
+function sameJsonValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== typeof right) return false;
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+      return false;
+    }
+    return left.every((value, index) =>
+      Object.hasOwn(left, index) === Object.hasOwn(right, index) &&
+      sameJsonValue(value, right[index])
+    );
+  }
+
+  if (typeof left === "object" && typeof right === "object") {
+    const leftRecord = left as Record<string, unknown>;
+    const rightRecord = right as Record<string, unknown>;
+    const leftKeys = Object.keys(leftRecord).sort();
+    const rightKeys = Object.keys(rightRecord).sort();
+    if (leftKeys.length !== rightKeys.length) return false;
+    return leftKeys.every((key, index) =>
+      key === rightKeys[index] &&
+      sameJsonValue(leftRecord[key], rightRecord[key])
+    );
+  }
+
+  return false;
 }
 
 /**

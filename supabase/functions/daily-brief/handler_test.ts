@@ -252,6 +252,28 @@ Deno.test("a second call the same day returns the same brief", async () => {
   assertEquals(repository.createdOutfits.length, 1);
 });
 
+Deno.test("jsonb schedule key order does not rebuild an existing brief", async () => {
+  const repository = memoryRepository(POPULATED_CLOSET, 2);
+  const deps = buildDeps({ repository });
+  const first = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps)).json();
+  const stored = repository.briefs.get(BRIEF_DATE);
+  if (!stored) throw new Error("Expected the first brief to be persisted.");
+
+  // A jsonb round-trip is allowed to return object keys in a different order.
+  // Keep the exact same values while reproducing that ordering change.
+  repository.briefs.set(BRIEF_DATE, {
+    ...stored,
+    schedule_snapshot: Object.fromEntries(
+      Object.entries(stored.schedule_snapshot ?? {}).reverse(),
+    ),
+  });
+
+  const second = await (await handleGenerateDailyBrief(requestFor(generateBody()), deps)).json();
+  assertEquals(second.data.id, first.data.id);
+  assertEquals(second.data.primary_outfit_id, first.data.primary_outfit_id);
+  assertEquals(repository.createdOutfits.length, 1);
+});
+
 Deno.test("regenerate rebuilds the day's brief", async () => {
   const repository = memoryRepository(POPULATED_CLOSET);
   const deps = buildDeps({ repository });
