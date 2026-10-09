@@ -47,7 +47,6 @@ import { resolveRequestId } from "../_shared/requestId.ts";
 import { MockProductExtractionProvider } from "../_shared/providers/mockProductExtraction.ts";
 import { HtmlProductExtractionProvider } from "../_shared/providers/htmlProductExtraction.ts";
 import type { ProductExtractionProvider } from "../_shared/providers/productExtraction.ts";
-import { mapClosetItemRowToScorableItem } from "../_shared/scoring/closetItemMapper.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
 import { preferenceContextFromRow } from "../_shared/scoring/ownedScoringContext.ts";
 import { readAllUserIdBatches, readAllUserPages } from "../_shared/readPagination.ts";
@@ -60,6 +59,7 @@ import {
   UNLOCKS_CANDIDATE_CAP,
 } from "./handler.ts";
 import type { ProductCandidateRow } from "./candidateMapper.ts";
+import { mapOwnedGarmentForProductEvaluation } from "./ownedGarmentMapper.ts";
 import type { LifestyleInputs } from "./evaluation.ts";
 import { parseEnvelope } from "./schema.ts";
 
@@ -218,21 +218,8 @@ function buildDependencies(authorizationHeader: string, requestID: string): Prod
 
       const rows = data as unknown as ClosetItemMapperRow[];
       return rows.flatMap((row): OwnedGarment[] => {
-        const scorable = mapClosetItemRowToScorableItem(row);
-        if (scorable === null) return [];
-        return [{
-          scorable,
-          redundancy: {
-            id: scorable.id,
-            category: scorable.category,
-            role: scorable.role,
-            primaryColorLab: null,
-            formalityScore: scorable.formalityScore,
-            fit: scorable.fit,
-            materials: scorable.materials,
-            seasonality: scorable.seasonality,
-          },
-        }];
+        const mapped = mapOwnedGarmentForProductEvaluation(row);
+        return mapped ? [mapped] : [];
       });
     },
 

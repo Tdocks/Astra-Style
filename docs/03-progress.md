@@ -62,11 +62,11 @@ lands data layers, protocols, and models long before the screens that use them.
 | 3 — Closet | 27 | 15 | 12 | 0 |
 | 4 — Outfit intelligence | 26 | 20 | 5 | 1 |
 | 5 — Kyra | 22 | 18 | 4 | 0 |
-| 6 — Studio and commerce | 25 | 12 | 10 | 3 |
+| 6 — Studio and commerce | 25 | 13 | 10 | 2 |
 | 7 — Monetization and hardening | 36 | 5 | 24 | 7 |
-| **Total** | **179** | **103** | **65** | **11** |
+| **Total** | **179** | **104** | **65** | **10** |
 
-Read that table carefully before drawing a conclusion from it. 103 of 179 "Done" understates where
+Read that table carefully before drawing a conclusion from it. 104 of 179 "Done" understates where
 the project is: Phase 1's foundation is genuinely finished in substance, most Phase 1 "Partial"
 rows are missing one narrow criterion rather than the bulk of the work, Phase 2 onboarding is
 largely Done, Closet is usable end to end, and a large amount of Phase 3–7 data-layer work is
@@ -392,7 +392,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P6-SHOP-10 | Partial | extract/evaluate/fetch candidate/wishlist/purchased are live. Evaluations are not cached. |
 | P6-CORE-01 | Partial | Discover lists **his** lookbooks plus **Worn by other men** (public + worn, ADR 0017) and Unlocks from `POST /products/unlocks` (HIS gap via `computeUnlockCount` over evaluations **and** the Shop catalog, zeros dropped, no sponsored sort). Peer looks now use sanitized authenticated RPCs plus short-lived signed images; raw peer closet/outfit rows are closed in production. The detail screen is read-only and adds reporting; 150 local RLS assertions cover isolation. Mock-backed Discover/Shop navigation passes (2026-09-29); a live authorized public peer-look detail acceptance remains open. Shop is a **separate** tab over curated `product_candidates`. Home stays private. No editorial CMS table. |
 | P6-TEST-01 | Not started | `PendingIntegrationRequirementsTests.studioJobPolling()` still `.disabled` (live provider). Client polling is unit-tested against the mock. |
-| P6-TEST-02 | Not started | `PendingIntegrationRequirementsTests.productEvaluation()` still `.disabled` (live Edge). Client extract→evaluate is unit-tested against the mock. |
+| P6-TEST-02 | Done | `products/live_evaluation_acceptance.ts` is an opt-in hosted integration runner that seeds an owner-scoped closet, evaluates a near-duplicate catalog item and asserts high redundancy with a non-buy verdict. Hosted acceptance on 2026-10-09 returned HTTP 200, skip, redundancy 100 and duplicate-specific reasoning. It exposed and fixed the lost-color production mapper; the full backend suite passes 992 tests. Both synthetic owners were deleted normally and independently verified absent. The shared catalog fixture is present and the runner leaves it untouched. See `docs/acceptance/2026-10-09-p6-test-02-live-acceptance.md`. |
 
 ---
 
