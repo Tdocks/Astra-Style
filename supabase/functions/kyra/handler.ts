@@ -1121,6 +1121,9 @@ export async function handleKyraRespond(req: Request, deps: HandlerDeps): Promis
 
     const modelMetadata: Record<string, unknown> = {
       model_identifier: outcome.modelIdentifier,
+      tools_called: ctx.globalTrace.map((call) => call.name).filter((name) =>
+        registry.definitions.some((definition) => definition.name === name)
+      ),
       tier: outcome.tierUsed,
       escalated: outcome.escalated,
       prompt_version: KYRA_SYSTEM_PROMPT_VERSION,

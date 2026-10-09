@@ -353,3 +353,18 @@ TestFlight 1.0.0 (21), build ID aa507aee-4135-411d-b51e-d2550e9eb683, is VALID
 and IN_BETA_TESTING with Internal group membership verified. en-US notes saved.
 It contains the native queued-preview action. External review is not submitted;
 the public group still uses build 11. Upload log `/tmp/astra-testflight21.log`.
+
+## Hosted tool continuation acceptance
+
+A disposable caller requested an actual saved-closet search. Kyra v15 invoked
+`search_closet`, consumed its result, returned a nonempty reply without fallback
+and persisted the user/assistant messages. Private approval read and preparation
+returned 403. Cleanup returned 202; live SQL confirmed zero remaining user/thread
+rows. Report `/tmp/astra-kyra-tools-live-report.json`. This proves one actual
+tool-call continuation on Responses, not full preview/provider acceptance.
+
+Kyra v16 is now ACTIVE with JWT verification and the same behavior plus filtered
+`tools_called` metadata: only declared tool names are retained, no arguments or
+results. 135 Kyra tests passed (`/tmp/astra-kyra-tool-metadata-tests.log`), including
+stored executed-name metadata; lint and entrypoint checks passed. Hosted preview
+consent/generation, simulator sheet UI and remaining master-plan work stay open.

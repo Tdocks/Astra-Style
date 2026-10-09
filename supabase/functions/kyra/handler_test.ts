@@ -267,6 +267,7 @@ Deno.test("happy path: tool call round-trip, then a KyraMessage the client can d
   assertEquals(recording.threadsCreated.length, 1);
   assertEquals(recording.userMessages[0]?.content, "What should I wear tonight?");
   assertEquals(recording.assistantMessages[0]?.threadId, THREAD);
+  assertEquals(recording.assistantMessages[0]?.modelMetadata.tools_called, ["get_weather"]);
 
   // The provider saw the full eleven-tool surface and the luna tier.
   assertEquals(provider.requests[0]?.tools.length, 11);
