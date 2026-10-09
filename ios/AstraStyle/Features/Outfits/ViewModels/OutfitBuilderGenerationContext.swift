@@ -28,10 +28,11 @@ struct CurrentOutfitContextProvider: OutfitBuilderGenerationContextProviding {
         var weatherLine: String
         var weather: WeatherSnapshot?
         if weatherService.currentAuthorization() == .authorized,
-           let snapshot = try? await weatherService.currentSnapshot() {
+           let reading = try? await weatherService.currentReading() {
+            let snapshot = reading.snapshot
             weather = snapshot
             weatherLine =
-                "Weather: \(snapshot.condition.rawValue), \(snapshot.temperatureLow)–\(snapshot.temperatureHigh) °F; " +
+                "\(reading.isLastKnown ? "Last-known weather" : "Weather"): \(snapshot.condition.rawValue), \(snapshot.temperatureLow)–\(snapshot.temperatureHigh) °F; " +
                     "precipitation probability \(snapshot.precipitationChance.map(String.init(describing:)) ?? "unknown"); " +
                     "season \(snapshot.season?.rawValue ?? "unknown")"
         } else {

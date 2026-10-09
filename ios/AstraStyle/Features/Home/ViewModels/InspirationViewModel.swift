@@ -313,12 +313,13 @@ private extension InspirationViewModel {
 
     func appendWeatherContext(to lines: inout [String], summary: inout [String], ownerID: UUID) async -> Bool {
         if weatherService.currentAuthorization() == .authorized {
-            let weather = try? await weatherService.currentSnapshot()
+            let reading = try? await weatherService.currentReading()
             guard await requireCurrentOwner(ownerID) else { return false }
-            if let weather {
+            if let reading {
+                let weather = reading.snapshot
                 weatherSnapshot = weather
-                lines.append("Weather: \(weather.condition.rawValue), \(weather.temperatureLow)–\(weather.temperatureHigh) °F; precipitation probability \(weather.precipitationChance.map(String.init(describing:)) ?? "unknown"); season \(weather.season?.rawValue ?? "unknown")")
-                summary.append("Current weather included")
+                lines.append("\(reading.isLastKnown ? "Last-known weather" : "Weather"): \(weather.condition.rawValue), \(weather.temperatureLow)–\(weather.temperatureHigh) °F; precipitation probability \(weather.precipitationChance.map(String.init(describing:)) ?? "unknown"); season \(weather.season?.rawValue ?? "unknown")")
+                summary.append(reading.isLastKnown ? "Last-known weather included" : "Current weather included")
                 return true
             }
         }

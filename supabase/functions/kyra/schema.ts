@@ -93,6 +93,7 @@ export interface WeatherSnapshot {
   readonly temperatureLow: number;
   readonly condition: string;
   readonly season?: string | null;
+  readonly observedAt?: string | null;
 }
 
 export interface KyraScheduleSnapshot {
@@ -155,7 +156,15 @@ function parseWeatherSnapshot(raw: unknown): WeatherSnapshot | null {
   ) {
     throw badRequest("body.weather_snapshot.season must be a known season when present.");
   }
+  const observedAt = raw["observed_at"];
+  if (
+    observedAt !== undefined && observedAt !== null &&
+    (typeof observedAt !== "string" || !Number.isFinite(Date.parse(observedAt)))
+  ) {
+    throw badRequest("body.weather_snapshot.observed_at must be a valid timestamp.");
+  }
   return {
+    observedAt: typeof observedAt === "string" ? observedAt : null,
     temperatureHigh: high,
     temperatureLow: low,
     condition,

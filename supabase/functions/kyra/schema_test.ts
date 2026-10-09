@@ -49,6 +49,7 @@ Deno.test("parseKyraRespondBody parses thread, attachments, weather", () => {
     temperatureLow: 12,
     condition: "rain",
     season: null,
+    observedAt: null,
   });
 });
 

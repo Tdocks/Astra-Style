@@ -142,7 +142,7 @@ public final class LiveKyraRepository: KyraRepository, @unchecked Sendable {
         // is unavailable the body sends null and the server tool says so.
         let weather: WeatherSnapshot?
         if weatherService.currentAuthorization() == .authorized {
-            weather = try? await weatherService.currentSnapshot()
+            weather = try? await weatherService.currentReading().snapshot
         } else {
             weather = nil
         }

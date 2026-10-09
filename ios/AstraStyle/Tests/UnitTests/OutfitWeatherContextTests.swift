@@ -62,6 +62,20 @@ struct OutfitWeatherContextTests {
         }
     }
 
+    @Test("Builder uses saved weather without attempting the live-only entry point")
+    func builderUsesSavedReading() async throws {
+        let provider = CurrentOutfitContextProvider(
+            profileRepository: MockProfileRepository(),
+            weatherService: SavedWeatherOnlyService(),
+            calendarService: MockCalendarService()
+        )
+        let context = try await provider.makeContext()
+        #expect(context.weatherSnapshot != nil)
+        #expect(context.requestText.contains("Last-known weather"))
+        #expect(context.requestText.contains("Today's calendar"))
+        #expect(!context.requestText.contains("Client meeting"))
+    }
+
     private func snapshot(observedAt: Date) -> WeatherSnapshot {
         WeatherSnapshot(
             temperatureHigh: 70, temperatureLow: 50, condition: .clear,
@@ -74,5 +88,22 @@ struct OutfitWeatherContextTests {
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(GenerateOutfitsBody(request, now: now))
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+}
+
+private struct SavedWeatherOnlyService: WeatherService {
+    func currentAuthorization() -> WeatherLocationAuthorization { .authorized }
+    func requestLocationPermissionIfNeeded() async -> Bool { false }
+    func currentSnapshot() async throws -> WeatherSnapshot {
+        throw AstraError.provider("Live weather unavailable")
+    }
+    func currentReading() async throws -> WeatherReading {
+        WeatherReading(
+            snapshot: WeatherSnapshot(
+                temperatureHigh: 70, temperatureLow: 50, condition: .rain,
+                observedAt: Date.now.addingTimeInterval(-30 * 60), temperatureCelsius: 18
+            ),
+            source: .lastKnown
+        )
     }
 }

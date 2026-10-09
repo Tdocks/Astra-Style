@@ -55,11 +55,24 @@ export function executeGetWeather(
         "weather; reason without it, and say so if it materially affects the answer.",
     };
   }
-  const today = deps.now().toISOString().slice(0, 10);
+  const now = deps.now();
+  const observation = snapshot.observedAt ? new Date(snapshot.observedAt) : null;
+  const age = observation ? now.getTime() - observation.getTime() : null;
+  if (age !== null && (!Number.isFinite(age) || age > 2 * 60 * 60 * 1000 || age < -5 * 60 * 1000)) {
+    return {
+      available: false,
+      reason: "STALE_CLIENT_SNAPSHOT",
+      detail:
+        "The device's saved weather is outside the freshness window. Do not guess current conditions.",
+    };
+  }
+  const today = now.toISOString().slice(0, 10);
   const highC = fahrenheitToCelsius(snapshot.temperatureHigh);
   const lowC = fahrenheitToCelsius(snapshot.temperatureLow);
   return {
     available: true,
+    observed_at: snapshot.observedAt ?? null,
+    observation_age_minutes: age === null ? null : Math.max(0, Math.round(age / 60_000)),
     current_temp_c: null,
     high_c: highC,
     low_c: lowC,
@@ -74,7 +87,8 @@ export function executeGetWeather(
       },
     ],
     detail: "Single same-day reading from the user's device. No multi-day forecast exists " +
-      "server-side; do not extrapolate beyond today.",
+      "server-side; do not extrapolate beyond today. This may be a saved observation; " +
+      "do not describe it as a freshly fetched forecast.",
   };
 }
 

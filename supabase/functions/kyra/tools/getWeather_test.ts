@@ -42,3 +42,26 @@ Deno.test("season from the device is passed through without inferring location",
   });
   assertEquals(result["season"], "fall");
 });
+
+Deno.test("saved weather retains observation age and rejects expired/future readings", () => {
+  for (
+    const [observedAt, available] of [
+      ["2026-08-16T08:00:00Z", true],
+      ["2026-08-16T06:59:59Z", false],
+      ["2026-08-16T09:06:00Z", false],
+    ] as const
+  ) {
+    const result = executeGetWeather({}, {
+      weatherSnapshot: { temperatureHigh: 70, temperatureLow: 50, condition: "rain", observedAt },
+      now: NOW,
+    });
+    assertEquals(result["available"], available);
+    if (available) {
+      assertEquals(result["observed_at"], observedAt);
+      assertEquals(result["observation_age_minutes"], 60);
+    } else {
+      assertEquals(result["reason"], "STALE_CLIENT_SNAPSHOT");
+      assertEquals(result["forecast"], undefined);
+    }
+  }
+});
