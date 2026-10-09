@@ -522,4 +522,4 @@ call site.
 
 ## 2026-10-08 — Premium Studio quota groundwork
 
-Added an append-only monthly Premium reservation guard with a configurable default of 20, preserving retry and initial-submission idempotency (ADR 0033). Full local SQL isolation suite and Studio job-store type check passed. This migration is not deployed yet; concurrent premium acceptance and native remaining/reset display remain open. Ticket totals are unchanged.
+Added an append-only monthly Premium reservation guard with a configurable default of 20, preserving retry and initial-submission idempotency (ADR 0033). Full local SQL isolation suite and Studio job-store type check passed. Migration 20261009004701 and Studio v17 are deployed. Eight concurrent local requests with a one-preview limit accepted one job and rejected seven; 61 Studio tests passed. Hosted configuration/RLS/client privilege checks passed. Hosted premium request acceptance and native remaining/reset display remain open. Ticket totals are unchanged.

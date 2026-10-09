@@ -14,4 +14,6 @@ Retries reuse an allowance and idempotent replays return the existing job before
 
 Local full SQL isolation suite passed, including previous-month exclusion, limit rejection, same-key replay, retry without another allowance, release restoring capacity and denied authenticated config modification. Studio job-store type checking passed.
 
-Deployment, concurrent premium submission acceptance, quota-summary API and native remaining/reset display are still required. No hosted quota enforcement or new TestFlight build is claimed by this change.
+Eight simultaneous local submissions with a one-preview limit accepted exactly one job and rejected seven without extra allowances. Migration 20261009004701 is deployed; Studio v17 is ACTIVE with JWT verification and maps quota exhaustion to HTTP 429 with the UTC reset explanation. Hosted configuration is 20, RLS is enabled and authenticated UPDATE privilege is false. All 61 Studio backend tests passed. The advisor reports the intentional no-client-policy configuration table as INFO; existing unrelated warnings remain.
+
+Hosted premium request acceptance, quota-summary API and native remaining/reset display are still required. TestFlight remains build 21.
