@@ -20,7 +20,7 @@ struct ClosetItemInsightsSection: View {
                 Text("Higher means this piece is more similar to another active item in the same category and season. Similarity doesn't mean you should remove it.")
                     .astraText(.caption)
                 if !insights.missingRedundancyInputs.isEmpty {
-                    Text("Some details are missing: \(insights.missingRedundancyInputs.joined(separator: ", ")). Edit the piece to improve this estimate.")
+                    Text("Some details are missing: \(insights.missingRedundancyInputs.joined(separator: ", ")). Review these details on this piece and similar items to improve the estimate.")
                         .astraText(.caption)
                 }
                 ForEach(insights.similarItems, id: \.itemId) { similar in
@@ -37,6 +37,9 @@ struct ClosetItemInsightsSection: View {
                 ForEach(insights.pairings, id: \.itemId) { pairing in
                     if let item = viewModel.insightItems[pairing.itemId] {
                         pieceButton(item, detail: "\(pairing.score)/100 pairing score")
+                        if !pairing.missingInputs.isEmpty {
+                            Text("Some garment details or styling context are missing from this estimate.").astraText(.caption)
+                        }
                     }
                 }
                 Text("Saved looks with this piece").astraText(.headline)
