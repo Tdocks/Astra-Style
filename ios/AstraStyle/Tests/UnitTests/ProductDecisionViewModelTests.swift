@@ -155,6 +155,34 @@ struct ProductLinkPasteViewModelTests {
         #expect(model.submitError == nil)
     }
 
+    @Test("Repeated submit while extraction awaits does not create a second request")
+    func concurrentSubmitIsIgnored() async throws {
+        let shopping = MockShoppingRepository()
+        await shopping.pauseExtraction()
+        let model = ProductLinkPasteViewModel(shoppingRepository: shopping)
+        let first = Task { await model.extract(from: "https://example.com/products/navy-blazer") }
+        for _ in 0..<1_000 {
+            if await shopping.extractionCalls == 1 { break }
+            await Task.yield()
+        }
+        guard await shopping.extractionCalls == 1 else {
+            await shopping.resumeExtraction()
+            _ = await first.value
+            Issue.record("The first extraction did not reach its repository")
+            return
+        }
+        let second = await model.extract(from: "https://example.com/products/other")
+        let calls = await shopping.extractionCalls
+        let submitting = model.isSubmitting
+        await shopping.resumeExtraction()
+        let firstID = await first.value
+        #expect(calls == 1)
+        #expect(submitting)
+        #expect(second == nil)
+        #expect(firstID != nil)
+        #expect(!model.isSubmitting)
+    }
+
     @Test("A non-URL fails loud instead of guessing a retailer")
     func invalidURLFails() async {
         let shopping = MockShoppingRepository()

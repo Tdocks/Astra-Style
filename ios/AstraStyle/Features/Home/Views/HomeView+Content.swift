@@ -172,7 +172,7 @@ extension HomeView {
                 inspirationViewModel = InspirationViewModel(closetOnly: false, container: container)
             },
             onClosetOutfit: {
-                inspirationViewModel = InspirationViewModel(closetOnly: true, container: container)
+                router.startCreateOutfit()
             }
         )
         .padding(.horizontal, AstraSpacing.pagePadding)

@@ -104,10 +104,45 @@ extension ScannerReviewViewModel {
         if corrected > 0 {
             analyticsClient.log(.scanCorrected(fieldsCorrectedCount: corrected))
         }
-        let closet = (try? await closetRepository.fetchItems()) ?? []
-        outfitsUnlockedCount = ScanOutfitUnlockEstimator.newlyUnlockedCount(adding: item, to: closet)
+        unlockCountState = .calculating
         draftStore.remove(id: draftID)
         AstraHaptics.success()
         phase = .saved
+        Task { await calculateScanUnlockCount() }
+    }
+
+    public func retryScanUnlockCount() async {
+        guard case .unavailable = unlockCountState else { return }
+        unlockCountState = .calculating
+        await calculateScanUnlockCount()
+    }
+
+    private func calculateScanUnlockCount() async {
+        guard case .calculating = unlockCountState, let item = savedItem else { return }
+        let activeOwner = await currentUserID()
+        let isOffline = await networkMonitor.isOffline()
+        guard item.userID == activeOwner, !isOffline else {
+            unlockCountState = .unavailable
+            return
+        }
+        do {
+            let result = try await closetRepository.fetchScanUnlockCount(savedItemID: item.id)
+            guard await currentUserID() == item.userID, savedItem?.id == item.id else {
+                unlockCountState = .unavailable
+                return
+            }
+            switch result {
+            case .count(let count):
+                unlockCountState = .count(count)
+            case .unmeasurable:
+                unlockCountState = .unmeasurable
+            }
+        } catch is CancellationError {
+            unlockCountState = .unavailable
+        } catch {
+            // The closet save already succeeded. A count failure is only a
+            // missing report, never a reason to turn the save into failure.
+            unlockCountState = .unavailable
+        }
     }
 }

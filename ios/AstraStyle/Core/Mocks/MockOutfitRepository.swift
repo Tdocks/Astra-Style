@@ -57,7 +57,17 @@ public actor MockOutfitRepository: OutfitRepository {
         if failsOutfitGeneration {
             throw AstraError.network("Outfit suggestions are unavailable.")
         }
-        return [
+        let closet = SampleData.closetItems
+        struct GeneratedFixture {
+            let name: String
+            let reason: String
+            let itemIndices: [Int]
+        }
+        let additionalLooks = [
+            GeneratedFixture(name: "Easy denim", reason: "An Oxford shirt, denim, and clean low-top sneakers.", itemIndices: [0, 10, 20]),
+            GeneratedFixture(name: "Dinner-ready", reason: "A flannel shirt, wool trousers, and leather boots.", itemIndices: [6, 11, 19])
+        ]
+        let generatedLooks = [
             OutfitRecommendation(
                 id: SampleData.heroOutfit.id,
                 name: SampleData.heroOutfit.name,
@@ -66,7 +76,17 @@ public actor MockOutfitRepository: OutfitRepository {
                 itemIDs: SampleData.heroOutfitItems().compactMap(\.closetItemID),
                 missingProductIDs: []
             )
-        ]
+        ] + additionalLooks.map { fixture in
+            OutfitRecommendation(
+                id: UUID(),
+                name: fixture.name,
+                reason: fixture.reason,
+                compatibilityScore: 86,
+                itemIDs: fixture.itemIndices.compactMap { closet.indices.contains($0) ? closet[$0].id : nil },
+                missingProductIDs: []
+            )
+        }
+        return Array(generatedLooks.prefix(max(0, min(request.desiredCount, 3))))
     }
 
     public func rankOutfits(candidateOutfitIDs: [UUID], lockedClosetItemIDs: [UUID]) async throws -> [OutfitRecommendation] {
@@ -112,6 +132,10 @@ public actor MockOutfitRepository: OutfitRepository {
     /// Test/preview seam: every `outfit_wears` row recorded so far.
     public func recordedWears() async -> [OutfitWear] {
         wears
+    }
+
+    public func fetchOutfitWears(from: Date, to: Date) async throws -> [OutfitWear] {
+        wears.filter { $0.wornAt >= from && $0.wornAt <= to }
     }
 
     @discardableResult

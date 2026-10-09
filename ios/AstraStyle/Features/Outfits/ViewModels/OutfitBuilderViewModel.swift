@@ -72,6 +72,11 @@ public final class OutfitBuilderViewModel {
     public private(set) var savedOutfit: Outfit?
     public private(set) var actionError: AstraError?
     public private(set) var askKyraState: AskKyraState = .idle
+    public let showsClosetRecommendations: Bool
+    public private(set) var recommendations: [OutfitRecommendation] = []
+    public private(set) var isLoadingRecommendations = false
+    public private(set) var recommendationError: String?
+    public private(set) var selectedRecommendationID: UUID?
 
     // MARK: - Dependencies
 
@@ -79,6 +84,7 @@ public final class OutfitBuilderViewModel {
     private let closetRepository: ClosetRepository
     private let compatibilityScorer: CompatibilityScoring
     private let startingOutfitID: UUID?
+    private let generationContextProvider: any OutfitBuilderGenerationContextProviding
 
     /// Forwarding-only: this class logs nothing itself. Spec §18's event
     /// list names `outfit_generated` (the generation endpoint,
@@ -99,13 +105,16 @@ public final class OutfitBuilderViewModel {
         closetRepository: ClosetRepository,
         compatibilityScorer: CompatibilityScoring = LocalCompatibilityScorer(),
         analyticsClient: AnalyticsClient = NoOpAnalyticsClient(),
-        startingOutfitID: UUID? = nil
+        startingOutfitID: UUID? = nil,
+        generationContextProvider: any OutfitBuilderGenerationContextProviding = EmptyOutfitContextProvider()
     ) {
         self.outfitRepository = outfitRepository
         self.closetRepository = closetRepository
         self.compatibilityScorer = compatibilityScorer
         self.analyticsClient = analyticsClient
         self.startingOutfitID = startingOutfitID
+        self.showsClosetRecommendations = startingOutfitID == nil
+        self.generationContextProvider = generationContextProvider
         self.slots = ClothingCategory.outfitBuilderRailOrder.map { OutfitBuilderSlot(category: $0) }
         self.backingOutfitID = startingOutfitID
     }
@@ -217,6 +226,60 @@ public final class OutfitBuilderViewModel {
 // seam (client, cache, etc.) the way that repository's split does.
 extension OutfitBuilderViewModel {
 
+    // MARK: - Closet recommendations
+
+    /// Requests three recommendations and accepts only results whose item
+    /// references resolve against this owner's loaded closet. A malformed
+    /// or stale server reference is omitted instead of becoming an empty
+    /// builder slot that looks like a valid generated outfit.
+    public func generateClosetRecommendations() async {
+        guard !isLoadingRecommendations else { return }
+        isLoadingRecommendations = true
+        recommendationError = nil
+        recommendations = []
+        selectedRecommendationID = nil
+        defer { isLoadingRecommendations = false }
+
+        do {
+            let ownedIDs = Set(closetItems.filter { !$0.isArchived }.map(\.id))
+            guard !ownedIDs.isEmpty else {
+                recommendationError = "Add a few pieces to your closet before building an outfit."
+                return
+            }
+            let context = try await generationContextProvider.makeContext()
+            let response = try await outfitRepository.generateOutfits(
+                OutfitGenerationRequest(
+                    naturalLanguageRequest: context.requestText.isEmpty
+                        ? "Create three different outfits using only items in my closet."
+                        : context.requestText,
+                    desiredCount: 3,
+                    weatherSnapshot: context.weatherSnapshot
+                )
+            )
+            recommendations = Array(response.filter { recommendation in
+                !recommendation.itemIDs.isEmpty && recommendation.itemIDs.allSatisfy(ownedIDs.contains)
+            }.prefix(3))
+            if recommendations.isEmpty {
+                recommendationError = "There aren't enough closet pieces for an outfit yet. Add or scan a few more items and try again."
+            }
+        } catch let error as AstraError {
+            recommendationError = error.message
+        } catch {
+            recommendationError = "Couldn't build outfit ideas right now. Try again."
+        }
+    }
+
+    public func selectRecommendation(_ recommendation: OutfitRecommendation) {
+        guard recommendations.contains(where: { $0.id == recommendation.id }) else { return }
+        applyToUnlockedSlots(recommendation)
+        outfitName = recommendation.name
+        selectedRecommendationID = recommendation.id
+    }
+
+    public func clearRecommendationError() {
+        recommendationError = nil
+    }
+
     // MARK: - Regenerate (lock + regenerate unlocked slots, P4-OUTFIT-08)
 
     /// Re-ranks and applies the top result to every UNLOCKED slot only.
@@ -234,11 +297,25 @@ extension OutfitBuilderViewModel {
         actionError = nil
         do {
             let lockedItemIDs = slots.compactMap { $0.isLocked ? $0.item?.id : nil }
-            let candidateOutfitIDs = backingOutfitID.map { [$0] } ?? []
-            let recommendations = try await outfitRepository.rankOutfits(
-                candidateOutfitIDs: candidateOutfitIDs,
-                lockedClosetItemIDs: lockedItemIDs
-            )
+            let recommendations: [OutfitRecommendation]
+            if let backingOutfitID {
+                recommendations = try await outfitRepository.rankOutfits(
+                    candidateOutfitIDs: [backingOutfitID],
+                    lockedClosetItemIDs: lockedItemIDs
+                )
+            } else {
+                let context = try await generationContextProvider.makeContext()
+                recommendations = try await outfitRepository.generateOutfits(
+                    OutfitGenerationRequest(
+                        naturalLanguageRequest: context.requestText.isEmpty
+                            ? "Create three outfits using only items in my closet."
+                            : context.requestText,
+                        lockedClosetItemIDs: lockedItemIDs,
+                        desiredCount: 3,
+                        weatherSnapshot: context.weatherSnapshot
+                    )
+                )
+            }
             guard let top = recommendations.first else { return }
             applyToUnlockedSlots(top)
         } catch let error as AstraError {

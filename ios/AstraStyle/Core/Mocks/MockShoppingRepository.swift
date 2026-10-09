@@ -17,6 +17,9 @@ public actor MockShoppingRepository: ShoppingRepository {
     private var evaluationOverride: ProductEvaluation?
     private var evaluations: [ProductEvaluation] = []
     private var extractError: AstraError?
+    private var extractionPause: CheckedContinuation<Void, Never>?
+    private var shouldPauseExtraction = false
+    public private(set) var extractionCalls = 0
     private var evaluateError: AstraError?
     private var purchaseHistoryError: AstraError?
     private var evaluationHistoryError: AstraError?
@@ -71,6 +74,16 @@ public actor MockShoppingRepository: ShoppingRepository {
         evaluationOverride = evaluation
     }
 
+    public func pauseExtraction() {
+        shouldPauseExtraction = true
+    }
+
+    public func resumeExtraction() {
+        shouldPauseExtraction = false
+        extractionPause?.resume()
+        extractionPause = nil
+    }
+
     public func setExtractError(_ error: AstraError?) {
         extractError = error
     }
@@ -102,6 +115,10 @@ public actor MockShoppingRepository: ShoppingRepository {
     }
 
     public func extractProduct(from url: URL) async throws -> ProductCandidate {
+        extractionCalls += 1
+        if shouldPauseExtraction {
+            await withCheckedContinuation { extractionPause = $0 }
+        }
         if let extractError { throw extractError }
         if let existing = catalog.first(where: { $0.canonicalURL == url }) {
             return existing

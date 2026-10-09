@@ -139,12 +139,12 @@ public final class LiveClosetRepository: ClosetRepository, ScannerSaveRemoteWrit
 
     public func fetchItem(id: UUID) async throws -> ClosetItem {
         do {
-            let item: ClosetItem = try await supabase.from("closet_items")
-                .select()
-                .eq("id", value: id)
-                .single()
-                .execute()
-                .value
+            guard let item = try await writer.fetch(id: id) else {
+                throw AstraError.server("Couldn't load that item.")
+            }
+            if let owner = await currentUserID(), item.userID != owner {
+                throw AstraError.server("Couldn't load that item.")
+            }
             await cache.upsert(item)
             return item
         } catch {

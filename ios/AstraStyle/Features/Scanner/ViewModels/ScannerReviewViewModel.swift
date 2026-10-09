@@ -48,6 +48,13 @@ public final class ScannerReviewViewModel {
         }
     }
 
+    public enum UnlockCountState: Equatable, Sendable {
+        case calculating
+        case count(Int)
+        case unavailable
+        case unmeasurable
+    }
+
     /// Bundles repository seams so `init` stays under SwiftLint's
     /// `function_parameter_count` (5) without dropping a real dependency.
     /// Not `Sendable`: `CaptureDraftStore` is `@MainActor` and this bundle
@@ -95,9 +102,13 @@ public final class ScannerReviewViewModel {
     var cachedCutout: (source: String, path: String)?
     public internal(set) var analysis: ClosetItemAnalysisResult?
     public internal(set) var ocrText: String?
-    /// Phase-3 simplified unlock count after a successful save (P3-SCAN-11).
-    /// `nil` until save completes; zero is a real answer ("nothing new yet").
-    public internal(set) var outfitsUnlockedCount: Int?
+    /// Server-computed count after a successful save. Unavailable and
+    /// unmeasurable remain distinct from a real zero.
+    public internal(set) var unlockCountState: UnlockCountState = .calculating
+    public var outfitsUnlockedCount: Int? {
+        guard case .count(let count) = unlockCountState else { return nil }
+        return count
+    }
 
     /// The garment this flow created, once it exists.
     ///

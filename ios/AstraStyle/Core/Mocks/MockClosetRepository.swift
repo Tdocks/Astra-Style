@@ -12,6 +12,7 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     private var items: [UUID: ClosetItem]
     private let previewBatchFailureIndex: Int?
     private var monthlyVersatilityScores: [String: Int] = [:]
+    private var scanUnlockCountResults: [UUID: ScanUnlockCountResult] = [:]
 
     /// Capture paths this mock has handed out and not yet been asked to
     /// delete — the in-memory stand-in for objects sitting in
@@ -52,6 +53,14 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
             throw AstraError.server("That item couldn't be found.")
         }
         return item
+    }
+
+    public func fetchScanUnlockCount(savedItemID: UUID) async throws -> ScanUnlockCountResult {
+        scanUnlockCountResults[savedItemID] ?? .unmeasurable
+    }
+
+    public func setScanUnlockCountResult(_ result: ScanUnlockCountResult, for itemID: UUID) {
+        scanUnlockCountResults[itemID] = result
     }
 
     public func remoteScannerItem(id: UUID) async throws -> ClosetItem? { items[id] }

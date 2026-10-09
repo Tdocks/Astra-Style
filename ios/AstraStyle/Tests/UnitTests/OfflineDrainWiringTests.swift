@@ -89,14 +89,16 @@ struct OfflineDrainWiringTests {
     private func makeRepository(
         queue: InMemoryOfflineMutationQueue,
         writer: some ClosetWriting,
-        userID: UUID
+        userID: UUID,
+        activeItemsFetcher: (@Sendable () async throws -> [ClosetItem])? = nil
     ) -> LiveClosetRepository {
         LiveClosetRepository(
             apiClient: AstraAPIClient(environment: .preview),
             offlineQueue: queue,
             supabase: AstraSupabaseClientFactory.previewClient,
             writer: writer,
-            currentUserID: { userID }
+            currentUserID: { userID },
+            activeItemsFetcher: activeItemsFetcher
         )
     }
 
@@ -158,18 +160,21 @@ struct OfflineDrainWiringTests {
         let writer = StubClosetWriter(shouldFail: true)
         let queue = InMemoryOfflineMutationQueue()
         let owner = UUID()
-        let repository = makeRepository(queue: queue, writer: writer, userID: owner)
+        let repository = makeRepository(
+            queue: queue,
+            writer: writer,
+            userID: owner,
+            activeItemsFetcher: { throw AstraError.network("offline") }
+        )
 
         let garment = item("Selvedge Denim", owner: owner)
         _ = try await repository.createItem(garment, images: [])
         #expect(await queue.pendingMutations().count == 1)
 
         await writer.setShouldFail(false)
-        // `fetchItems` hits the preview Supabase client and will throw; the
-        // drain is on its success path, so nothing should flush here. This
-        // asserts the negative deliberately: it is the guard against a drain
-        // that fires on failure and burns attempts while the device is still
-        // offline.
+        // The injected fetch failure represents offline state without
+        // depending on DNS or the preview Supabase project. A failed fetch
+        // must not drain the backlog or burn a replay attempt.
         _ = try? await repository.fetchItems()
         #expect(await queue.pendingMutations().count == 1)
 

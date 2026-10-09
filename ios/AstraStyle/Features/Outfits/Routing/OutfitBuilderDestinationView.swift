@@ -47,7 +47,12 @@ struct OutfitBuilderDestinationView: View {
                     outfitRepository: container.outfitRepository,
                     closetRepository: container.closetRepository,
                     analyticsClient: container.analyticsClient,
-                    startingOutfitID: startingOutfitID
+                    startingOutfitID: startingOutfitID,
+                    generationContextProvider: CurrentOutfitContextProvider(
+                        profileRepository: container.profileRepository,
+                        weatherService: container.weatherService,
+                        calendarService: container.calendarService
+                    )
                 )
             )
 

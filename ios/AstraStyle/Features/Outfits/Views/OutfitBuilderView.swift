@@ -22,6 +22,7 @@ public struct OutfitBuilderView: View {
     @State private var viewModel: OutfitBuilderViewModel
     @State private var editingCategory: ClothingCategory?
     @State private var wearFeedbackViewModel: WearFeedbackViewModel?
+    @Environment(AppRouter.self) private var router
 
     public init(viewModel: OutfitBuilderViewModel) {
         _viewModel = State(wrappedValue: viewModel)
@@ -95,6 +96,10 @@ public struct OutfitBuilderView: View {
 
     private var loadedContent: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.xl) {
+            if viewModel.showsClosetRecommendations {
+                recommendationsSection
+            }
+
             nameField
                 .padding(.horizontal, AstraSpacing.pagePadding)
 
@@ -113,6 +118,84 @@ public struct OutfitBuilderView: View {
                     .padding(.horizontal, AstraSpacing.pagePadding)
             }
         }
+    }
+
+    private var recommendationsSection: some View {
+        VStack(alignment: .leading, spacing: AstraSpacing.md) {
+            VStack(alignment: .leading, spacing: AstraSpacing.xxs) {
+                Text("Outfits from your closet")
+                    .astraText(.title2)
+                    .foregroundStyle(AstraColor.textPrimary)
+                Text("Get three ideas using pieces you already own, then choose one to edit.")
+                    .astraText(.callout)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                Task { await viewModel.generateClosetRecommendations() }
+            } label: {
+                if viewModel.isLoadingRecommendations {
+                    ProgressView().tint(AstraColor.accentChampagneAccessible)
+                } else {
+                    Text(viewModel.recommendations.isEmpty ? "Get three outfit ideas" : "Try three new ideas")
+                }
+            }
+            .buttonStyle(.astraSecondary)
+            .disabled(viewModel.isLoadingRecommendations)
+            .accessibilityIdentifier("outfitBuilder.generateRecommendations")
+
+            if let recommendationError = viewModel.recommendationError {
+                VStack(alignment: .leading, spacing: AstraSpacing.xs) {
+                    Text(recommendationError)
+                        .astraText(.body)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .accessibilityIdentifier("outfitBuilder.recommendationError")
+                    Button("Try again") {
+                        Task { await viewModel.generateClosetRecommendations() }
+                    }
+                    .buttonStyle(.astraTertiary)
+                    .accessibilityIdentifier("outfitBuilder.retryRecommendations")
+                }
+            }
+
+            ForEach(viewModel.recommendations) { recommendation in
+                recommendationCard(recommendation)
+            }
+        }
+        .padding(.horizontal, AstraSpacing.pagePadding)
+    }
+
+    private func recommendationCard(_ recommendation: OutfitRecommendation) -> some View {
+        let ownedItems = recommendation.itemIDs.compactMap { id in viewModel.closetItems.first { $0.id == id } }
+        let isSelected = viewModel.selectedRecommendationID == recommendation.id
+        return AstraCard {
+            VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                Text(recommendation.name)
+                    .astraText(.headline)
+                    .foregroundStyle(AstraColor.textPrimary)
+                if !recommendation.reason.isEmpty {
+                    Text(recommendation.reason)
+                        .astraText(.caption)
+                        .foregroundStyle(AstraColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(ownedItems.map(\.name).joined(separator: " · "))
+                    .astraText(.caption)
+                    .foregroundStyle(AstraColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("outfitBuilder.recommendationItems.\(recommendation.id.uuidString.lowercased())")
+                Button(isSelected ? "Selected for editing" : "Choose this outfit") {
+                    viewModel.selectRecommendation(recommendation)
+                }
+                .buttonStyle(.astraTertiary)
+                .disabled(isSelected)
+                .accessibilityIdentifier("outfitBuilder.chooseRecommendation.\(recommendation.id.uuidString.lowercased())")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("outfitBuilder.recommendation.\(recommendation.id.uuidString.lowercased())")
     }
 
     private var nameField: some View {
@@ -173,6 +256,24 @@ public struct OutfitBuilderView: View {
             }
             .disabled(viewModel.filledItems.isEmpty)
             .accessibilityIdentifier("outfitBuilder.save")
+
+            if let savedOutfit = viewModel.savedOutfit {
+                Button("Visualize this outfit") {
+                    router.presentModal(.studioGeneration(outfitID: savedOutfit.id))
+                }
+                .buttonStyle(.astraSecondary)
+                .accessibilityIdentifier("outfitBuilder.visualize")
+
+                Button("Refine with Kyra") {
+                    router.startAskKyra(
+                        initialPrompt: "Help me refine this outfit. What could I change while keeping the pieces I own?",
+                        outfitID: savedOutfit.id,
+                        autoSend: true
+                    )
+                }
+                .buttonStyle(.astraTertiary)
+                .accessibilityIdentifier("outfitBuilder.refineWithKyra")
+            }
         }
     }
 

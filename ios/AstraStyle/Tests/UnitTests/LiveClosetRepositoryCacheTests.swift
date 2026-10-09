@@ -26,12 +26,17 @@ struct LiveClosetRepositoryCacheTests {
 
     private actor StubClosetWriter: ClosetWriting {
         let failsWrites: Bool
+        let failsFetch: Bool
         let remoteItem: ClosetItem?
-        init(failsWrites: Bool = false, remoteItem: ClosetItem? = nil) {
+        init(failsWrites: Bool = false, failsFetch: Bool = false, remoteItem: ClosetItem? = nil) {
             self.failsWrites = failsWrites
+            self.failsFetch = failsFetch
             self.remoteItem = remoteItem
         }
-        func fetch(id: UUID) async throws -> ClosetItem? { remoteItem?.id == id ? remoteItem : nil }
+        func fetch(id: UUID) async throws -> ClosetItem? {
+            if failsFetch { throw AstraError.network("offline") }
+            return remoteItem?.id == id ? remoteItem : nil
+        }
         func create(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
             if failsWrites { throw AstraError.network("offline") }; return item
         }
@@ -79,6 +84,57 @@ struct LiveClosetRepositoryCacheTests {
         let cached = await cache.items(for: userID)
         #expect(cached.map(\.id) == [navy.id])
         #expect(cached.first?.name == "Navy Crewneck")
+    }
+
+    @Test("A single-item read uses the injected writer and caches an owned result")
+    func successfulSingleItemReadUsesWriter() async throws {
+        let userID = UUID()
+        let garment = item(userID: userID, name: "Remote blazer")
+        let cache = InMemoryClosetItemCache()
+        let repository = makeRepository(
+            cache: cache,
+            userID: userID,
+            fetcher: nil,
+            writer: StubClosetWriter(remoteItem: garment)
+        )
+
+        let fetched = try await repository.fetchItem(id: garment.id)
+
+        #expect(fetched == garment)
+        #expect(await cache.items(for: userID).map(\.id) == [garment.id])
+    }
+
+    @Test("A single-item read rejects a peer-owned writer result")
+    func singleItemReadDoesNotCachePeerResult() async throws {
+        let owner = UUID()
+        let peerItem = item(userID: UUID(), name: "Peer blazer")
+        let cache = InMemoryClosetItemCache()
+        let repository = makeRepository(
+            cache: cache,
+            userID: owner,
+            fetcher: nil,
+            writer: StubClosetWriter(remoteItem: peerItem)
+        )
+
+        await #expect(throws: AstraError.self) {
+            try await repository.fetchItem(id: peerItem.id)
+        }
+        #expect(await cache.items(for: owner).isEmpty)
+    }
+
+    @Test("A failed single-item read falls back to the matching owner's cache")
+    func failedSingleItemReadUsesOwnerCache() async throws {
+        let owner = UUID()
+        let garment = item(userID: owner, name: "Cached blazer")
+        let cache = InMemoryClosetItemCache(seed: [garment])
+        let repository = makeRepository(
+            cache: cache,
+            userID: owner,
+            fetcher: nil,
+            writer: StubClosetWriter(failsFetch: true)
+        )
+
+        #expect(try await repository.fetchItem(id: garment.id) == garment)
     }
 
     @Test("An offline fetch returns the last cached closet instead of failing empty-handed")

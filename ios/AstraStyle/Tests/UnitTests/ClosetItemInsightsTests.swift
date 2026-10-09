@@ -12,6 +12,16 @@ struct ClosetItemInsightsTests {
         #expect(endpoint.path == "closet/items/abcdef12-1111-4111-8111-111111111111/insights")
     }
 
+    @Test("Scanner unlock count is a read scoped to the saved item's id")
+    func scanUnlockCountEndpoint() throws {
+        let id = try #require(UUID(uuidString: "ABCDEF12-1111-4111-8111-111111111111"))
+        let endpoint = AstraEndpoint.fetchScanUnlockCount(id: id)
+        #expect(endpoint.method == .get)
+        #expect(endpoint.path == "closet/items/abcdef12-1111-4111-8111-111111111111/unlock-count")
+        #expect(endpoint.requiresAuthentication)
+        #expect(!endpoint.requiresIdempotencyKey)
+    }
+
     @Test("Backend insight payload preserves missing inputs and referenced IDs")
     func decode() throws {
         let data = Data(#"""

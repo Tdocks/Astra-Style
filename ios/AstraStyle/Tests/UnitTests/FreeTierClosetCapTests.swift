@@ -133,6 +133,20 @@ struct FreeTierClosetCapTests {
         #expect(items.count == FreeTierLimits.maxClosetItems + 1)
     }
 
+    @Test("The free-tier wrapper forwards the server-owned scan unlock count")
+    func scanUnlockCountPassesThroughWrapper() async throws {
+        let base = MockClosetRepository(items: [])
+        let item = makeItem(name: "Saved coat")
+        try await base.setScanUnlockCountResult(.count(4), for: item.id)
+        let repository = FreeTierCappedClosetRepository(
+            base: base,
+            isEntitledToPremium: { false }
+        )
+
+        let result = try await repository.fetchScanUnlockCount(savedItemID: item.id)
+        #expect(result == .count(4))
+    }
+
     @Test("Archiving an item frees a free-tier cap slot")
     func archivingFreesCapSlot() async throws {
         let userID = UUID()

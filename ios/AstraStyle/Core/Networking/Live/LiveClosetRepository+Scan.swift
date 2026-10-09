@@ -21,6 +21,37 @@ import Foundation
 import Supabase
 
 extension LiveClosetRepository {
+    private struct ScanUnlockCountResponse: Decodable, Sendable {
+        let status: String
+        let outfitsUnlocked: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case outfitsUnlocked = "outfits_unlocked"
+        }
+    }
+
+    public func fetchScanUnlockCount(savedItemID: UUID) async throws -> ScanUnlockCountResult {
+        let response: ScanUnlockCountResponse = try await apiClient.send(
+            .fetchScanUnlockCount(id: savedItemID),
+            as: ScanUnlockCountResponse.self
+        )
+        switch response.status {
+        case "available":
+            guard let count = response.outfitsUnlocked, count >= 0 else {
+                throw AstraError.server("The outfit count response was incomplete.")
+            }
+            return .count(count)
+        case "unmeasurable":
+            guard response.outfitsUnlocked == nil else {
+                throw AstraError.server("The outfit count response was inconsistent.")
+            }
+            return .unmeasurable
+        default:
+            throw AstraError.server("The outfit count response was invalid.")
+        }
+    }
+
     /// The wire element both analyze endpoints take: the uploaded object's
     /// path plus the correlation id the server must echo back. Image bytes
     /// go to Storage, never into the JSON body (`docs/08` §2's

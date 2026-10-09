@@ -15,7 +15,7 @@ struct ScannerReviewViewModelTests {
 
     @Test("Happy path uploads, analyzes, seeds low-confidence brand, and saves corrected values")
     func happyPathSavesCorrections() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -41,12 +41,9 @@ struct ScannerReviewViewModelTests {
         #expect(model.brand == "Uniqlo")
 
         model.brand = "Drake's"
-        // Seed complementary partners so P3-SCAN-11 reports a real count.
-        repository.seedItems = [
-            ClosetItem(id: UUID(), userID: userID, name: "Chinos", category: .bottom),
-            ClosetItem(id: UUID(), userID: userID, name: "Sneakers", category: .shoes)
-        ]
+        repository.unlockCountResult = .count(2)
         await model.save()
+        try await waitUntilUnlockCountSettles(model)
 
         #expect(model.phase == .saved)
         let saved = try #require(repository.lastCreated)
@@ -55,6 +52,7 @@ struct ScannerReviewViewModelTests {
         #expect(repository.lastImages?.first?.storagePath == model.storagePath)
         #expect(store.draft(id: draft.id) == nil)
         #expect(model.outfitsUnlockedCount == 2)
+        #expect(repository.unlockCountRequestedIDs == [saved.id])
     }
 
     /// `savedItem` exists so onboarding's first-items step can list a garment
@@ -65,7 +63,7 @@ struct ScannerReviewViewModelTests {
     /// but that the app remembers what it sent.
     @Test("The garment handed to the caller is the repository's, not the draft")
     func savedItemIsTheRepositorysReturnValue() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -110,7 +108,7 @@ struct ScannerReviewViewModelTests {
 
     @Test("Leaving review without saving removes the uploaded capture")
     func abandonedCaptureIsDeleted() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -138,7 +136,7 @@ struct ScannerReviewViewModelTests {
     /// straight after a successful save, so the guard is load-bearing.
     @Test("A saved capture is never deleted")
     func savedCaptureSurvivesDiscard() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -161,7 +159,7 @@ struct ScannerReviewViewModelTests {
 
     @Test("Discarding twice cannot ask the server to delete the same object twice")
     func discardIsIdempotent() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -183,7 +181,7 @@ struct ScannerReviewViewModelTests {
     /// dismissal still happens.
     @Test("A failed cleanup does not throw at the caller")
     func failedCleanupIsSwallowed() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -205,7 +203,7 @@ struct ScannerReviewViewModelTests {
     /// the repository anyway would fail on a path that never existed.
     @Test("Discarding before an upload succeeded touches nothing")
     func discardBeforeUploadIsANoOp() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -223,7 +221,7 @@ struct ScannerReviewViewModelTests {
 
     @Test("Non-network upload failure keeps the local draft and retry re-invokes upload")
     func uploadFailureIsRetryable() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -250,7 +248,7 @@ struct ScannerReviewViewModelTests {
 
     @Test("Analyze failure after a successful upload retries analyze without a second upload")
     func analyzeRetrySkipsReupload() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -277,7 +275,7 @@ struct ScannerReviewViewModelTests {
 
     @Test("Offline start queues the JPEG locally without uploading")
     func offlineStartQueuesPendingScan() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let hints = GarmentDeviceHints(
             dominantColorsRGB: ["#112233"],
@@ -316,7 +314,7 @@ struct ScannerReviewViewModelTests {
 
     @Test("Queued offline scan uploads and analyzes automatically when connectivity returns")
     func queuedScanAnalyzesOnReconnect() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -357,7 +355,7 @@ struct ScannerReviewViewModelTests {
         #expect(model.phase == .missingDraft)
     }
 
-    private func makeModel(
+    func makeModel(
         draftID: UUID,
         store: CaptureDraftStore,
         repository: ClosetRepository,
@@ -380,7 +378,7 @@ struct ScannerReviewViewModelTests {
 
 /// Optional test doubles for `makeModel`, bundled so the factory stays
 /// under SwiftLint's `function_parameter_count` (5).
-private struct ReviewTestSeams {
+struct ReviewTestSeams {
     var resolver: ClosetImageURLResolving = ReviewMockURLResolver()
     var pendingScanQueue: PendingScanQueue = InMemoryPendingScanQueue()
     var networkMonitor: NetworkReachabilityMonitoring = StaticNetworkReachabilityMonitor(offline: false)
@@ -390,7 +388,7 @@ private struct ReviewTestSeams {
 
 // MARK: - Fixtures / doubles
 
-private func fixtureJPEG() -> Data? {
+func scannerReviewFixtureJPEG() -> Data? {
     guard let image = ScannerImageFixtures.checkerboard(width: 640, height: 480, cell: 16) else {
         return nil
     }
@@ -404,6 +402,15 @@ private func waitUntilReady(_ model: ScannerReviewViewModel) async throws {
         try await Task.sleep(for: .milliseconds(25))
     }
     Issue.record("Expected ready, got \(model.phase)")
+}
+
+@MainActor
+func waitUntilUnlockCountSettles(_ model: ScannerReviewViewModel) async throws {
+    for _ in 0..<80 {
+        if model.unlockCountState != .calculating { return }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    Issue.record("Expected scanner unlock calculation to finish.")
 }
 
 final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
@@ -420,6 +427,9 @@ final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
     var lastImages: [ClosetItemImage]?
     var lastAnalyzeStoragePath: String?
     var seedItems: [ClosetItem] = []
+    var unlockCountResult: ScanUnlockCountResult = .count(0)
+    var unlockCountError: Error?
+    private(set) var unlockCountRequestedIDs: [UUID] = []
     var createHook: (@MainActor @Sendable () async -> Void)?
     var createError: Error?
     private var uploadedPath: String?
@@ -447,6 +457,11 @@ final class ReviewMockClosetRepository: ClosetRepository, @unchecked Sendable {
     }
     func fetchItem(id: UUID) async throws -> ClosetItem {
         throw AstraError.server("not found")
+    }
+    func fetchScanUnlockCount(savedItemID: UUID) async throws -> ScanUnlockCountResult {
+        unlockCountRequestedIDs.append(savedItemID)
+        if let unlockCountError { throw unlockCountError }
+        return unlockCountResult
     }
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage] { [] }
 
@@ -595,7 +610,7 @@ struct ReviewMockURLResolver: ClosetImageURLResolving {
 struct ScannerReviewViewModelCapTests {
     @Test("Journal removal failure after cap retains recovery record and photo")
     func capReachedIsTyped() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let prepared = try CapturePreparation.prepareForUpload(jpeg)
         let draft = CaptureDraft(prepared: prepared)
         let store = CaptureDraftStore()
@@ -639,7 +654,7 @@ struct ScannerReviewViewModelCapTests {
 struct ScannerReviewViewModelJournalTests {
     @Test("A journal write failure blocks closet creation and preserves the draft")
     func journalWriteFailureBlocksSave() async throws {
-        let jpeg = try #require(fixtureJPEG())
+        let jpeg = try #require(scannerReviewFixtureJPEG())
         let draft = CaptureDraft(prepared: try CapturePreparation.prepareForUpload(jpeg))
         let store = CaptureDraftStore()
         store.put(draft)

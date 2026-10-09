@@ -83,6 +83,7 @@ struct MonthlyReviewView: View {
                 Image(systemName: icon).foregroundStyle(AstraColor.accentChampagneAccessible)
                 Text(value).astraText(.headline).foregroundStyle(AstraColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("monthlyReview.statValue.\(title.lowercased().replacingOccurrences(of: " ", with: "-"))")
                 Text(title).astraText(.caption).foregroundStyle(AstraColor.textSecondary)
             }
             .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)

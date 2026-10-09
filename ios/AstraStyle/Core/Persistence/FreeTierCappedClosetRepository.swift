@@ -45,6 +45,10 @@ public struct FreeTierCappedClosetRepository: ClosetRepository {
         try await base.fetchItemInsights(id: id)
     }
 
+    public func fetchScanUnlockCount(savedItemID: UUID) async throws -> ScanUnlockCountResult {
+        try await base.fetchScanUnlockCount(savedItemID: savedItemID)
+    }
+
     public func fetchItems() async throws -> [ClosetItem] {
         try await base.fetchItems()
     }

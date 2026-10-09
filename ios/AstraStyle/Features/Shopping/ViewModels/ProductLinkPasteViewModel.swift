@@ -34,6 +34,9 @@ public final class ProductLinkPasteViewModel {
     }
 
     public func extract(from raw: String) async -> UUID? {
+        // Main-actor reentrancy must not start a second extraction while
+        // the first request is awaiting its provider response.
+        guard !isSubmitting else { return nil }
         guard let url = ProductLinkURL.parse(raw) else {
             submitError = AstraError.validation("Paste a product page URL.")
             return nil

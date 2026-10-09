@@ -18,6 +18,9 @@ public protocol ClosetRepository: Sendable {
     func fetchItemInsights(id: UUID) async throws -> ClosetItemInsights
     func fetchItems() async throws -> [ClosetItem]
     func fetchItem(id: UUID) async throws -> ClosetItem
+    /// Computes real, server-owned unlocks for a garment that has already
+    /// been saved. The backend resolves its attributes by id and owner.
+    func fetchScanUnlockCount(savedItemID: UUID) async throws -> ScanUnlockCountResult
     func fetchImages(forItem itemID: UUID) async throws -> [ClosetItemImage]
 
     /// Uploads prepared capture bytes to `user-content` and returns the
@@ -95,6 +98,10 @@ public protocol ClosetRepository: Sendable {
 }
 
 extension ClosetRepository {
+    public func fetchScanUnlockCount(savedItemID: UUID) async throws -> ScanUnlockCountResult {
+        throw AstraError.network("Outfit combinations aren't available right now.")
+    }
+
     public func migrateGuestLocalImages() async throws {}
 
     public func captureMonthlyVersatilitySnapshot(monthStart: Date, score: Int) async throws -> Int? { nil }
@@ -102,6 +109,11 @@ extension ClosetRepository {
     public func fetchWardrobeScoreSnapshot() async throws -> WardrobeScoreSnapshot {
         WardrobeScoreSnapshot(score: try await fetchWardrobeScore())
     }
+}
+
+public enum ScanUnlockCountResult: Equatable, Sendable {
+    case count(Int)
+    case unmeasurable
 }
 
 /// The 0–100 composite Wardrobe Score plus its component breakdown

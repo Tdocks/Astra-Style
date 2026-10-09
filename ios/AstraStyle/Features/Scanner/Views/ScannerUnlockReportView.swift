@@ -9,7 +9,8 @@
 import SwiftUI
 
 struct ScannerUnlockReportView: View {
-    let outfitsUnlockedCount: Int?
+    let state: ScannerReviewViewModel.UnlockCountState
+    var onRetry: () -> Void
     var onDone: () -> Void
 
     var body: some View {
@@ -21,13 +22,7 @@ struct ScannerUnlockReportView: View {
                     .foregroundStyle(AstraColor.textPrimary)
                     .multilineTextAlignment(.center)
 
-                if let count = outfitsUnlockedCount {
-                    Text(unlockCopy(count))
-                        .astraText(.body)
-                        .foregroundStyle(AstraColor.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .accessibilityIdentifier("scanner.review.unlockCount")
-                }
+                unlockContent
             }
             .padding(.horizontal, AstraSpacing.pagePadding)
 
@@ -41,6 +36,47 @@ struct ScannerUnlockReportView: View {
             Spacer(minLength: AstraSpacing.xxl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var unlockContent: some View {
+        switch state {
+        case .calculating:
+            VStack(spacing: AstraSpacing.sm) {
+                ProgressView().tint(AstraColor.accentChampagne)
+                Text(String(localized: "Checking the outfit combinations this adds…",
+                            comment: "Scanner is calculating the real outfit unlock count"))
+                    .astraText(.body)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .accessibilityIdentifier("scanner.review.unlockCount.calculating")
+        case .count(let count):
+            Text(unlockCopy(count))
+                .astraText(.body)
+                .foregroundStyle(AstraColor.textSecondary)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("scanner.review.unlockCount")
+        case .unavailable:
+            VStack(spacing: AstraSpacing.md) {
+                Text(String(localized: "Your piece is saved. We couldn't calculate its outfit combinations right now.",
+                            comment: "Scanner unlock count unavailable after a successful save"))
+                    .astraText(.body)
+                    .foregroundStyle(AstraColor.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("scanner.review.unlockCount.unavailable")
+                Button(String(localized: "Try Again", comment: "Retry scanner unlock count"), action: onRetry)
+                    .buttonStyle(.astraSecondary)
+                    .accessibilityIdentifier("scanner.review.unlockCount.retry")
+            }
+        case .unmeasurable:
+            Text(String(localized: "Your piece is saved. Outfit combinations aren't measurable for this category yet.",
+                        comment: "Scanner unlock count not supported for this garment category"))
+                .astraText(.body)
+                .foregroundStyle(AstraColor.textSecondary)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("scanner.review.unlockCount.unmeasurable")
+        }
     }
 
     private func unlockCopy(_ count: Int) -> String {

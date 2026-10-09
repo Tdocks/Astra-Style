@@ -196,35 +196,6 @@ final class AstraStyleUITests: XCTestCase {
         )
     }
 
-    /// Spec §22 "Generate outfit". Owner: P4-OUTFIT.
-    func testGenerateOutfit() throws {
-        launchMockMain()
-        let look = app.descendants(matching: .any)["home.look"]
-        awaitElement(look, "Generated Daily Brief outfit")
-        let reason = app.descendants(matching: .any)["home.reason"]
-        reason.scrollIntoView(in: app)
-        XCTAssertTrue(reason.exists, "Generated outfit has no why-it-works reason")
-        XCTAssertFalse(reason.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-    }
-
-    /// Spec §22 "Mark worn". Owner: P4-OUTFIT.
-    func testMarkOutfitWorn() throws {
-        launchMockMain()
-        let wear = app.descendants(matching: .any)["home.wearThis"]
-        wear.scrollIntoView(in: app)
-        awaitElement(wear, "Wear This")
-        wear.tap()
-        let deadline = Date().addingTimeInterval(timeout)
-        while wear.isEnabled, Date() < deadline {
-            usleep(200_000)
-        }
-        XCTAssertFalse(wear.isEnabled, "Wear This did not become the one-shot completed state")
-        XCTAssertTrue(
-            app.buttons["Worn today"].exists || wear.label == "Worn today",
-            "Wear This completed without visible confirmation"
-        )
-    }
-
     /// Spec §22 "Ask Kyra" / P5-TEST-02.
     ///
     /// Runs against `-astra-mock-backend` (`MockKyraRepository`, whose reply
@@ -401,4 +372,81 @@ final class AstraStyleUITests: XCTestCase {
         app.launch()
         awaitElement(app.chromeTabBar, "Main tab bar under mock backend")
     }
+}
+
+extension AstraStyleUITests {
+    /// Spec §22 "Generate outfit". Owner: P4-OUTFIT.
+    func testGenerateOutfit() throws {
+        launchMockMain()
+        let closetDoor = app.buttons["home.style.fromCloset"]
+        awaitElement(closetDoor, "Closet outfit entry point")
+        closetDoor.tap()
+
+        let generate = app.buttons["outfitBuilder.generateRecommendations"]
+        awaitElement(generate, "Closet outfit recommendation builder")
+        generate.tap()
+
+        let recommendations = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "outfitBuilder.recommendation.")
+        )
+        let deadline = Date().addingTimeInterval(timeout)
+        while recommendations.count < 3, Date() < deadline {
+            usleep(100_000)
+        }
+        XCTAssertEqual(recommendations.count, 3, "Generation should return three outfit recommendations")
+
+        let expectedOwnedPieces = ["Knit Polo", "Slim Trousers", "Suede Chukka Boots"]
+        for itemName in expectedOwnedPieces {
+            XCTAssertTrue(
+                app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", itemName)).firstMatch.waitForExistence(timeout: timeout),
+                "Generated recommendation did not resolve owned closet item: \(itemName)"
+            )
+        }
+
+        let firstChoice = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "outfitBuilder.chooseRecommendation.")
+        ).firstMatch
+        firstChoice.scrollIntoView(in: app)
+        awaitElement(firstChoice, "Recommendation selection action")
+        firstChoice.tap()
+
+        let selectedSlot = app.descendants(matching: .any)["outfitBuilder.slot.top"]
+        selectedSlot.scrollIntoView(in: app)
+        XCTAssertTrue(selectedSlot.waitForExistence(timeout: timeout))
+        XCTAssertTrue(selectedSlot.label.contains("Knit Polo"), "Choosing the recommendation should fill the canvas with its owned top")
+
+        let save = app.buttons["outfitBuilder.save"]
+        save.scrollIntoView(in: app)
+        awaitElement(save, "Save selected outfit")
+        save.tap()
+        awaitElement(app.buttons["outfitBuilder.visualize"], "Saved outfit Studio action")
+        awaitElement(app.buttons["outfitBuilder.refineWithKyra"], "Saved outfit Kyra refinement action")
+    }
+
+    /// Spec §22 "Mark worn". Owner: P4-OUTFIT.
+    func testMarkOutfitWorn() throws {
+        launchMockMain()
+        let wear = app.descendants(matching: .any)["home.wearThis"]
+        wear.scrollIntoView(in: app)
+        awaitElement(wear, "Wear This")
+        wear.tap()
+        let deadline = Date().addingTimeInterval(timeout)
+        while wear.isEnabled, Date() < deadline {
+            usleep(200_000)
+        }
+        XCTAssertFalse(wear.isEnabled, "Wear This did not become the one-shot completed state")
+        XCTAssertTrue(
+            app.buttons["Worn today"].exists || wear.label == "Worn today",
+            "Wear This completed without visible confirmation"
+        )
+
+        let review = app.buttons["home.monthlyReview"]
+        review.scrollIntoView(in: app)
+        awaitElement(review, "Monthly Review entry point")
+        review.tap()
+        let wearCount = app.staticTexts["monthlyReview.statValue.looks-worn"]
+        awaitElement(wearCount, "Monthly Review wear count")
+        XCTAssertEqual(wearCount.label, "1", "A successful wear action should persist one visible wear record")
+    }
+
 }

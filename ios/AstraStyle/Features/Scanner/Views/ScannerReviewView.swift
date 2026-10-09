@@ -113,7 +113,8 @@ struct ScannerReviewView: View {
 
         case .saved:
             ScannerUnlockReportView(
-                outfitsUnlockedCount: viewModel.outfitsUnlockedCount,
+                state: viewModel.unlockCountState,
+                onRetry: { Task { await viewModel.retryScanUnlockCount() } },
                 onDone: onFinished
             )
         }

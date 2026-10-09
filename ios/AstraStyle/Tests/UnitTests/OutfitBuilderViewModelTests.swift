@@ -41,7 +41,10 @@ struct OutfitBuilderViewModelTests {
     /// instead of passing on a wrong assumption.
     private actor StubOutfitRepository: OutfitRepository {
         var rankResult: [OutfitRecommendation] = []
+        var generationResult: [OutfitRecommendation] = []
+        var generationError: AstraError?
         private(set) var lastLockedClosetItemIDs: [UUID] = []
+        private(set) var lastGenerationRequest: OutfitGenerationRequest?
         private(set) var savedRecommendations: [OutfitRecommendation] = []
 
         func fetchOutfits() async throws -> [Outfit] { [] }
@@ -49,7 +52,9 @@ struct OutfitBuilderViewModelTests {
         func fetchOutfits(ids: [UUID]) async throws -> [Outfit] { [] }
         func fetchOutfitItems(outfitID: UUID) async throws -> [OutfitItem] { [] }
         func generateOutfits(_ request: OutfitGenerationRequest) async throws -> [OutfitRecommendation] {
-            throw AstraError.unimplemented("not stubbed")
+            lastGenerationRequest = request
+            if let generationError { throw generationError }
+            return generationResult
         }
 
         func rankOutfits(candidateOutfitIDs: [UUID], lockedClosetItemIDs: [UUID]) async throws -> [OutfitRecommendation] {
@@ -92,17 +97,34 @@ struct OutfitBuilderViewModelTests {
         func setRankResult(_ result: [OutfitRecommendation]) {
             rankResult = result
         }
+
+        func setGenerationResult(_ result: [OutfitRecommendation]) {
+            generationResult = result
+        }
+
+        func failGeneration(with error: AstraError) {
+            generationError = error
+        }
+    }
+
+    private struct StubGenerationContextProvider: OutfitBuilderGenerationContextProviding {
+        let context: OutfitBuilderGenerationContext
+        func makeContext() async throws -> OutfitBuilderGenerationContext { context }
     }
 
     private func makeViewModel(
         closet: [ClosetItem],
-        repository: StubOutfitRepository = StubOutfitRepository()
+        repository: StubOutfitRepository = StubOutfitRepository(),
+        contextProvider: any OutfitBuilderGenerationContextProviding = EmptyOutfitContextProvider(),
+        startingOutfitID: UUID? = nil
     ) -> (OutfitBuilderViewModel, StubOutfitRepository) {
         let closetRepository = MockClosetRepository(items: closet)
         let viewModel = OutfitBuilderViewModel(
             outfitRepository: repository,
             closetRepository: closetRepository,
-            compatibilityScorer: LocalCompatibilityScorer()
+            compatibilityScorer: LocalCompatibilityScorer(),
+            startingOutfitID: startingOutfitID,
+            generationContextProvider: contextProvider
         )
         return (viewModel, repository)
     }
@@ -116,7 +138,7 @@ struct OutfitBuilderViewModelTests {
         let newBottom = item(.bottom, name: "Recommended Trousers")
         let closet = [lockedTop, originalBottom, newBottom]
 
-        let (viewModel, repository) = makeViewModel(closet: closet)
+        let (viewModel, repository) = makeViewModel(closet: closet, startingOutfitID: UUID())
         await viewModel.onAppear()
         viewModel.selectItem(lockedTop, for: .top)
         viewModel.selectItem(originalBottom, for: .bottom)
@@ -233,4 +255,153 @@ struct OutfitBuilderViewModelTests {
         #expect(viewModel.savedOutfit != nil)
         #expect(viewModel.backingOutfitID == viewModel.savedOutfit?.id)
     }
+}
+
+extension OutfitBuilderViewModelTests {
+    @Test("Authorized builder context keeps weather and calendar within the request limit without event titles")
+    func builderContextIncludesAuthorizedWeatherAndCalendarSafely() async throws {
+        var style = SampleData.styleProfile
+        style.styleSummary = String(repeating: "Long style summary ", count: 80)
+        let weather = WeatherSnapshot(
+            temperatureHigh: 72,
+            temperatureLow: 58,
+            condition: .rain,
+            precipitationChance: 0.8,
+            season: .fall,
+            observedAt: .now,
+            temperatureCelsius: 18
+        )
+        let start = Calendar.current.date(bySettingHour: 17, minute: 30, second: 0, of: .now) ?? .now
+        let event = Occasion(
+            id: UUID(), userID: SampleData.userID, title: "Private event title", startsAt: start,
+            dressCode: .businessCasual, source: .calendarSync
+        )
+        let provider = CurrentOutfitContextProvider(
+            profileRepository: MockProfileRepository(styleProfile: style),
+            weatherService: MockWeatherService(snapshot: weather),
+            calendarService: MockCalendarService(events: [event])
+        )
+
+        let context = try await provider.makeContext()
+
+        #expect(context.requestText.count <= 500)
+        #expect(context.requestText.contains("Weather: rain"))
+        #expect(context.requestText.contains("Today's calendar"))
+        #expect(context.requestText.contains(DressCode.businessCasual.rawValue))
+        #expect(!context.requestText.contains("Private event title"))
+        #expect(context.requestText.contains(String((style.styleSummary ?? "").prefix(40))))
+        #expect(!context.requestText.contains(style.styleSummary ?? ""))
+        #expect(context.weatherSnapshot == weather)
+    }
+
+    @Test("Builder generation context omits weather and calendar unless already authorized")
+    func builderContextDoesNotPromptForPermissions() async throws {
+        let provider = CurrentOutfitContextProvider(
+            profileRepository: MockProfileRepository(),
+            weatherService: MockWeatherService(permissionGranted: false, authorization: .notDetermined),
+            calendarService: MockCalendarService(permissionGranted: false)
+        )
+
+        let context = try await provider.makeContext()
+
+        #expect(context.requestText.contains("Weather unavailable"))
+        #expect(context.requestText.contains("Calendar unavailable"))
+        #expect(context.weatherSnapshot == nil)
+    }
+
+    @Test("A new canvas regenerates from closet generation with its lock ids")
+    func newCanvasRegenerateUsesOwnedGenerationAndKeepsLockedItem() async throws {
+        let lockedTop = item(.top, name: "Locked shirt")
+        let suggestedTop = item(.top, name: "Suggested shirt")
+        let suggestedBottom = item(.bottom, name: "Suggested trousers")
+        let (viewModel, repository) = makeViewModel(closet: [lockedTop, suggestedTop, suggestedBottom])
+        await viewModel.onAppear()
+        viewModel.selectItem(lockedTop, for: .top)
+        viewModel.toggleLock(for: .top)
+        await repository.setGenerationResult([
+            OutfitRecommendation(
+                id: UUID(), name: "Generated", reason: "", compatibilityScore: 80,
+                itemIDs: [suggestedTop.id, suggestedBottom.id], missingProductIDs: []
+            )
+        ])
+
+        await viewModel.regenerate()
+
+        #expect(viewModel.slots.first(where: { $0.category == .top })?.item?.id == lockedTop.id)
+        #expect(viewModel.slots.first(where: { $0.category == .bottom })?.item?.id == suggestedBottom.id)
+        #expect(await repository.lastGenerationRequest?.desiredCount == 3)
+        #expect(await repository.lastGenerationRequest?.lockedClosetItemIDs == [lockedTop.id])
+    }
+
+    @Test("Three recommendations receive the context and exclude foreign item references")
+    func closetRecommendationsPreserveContextAndFilterForeignItems() async throws {
+        let ownTop = item(.top, name: "Owned top")
+        let ownBottom = item(.bottom, name: "Owned bottom")
+        let otherUserItem = item(.shoes, name: "Another user's shoe")
+        let valid = OutfitRecommendation(
+            id: UUID(), name: "Owned look", reason: "", compatibilityScore: 80,
+            itemIDs: [ownTop.id, ownBottom.id], missingProductIDs: []
+        )
+        let foreign = OutfitRecommendation(
+            id: UUID(), name: "Invalid look", reason: "", compatibilityScore: 90,
+            itemIDs: [ownTop.id, otherUserItem.id], missingProductIDs: []
+        )
+        let weather = SampleData.weatherSnapshot
+        let context = OutfitBuilderGenerationContext(requestText: "Calendar time and style", weatherSnapshot: weather)
+        let repository = StubOutfitRepository()
+        await repository.setGenerationResult([valid, foreign])
+        let (viewModel, _) = makeViewModel(
+            closet: [ownTop, ownBottom],
+            repository: repository,
+            contextProvider: StubGenerationContextProvider(context: context)
+        )
+        await viewModel.onAppear()
+
+        await viewModel.generateClosetRecommendations()
+
+        #expect(viewModel.recommendations.map(\.id) == [valid.id])
+        #expect(await repository.lastGenerationRequest?.desiredCount == 3)
+        #expect(await repository.lastGenerationRequest?.naturalLanguageRequest == "Calendar time and style")
+        #expect(await repository.lastGenerationRequest?.weatherSnapshot == weather)
+    }
+
+    @Test("Recommendation selection fills editable slots and preserves locked pieces")
+    func selectingRecommendationFillsUnlockedSlots() async throws {
+        let lockedTop = item(.top, name: "Keep this top")
+        let recommendedTop = item(.top, name: "Suggested top")
+        let recommendedBottom = item(.bottom, name: "Suggested bottom")
+        let recommendation = OutfitRecommendation(
+            id: UUID(), name: "Selected look", reason: "", compatibilityScore: 80,
+            itemIDs: [recommendedTop.id, recommendedBottom.id], missingProductIDs: []
+        )
+        let repository = StubOutfitRepository()
+        await repository.setGenerationResult([recommendation])
+        let (viewModel, _) = makeViewModel(closet: [lockedTop, recommendedTop, recommendedBottom], repository: repository)
+        await viewModel.onAppear()
+        viewModel.selectItem(lockedTop, for: .top)
+        viewModel.toggleLock(for: .top)
+        await viewModel.generateClosetRecommendations()
+
+        viewModel.selectRecommendation(recommendation)
+
+        #expect(viewModel.slots.first(where: { $0.category == .top })?.item?.id == lockedTop.id)
+        #expect(viewModel.slots.first(where: { $0.category == .bottom })?.item?.id == recommendedBottom.id)
+        #expect(viewModel.outfitName == "Selected look")
+        #expect(viewModel.selectedRecommendationID == recommendation.id)
+    }
+
+    @Test("Recommendation generation displays repository errors and can be retried")
+    func closetRecommendationsSurfaceFailure() async throws {
+        let ownTop = item(.top)
+        let repository = StubOutfitRepository()
+        await repository.failGeneration(with: AstraError.network("Suggestions are offline."))
+        let (viewModel, _) = makeViewModel(closet: [ownTop], repository: repository)
+        await viewModel.onAppear()
+
+        await viewModel.generateClosetRecommendations()
+
+        #expect(viewModel.recommendations.isEmpty)
+        #expect(viewModel.recommendationError == "Suggestions are offline.")
+    }
+
 }
