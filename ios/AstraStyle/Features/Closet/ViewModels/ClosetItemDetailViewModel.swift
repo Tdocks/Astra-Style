@@ -151,6 +151,9 @@ public final class ClosetItemDetailViewModel {
     /// mutate and their rollback has to be visible.
     public private(set) var actionError: AstraError?
 
+    private let outfitRepository: (any OutfitRepository)?
+    public private(set) var insightLooks: [ClosetLooksViewModel.Look] = []
+    public private(set) var insightGalleryError: String?
     private let itemID: UUID
     private let imageURLResolver: ClosetImageURLResolving
     private let networkMonitor: NetworkReachabilityMonitoring
@@ -179,8 +182,10 @@ public final class ClosetItemDetailViewModel {
         itemID: UUID,
         closetRepository: ClosetRepository,
         imageURLResolver: ClosetImageURLResolving,
-        networkMonitor: NetworkReachabilityMonitoring = SystemNetworkReachabilityMonitor()
+        networkMonitor: NetworkReachabilityMonitoring = SystemNetworkReachabilityMonitor(),
+        outfitRepository: (any OutfitRepository)? = nil
     ) {
+        self.outfitRepository = outfitRepository
         self.itemID = itemID
         self.closetRepository = closetRepository
         self.imageURLResolver = imageURLResolver
@@ -335,6 +340,8 @@ public final class ClosetItemDetailViewModel {
         apply(detail)
         savedEditCount += 1
         insights = nil
+        insightLooks = []
+        insightGalleryError = nil
         insightsError = nil
     }
 
@@ -524,9 +531,33 @@ public extension ClosetItemDetailViewModel {
             guard revision == savedEditCount else { return }
             insightItems = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
             insights = result
+            await loadInsightGallery(ids: result.savedOutfitIds, closet: items, revision: revision)
         } catch {
             guard revision == savedEditCount else { return }
             insightsError = (error as? AstraError)?.message ?? "Couldn't load item insights. Try again."
+        }
+    }
+}
+
+private extension ClosetItemDetailViewModel {
+    func loadInsightGallery(ids: [UUID], closet: [ClosetItem], revision: Int) async {
+        guard !ids.isEmpty, let outfitRepository else {
+            insightLooks = []
+            insightGalleryError = nil
+            return
+        }
+        do {
+            let outfits = try await outfitRepository.fetchOutfits(ids: ids).filter { !$0.isArchived }
+            let links = try await outfitRepository.fetchOutfitItems(outfitIDs: outfits.map(\.id))
+            let ordered = outfits.map { outfit in links.filter { $0.outfitID == outfit.id }.sorted { $0.sortOrder < $1.sortOrder } }
+            let hydrated = await LookHydrator(closetRepository: closetRepository, imageURLResolver: imageURLResolver)
+                .hydrate(outfits: ordered, closet: closet)
+            guard revision == savedEditCount else { return }
+            insightLooks = zip(outfits, hydrated).map { ClosetLooksViewModel.Look(outfit: $0.0, garments: $0.1) }
+            insightGalleryError = nil
+        } catch {
+            guard revision == savedEditCount else { return }
+            insightGalleryError = "Couldn't load photos and names for your saved looks. You can still open them below."
         }
     }
 }

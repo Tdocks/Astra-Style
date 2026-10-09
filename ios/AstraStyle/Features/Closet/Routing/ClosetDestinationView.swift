@@ -51,7 +51,8 @@ struct ClosetDestinationView: View {
                 viewModel: ClosetItemDetailViewModel(
                     itemID: itemID,
                     closetRepository: container.closetRepository,
-                    imageURLResolver: container.closetImageURLResolver
+                    imageURLResolver: container.closetImageURLResolver,
+                    outfitRepository: container.outfitRepository
                 )
             )
 

@@ -43,9 +43,14 @@ struct ClosetItemInsightsSection: View {
                 if insights.savedOutfitIds.isEmpty {
                     Text("No saved looks include this piece yet.").astraText(.body)
                 }
-                ForEach(Array(insights.savedOutfitIds.enumerated()), id: \.element) { index, id in
-                    Button("Open saved look \(index + 1)") { router.push(ClosetRoute.outfitDetail(outfitID: id)) }
-                        .buttonStyle(.astraSecondary)
+                if let error = viewModel.insightGalleryError { Text(error).astraText(.callout) }
+                if !viewModel.insightLooks.isEmpty {
+                    gallery
+                } else {
+                    ForEach(Array(insights.savedOutfitIds.enumerated()), id: \.element) { index, id in
+                        Button("Open saved look \(index + 1)") { router.push(ClosetRoute.outfitDetail(outfitID: id)) }
+                            .buttonStyle(.astraSecondary)
+                    }
                 }
                 if let reason = insights.replacementReason {
                     Text("Care or replacement").astraText(.headline)
@@ -57,6 +62,24 @@ struct ClosetItemInsightsSection: View {
             }
         }
 
+    }
+
+    private var gallery: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: AstraSpacing.md) {
+                ForEach(viewModel.insightLooks) { look in
+                    VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+                        LookSilhouetteView(garments: look.garments, frame: .unknown,
+                                           onTapGarment: { router.push(ClosetRoute.itemDetail(itemID: $0.item.id)) })
+                        Text(look.outfit.name).astraText(.headline)
+                        Button("Open look") { router.push(ClosetRoute.outfitDetail(outfitID: look.id)) }
+                            .buttonStyle(.astraSecondary)
+                    }
+                    .frame(width: AstraSize.silhouetteCardWidth)
+                }
+            }
+        }
+        .accessibilityIdentifier("closet.item.insights.gallery")
     }
 
     private func pieceButton(_ item: ClosetItem, detail: String) -> some View {

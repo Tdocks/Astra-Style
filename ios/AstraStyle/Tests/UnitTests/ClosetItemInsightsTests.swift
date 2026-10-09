@@ -47,4 +47,17 @@ struct ClosetItemInsightsTests {
         #expect(model.insightsError == nil)
     }
 
+    @Test("Gallery loads actual saved look and keeps garments when photos cannot resolve")
+    @MainActor
+    func gallery() async throws {
+        let id = try #require(SampleData.heroOutfitItems().first?.closetItemID)
+        let model = ClosetItemDetailViewModel(itemID: id, closetRepository: MockClosetRepository(),
+                                              imageURLResolver: MockClosetImageURLResolver(),
+                                              outfitRepository: MockOutfitRepository())
+        await model.onAppear()
+        #expect(model.insightLooks.first?.outfit.name == SampleData.heroOutfit.name)
+        #expect(model.insightLooks.first?.garments.contains { $0.item.id == id } == true)
+        #expect(model.insightGalleryError == nil)
+    }
+
 }

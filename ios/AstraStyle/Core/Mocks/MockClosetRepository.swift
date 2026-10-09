@@ -220,7 +220,8 @@ public extension MockClosetRepository {
             "redundancyScore": similar.isEmpty ? 0 : 72,
             "similarItems": similar.map { ["itemId": $0.id.uuidString, "similarity": 72] as [String: Any] },
             "pairings": pairings.map { ["itemId": $0.id.uuidString, "score": 76, "missingInputs": ["weather", "calendar"]] as [String: Any] },
-            "savedOutfitIds": [],
+            "savedOutfitIds": SampleData.heroOutfitItems().contains { $0.closetItemID == id }
+                ? [SampleData.heroOutfit.id.uuidString] : [],
             "replacementReason": target.condition == .damaged ? "recorded_damage" : NSNull(),
             "missingRedundancyInputs": target.fit == nil ? ["fit"] : []
         ]
