@@ -35,7 +35,11 @@ permissions:
 
 jobs:
   build-and-test:
-    name: XcodeGen -> build -> test (iOS 26 simulator)
+    name: iOS 26 simulator — ${{ matrix.partition }}
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [core, onboarding, features]
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -56,6 +60,9 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
+      - name: Verify simulator test partition coverage
+        run: python3 scripts/check_ios_test_partitions.py
 
       - name: Install SwiftLint
         run: brew install swiftlint
@@ -242,7 +249,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: xcodebuild-build-log
+          name: xcodebuild-build-log-${{ matrix.partition }}
           path: ${{ runner.temp }}/xcodebuild-build.log
           if-no-files-found: ignore
           retention-days: 14
@@ -255,12 +262,43 @@ jobs:
           # build setting. The log-scan step covers test target sources too.
           # Performance measurements run separately on a controlled simulator
           # or physical device; shared CI runners cannot establish §20 targets.
+          # Separate hosts run independently; each simulator remains serial.
+          # The features partition includes future UI suites by default.
+          case "${{ matrix.partition }}" in
+            core)
+              partition_args=(
+                -only-testing:AstraStyleTests
+                -only-testing:AstraStyleUITests/AstraStyleUITests
+                -only-testing:AstraStyleUITests/ProductLinkFlowUITests
+                -only-testing:AstraStyleUITests/LuxuryAuditUITests
+              )
+              ;;
+            onboarding)
+              partition_args=(
+                -only-testing:AstraStyleUITests/OnboardingCaptureStepsUITests
+                -only-testing:AstraStyleUITests/OnboardingFirstItemsUITests
+                -only-testing:AstraStyleUITests/OnboardingFlowUITests
+              )
+              ;;
+            features)
+              partition_args=(
+                -only-testing:AstraStyleUITests
+                -skip-testing:AstraStyleUITests/AstraStyleUITests
+                -skip-testing:AstraStyleUITests/ProductLinkFlowUITests
+                -skip-testing:AstraStyleUITests/LuxuryAuditUITests
+                -skip-testing:AstraStyleUITests/OnboardingCaptureStepsUITests
+                -skip-testing:AstraStyleUITests/OnboardingFirstItemsUITests
+                -skip-testing:AstraStyleUITests/OnboardingFlowUITests
+              )
+              ;;
+          esac
           xcodebuild test \
             -project AstraStyle.xcodeproj \
             -scheme AstraStyle \
             -destination "id=$ASTRA_SIM_ID" \
             -skipMacroValidation \
             -parallel-testing-enabled NO \
+            "${partition_args[@]}" \
             -skip-testing:AstraStyleUITests/PerformanceAcceptanceUITests \
             -collect-test-diagnostics never \
             -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
@@ -270,7 +308,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: xcodebuild-test-results
+          name: xcodebuild-test-results-${{ matrix.partition }}
           path: |
             ${{ runner.temp }}/xcodebuild-test.log
             ${{ runner.temp }}/AstraStyle.xcresult
