@@ -1,6 +1,6 @@
 # 03 — BUILD PROGRESS
 
-**Last audited:** 2026-10-09. Internal TestFlight build 30 is VALID/IN_BETA_TESTING. Later offline-profile and Studio fixes are committed and pushed; the combined offline-history and Studio-controls release is being verified before upload. Performance measurements are diagnostic simulator results, not physical-device acceptance.
+**Last audited:** 2026-10-09. Internal TestFlight 1.0.0 (32) is VALID/IN_BETA_TESTING, with Internal membership and en-US notes verified. The outfit builder passed focused simulator and live provider acceptance. Performance measurements remain simulator diagnostics, not physical-device acceptance.
 
 This file answers one question: *which of the 179 tickets in `docs/02-task-breakdown.md` are
 actually done?* Nothing else in the repo answers it. Before this file existed, the only way to find

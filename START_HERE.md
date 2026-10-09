@@ -19,13 +19,29 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `30`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `32`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 30 (2026-10-09)
+## Current internal release — build 32 (2026-10-09)
+
+Version **1.0.0 (32)** is VALID and IN_BETA_TESTING in Internal
+(build ID `e95031d0-f90b-4247-8ea7-a47f90df240f`). Internal group membership
+and en-US testing notes were independently read back. Includes the completed
+outfit builder: long-press locks without opening the picker, real Kyra completion
+preserves locks, edits keep the original outfit identity and wear history, and
+mutating actions cannot overlap. Twenty-five focused builder unit tests and both
+simulator flows passed; bounded live provider and owner/peer edit checks passed.
+Also ships previously verified full style-quiz refinement, care instructions,
+Studio preset browsing, authored Monthly Review, closet thumbnails/versatility,
+semantic Studio cache requests and critical-screen accessibility fixes. Those
+other tickets retain their separately recorded acceptance status. Full physical-
+device, purchase, legal and outside-user acceptance remain open. External review
+remains unsubmitted; the public group still uses build 11.
+
+## Previous internal release — build 30 (2026-10-09)
 
 Version **1.0.0 (30)** is VALID and IN_BETA_TESTING in Internal
 (build ID `1ac7da90-68d5-434f-ac16-64d2f3dc7071`). Internal group membership

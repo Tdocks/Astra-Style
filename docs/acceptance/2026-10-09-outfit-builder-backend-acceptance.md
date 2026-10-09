@@ -54,3 +54,10 @@ fixture owner was also independently confirmed deleted. Harness:
 `supabase/functions/kyra/hosted_builder_completion_acceptance.ts`.
 
 This verifies the builder ticket acceptance, not overall outside-user readiness.
+
+## Internal TestFlight release
+
+Version 1.0.0 (32), build e95031d0-f90b-4247-8ea7-a47f90df240f, archived,
+exported and uploaded successfully. Apple reports VALID and IN_BETA_TESTING.
+Internal group membership and saved en-US testing notes were verified by API
+readback. This is an Internal release; external review remains unsubmitted.
