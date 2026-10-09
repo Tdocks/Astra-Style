@@ -300,4 +300,204 @@ struct ScannerSaveRecoveryTests {
         let records = try await SwiftDataScannerSaveJournal(modelContainer: reopened).pendingSaves(for: owner)
         #expect(records == [record])
     }
+
+}
+
+@Suite("SwiftData schema migrations")
+struct AstraModelContainerMigrationTests {
+    private struct Fixture {
+        let owner = UUID()
+        let closetID = UUID()
+        let timestamp = Date(timeIntervalSince1970: 1_725_000_000)
+        let outfitPayload = Data("legacy-outfit-payload".utf8)
+        let briefPayload = Data("legacy-weather-payload".utf8)
+        let mutationPayload = Data("legacy-mutation-payload".utf8)
+    }
+
+    @Test("Versioned live schema upgrades each historical unversioned store and preserves rows")
+    func historicalUnversionedStoresUpgradeWithoutLosingRows() throws {
+        for (name, oldSchema) in legacySchemas() {
+            let fixture = Fixture()
+            let directory = try makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let storeURL = directory.appendingPathComponent("legacy.store")
+            try createLegacyStore(schema: oldSchema, storeURL: storeURL, name: name, fixture: fixture)
+
+            // Reopening twice checks both migration and durable version metadata.
+            for _ in 0..<2 {
+                do {
+                    let upgraded = try AstraModelContainer.live(storeURL: storeURL)
+                    try expectLegacyRows(in: upgraded, storeName: name, fixture: fixture)
+                }
+            }
+        }
+    }
+
+    private func legacySchemas() -> [(String, Schema)] {
+        let schemas: [(String, Schema)] = [
+            ("four-entities", Schema([
+                PersistedClosetItem.self,
+                PersistedOutfit.self,
+                PersistedDailyBrief.self,
+                PersistedOfflineMutation.self
+            ])),
+            ("five-entities", Schema([
+                PersistedClosetItem.self,
+                PersistedOutfit.self,
+                PersistedDailyBrief.self,
+                PersistedOfflineMutation.self,
+                PersistedPendingScan.self
+            ])),
+            ("six-entities", Schema([
+                PersistedClosetItem.self,
+                PersistedOutfit.self,
+                PersistedDailyBrief.self,
+                PersistedOfflineMutation.self,
+                PersistedPendingScan.self,
+                PersistedScannerSave.self
+            ]))
+        ]
+        return schemas
+    }
+
+    private func makeTemporaryDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("astra-schema-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private func createLegacyStore(schema: Schema, storeURL: URL, name: String, fixture: Fixture) throws {
+        let configuration = ModelConfiguration(schema: schema, url: storeURL)
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        insertCommonRows(into: context, fixture: fixture)
+        if name != "four-entities" { context.insert(pendingScan(timestamp: fixture.timestamp)) }
+        if name == "six-entities" { context.insert(scannerSave(fixture: fixture)) }
+        try context.save()
+    }
+
+    private func insertCommonRows(into context: ModelContext, fixture: Fixture) {
+        let timestamp = fixture.timestamp
+        context.insert(PersistedClosetItem(
+            id: fixture.closetID, userID: fixture.owner, name: "Legacy coat", brand: "Astra",
+            categoryRaw: "outerwear", subcategory: "coat", primaryColor: "navy",
+            secondaryColors: ["gray"], patternRaw: "solid", material: ["wool"], size: "M",
+            fitRaw: "regular", conditionRaw: "good", seasonalityRaw: ["winter"],
+            formalityScore: 3, warmthScore: 5, waterResistanceScore: 2,
+            purchaseDate: timestamp, pricePaidMinorUnits: 12_500, currency: "USD",
+            retailer: "Astra Shop", productURLString: "https://example.com/coat",
+            wearCount: 7, lastWornAt: timestamp, laundryStateRaw: "clean",
+            availabilityStateRaw: "available", archivedAt: nil,
+            primaryImageStoragePath: "users/legacy/coat.jpg", createdAt: timestamp,
+            updatedAt: timestamp, pendingSync: true
+        ))
+        context.insert(PersistedOutfit(
+            id: UUID(), userID: fixture.owner, name: "Legacy outfit", itemDescription: "Coat and boots",
+            occasionTags: ["work", "winter"], formalityScore: 3, compatibilityScore: 82,
+            sourceRaw: "manual", heroImageURLString: "https://example.com/outfit.jpg",
+            isFavorite: true, createdAt: timestamp, updatedAt: timestamp,
+            encodedItems: fixture.outfitPayload, pendingSync: true
+        ))
+        context.insert(PersistedDailyBrief(
+            id: UUID(), userID: fixture.owner, briefDate: timestamp, primaryOutfitID: nil,
+            alternativeOutfitIDs: [UUID()], kyraMessage: "Legacy brief",
+            encodedWeatherSnapshot: fixture.briefPayload, encodedScheduleSnapshot: nil, cachedAt: timestamp
+        ))
+        context.insert(PersistedOfflineMutation(
+            id: UUID(), entityRaw: "closet_item", operationRaw: "update",
+            payloadData: fixture.mutationPayload, enqueuedAt: timestamp, attemptCount: 3
+        ))
+    }
+
+    private func pendingScan(timestamp: Date) -> PersistedPendingScan {
+        PersistedPendingScan(
+            id: UUID(), jpegData: Data([0xff, 0xd8, 0xff]),
+            deviceHintsData: Data("legacy-hints".utf8), enqueuedAt: timestamp, attemptCount: 2
+        )
+    }
+
+    private func scannerSave(fixture: Fixture) -> PersistedScannerSave {
+        PersistedScannerSave(
+            id: fixture.closetID, ownerID: fixture.owner,
+            itemData: Data("legacy-item-json".utf8), imagesData: Data("legacy-images-json".utf8),
+            createdAt: fixture.timestamp
+        )
+    }
+
+    private func expectLegacyRows(
+        in container: ModelContainer,
+        storeName: String,
+        fixture: Fixture
+    ) throws {
+        let context = ModelContext(container)
+        let closetRows = try context.fetch(FetchDescriptor<PersistedClosetItem>())
+        let outfitRows = try context.fetch(FetchDescriptor<PersistedOutfit>())
+        let briefRows = try context.fetch(FetchDescriptor<PersistedDailyBrief>())
+        let mutationRows = try context.fetch(FetchDescriptor<PersistedOfflineMutation>())
+        expectCoreRows(closetRows, outfits: outfitRows, briefs: briefRows, mutations: mutationRows, fixture: fixture)
+        try expectNewerRows(in: context, storeName: storeName, fixture: fixture)
+    }
+
+    private func expectCoreRows(
+        _ closetRows: [PersistedClosetItem],
+        outfits: [PersistedOutfit],
+        briefs: [PersistedDailyBrief],
+        mutations: [PersistedOfflineMutation],
+        fixture: Fixture
+    ) {
+        let storeName = "historical unversioned store"
+        #expect(closetRows.count == 1, "Closet row lost migrating \(storeName)")
+        #expect(outfits.count == 1, "Outfit row lost migrating \(storeName)")
+        #expect(briefs.count == 1, "Daily brief lost migrating \(storeName)")
+        #expect(mutations.count == 1, "Offline mutation lost migrating \(storeName)")
+        if let closet = closetRows.first {
+            #expect(closet.id == fixture.closetID)
+            #expect(closet.userID == fixture.owner)
+            #expect(closet.name == "Legacy coat")
+            #expect(closet.secondaryColors == ["gray"])
+            #expect(closet.material == ["wool"])
+            #expect(closet.purchaseDate == fixture.timestamp)
+            #expect(closet.pricePaidMinorUnits == 12_500)
+            #expect(closet.primaryImageStoragePath == "users/legacy/coat.jpg")
+            #expect(closet.createdAt == fixture.timestamp && closet.updatedAt == fixture.timestamp)
+            #expect(closet.pendingSync)
+        }
+        if let outfit = outfits.first {
+            #expect(outfit.userID == fixture.owner)
+            #expect(outfit.occasionTags == ["work", "winter"])
+            #expect(outfit.encodedItems == fixture.outfitPayload)
+            #expect(outfit.createdAt == fixture.timestamp && outfit.updatedAt == fixture.timestamp)
+            #expect(outfit.pendingSync && outfit.isFavorite)
+        }
+        if let brief = briefs.first {
+            #expect(brief.userID == fixture.owner)
+            #expect(brief.encodedWeatherSnapshot == fixture.briefPayload)
+            #expect(brief.encodedScheduleSnapshot == nil)
+            #expect(brief.cachedAt == fixture.timestamp)
+        }
+        if let mutation = mutations.first {
+            #expect(mutation.payloadData == fixture.mutationPayload)
+            #expect(mutation.enqueuedAt == fixture.timestamp)
+            #expect(mutation.attemptCount == 3)
+        }
+    }
+
+    private func expectNewerRows(in context: ModelContext, storeName: String, fixture: Fixture) throws {
+        let scanRows = try context.fetch(FetchDescriptor<PersistedPendingScan>())
+        let saveRows = try context.fetch(FetchDescriptor<PersistedScannerSave>())
+        #expect(scanRows.count == (storeName == "four-entities" ? 0 : 1))
+        #expect(saveRows.count == (storeName == "six-entities" ? 1 : 0))
+        if let scan = scanRows.first {
+            #expect(scan.jpegData == Data([0xff, 0xd8, 0xff]))
+            #expect(scan.deviceHintsData == Data("legacy-hints".utf8))
+            #expect(scan.enqueuedAt == fixture.timestamp && scan.attemptCount == 2)
+        }
+        if let save = saveRows.first {
+            #expect(save.id == fixture.closetID && save.ownerID == fixture.owner)
+            #expect(save.itemData == Data("legacy-item-json".utf8))
+            #expect(save.imagesData == Data("legacy-images-json".utf8))
+            #expect(save.createdAt == fixture.timestamp)
+        }
+    }
 }

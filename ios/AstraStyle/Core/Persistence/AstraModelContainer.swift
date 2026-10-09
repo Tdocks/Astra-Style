@@ -35,20 +35,73 @@
 import Foundation
 import SwiftData
 
+/// The first on-disk schema shipped with closet/offline persistence.
+/// Keep its model list tied to the original four entity declarations.
+public enum AstraSchemaV1: VersionedSchema {
+    public static let versionIdentifier = Schema.Version(1, 0, 0)
+    public static var models: [any PersistentModel.Type] {
+        [PersistedClosetItem.self, PersistedOutfit.self, PersistedDailyBrief.self, PersistedOfflineMutation.self]
+    }
+}
+
+/// Pending scanner uploads were added after the original unversioned store.
+public enum AstraSchemaV2: VersionedSchema {
+    public static let versionIdentifier = Schema.Version(2, 0, 0)
+    public static var models: [any PersistentModel.Type] {
+        [
+            PersistedClosetItem.self,
+            PersistedOutfit.self,
+            PersistedDailyBrief.self,
+            PersistedOfflineMutation.self,
+            PersistedPendingScan.self
+        ]
+    }
+}
+
+/// Scanner save recovery was added in the third persisted schema revision.
+public enum AstraSchemaV3: VersionedSchema {
+    public static let versionIdentifier = Schema.Version(3, 0, 0)
+    public static var models: [any PersistentModel.Type] {
+        [
+            PersistedClosetItem.self,
+            PersistedOutfit.self,
+            PersistedDailyBrief.self,
+            PersistedOfflineMutation.self,
+            PersistedPendingScan.self,
+            PersistedScannerSave.self
+        ]
+    }
+}
+
+public enum AstraSchemaMigrationPlan: SchemaMigrationPlan {
+    public static var schemas: [any VersionedSchema.Type] {
+        [AstraSchemaV1.self, AstraSchemaV2.self, AstraSchemaV3.self]
+    }
+
+    public static var stages: [MigrationStage] {
+        [
+            .lightweight(fromVersion: AstraSchemaV1.self, toVersion: AstraSchemaV2.self),
+            .lightweight(fromVersion: AstraSchemaV2.self, toVersion: AstraSchemaV3.self)
+        ]
+    }
+}
+
 public enum AstraModelContainer {
-    public static let schema = Schema([
-        PersistedClosetItem.self,
-        PersistedOutfit.self,
-        PersistedDailyBrief.self,
-        PersistedOfflineMutation.self,
-        PersistedPendingScan.self,
-        PersistedScannerSave.self
-    ])
+    public static let schema = Schema(versionedSchema: AstraSchemaV3.self)
 
     /// The production, on-disk container.
-    public static func live() throws -> ModelContainer {
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        return try ModelContainer(for: schema, configurations: [configuration])
+    public static func live(storeURL: URL? = nil) throws -> ModelContainer {
+        let configuration: ModelConfiguration
+        if let storeURL {
+            configuration = ModelConfiguration(schema: schema, url: storeURL)
+        } else {
+            configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        }
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: AstraSchemaMigrationPlan.self,
+            configurations: [configuration]
+        )
     }
 
     /// An in-memory container for previews and tests — never touches disk,
