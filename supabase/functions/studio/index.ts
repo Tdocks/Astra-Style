@@ -101,6 +101,26 @@ function storageSeam(supabase: SupabaseClient): StorageSeam {
             .maybeSingle();
           return !error && data !== null;
         },
+        async ownerHasPendingDeletion(userId) {
+          const { data, error } = await jobClient.from("account_deletions")
+            .select("id")
+            .eq("user_id", userId)
+            .in("status", ["pending", "processing"])
+            .limit(1)
+            .maybeSingle();
+          // Treat an unreadable deletion state as pending. A privileged
+          // result write must not race an uncertain account-erasure state.
+          if (error) return true;
+          return data !== null;
+        },
+        async enqueueOrphanCleanup(userId, generationId, path) {
+          const { error } = await jobClient.rpc("enqueue_studio_orphan_result_cleanup", {
+            p_owner_id: userId,
+            p_generation_id: generationId,
+            p_storage_path: path,
+          });
+          if (error) throw serverError("Couldn't queue generated-image cleanup.");
+        },
         async upload(path, imageBytes, type) {
           const { error } = await jobClient.storage.from(USER_CONTENT_BUCKET).upload(
             path,
@@ -109,6 +129,18 @@ function storageSeam(supabase: SupabaseClient): StorageSeam {
             { contentType: type, upsert: true, cacheControl: "60" },
           );
           if (error) throw serverError("Couldn't store the generated image.");
+        },
+        async remove(path) {
+          // `storeOwnedStudioResult` validates this exact canonical owner/job
+          // path before handing it to the service-role cleanup seam.
+          const { error } = await jobClient.storage.from(USER_CONTENT_BUCKET).remove([path]);
+          if (error) throw serverError("Couldn't clean up an unowned generated image.");
+        },
+        async completeOrphanCleanup(path) {
+          const { error } = await jobClient.rpc("complete_studio_orphan_result_cleanup", {
+            p_storage_path: path,
+          });
+          if (error) throw serverError("Couldn't finish generated-image cleanup.");
         },
       });
     },

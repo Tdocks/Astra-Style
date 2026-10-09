@@ -1,8 +1,10 @@
 import { assertEquals } from "@std/assert";
 import {
   handleRetention,
+  type OrphanResultCleanupJob,
   type RetentionDeps,
   type RetentionJob,
+  validOrphanResultCleanupPath,
   validResultPath,
 } from "./handler.ts";
 
@@ -39,6 +41,14 @@ const job: RetentionJob = {
 };
 function fixture(jobs: RetentionJob[] = [job]) {
   const calls: string[] = [];
+  const ownerID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const generationID = "12121212-1212-4121-8121-121212121212";
+  const orphanJob: OrphanResultCleanupJob = {
+    id: "orphan-job",
+    owner_user_id: ownerID,
+    generation_id: generationID,
+    storage_path: `users/${ownerID}/studio/${generationID}/result.png`,
+  };
   const deps: RetentionDeps = {
     token: () => "claim",
     removeImage(path) {
@@ -62,9 +72,21 @@ function fixture(jobs: RetentionJob[] = [job]) {
         calls.push(`finish:${id}:${token}:${success}`);
         return Promise.resolve(true);
       },
+      claimOrphanResults(token) {
+        calls.push(`claim-orphans:${token}`);
+        return Promise.resolve([]);
+      },
+      orphanResultDisposition(userID, generationID) {
+        calls.push(`orphan-disposition:${userID}:${generationID}`);
+        return Promise.resolve("remove");
+      },
+      finishOrphanResult(id, token, success) {
+        calls.push(`finish-orphan:${id}:${token}:${success}`);
+        return Promise.resolve(true);
+      },
     },
   };
-  return { deps, calls };
+  return { deps, calls, orphanJob };
 }
 function request(secret?: string, method = "POST") {
   return new Request("https://example.test/studio-retention", {
@@ -88,8 +110,16 @@ Deno.test("GET cannot initiate deletion", async () => {
 Deno.test("Storage API removal precedes fenced row finalization", async () => {
   const { deps, calls } = fixture();
   const res = await handleRetention(request(SECRET), deps);
-  assertEquals(await res.json(), { prepared: 1, completed: 1, retrying: 0 });
-  assertEquals(calls.slice(-2), ["remove:" + job.result_image_path, "finish:job:claim:true"]);
+  assertEquals(await res.json(), {
+    prepared: 1,
+    completed: 1,
+    retrying: 0,
+    orphanCompleted: 0,
+    orphanRetrying: 0,
+  });
+  const removeIndex = calls.indexOf("remove:" + job.result_image_path);
+  const finishIndex = calls.indexOf("finish:job:claim:true");
+  assertEquals(removeIndex >= 0 && finishIndex > removeIndex, true);
 });
 Deno.test("cross-owner and malformed paths never reach Storage", async () => {
   for (
@@ -104,26 +134,91 @@ Deno.test("cross-owner and malformed paths never reach Storage", async () => {
     assertEquals(validResultPath({ ...job, result_image_path: path }), false);
     assertEquals((await handleRetention(request(SECRET), deps)).status, 200);
     assertEquals(calls.some((value) => value.startsWith("remove:")), false);
-    assertEquals(calls.at(-1), "finish:job:claim:false");
+    assertEquals(calls.includes("finish:job:claim:false"), true);
   }
 });
 Deno.test("failed Storage removal leaves a retry and no successful completion", async () => {
   const { deps, calls } = fixture();
   deps.removeImage = () => Promise.reject(new Error("private upstream detail"));
   const res = await handleRetention(request(SECRET), deps);
-  assertEquals(await res.json(), { prepared: 1, completed: 0, retrying: 1 });
-  assertEquals(calls.at(-1), "finish:job:claim:false");
+  assertEquals(await res.json(), {
+    prepared: 1,
+    completed: 0,
+    retrying: 1,
+    orphanCompleted: 0,
+    orphanRetrying: 0,
+  });
+  assertEquals(calls.includes("finish:job:claim:false"), true);
 });
 Deno.test("failed estimates without an output can finalize without Storage", async () => {
   const { deps, calls } = fixture([{ ...job, result_image_path: null }]);
   assertEquals((await handleRetention(request(SECRET), deps)).status, 200);
   assertEquals(calls.some((value) => value.startsWith("remove:")), false);
-  assertEquals(calls.at(-1), "finish:job:claim:true");
+  assertEquals(calls.includes("finish:job:claim:true"), true);
 });
 
 Deno.test("an independently deleted generation still has an owned cleanup snapshot", async () => {
   const { deps, calls } = fixture([{ ...job, generation_id: null }]);
   assertEquals((await handleRetention(request(SECRET), deps)).status, 200);
-  assertEquals(calls.at(-2), "remove:" + job.result_image_path);
-  assertEquals(calls.at(-1), "finish:job:claim:true");
+  const removeIndex = calls.indexOf("remove:" + job.result_image_path);
+  const finishIndex = calls.indexOf("finish:job:claim:true");
+  assertEquals(removeIndex >= 0 && finishIndex > removeIndex, true);
+});
+
+Deno.test("orphan result cleanup retries until Auth deletion or job loss makes removal safe", async () => {
+  const { deps, calls, orphanJob } = fixture([]);
+  assertEquals(validOrphanResultCleanupPath(orphanJob), true);
+  deps.repository.claimOrphanResults = (token) => {
+    calls.push(`claim-orphans:${token}`);
+    return Promise.resolve([orphanJob]);
+  };
+  deps.repository.orphanResultDisposition = () => Promise.resolve("defer");
+  const response = await handleRetention(request(SECRET), deps);
+  assertEquals(await response.json(), {
+    prepared: 0,
+    completed: 0,
+    retrying: 0,
+    orphanCompleted: 0,
+    orphanRetrying: 1,
+  });
+  assertEquals(calls.includes(`remove:${orphanJob.storage_path}`), false);
+  assertEquals(calls.at(-1), `finish-orphan:${orphanJob.id}:claim:false`);
+});
+
+Deno.test("orphan cleanup validates owner path and removes only with service-verified proof", async () => {
+  const { deps, calls, orphanJob } = fixture([]);
+  const malformed = { ...orphanJob, storage_path: `users/${crypto.randomUUID()}/result.png` };
+  assertEquals(validOrphanResultCleanupPath(malformed), false);
+  deps.repository.claimOrphanResults = () => Promise.resolve([orphanJob]);
+  const response = await handleRetention(request(SECRET), deps);
+  assertEquals(await response.json(), {
+    prepared: 0,
+    completed: 0,
+    retrying: 0,
+    orphanCompleted: 1,
+    orphanRetrying: 0,
+  });
+  assertEquals(
+    calls.includes(`orphan-disposition:${orphanJob.owner_user_id}:${orphanJob.generation_id}`),
+    true,
+  );
+  assertEquals(calls.includes(`remove:${orphanJob.storage_path}`), true);
+  assertEquals(calls.at(-1), `finish-orphan:${orphanJob.id}:claim:true`);
+});
+
+Deno.test("stale cleanup intent preserves the image of a live completed generation", async () => {
+  const { deps, calls, orphanJob } = fixture([]);
+  deps.repository.claimOrphanResults = () => Promise.resolve([orphanJob]);
+  deps.repository.orphanResultDisposition = () => Promise.resolve("preserve");
+
+  const response = await handleRetention(request(SECRET), deps);
+  assertEquals(await response.json(), {
+    prepared: 0,
+    completed: 0,
+    retrying: 0,
+    orphanCompleted: 1,
+    orphanRetrying: 0,
+  });
+  assertEquals(calls.includes(`remove:${orphanJob.storage_path}`), false);
+  assertEquals(calls.at(-1), `finish-orphan:${orphanJob.id}:claim:true`);
 });

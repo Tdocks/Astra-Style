@@ -41,20 +41,17 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
         );
       }
       if (error?.message?.includes("studio_hi_res_premium_required")) {
-        throw new AppError("auth", 403, "High-resolution export is available with Premium.");
-      }
-      if (error?.message?.includes("studio_hi_res_premium_required")) {
-        throw new AppError("auth", 403, "High-resolution export is available with Premium.");
+        throw new AppError("auth", 403, "Higher-quality export is available with Premium.");
       }
       if (error?.message?.includes("studio_hi_res_provider_unavailable")) {
         throw new AppError(
           "provider",
           503,
-          "High-resolution export is temporarily unavailable. Try again later.",
+          "Higher-quality export is temporarily unavailable. Try again later.",
         );
       }
       if (error?.message?.includes("studio_export_already_removed")) {
-        throw new AppError("validation", 409, "That high-resolution export was already removed.");
+        throw new AppError("validation", 409, "That higher-quality export was already removed.");
       }
       if (error?.message?.includes("studio_export_consent_required")) {
         throw badRequest(
@@ -68,7 +65,7 @@ export function supabaseJobStore(supabase: SupabaseClient): StudioJobStore {
           "That Studio estimate is no longer available to export.",
         );
       }
-      if (error || !data) throw serverError("Couldn't queue the high-resolution export.");
+      if (error || !data) throw serverError("Couldn't queue the higher-quality export.");
       return mapRow(data as Record<string, unknown>);
     },
     async insert(row) {

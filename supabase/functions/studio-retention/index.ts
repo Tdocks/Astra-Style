@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { handleRetention, type RetentionJob } from "./handler.ts";
+import { handleRetention, type OrphanResultCleanupJob, type RetentionJob } from "./handler.ts";
 
 const url = Deno.env.get("SUPABASE_URL");
 const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -43,6 +43,32 @@ Deno.serve((req) =>
           p_succeeded: succeeded,
         });
         if (error) throw new Error("Cleanup completion failed");
+        return data === true;
+      },
+      async claimOrphanResults(token) {
+        const { data, error } = await client.rpc("claim_studio_orphan_result_cleanup", {
+          p_token: token,
+          p_limit: 25,
+        });
+        if (error) throw new Error("Orphan result cleanup claims unavailable");
+        return data as OrphanResultCleanupJob[];
+      },
+      async orphanResultDisposition(ownerID, generationID) {
+        const { data, error } = await client.rpc("studio_orphan_result_disposition", {
+          p_owner_id: ownerID,
+          p_generation_id: generationID,
+        });
+        if (error) throw new Error("Orphan result ownership check unavailable");
+        if (data === "remove" || data === "defer" || data === "preserve") return data;
+        throw new Error("Orphan result disposition unavailable");
+      },
+      async finishOrphanResult(jobID, token, succeeded) {
+        const { data, error } = await client.rpc("finish_studio_orphan_result_cleanup", {
+          p_job_id: jobID,
+          p_token: token,
+          p_succeeded: succeeded,
+        });
+        if (error) throw new Error("Orphan result cleanup completion failed");
         return data === true;
       },
     },

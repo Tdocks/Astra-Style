@@ -40,6 +40,7 @@ grant update(alt_description) on public.studio_generations to authenticated;
 revoke all on public.studio_lookbooks,public.studio_lookbook_entries from anon;
 revoke update on public.studio_lookbook_entries from authenticated;
 revoke all on public.studio_retention_config,public.studio_retention_jobs from anon,authenticated;
+revoke all on public.studio_orphan_result_cleanup_jobs from anon,authenticated;
 grant select(id,user_id,generation_id,kind,status,attempts,error_message,created_at,completed_at)
   on public.studio_retention_jobs to authenticated;
 
