@@ -29,6 +29,18 @@ final class PersonalStyleFeatureUITests: XCTestCase {
         return found
     }
 
+    private func generateMockInspiration(using button: XCUIElement) {
+        let progress = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Creating your look")).firstMatch
+        button.scrollIntoView(in: app)
+        XCTAssertTrue(button.isEnabled, "Generate action should be enabled: \(button.debugDescription)")
+        button.tap()
+        XCTAssertTrue(progress.waitForExistence(timeout: timeout), "Generation never entered its loading state")
+        let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: progress)
+        XCTAssertTrue(XCTWaiter.wait(for: [finished], timeout: timeout) == .completed, "Generation remained in progress")
+        awaitElement(app.descendants(matching: .any)["home.inspiration.image"].firstMatch, "Completed visual estimate")
+        XCTAssertTrue(button.isEnabled, "Completed generation should re-enable its action: \(button.debugDescription)")
+    }
+
 }
 
 @MainActor
@@ -58,14 +70,18 @@ extension PersonalStyleFeatureUITests {
         awaitElement(app.navigationBars["Inspiration"], "Inspiration screen")
         let allowance = app.staticTexts["home.inspiration.allowance"]
         awaitElement(allowance, "Preview allowance")
-        XCTAssertTrue(allowance.label.contains("20 of 20"))
+        let allowanceLoaded = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "20 of 20"),
+            object: allowance
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [allowanceLoaded], timeout: timeout),
+            .completed,
+            "Mock Premium allowance should load as 20 of 20; found: \(allowance.label)"
+        )
         let generate = app.buttons["home.inspiration.generate"]
         awaitElement(generate, "Generate image action")
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
-        generate.scrollIntoView(in: app)
-        generate.tap()
-        awaitElement(app.descendants(matching: .any)["home.inspiration.image"].firstMatch, "Completed estimate container")
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generateMockInspiration(using: generate)
         generate.scrollIntoView(in: app)
         XCTAssertTrue(allowance.label.contains("19 of 20"))
         XCTAssertEqual(generate.label, "Try another look")
@@ -74,12 +90,9 @@ extension PersonalStyleFeatureUITests {
         adjustment.tap()
         adjustment.typeText("More casual")
         XCTAssertEqual(generate.label, "Apply my changes")
-        generate.scrollIntoView(in: app)
-        generate.tap()
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generateMockInspiration(using: generate)
         XCTAssertEqual(generate.label, "Try another look")
-        generate.tap()
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generateMockInspiration(using: generate)
     }
 
     /// Home keeps its three recommendations and previews the exact chosen pieces.
@@ -254,8 +267,7 @@ extension PersonalStyleFeatureUITests {
         if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
         let generate = app.buttons["home.inspiration.generate"]
         awaitElement(generate, "Generate estimate")
-        generate.scrollIntoView(in: app); generate.tap()
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generateMockInspiration(using: generate)
         app.buttons["Close"].tap()
         app.tapChromeTab("Studio")
         let deletion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "studio.generation.delete.")).firstMatch
@@ -287,9 +299,7 @@ extension PersonalStyleFeatureUITests {
         if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
         let generate = app.buttons["home.inspiration.generate"]
         awaitElement(generate, "Image generation")
-        generate.scrollIntoView(in: app)
-        generate.tap()
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generateMockInspiration(using: generate)
         app.buttons["Close"].tap()
         app.tapChromeTab("Studio")
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")).firstMatch
@@ -330,9 +340,7 @@ extension PersonalStyleFeatureUITests {
         if !app.navigationBars["Inspiration"].waitForExistence(timeout: 3) { inspiration.tap() }
         let generate = app.buttons["home.inspiration.generate"]
         awaitElement(generate, "Image generation")
-        generate.scrollIntoView(in: app)
-        generate.tap()
-        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+        generateMockInspiration(using: generate)
         app.buttons["Close"].tap()
         app.tapChromeTab("Studio")
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT identifier CONTAINS %@", "studio.generation.", ".delete.")).firstMatch
@@ -483,10 +491,7 @@ extension PersonalStyleFeatureUITests {
         let generate = app.buttons["home.inspiration.generate"]
         awaitElement(generate, "Image generation")
         for _ in 0..<2 {
-            XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
-            generate.scrollIntoView(in: app)
-            generate.tap()
-            XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generate)], timeout: timeout) == .completed)
+            generateMockInspiration(using: generate)
         }
         app.buttons["Close"].tap()
         app.tapChromeTab("Studio")

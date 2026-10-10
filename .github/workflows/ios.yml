@@ -16,6 +16,13 @@ name: iOS
 on:
   workflow_dispatch:
     inputs:
+      partition:
+        description: Run all simulator partitions or only the two feature shards
+        type: choice
+        options:
+          - all
+          - features
+        default: all
       visual_only:
         description: Verify visual regressions without repeating unchanged UI journeys
         type: boolean
@@ -27,15 +34,19 @@ on:
       - ".github/workflows/ios.yml"
       - "scripts/check_*"
       - "scripts/manage_ios_package_resolution.py"
+      - "scripts/ios_feature_test_selectors.py"
+      - "scripts/test_ios_feature_test_selectors.py"
   pull_request:
     paths:
       - "ios/**"
       - ".github/workflows/ios.yml"
       - "scripts/check_*"
       - "scripts/manage_ios_package_resolution.py"
+      - "scripts/ios_feature_test_selectors.py"
+      - "scripts/test_ios_feature_test_selectors.py"
 
 concurrency:
-  group: ios-${{ github.workflow }}-${{ github.ref }}${{ inputs.visual_only && '-visual' || '' }}
+  group: ios-${{ github.workflow }}-${{ github.ref }}-${{ inputs.visual_only && 'visual' || (inputs.partition == 'features' && 'features' || 'all') }}
   cancel-in-progress: true
 
 permissions:
@@ -47,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        partition: ${{ fromJSON(inputs.visual_only && '["visual"]' || '["core", "onboarding", "features"]') }}
+        partition: ${{ fromJSON(inputs.visual_only && '["visual"]' || (inputs.partition == 'features' && '["features", "features-extra"]' || '["core", "onboarding", "features", "features-extra"]')) }}
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -71,6 +82,9 @@ jobs:
 
       - name: Verify simulator test partition coverage
         run: python3 scripts/check_ios_test_partitions.py
+
+      - name: Verify method-level feature shard generator
+        run: python3 scripts/test_ios_feature_test_selectors.py
 
       - name: Verify reviewed SwiftPM lock helper
         run: python3 scripts/manage_ios_package_resolution.py --self-test
@@ -321,7 +335,9 @@ jobs:
           # Performance measurements run separately on a controlled simulator
           # or physical device; shared CI runners cannot establish §20 targets.
           # Separate hosts run independently; each simulator remains serial.
-          # The features partition includes future UI suites by default.
+          # Feature suites are selected by method so large suites can be split
+          # without losing newly added tests. Local acceptance and controlled
+          # performance suites run through their dedicated workflows.
           case "${{ matrix.partition }}" in
             visual)
               partition_args=(-only-testing:AstraStyleTests/MajorScreenSnapshotTests)
@@ -341,16 +357,13 @@ jobs:
                 -only-testing:AstraStyleUITests/OnboardingFlowUITests
               )
               ;;
-            features)
-              partition_args=(
-                -only-testing:AstraStyleUITests
-                -skip-testing:AstraStyleUITests/AstraStyleUITests
-                -skip-testing:AstraStyleUITests/ProductLinkFlowUITests
-                -skip-testing:AstraStyleUITests/LuxuryAuditUITests
-                -skip-testing:AstraStyleUITests/OnboardingCaptureStepsUITests
-                -skip-testing:AstraStyleUITests/OnboardingFirstItemsUITests
-                -skip-testing:AstraStyleUITests/OnboardingFlowUITests
-              )
+            features|features-extra)
+              partition_args=()
+              selectors=$(python3 ../scripts/ios_feature_test_selectors.py --shard "${{ matrix.partition }}")
+              test -n "$selectors"
+              while IFS= read -r selector; do
+                partition_args+=("$selector")
+              done <<< "$selectors"
               ;;
           esac
           xcodebuild test \
