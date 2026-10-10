@@ -294,6 +294,9 @@ struct StudioHomeView: View {
 }
 
 private struct StudioGenerationOpenButton: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.calendar) private var calendar
+    @Environment(\.timeZone) private var timeZone
     let generation: StudioGeneration
     let imageURL: URL?
     let isSelectingComparison: Bool
@@ -351,7 +354,12 @@ private struct StudioGenerationOpenButton: View {
             Text(statusLabel)
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)
-            Text(generation.createdAt.formatted(date: .abbreviated, time: .shortened))
+            Text(generation.createdAt.formatted(
+                Date.FormatStyle(
+                    date: .abbreviated, time: .shortened,
+                    locale: locale, calendar: calendar, timeZone: timeZone
+                )
+            ))
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
             Text(isSelectingComparison ? "Select for comparison" : String(localized: "Open estimate", comment: "Studio gallery card action"))
