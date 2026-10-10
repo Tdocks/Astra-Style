@@ -63,7 +63,7 @@ extension HomeView {
             }
 
             styleEntryPoints
-
+            monthlyReviewCard
         }
     }
 
