@@ -4,7 +4,7 @@
 
 Run 38011472659 passed 1,193 unit tests and all 17 core UI flows, but six populated Studio visual comparisons failed. Studio formatted its date directly with system defaults, ignoring the injected SwiftUI time zone. Reference images generated on the owner’s Mac therefore differed from the UTC CI runner.
 
-The gallery now explicitly uses its environment locale, calendar and time zone. Only the six affected references changed. Local recording and independent comparison passed all 64 images; comparator negative controls passed. Pixel tolerance was not changed. Fresh GitHub acceptance: https://github.com/Tdocks/Astra-Style/actions/runs/38091270368 (pending).
+The gallery now explicitly uses its environment locale, calendar and time zone. Only the six affected references changed. Local recording and independent comparison passed all 64 images; comparator negative controls passed. Pixel tolerance was not changed. Fresh GitHub run 38091270368 passed all 1,193 unit tests, all 17 core UI flows and its onboarding partition. Four remaining AX Studio comparisons differ only in the books toolbar glyph bounds; the original date/default-size differences are resolved. Targeted visual run 38093338640 confirmed that setting a font on the standard system-image button does not resolve the UIKit glyph size. Custom fixed-size image artwork within a separate 44-point hit target resolved the issue. Targeted visual CI [38094000757](https://github.com/Tdocks/Astra-Style/actions/runs/38094000757) passed on 75f98bad; local independent comparison passed as well. Comparison tolerance was never weakened.
 
 ## Kyra
 
@@ -16,6 +16,10 @@ Connected GitHub CI [38092882030](https://github.com/Tdocks/Astra-Style/actions/
 
 The journey exposed a missing Monthly Review entry in empty Home; the existing card is now rendered there. Other corrections were fixture discovery, scrolling and the confirmation-sheet selector. It uses a seeded signed-in fixture and deterministic provider; onboarding, camera capture, physical permissions, live image quality and the complete three-variant master-spec journey remain separate acceptance gates.
 
-P5-TEST-02 is closed. Tracker: 139 done, 36 partial, 4 not started (40 open).
+P5-TEST-02 is closed. Tracker: 143 done, 33 partial, 3 not started (36 open). Closet unit and outfit/wear UI CI checks and onboarding are closed; connected end-to-end coverage is Partial.
 
 Build 33 remains installed through internal TestFlight for owner testing. These changes have not been uploaded in another build.
+
+## Feature CI reliability
+
+The original feature partition hit its 45-minute time limit. Five image-flow assertions also raced quota loading or matched the pre-action enabled state. They now wait for actual allowance data, visible generation progress, completed image, and the enabled action. All five focused tests passed locally. Feature coverage is split into two deterministic method groups (24 and 23); the checker proves complete non-overlapping coverage and separately reserves controlled performance/local acceptance. CI run 38094514985 is pending.
