@@ -21,6 +21,48 @@ struct InspirationViewModelTests {
         #expect(!model.chatPrompt.contains("°C"))
     }
 
+    @Test("Inspiration recovers when the signed-in owner arrives after the sheet opens")
+    func preparationRetriesAfterOwnerBecomesAvailable() async {
+        let owner = OwnerProbe(ownerID: nil)
+        let model = InspirationViewModel(
+            closetOnly: false,
+            container: .preview(),
+            currentOwnerID: { await owner.currentOwnerID() }
+        )
+
+        await model.prepare()
+        #expect(!model.canGenerate)
+        #expect(model.canRetryPreparation)
+
+        owner.ownerID = SampleData.userID
+        await model.prepare()
+
+        #expect(model.canGenerate)
+        #expect(model.quotaSummary.contains("20 of 20"))
+    }
+
+    @Test("A real account switch still clears prepared inspiration context")
+    func accountSwitchInvalidatesPreparedContext() async {
+        let owner = OwnerProbe(ownerID: SampleData.userID)
+        let model = InspirationViewModel(
+            closetOnly: false,
+            container: .preview(),
+            currentOwnerID: { await owner.currentOwnerID() }
+        )
+
+        await model.prepare()
+        #expect(model.canGenerate)
+
+        let nextOwnerID = UUID()
+        owner.ownerID = nextOwnerID
+        model.accountDidChange(to: nextOwnerID)
+
+        #expect(!model.canGenerate)
+        #expect(!model.canRetryPreparation)
+        #expect(model.selectedItemIDs.isEmpty)
+        #expect(model.imageURL == nil)
+    }
+
     @Test("Closet generation requires selection within the server limit")
     func selectionLimits() async {
         let model = InspirationViewModel(

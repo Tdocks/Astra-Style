@@ -28,6 +28,7 @@ final class InspirationViewModel: Identifiable {
     private let currentOwnerID: @MainActor () async -> UUID?
     private var preparedOwnerID: UUID?
     private var ownerInvalidated = false
+    private var preparationInFlight = false
     private var weatherSnapshot: WeatherSnapshot?
 
     init(
@@ -49,24 +50,52 @@ final class InspirationViewModel: Identifiable {
             !context.isEmpty && (!closetOnly || (!selectedItemIDs.isEmpty && selectedItemIDs.count <= 12))
     }
 
-    func prepare() async {
-        guard isPreparing, !ownerInvalidated else { return }
-        defer { isPreparing = false }
-        guard let ownerID = await currentOwnerID(), !Task.isCancelled else {
-            invalidateOwnerContext(message: "Sign in again to load your private style context.")
-            return
-        }
-        preparedOwnerID = ownerID
-        guard await refreshQuota(for: ownerID) else { return }
+    var canRetryPreparation: Bool {
+        !ownerInvalidated && !isPreparing && !preparationInFlight && context.isEmpty
+    }
 
-        do {
-            guard try await loadContext(ownerID: ownerID) else { return }
-            if closetOnly { await loadClosetItems(ownerID: ownerID) }
-        } catch {
-            guard await requireCurrentOwner(ownerID) else { return }
-            handle(error)
-            contextSummary = "Some context couldn't load"
+    func prepare() async {
+        guard !preparationInFlight, !ownerInvalidated,
+              context.isEmpty || (closetOnly && items.isEmpty) else { return }
+        preparationInFlight = true
+        isPreparing = true
+        defer {
+            preparationInFlight = false
+            isPreparing = false
         }
+
+        guard let ownerID = await resolvePreparationOwner(), !Task.isCancelled else { return }
+        await prepareContext(ownerID: ownerID)
+    }
+
+    private func resolvePreparationOwner() async -> UUID? {
+        if let preparedOwnerID {
+            return await requireCurrentOwner(preparedOwnerID) ? preparedOwnerID : nil
+        }
+        guard let currentOwner = await currentOwnerID() else {
+            guard !Task.isCancelled else { return nil }
+            error = "Sign in again to load your private style context."
+            contextSummary = "Private style context unavailable"
+            return nil
+        }
+        guard !Task.isCancelled else { return nil }
+        preparedOwnerID = currentOwner
+        return currentOwner
+    }
+
+    private func prepareContext(ownerID: UUID) async {
+        if context.isEmpty {
+            guard await refreshQuota(for: ownerID) else { return }
+
+            do {
+                guard try await loadContext(ownerID: ownerID) else { return }
+            } catch {
+                guard await requireCurrentOwner(ownerID) else { return }
+                handle(error)
+                contextSummary = "Some context couldn't load"
+            }
+        }
+        if closetOnly, items.isEmpty { await loadClosetItems(ownerID: ownerID) }
     }
 
     private func loadClosetSuggestions(ownerID: UUID) async {
@@ -181,15 +210,16 @@ final class InspirationViewModel: Identifiable {
 
     func clearPaywall() { pendingPaywall = nil }
 
-    func accountDidChange() {
-        guard preparedOwnerID != nil else { return }
+    func accountDidChange(to currentOwnerID: UUID?) {
+        guard let preparedOwnerID, preparedOwnerID != currentOwnerID else { return }
         invalidateOwnerContext(message: "Your account changed. Close and reopen this preview.")
     }
 
     private func requireCurrentOwner(_ expectedOwnerID: UUID) async -> Bool {
-        guard !Task.isCancelled,
-              await currentOwnerID() == expectedOwnerID,
-              !ownerInvalidated else {
+        guard !Task.isCancelled else { return false }
+        let currentOwner = await currentOwnerID()
+        guard !Task.isCancelled else { return false }
+        guard currentOwner == expectedOwnerID, !ownerInvalidated else {
             invalidateOwnerContext(message: "Your account changed. Close and reopen this preview.")
             return false
         }

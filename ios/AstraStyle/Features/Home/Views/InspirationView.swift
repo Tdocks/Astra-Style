@@ -50,6 +50,11 @@ struct InspirationView: View {
                         ProgressView(viewModel.isPreparing ? "Gathering your style and plans…" : "Creating your look… This can take a minute.")
                             .tint(AstraColor.accentChampagneAccessible)
                     }
+                    if viewModel.canRetryPreparation {
+                        Button("Retry style context") { run { await viewModel.prepare() } }
+                            .buttonStyle(.astraSecondary)
+                            .accessibilityIdentifier("home.inspiration.retryContext")
+                    }
                     if let error = viewModel.error {
                         Text(error).astraText(.callout).foregroundStyle(AstraColor.textSecondary)
                         if let job = viewModel.job,
@@ -104,9 +109,9 @@ struct InspirationView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
-            .task { await viewModel.prepare() }
-            .onChange(of: container.sessionStore.currentSession?.userID) { _, _ in
-                viewModel.accountDidChange()
+            .task(id: container.sessionStore.currentSession?.userID) { await viewModel.prepare() }
+            .onChange(of: container.sessionStore.currentSession?.userID) { _, newOwnerID in
+                viewModel.accountDidChange(to: newOwnerID)
             }
             .onDisappear { work?.cancel() }
             .onChange(of: viewModel.pendingPaywall) { _, context in showsPaywall = context != nil }
