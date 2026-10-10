@@ -94,6 +94,47 @@ def wait_http(url: str, *, timeout=120, expected=200):
     raise HarnessError("A required local QA service did not become ready in time.")
 
 
+def wait_function_worker(api_url: str, anon_key: str, *, timeout=90):
+    """Wait for the actual Kyra worker, not just the Functions gateway."""
+    url = api_url.rstrip("/") + "/functions/v1/kyra/respond"
+    headers = {"apikey": anon_key, "Authorization": f"Bearer {anon_key}"}
+    deadline = time.monotonic() + timeout
+    last_status = None
+    while time.monotonic() < deadline:
+        request = urllib.request.Request(url, headers=headers, method="GET")
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                last_status = response.status
+                body = response.read(16_384)
+        except urllib.error.HTTPError as error:
+            last_status = error.code
+            body = error.read(16_384)
+        except (OSError, urllib.error.URLError):
+            time.sleep(1)
+            continue
+
+        # A route-level method/not-found response proves the worker booted.
+        # Gateway auth failures and BOOT_ERROR responses do not.
+        body_text = body.decode("utf-8", errors="replace")
+        if "BOOT_ERROR" in body_text or "failed to determine entrypoint" in body_text.lower():
+            raise HarnessError("The local Kyra Edge Function worker failed to boot.")
+        try:
+            envelope = json.loads(body_text)
+        except json.JSONDecodeError:
+            envelope = None
+        if (last_status in (404, 405) and isinstance(envelope, dict)
+                and isinstance(envelope.get("error"), dict)
+                and envelope["error"].get("category") == "validation"
+                and isinstance(envelope.get("request_id"), str)):
+            return
+        if last_status >= 500:
+            raise HarnessError(f"The local Kyra Edge Function worker returned HTTP {last_status} during startup.")
+        time.sleep(1)
+    raise HarnessError(
+        f"The local Kyra Edge Function worker did not become ready (last HTTP status {last_status})."
+    )
+
+
 def parse_local_status(workdir: pathlib.Path) -> dict[str, str]:
     result = run(
         ["npx", "--yes", f"supabase@{CLI_VERSION}", "status", "--output", "json", "--workdir", str(workdir)],
@@ -176,8 +217,11 @@ def main() -> int:
     if count != 1:
         raise HarnessError("Could not isolate the temporary local Supabase project name.")
     (supabase_dir / "config.toml").write_text(rewritten)
-    for name in ("migrations", "functions"):
-        (supabase_dir / name).symlink_to(ROOT / "supabase" / name, target_is_directory=True)
+    (supabase_dir / "migrations").symlink_to(ROOT / "supabase/migrations", target_is_directory=True)
+    # Functions are bind-mounted into Docker by `supabase functions serve`.
+    # Copy them inside the isolated project because a symlink back to the host
+    # checkout is outside the CLI project's container mount.
+    shutil.copytree(ROOT / "supabase/functions", supabase_dir / "functions")
 
     stack_started = False
     user_id = None
@@ -310,7 +354,7 @@ def main() -> int:
             stderr=function_log,
             text=True,
         ))
-        wait_http(api_url + "/functions/v1/kyra", timeout=90, expected=401)
+        wait_function_worker(api_url, anon_key)
 
         fixture_payload = {
             "user_id": user_id,
