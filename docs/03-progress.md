@@ -61,12 +61,12 @@ lands data layers, protocols, and models long before the screens that use them.
 | 2 — Identity | 18 | 18 | 0 | 0 |
 | 3 — Closet | 27 | 18 | 9 | 0 |
 | 4 — Outfit intelligence | 26 | 21 | 5 | 0 |
-| 5 — Kyra | 22 | 20 | 2 | 0 |
+| 5 — Kyra | 22 | 21 | 1 | 0 |
 | 6 — Studio and commerce | 25 | 24 | 1 | 0 |
 | 7 — Monetization and hardening | 36 | 13 | 19 | 4 |
-| **Total** | **179** | **138** | **37** | **4** |
+| **Total** | **179** | **139** | **36** | **4** |
 
-138 of 179 tickets meet their acceptance criteria. The remaining 41 need implementation or verification; completed ticket counts do not establish outside-user readiness. See the blockers below.
+139 of 179 tickets meet their acceptance criteria. The remaining 40 need implementation or verification; completed ticket counts do not establish outside-user readiness. See the blockers below.
 
 ---
 
@@ -353,7 +353,7 @@ production signed-in acceptance remains open. See `ios/AstraStyle/Features/Kyra/
 | P5-KYRA-19 | Done | New conversations count the caller's daily threads in Postgres; entitled premium accounts skip the configured free-tier limit. |
 | P5-CORE-01 | Done | `KyraStructuredResponse` custom decoding defaults missing optional arrays and maps unknown intent to `.general`; invalid individual cards/actions are dropped without losing valid siblings. |
 | P5-TEST-01 | Done | `KyraStructuredResponseDecodingTests` covers documented intents, missing and malformed fields, unknown values, and round-trip behavior. |
-| P5-TEST-02 | Partial | The real local Supabase deployment and deterministic Responses stub are implemented with owner approval instead of staging. UI acceptance has not yet passed; fixture account/row cleanup and isolated stack stop were verified. The Debug local auth-sharing bug is fixed. Dedicated GitHub CI acceptance remains required. |
+| P5-TEST-02 | Done | With owner approval, staging is replaced by an isolated local Supabase deployment and deterministic Responses stub. Connected GitHub CI [38092882030](https://github.com/Tdocks/Astra-Style/actions/runs/38092882030) passed Kyra outfit creation, owner-scoped persistence, wear, Monthly Review and account deletion on commit 4c6fb82e. Analytics privacy checks passed; fixture erasure and stack shutdown were verified. Separately, two hosted provider turns passed without fallback. See `docs/acceptance/2026-10-10-ci-kyra-journey.md`. |
 
 ---
 

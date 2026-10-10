@@ -1,0 +1,30 @@
+{
+  "top_level_requests": 2,
+  "image_requests": 0,
+  "first_turn": {
+    "http_status": 200,
+    "elapsed_ms": 6735,
+    "model_identifier": "gpt-5.6-luna",
+    "fallback_reason": null,
+    "provider_failure": null,
+    "escalated": false,
+    "tools_called": [
+      "create_outfit"
+    ]
+  },
+  "second_turn": {
+    "http_status": 200,
+    "elapsed_ms": 5885,
+    "model_identifier": "gpt-5.6-luna",
+    "fallback_reason": null,
+    "provider_failure": null,
+    "escalated": false,
+    "tools_called": [
+      "create_outfit"
+    ]
+  },
+  "same_thread": true,
+  "owner_scoped_messages": true,
+  "deletion_endpoint_status": 202,
+  "independent_sql_cleanup_verified": true
+}
