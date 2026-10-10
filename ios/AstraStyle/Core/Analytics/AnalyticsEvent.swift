@@ -35,6 +35,23 @@ public enum AnalyticsEvent: Sendable {
         case batchScan = "batch_scan"
     }
 
+    private enum AnalyticsRetailer: String {
+        case alden
+        case drakes
+        case hodinkee
+        case toddSnyder = "todd_snyder"
+
+        static func canonicalID(for value: String) -> String {
+            switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "alden": self.alden.rawValue
+            case "drake's", "drakes": self.drakes.rawValue
+            case "hodinkee": self.hodinkee.rawValue
+            case "todd snyder", "todd_snyder": self.toddSnyder.rawValue
+            default: "other"
+            }
+        }
+    }
+
     /// The wire event name, matching spec §18's naming exactly (snake_case,
     /// `_started`/`_completed` pairs preserved verbatim).
     public var name: String {
@@ -65,31 +82,37 @@ public enum AnalyticsEvent: Sendable {
     public var properties: [String: AstraJSONValue] {
         switch self {
         case .onboardingStarted, .onboardingCompleted:
-            [:]
+            return [:]
         case .closetItemAdded(let category, let source):
-            ["category": .string(category.rawValue), "source": .string(source.rawValue)]
+            return ["category": .string(category.rawValue), "source": .string(source.rawValue)]
         case .scanCorrected(let fieldsCorrectedCount):
-            ["fields_corrected_count": .number(Double(fieldsCorrectedCount))]
+            return ["fields_corrected_count": .number(Double(fieldsCorrectedCount))]
         case .outfitGenerated(let count, let occasionID):
-            ["count": .number(Double(count)), "occasion_id": occasionID.map { .string($0.uuidString) } ?? .null]
+            return ["count": .number(Double(count)), "occasion_id": occasionID.map { .string($0.uuidString) } ?? .null]
         case .outfitMarkedWorn(let outfitID):
-            ["outfit_id": .string(outfitID.uuidString)]
+            return ["outfit_id": .string(outfitID.uuidString)]
         case .outfitRejected(let outfitID, let reasonTags):
-            ["outfit_id": .string(outfitID.uuidString), "reason_tags": .array(reasonTags.map(AstraJSONValue.string))]
+            let allowedTags = Set(StyleFeedbackSignal.allCases.map(\.rawValue))
+            let safeTags = reasonTags
+                .filter { allowedTags.contains($0) }
+                .reduce(into: [String]()) { result, tag in
+                    if !result.contains(tag) { result.append(tag) }
+                }
+            return ["outfit_id": .string(outfitID.uuidString), "reason_tags": .array(safeTags.map(AstraJSONValue.string))]
         case .kyraPromptSent(let intent):
-            ["intent": intent.map { .string($0.rawValue) } ?? .null]
+            return ["intent": intent.map { .string($0.rawValue) } ?? .null]
         case .productEvaluated(let verdict):
-            ["verdict": .string(verdict.rawValue)]
+            return ["verdict": .string(verdict.rawValue)]
         case .affiliateLinkOpened(let retailer):
-            ["retailer": .string(retailer)]
+            return ["retailer": .string(AnalyticsRetailer.canonicalID(for: retailer))]
         case .studioGenerationStarted(let preset):
-            ["preset": preset.map { .string($0.rawValue) } ?? .null]
+            return ["preset": preset.map { .string($0.rawValue) } ?? .null]
         case .studioGenerationCompleted(let succeeded):
-            ["succeeded": .bool(succeeded)]
+            return ["succeeded": .bool(succeeded)]
         case .paywallViewed(let context):
-            ["context": .string(context.rawValue)]
+            return ["context": .string(context.rawValue)]
         case .subscriptionStarted(let productID), .subscriptionRenewed(let productID), .subscriptionCancelled(let productID):
-            ["product_id": .string(productID)]
+            return ["product_id": .string(AstraProductID(rawValue: productID)?.rawValue ?? "other")]
         }
     }
 }

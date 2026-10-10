@@ -82,6 +82,25 @@ Deno.test("maps the Astra-shaped request onto the vendor wire, tier onto model i
   assertEquals(result.modelIdentifier, "model-luna-2026-08");
 });
 
+Deno.test("allows an explicitly injected local Responses endpoint for the acceptance stub", async () => {
+  let requestedURL = "";
+  const live = new LiveStylistProvider({
+    apiKey: "local-qa-provider-stub",
+    endpointURL: "http://host.docker.internal:18765/v1/responses",
+    modelForTier: { luna: "model-luna", terra: "model-terra", sol: "model-terra" },
+    fetchImpl: (input, init) => {
+      requestedURL = new Request(input as string | URL, init).url;
+      return Promise.resolve(okResponse({
+        model: "model-luna",
+        status: "completed",
+        output: [{ type: "message", content: [{ type: "output_text", text: "{}" }] }],
+      }));
+    },
+  });
+  await live.complete(request(), CTX);
+  assertEquals(requestedURL, "http://host.docker.internal:18765/v1/responses");
+});
+
 Deno.test("strict response schemas are enabled only for callers that request them", async () => {
   const captured: Array<Record<string, unknown>> = [];
   const live = provider(

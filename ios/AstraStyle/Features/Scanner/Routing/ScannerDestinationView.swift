@@ -176,7 +176,7 @@ struct ScannerDestinationView: View {
             )
         } else {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .task {
                     if captureViewModel == nil {
                         captureViewModel = ScannerCaptureViewModel(
@@ -202,7 +202,7 @@ struct ScannerDestinationView: View {
             )
         } else {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .task {
                     if batchViewModel == nil {
                         batchViewModel = ScannerBatchViewModel(
@@ -240,7 +240,7 @@ struct ScannerDestinationView: View {
                 )
             } else {
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
             }
         }
         .onChange(of: reviewViewModel?.phase) { _, newPhase in

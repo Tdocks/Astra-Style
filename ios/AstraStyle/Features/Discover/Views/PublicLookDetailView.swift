@@ -68,7 +68,7 @@ struct PublicLookDetailView: View {
         switch viewModel.state {
         case .loading:
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .frame(maxWidth: .infinity, minHeight: 240)
                 .accessibilityLabel(Text("Loading shared look", comment: "Public look detail loading"))
         case .failed(let error):

@@ -26,7 +26,7 @@ struct StudioHomeView: View {
             switch viewModel.state {
             case .loading:
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let error):
                 failed(error)
@@ -174,7 +174,7 @@ struct StudioHomeView: View {
                 }
                 if viewModel.isLoadingMore {
                     ProgressView()
-                        .tint(AstraColor.accentChampagne)
+                        .tint(AstraColor.accentChampagneAccessible)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AstraSpacing.md)
                         .accessibilityLabel(Text("Loading more Studio previews", comment: "Gallery pagination progress"))
@@ -244,7 +244,7 @@ struct StudioHomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
         } else if viewModel.deletingIDs.contains(generation.id) {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .accessibilityLabel(Text(String(localized: "Deleting preview", comment: "VoiceOver status during preview deletion")))
         } else {
             Button(role: .destructive) {

@@ -24,7 +24,7 @@ struct StudioGenerationDetailView: View {
             switch viewModel.state {
             case .loading:
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let error):
                 VStack(alignment: .leading, spacing: AstraSpacing.md) {
@@ -166,7 +166,7 @@ struct StudioGenerationDetailView: View {
             .accessibilityIdentifier("studio.detail.exportHiRes")
             if viewModel.isExportingHighResolution {
                 ProgressView("Preparing higher-quality export…")
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
             }
         }
     }

@@ -31,7 +31,7 @@ struct AddOccasionView: View {
                     selection: $viewModel.startsAt,
                     displayedComponents: [.date, .hourAndMinute]
                 )
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .accessibilityIdentifier("occasion.startsAt")
 
                 Picker(

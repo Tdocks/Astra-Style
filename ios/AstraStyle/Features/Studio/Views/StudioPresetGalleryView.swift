@@ -124,7 +124,7 @@ struct StudioPresetGalleryView: View {
                 ForEach(Array(defaults.palette.enumerated()), id: \.offset) { entry in
                     RoundedRectangle(cornerRadius: AstraRadius.small)
                         .fill(colorChip(for: entry.element))
-                        .frame(height: 12)
+            .frame(height: AstraSpacing.sm)
                         .overlay {
                             RoundedRectangle(cornerRadius: AstraRadius.small)
                                 .strokeBorder(AstraColor.divider, lineWidth: 1)

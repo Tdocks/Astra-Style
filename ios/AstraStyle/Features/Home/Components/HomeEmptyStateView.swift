@@ -29,7 +29,7 @@ struct HomeEmptyStateView: View {
 
             Image(systemName: "hanger")
                 .astraIcon(.display)
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
                 .accessibilityHidden(true)
 
             Text(title)

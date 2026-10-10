@@ -103,7 +103,7 @@ struct ReferencePhotosView: View {
         switch viewModel.state {
         case .loading:
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("profile.referencePhotos.loading")
         case .loaded(let photos):
@@ -135,7 +135,7 @@ struct ReferencePhotosView: View {
                     .foregroundStyle(AstraColor.warningAmber)
                 } else if viewModel.deletingPaths.contains(photo.path) {
                     ProgressView(String(localized: "Removing photo and previews…", comment: "Progress during reference photo deletion"))
-                        .tint(AstraColor.accentChampagne)
+                        .tint(AstraColor.accentChampagneAccessible)
                         .accessibilityIdentifier("profile.referencePhotos.deleting")
                 } else {
                     Button(role: .destructive) {
@@ -213,7 +213,7 @@ struct ReferencePhotosView: View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             Image(systemName: "person.crop.rectangle")
                 .astraIcon(.feature)
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
             Text(String(localized: "No reference photos saved", comment: "Empty state title for reference photos"))
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)

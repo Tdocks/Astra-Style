@@ -210,7 +210,7 @@ private struct IdentityCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: AstraRadius.card)
                     .stroke(
-                        isSelected ? AstraColor.accentChampagne : AstraColor.divider,
+                        isSelected ? AstraColor.accentChampagneAccessible : AstraColor.divider,
                         lineWidth: isSelected ? 1.5 : 1
                     )
             )

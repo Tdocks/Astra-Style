@@ -18,7 +18,7 @@ struct HomeLoadingSkeletonView: View {
                     skeletonBlock(width: 140, height: 14)
                 }
                 Spacer()
-                Circle().fill(AstraColor.surfaceElevated).frame(width: 44, height: 44)
+Circle().fill(AstraColor.surfaceElevated).frame(width: AstraSize.minTapTarget, height: AstraSize.minTapTarget)
             }
 
             skeletonBlock(width: nil, height: 420, cornerRadius: AstraSpacing.cardRadius)

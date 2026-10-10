@@ -361,7 +361,7 @@ public struct ClosetView: View {
             Image(systemName: "plus")
                 .astraIcon(.emphasis)
                 // An icon is a fill, not text (spec §3 / docs/07).
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
                 .frame(minWidth: AstraSize.minTapTarget, minHeight: AstraSize.minTapTarget)
                 .contentShape(Rectangle())
         }
@@ -654,7 +654,7 @@ extension ClosetView {
                 .astraIcon(.emphasis)
                 // An icon is a fill, not text, so this is the plain
                 // champagne token (spec §3 / docs/07).
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
                 .frame(minWidth: AstraSize.minTapTarget, minHeight: AstraSize.minTapTarget)
                 .contentShape(Rectangle())
         }

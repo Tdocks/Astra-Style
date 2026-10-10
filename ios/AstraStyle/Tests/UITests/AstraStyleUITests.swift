@@ -58,7 +58,11 @@ final class AstraStyleUITests: XCTestCase {
 
     /// Spec §22 "Complete onboarding". Owner: P2-ONBOARD.
     func testCompleteOnboarding() throws {
-        app.launchArguments += ["-astra-reset-state", "-astra-mock-backend"]
+        app.launchArguments += [
+            "-astra-reset-state",
+            "-astra-mock-backend",
+            "-astra-test-onboarding-state"
+        ]
         app.launch()
 
         awaitElement(app.buttons["onboarding.begin"], "Onboarding intro")
@@ -94,6 +98,10 @@ final class AstraStyleUITests: XCTestCase {
         finish.tap()
         awaitElement(app.chromeTabBar, "Main tab bar after onboarding")
         awaitElement(app.descendants(matching: .any)["home.look"], "Daily Brief after onboarding")
+
+        let completionProbe = app.descendants(matching: .any)["test.onboarding.completion"]
+        awaitElement(completionProbe, "Mock onboarding completion acceptance state")
+        assertOnboardingCompletionWasWritten(probe: completionProbe)
     }
 
     /// Spec §22 "Add a garment" / P3-TEST-02 — manual entry via ClosetItemForm.
@@ -371,6 +379,38 @@ final class AstraStyleUITests: XCTestCase {
         ] + extraArguments
         app.launch()
         awaitElement(app.chromeTabBar, "Main tab bar under mock backend")
+    }
+}
+
+private extension AstraStyleUITests {
+    func assertOnboardingCompletionWasWritten(probe: XCUIElement) {
+        let probeLoaded = expectation(
+            for: NSPredicate(format: "label BEGINSWITH %@", "timestamp="),
+            evaluatedWith: probe
+        )
+        wait(for: [probeLoaded], timeout: 5)
+
+        let fields = probe.label.split(separator: ";", omittingEmptySubsequences: false)
+        XCTAssertEqual(fields.count, 2, "Acceptance probe should return timestamp and write count")
+        guard fields.count == 2,
+              fields[0].hasPrefix("timestamp="),
+              fields[1].hasPrefix("writes="),
+              let writeCount = Int(fields[1].dropFirst("writes=".count)) else {
+            XCTFail("Acceptance probe returned malformed state: \(probe.label)")
+            return
+        }
+
+        let timestampString = String(fields[0].dropFirst("timestamp=".count))
+        let timestamp = ISO8601DateFormatter().date(from: timestampString)
+        XCTAssertNotNil(timestamp, "Completion should be returned as an ISO 8601 timestamp")
+        if let timestamp {
+            XCTAssertLessThan(
+                abs(timestamp.timeIntervalSinceNow),
+                120,
+                "The timestamp must be the newly written completion, not the seeded fixture value"
+            )
+        }
+        XCTAssertGreaterThanOrEqual(writeCount, 1, "Finishing onboarding must perform a mock repository write")
     }
 }
 

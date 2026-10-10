@@ -128,8 +128,8 @@ public struct MockStoreKitPurchasing: StoreKitPurchasing, Sendable {
             originalTransactionID: "orig-test",
             transactionID: "tx-test",
             productID: AstraProductID.monthly.rawValue,
-            purchaseDate: Date(timeIntervalSince1970: 1_777_000_000),
-            expiresDate: Date(timeIntervalSince1970: 1_779_600_000),
+            purchaseDate: .now,
+            expiresDate: .now.addingTimeInterval(30 * 24 * 60 * 60),
             environment: .sandbox
         ),
         restorePayloads: [AppStoreTransactionPayload] = []

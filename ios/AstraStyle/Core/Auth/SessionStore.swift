@@ -204,6 +204,32 @@ public final class SessionStore: AstraAuthTokenProviding {
         currentSession = session
     }
 
+    /// Installs a disposable UI-test session in both the app token provider
+    /// and the Supabase SDK. This is available only to Debug builds and only
+    /// when the configured project URL is loopback, so fixtures cannot point
+    /// this path at a hosted project.
+    func installLocalQASession(accessToken: String, refreshToken: String, expectedOwnerID: UUID) async throws {
+        #if DEBUG
+        guard AstraEnvironment.current.isLocalQABackend else {
+            throw AstraError.auth("Local QA sessions require the local Supabase environment.")
+        }
+        let sdkSession = try await supabase.auth.setSession(accessToken: accessToken, refreshToken: refreshToken)
+        guard sdkSession.user.id == expectedOwnerID else {
+            try? await supabase.auth.signOut()
+            throw AstraError.auth("The local QA session owner did not match its fixture.")
+        }
+        invalidatePendingRefresh()
+        currentSession = AuthSession(
+            userID: sdkSession.user.id,
+            accessToken: sdkSession.accessToken,
+            refreshToken: sdkSession.refreshToken,
+            expiresAt: Date(timeIntervalSince1970: sdkSession.expiresAt)
+        )
+        #else
+        throw AstraError.auth("Local QA sessions are unavailable in this build.")
+        #endif
+    }
+
     /// Clears only the current in-memory session. Preview auth must not make
     /// a request to the configured Supabase client when signing out.
     func clearInMemorySession() {

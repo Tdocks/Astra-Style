@@ -1,4 +1,4 @@
-# Features/Slice — temporary scaffolding, not product code
+# App/Diagnostics/Slice — developer diagnostic, not a product feature
 
 **This module is throwaway.** It exists to validate the architecture end to
 end before the rest of Phase 1 and Phase 2 are built (see

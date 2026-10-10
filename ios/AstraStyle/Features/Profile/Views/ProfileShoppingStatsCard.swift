@@ -31,7 +31,7 @@ struct ProfileShoppingStatsCard: View {
         switch viewModel.state {
         case .loading:
             HStack(spacing: AstraSpacing.sm) {
-                ProgressView().tint(AstraColor.accentChampagne)
+                ProgressView().tint(AstraColor.accentChampagneAccessible)
                 Text(String(localized: "Loading your saved and purchased items…", comment: "Profile shopping counts loading"))
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)

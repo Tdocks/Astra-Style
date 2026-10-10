@@ -12,7 +12,7 @@ struct ShopTheLookView: View {
         Group {
             switch viewModel.state {
             case .loading:
-                ProgressView().tint(AstraColor.accentChampagne)
+                ProgressView().tint(AstraColor.accentChampagneAccessible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let error):
                 failure(error)

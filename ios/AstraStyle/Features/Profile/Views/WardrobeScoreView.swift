@@ -42,7 +42,7 @@ struct ProfileWardrobeScoreCard: View {
             switch viewModel.phase {
             case .loading:
                 HStack(spacing: AstraSpacing.sm) {
-                    ProgressView().tint(AstraColor.accentChampagne)
+                    ProgressView().tint(AstraColor.accentChampagneAccessible)
                     Text(String(localized: "Reading your wardrobe.", comment: "Wardrobe Score loading state"))
                         .astraText(.callout)
                         .foregroundStyle(AstraColor.textSecondary)
@@ -143,7 +143,7 @@ struct WardrobeScoreDetailView: View {
 
     private var loadingState: some View {
         HStack(spacing: AstraSpacing.sm) {
-            ProgressView().tint(AstraColor.accentChampagne)
+            ProgressView().tint(AstraColor.accentChampagneAccessible)
             Text(String(localized: "Reading your wardrobe.", comment: "Wardrobe Score loading state"))
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
@@ -248,7 +248,7 @@ struct WardrobeScoreDetailView: View {
                         .accessibilityLabel(Text(String(localized: "\(component.title), \(value) out of 100", comment: "Wardrobe Score component value")))
                 }
                 ProgressView(value: Double(value), total: 100)
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .accessibilityHidden(true)
             }
         }

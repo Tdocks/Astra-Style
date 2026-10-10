@@ -215,7 +215,7 @@ extension HomeView {
     /// name and no forecast worth putting above "there is nothing to dress
     /// you in yet", but it is still today.
     var dayLine: some View {
-        Text(AstraDateFormatting.longWeekdayAndDate(Date.now))
+        Text(AstraDateFormatting.longWeekdayAndDate(snapshotDate))
             .astraText(.caption)
             .foregroundStyle(AstraColor.textMuted)
             .textCase(.uppercase)

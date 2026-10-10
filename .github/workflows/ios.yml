@@ -85,6 +85,9 @@ jobs:
       - name: Design token contrast (WCAG)
         run: python3 scripts/check_contrast.py
 
+      - name: Accessible accent token audit
+        run: python3 scripts/check_accessible_champagne.py
+
       # Coding keys against real columns. Separate from the enum check below
       # because it catches a quieter failure: a wrong key on an Optional
       # property does not throw — it decodes as nil forever, and "all nil" is
@@ -227,7 +230,7 @@ jobs:
         # and that a change to it cannot break this file's YAML.
         run: |
           set -euo pipefail
-          echo "ASTRA_SIM_ID=$(python3 ../scripts/resolve_ios_simulator.py)" >> "$GITHUB_ENV"
+          echo "ASTRA_SIM_ID=$(python3 ../scripts/resolve_ios_simulator.py --runtime 26.5 --device 'iPhone 17 Pro')" >> "$GITHUB_ENV"
         working-directory: ios
 
       - name: Build (Debug, iOS Simulator)
@@ -265,12 +268,41 @@ jobs:
       - name: Fail on warnings in our own code
         run: python3 scripts/check_ci_warning_gate.py --build-log "$RUNNER_TEMP/xcodebuild-build.log"
 
+      - name: Build Staging archive product (core partition)
+        if: matrix.partition == 'core'
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project AstraStyle.xcodeproj \
+            -scheme AstraStyle \
+            -configuration Staging \
+            -derivedDataPath "$RUNNER_TEMP/astra-staging" \
+            -destination "id=$ASTRA_SIM_ID" \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipMacroValidation \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild-staging-build.log"
+
+      - name: Fail on Staging warnings in our own code
+        if: matrix.partition == 'core'
+        run: python3 scripts/check_ci_warning_gate.py --build-log "$RUNNER_TEMP/xcodebuild-staging-build.log"
+
+      - name: Check Staging app for server credentials and bundled notices
+        if: matrix.partition == 'core'
+        run: |
+          python3 scripts/check_ios_binary_secrets.py \
+            "$RUNNER_TEMP/astra-staging/Build/Products/Staging-iphonesimulator/AstraStyle.app"
+
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: xcodebuild-build-log-${{ matrix.partition }}
-          path: ${{ runner.temp }}/xcodebuild-build.log
+          path: |
+            ${{ runner.temp }}/xcodebuild-build.log
+            ${{ runner.temp }}/xcodebuild-staging-build.log
           if-no-files-found: ignore
           retention-days: 14
 

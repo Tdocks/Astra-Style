@@ -40,13 +40,13 @@ public struct AstraSecondaryButtonStyle: ButtonStyle {
         configuration.label
             .astraText(.headline)
             .foregroundStyle(
-                configuration.isPressed ? AstraColor.accentChampagnePressed : AstraColor.accentChampagneAccessible
+                AstraColor.accentChampagneAccessible
             )
             .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
             .background(
                 RoundedRectangle(cornerRadius: AstraRadius.button, style: .continuous)
                     .strokeBorder(
-                        configuration.isPressed ? AstraColor.accentChampagnePressed : AstraColor.accentChampagneAccessible,
+                        AstraColor.accentChampagneAccessible,
                         lineWidth: 1
                     )
             )
@@ -66,13 +66,45 @@ public struct AstraTertiaryButtonStyle: ButtonStyle {
         configuration.label
             .astraText(.headline)
             .foregroundStyle(
-                configuration.isPressed ? AstraColor.accentChampagnePressed : AstraColor.accentChampagneAccessible
+                AstraColor.accentChampagneAccessible
             )
             .frame(minHeight: AstraSize.minTapTarget)
             .padding(.horizontal, AstraSpacing.sm)
             .opacity(isEnabled ? 1 : 0.45)
             .astraAnimation(AstraMotion.standard, value: configuration.isPressed)
     }
+}
+
+/// Destructive button: keeps the destructive token on the outline while retaining
+/// high-contrast primary text in both appearances. The action label remains textual,
+/// so red is not the only cue that the action removes or discards something.
+public struct AstraDestructiveButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .astraText(.headline)
+            .foregroundStyle(AstraColor.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
+            .background(
+                RoundedRectangle(cornerRadius: AstraRadius.button, style: .continuous)
+                    .fill(configuration.isPressed ? AstraColor.backgroundSecondary : .clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AstraRadius.button, style: .continuous)
+                    .strokeBorder(AstraColor.destructive, lineWidth: 1.5)
+            )
+            .opacity(isEnabled ? 1 : 0.45)
+            .astraAnimation(AstraMotion.standard, value: configuration.isPressed)
+    }
+}
+
+public enum AstraButtonVariant: Equatable {
+    case primary
+    case secondary
+    case destructive
 }
 
 // MARK: - Convenience view
@@ -86,6 +118,7 @@ public struct AstraTertiaryButtonStyle: ButtonStyle {
 public struct AstraButton: View {
     private let title: String
     private let isLoading: Bool
+    private let variant: AstraButtonVariant
     private let action: () -> Void
 
     /// - Parameters:
@@ -95,24 +128,39 @@ public struct AstraButton: View {
     ///     §22's acceptance bar ("no unhandled network failure" implies a visible loading state,
     ///     not a silently-dead tap). Defaults to `false`.
     ///   - action: Invoked on tap.
-    public init(title: String, isLoading: Bool = false, action: @escaping () -> Void) {
+    ///   - variant: Visual intent for the action. Destructive uses a red outline and
+    ///     accessible primary text, keeping the action legible in both appearances.
+    public init(
+        title: String,
+        isLoading: Bool = false,
+        variant: AstraButtonVariant = .primary,
+        action: @escaping () -> Void
+    ) {
         self.title = title
         self.isLoading = isLoading
+        self.variant = variant
         self.action = action
     }
 
+    @ViewBuilder
     public var body: some View {
-        Button(action: action) {
+        let button = Button(action: action) {
             if isLoading {
                 ProgressView()
-                    .tint(AstraColor.textOnAccent)
+                    .tint(variant == .destructive ? AstraColor.destructive : AstraColor.textOnAccent)
                     .accessibilityLabel(Text(title))
             } else {
                 Text(title)
             }
         }
-        .buttonStyle(.astraPrimary)
-        .disabled(isLoading)
+        switch variant {
+        case .primary:
+            button.buttonStyle(.astraPrimary).disabled(isLoading)
+        case .secondary:
+            button.buttonStyle(.astraSecondary).disabled(isLoading)
+        case .destructive:
+            button.buttonStyle(.astraDestructive).disabled(isLoading)
+        }
     }
 }
 
@@ -129,4 +177,32 @@ public extension ButtonStyle where Self == AstraSecondaryButtonStyle {
 
 public extension ButtonStyle where Self == AstraTertiaryButtonStyle {
     static var astraTertiary: AstraTertiaryButtonStyle { AstraTertiaryButtonStyle() }
+}
+
+public extension ButtonStyle where Self == AstraDestructiveButtonStyle {
+    static var astraDestructive: AstraDestructiveButtonStyle { AstraDestructiveButtonStyle() }
+}
+
+#Preview("AstraButton · dark and light") {
+    HStack(alignment: .top, spacing: AstraSpacing.md) {
+        buttonPreviewColumn(colorScheme: .dark)
+        buttonPreviewColumn(colorScheme: .light)
+    }
+    .padding(AstraSpacing.lg)
+    .background(AstraColor.backgroundPrimary)
+}
+
+@MainActor
+private func buttonPreviewColumn(colorScheme: ColorScheme) -> some View {
+    VStack(spacing: AstraSpacing.sm) {
+        Text(colorScheme == .dark ? "Dark" : "Light")
+            .astraText(.headline)
+        AstraButton(title: "Continue", variant: .primary) {}
+        AstraButton(title: "Learn more", variant: .secondary) {}
+        AstraButton(title: "Delete item", variant: .destructive) {}
+    }
+    .frame(maxWidth: .infinity)
+    .padding(AstraSpacing.sm)
+    .background(AstraColor.backgroundPrimary)
+    .environment(\.colorScheme, colorScheme)
 }

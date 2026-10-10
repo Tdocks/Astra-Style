@@ -97,3 +97,26 @@ public struct AstraChip: View {
         .accessibilityAddTraits(isSelected ? .isSelected : AccessibilityTraits())
     }
 }
+
+#Preview("AstraChip · dark and light") {
+    HStack(alignment: .top, spacing: AstraSpacing.md) {
+        chipPreviewColumn(colorScheme: .dark)
+        chipPreviewColumn(colorScheme: .light)
+    }
+    .padding(AstraSpacing.md)
+    .background(AstraColor.backgroundPrimary)
+}
+
+@MainActor
+private func chipPreviewColumn(colorScheme: ColorScheme) -> some View {
+    VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+        Text(colorScheme == .dark ? "Dark" : "Light")
+            .astraText(.headline)
+        AstraChip("Selected", systemImage: "checkmark", isSelected: true) {}
+        AstraChip("Available", isSelected: false) {}
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(AstraSpacing.sm)
+    .background(AstraColor.backgroundPrimary)
+    .environment(\.colorScheme, colorScheme)
+}

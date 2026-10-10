@@ -12,6 +12,7 @@
 //
 
 import SwiftUI
+import Observation
 
 struct MainTabView: View {
     @Environment(AppRouter.self) private var router
@@ -28,7 +29,7 @@ struct MainTabView: View {
                 }
             }
         }
-        .tint(AstraColor.accentChampagne)
+        .tint(AstraColor.accentChampagneAccessible)
         .background {
             AstraSystemTabBarConfigurator()
         }
@@ -43,6 +44,20 @@ struct MainTabView: View {
             didPresentAuditPaywall = true
             router.presentModal(.paywall(context: context))
         }
+        .overlay(alignment: .topLeading) {
+            onboardingAcceptanceProbe
+        }
+    }
+
+    @ViewBuilder
+    private var onboardingAcceptanceProbe: some View {
+        #if DEBUG
+        if AstraFeatureFlags.usesMockBackend,
+           ProcessInfo.processInfo.arguments.contains("-astra-test-onboarding-state"),
+           let provider = container.profileRepository as? any MockOnboardingAcceptanceProviding {
+            MockOnboardingAcceptanceProbeView(provider: provider)
+        }
+        #endif
     }
 
     /// Keep the system tab bar at its full glass size. Minimize-on-scroll
@@ -309,6 +324,48 @@ struct MainTabView: View {
         })
     }
 }
+
+#if DEBUG
+@MainActor
+@Observable
+private final class MockOnboardingAcceptanceViewModel {
+    private let provider: any MockOnboardingAcceptanceProviding
+    private(set) var serializedState = "pending"
+
+    init(provider: any MockOnboardingAcceptanceProviding) {
+        self.provider = provider
+    }
+
+    func load() async {
+        let snapshot = await provider.onboardingAcceptanceSnapshot()
+        guard let completedAt = snapshot.completedAt else {
+            serializedState = "timestamp=missing;writes=\(snapshot.writeCount)"
+            return
+        }
+        serializedState = "timestamp=\(ISO8601DateFormatter().string(from: completedAt));writes=\(snapshot.writeCount)"
+    }
+}
+
+private struct MockOnboardingAcceptanceProbeView: View {
+    @State private var viewModel: MockOnboardingAcceptanceViewModel
+
+    init(provider: any MockOnboardingAcceptanceProviding) {
+        _viewModel = State(initialValue: MockOnboardingAcceptanceViewModel(provider: provider))
+    }
+
+    var body: some View {
+        Text(viewModel.serializedState)
+            .font(.system(size: 1))
+            .foregroundStyle(.clear)
+            .frame(width: 1, height: 1)
+            .clipped()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(viewModel.serializedState))
+            .accessibilityIdentifier("test.onboarding.completion")
+            .task { await viewModel.load() }
+    }
+}
+#endif
 
 /// Shared, honest "not yet built" screen used by every feature tab until
 /// its module lands. Deliberately not a dead end: it states what will be

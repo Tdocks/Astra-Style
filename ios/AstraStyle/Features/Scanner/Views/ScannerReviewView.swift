@@ -49,7 +49,7 @@ struct ScannerReviewView: View {
         case .loading, .uploading, .analyzing, .saving:
             VStack(spacing: AstraSpacing.md) {
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                 Text(statusCopy)
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)
@@ -156,7 +156,7 @@ struct ScannerReviewView: View {
                     case .failure:
                         localPreviewImage
                     default:
-                        ProgressView().tint(AstraColor.accentChampagne)
+                        ProgressView().tint(AstraColor.accentChampagneAccessible)
                     }
                 }
             } else {

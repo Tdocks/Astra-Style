@@ -13,6 +13,9 @@ public actor MockProfileRepository: ProfileRepository {
     private var styleProfileWriteCount = 0
     private var dnaGenerationCount = 0
     private var dnaFailures = 0
+    #if DEBUG
+    private var onboardingCompletionWriteCount = 0
+    #endif
     public func failNextDNAGenerations(_ count: Int) { dnaFailures = max(0, count) }
     public func styleProfileWrites() -> Int { styleProfileWriteCount }
     public func dnaGenerations() -> Int { dnaGenerationCount }
@@ -78,8 +81,20 @@ public actor MockProfileRepository: ProfileRepository {
         bodyProfile = payload.bodyProfile
         lifestyleProfile = payload.lifestyleProfile
         profile.onboardingCompletedAt = .now
+        #if DEBUG
+        onboardingCompletionWriteCount += 1
+        #endif
         return profile
     }
+
+    #if DEBUG
+    func onboardingAcceptanceSnapshot() async -> MockOnboardingAcceptanceSnapshot {
+        MockOnboardingAcceptanceSnapshot(
+            completedAt: profile.onboardingCompletedAt,
+            writeCount: onboardingCompletionWriteCount
+        )
+    }
+    #endif
 
     public func generateStyleDNA() async throws -> StyleDNA {
         dnaGenerationCount += 1
@@ -178,3 +193,16 @@ public actor MockProfileRepository: ProfileRepository {
         profile.referredBy = profile.referredBy ?? UUID()
     }
 }
+
+#if DEBUG
+struct MockOnboardingAcceptanceSnapshot: Sendable {
+    let completedAt: Date?
+    let writeCount: Int
+}
+
+protocol MockOnboardingAcceptanceProviding: Sendable {
+    func onboardingAcceptanceSnapshot() async -> MockOnboardingAcceptanceSnapshot
+}
+
+extension MockProfileRepository: MockOnboardingAcceptanceProviding {}
+#endif

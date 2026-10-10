@@ -38,6 +38,42 @@ final class PerformanceAcceptanceUITests: XCTestCase {
         }
     }
 
+    /// Opt-in measurement for P1-DS-05. XCTest's launch metric and the in-app
+    /// `AppLaunchToInteractive` signpost exclude time spent in the UI-test runner's
+    /// synchronous `app.launch()` call. Run on a supported physical device, retain the
+    /// `.xcresult`, and compare the measured in-app interval with the 1.4-second requirement.
+    /// This test deliberately does not present UI-runner wall time as app launch time.
+    func testMeasuresSplashToInteractiveLaunch() throws {
+        guard ProcessInfo.processInfo.environment["ASTRA_RUN_LAUNCH_BUDGET"] == "1" else {
+            throw XCTSkip("Set ASTRA_RUN_LAUNCH_BUDGET=1 for the measured launch acceptance run.")
+        }
+
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-astra-mock-backend",
+            "-astra-skip-onboarding",
+            "-astra-measure-performance"
+        ]
+
+        let options = XCTMeasureOptions()
+        options.iterationCount = 5
+        measure(
+            metrics: [
+                XCTApplicationLaunchMetric(waitUntilResponsive: true),
+                XCTOSSignpostMetric(
+                    subsystem: "com.astrastyle.app",
+                    category: "Performance",
+                    name: "AppLaunchToInteractive"
+                )
+            ],
+            options: options
+        ) {
+            app.launch()
+            XCTAssertTrue(app.chromeTabBar.waitForExistence(timeout: 30))
+            app.terminate()
+        }
+    }
+
     func testCachedHomeRender() {
         let app = XCUIApplication()
         app.launchArguments = [

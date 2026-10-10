@@ -62,7 +62,7 @@ struct DesignSystemGallery: View {
                 swatch("warningAmber", AstraColor.warningAmber)
                 swatch("destructive", AstraColor.destructive)
             }
-            Text("* surfaceMarble currently degrades to backgroundPrimary until the marble asset ships.")
+            Text("* Near-black base used under the separate procedural marble texture.")
                 .astraText(.caption)
                 .foregroundStyle(AstraColor.textMuted)
         }
@@ -150,6 +150,8 @@ struct DesignSystemGallery: View {
                 .buttonStyle(.astraSecondary)
             Button("Edit") {}
                 .buttonStyle(.astraTertiary)
+            Button("Delete item") {}
+                .buttonStyle(.astraDestructive)
             Button("Wear This (disabled)") {}
                 .buttonStyle(.astraPrimary)
                 .disabled(true)

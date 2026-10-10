@@ -108,11 +108,12 @@ struct OnboardingReferenceView: View {
         Button {
             Task {
                 if model.hasGrantedReferenceConsent {
+                    AstraHaptics.warning()
                     await model.withdrawReferenceConsent()
                 } else {
                     await model.grantReferenceConsent()
+                    AstraHaptics.selection()
                 }
-                AstraHaptics.selection()
             }
         } label: {
             HStack(alignment: .top, spacing: AstraSpacing.md) {
@@ -143,7 +144,7 @@ struct OnboardingReferenceView: View {
                 RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
                     .strokeBorder(
                         model.hasGrantedReferenceConsent
-                            ? AstraColor.accentChampagne
+                            ? AstraColor.accentChampagneAccessible
                             : AstraColor.divider,
                         lineWidth: 1
                     )
@@ -193,8 +194,8 @@ struct OnboardingReferenceView: View {
 
             Button(String(localized: "Remove this photo", comment: "Remove the reference photo")) {
                 Task {
-                    await model.removeReferenceImage()
                     AstraHaptics.warning()
+                    await model.removeReferenceImage()
                 }
             }
             .buttonStyle(.astraSecondary)

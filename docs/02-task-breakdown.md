@@ -11,9 +11,9 @@
 #### `P1-INFRA-01` — Initialize Xcode project with feature-first module structure
 Scope: Create the Xcode project targeting iOS 18+, Swift 6, SwiftUI, and lay down the folder structure from spec §8 (`App/`, `Core/`, `Features/`, `Domain/`, `Resources/`, `Tests/`) with placeholder files so every subsequent ticket has a known location to land in.
 **Acceptance criteria**
-- Project builds and runs an empty app on simulator.
+- Project builds and runs on simulator.
 - Folder structure matches spec §8 exactly, including per-feature `Views/ViewModels/Components/Models/Services/Routing/Tests` subfolders for all 11 listed features.
-- No feature code exists yet beyond stub files.
+- The historical empty-app/stub-only condition was retired with the owner's approval on 2026-10-09. This ticket now verifies the maintained project structure and build; completed feature implementations are retained.
 **Dependencies:** none
 **Size:** S
 

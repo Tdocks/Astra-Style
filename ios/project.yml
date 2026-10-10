@@ -63,10 +63,12 @@ settings:
 
 configs:
   Debug: debug
+  Staging: release
   Release: release
 
 configFiles:
   Debug: Config/Debug.xcconfig
+  Staging: Config/Staging.xcconfig
   Release: Config/Release.xcconfig
 
 packages:
@@ -264,6 +266,9 @@ targets:
     platform: iOS
     sources:
       - path: AstraStyle/Tests/UnitTests
+      - path: AstraStyle/Tests/SnapshotBaselines
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: AstraStyle
     settings:

@@ -176,7 +176,7 @@ struct KyraPickerContent<Item: Identifiable, Row: View>: View {
             switch choices {
             case .loading:
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let error):
                 failed(error)

@@ -74,7 +74,7 @@
 //  THIS SCREEN LOGS NOTHING ITSELF. Spec §18's event list has no "closet
 //  browsed" or "category opened" event, and inventing one here would put a
 //  name on the wire that the spec does not define.
-//  `Features/Slice/SliceViewModel.swift` omits it for the same reason. The
+//  `App/Diagnostics/Slice/SliceViewModel.swift` omits it for the same reason. The
 //  closet event that does exist — `closet_item_added` — belongs to the
 //  add/edit form, which is why the `analyticsClient` this type holds is
 //  never used by this type: it is forwarded to the form built by

@@ -13,7 +13,7 @@ struct StudioComparisonView: View {
                     .foregroundStyle(AstraColor.textSecondary)
                 switch viewModel.state {
                 case .loading:
-                    ProgressView("Loading your previews…").tint(AstraColor.accentChampagne)
+                    ProgressView("Loading your previews…").tint(AstraColor.accentChampagneAccessible)
                 case .failed(let message):
                     Text(message).astraText(.body)
                     Button("Try again") { Task { await viewModel.load() } }.buttonStyle(.astraSecondary)
@@ -24,7 +24,7 @@ struct StudioComparisonView: View {
                     }
                     if generations.contains(where: { !$0.referenceImagePath.isEmpty }) {
                         Toggle("Show original images", isOn: $showsSourceImages)
-                            .tint(AstraColor.accentChampagne)
+                            .tint(AstraColor.accentChampagneAccessible)
                     }
                     if dynamicTypeSize.isAccessibilitySize || generations.count == 1 {
                         VStack(alignment: .leading, spacing: AstraSpacing.lg) {

@@ -77,6 +77,8 @@ Deno.test("redacts message-like and normalized private-field names", async () =>
       message: privateText,
       DETAIL: privateText,
       rawBody: privateText,
+      raw_prompt: privateText,
+      rawPrompt: privateText,
       imageUrl: privateText,
       storagePath: privateText,
       latency_ms: 12,
@@ -87,6 +89,8 @@ Deno.test("redacts message-like and normalized private-field names", async () =>
   assertEquals(parsed.message, "[redacted]");
   assertEquals(parsed.DETAIL, "[redacted]");
   assertEquals(parsed.rawBody, "[redacted]");
+  assertEquals(parsed.raw_prompt, "[redacted]");
+  assertEquals(parsed.rawPrompt, "[redacted]");
   assertEquals(parsed.imageUrl, "[redacted]");
   assertEquals(parsed.storagePath, "[redacted]");
   assertEquals(parsed.latency_ms, 12);

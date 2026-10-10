@@ -246,7 +246,7 @@ extension StudioGenerationDetailViewModel {
                     return
                 }
                 highResolutionChild = generation
-                delay = min(delay + delay, maximumPollInterval)
+                delay = StudioPollingPolicy.nextDelay(after: delay, maximum: maximumPollInterval)
             }
             guard generation.status == .complete, let path = generation.resultImagePath else { return }
             highResolutionImageURL = try await imageURLResolver.resolve(storagePath: path)

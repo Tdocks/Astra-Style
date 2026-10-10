@@ -13,7 +13,7 @@ struct MonthlyReviewView: View {
             Group {
                 switch viewModel.state {
                 case .loading:
-                    ProgressView().tint(AstraColor.accentChampagne).padding(.top, AstraSpacing.xl)
+                    ProgressView().tint(AstraColor.accentChampagneAccessible).padding(.top, AstraSpacing.xl)
                 case .failed(let message):
                     ContentUnavailableView {
                         Label("Review unavailable", systemImage: "chart.bar.xaxis")
@@ -69,7 +69,7 @@ struct MonthlyReviewView: View {
             .accessibilityIdentifier("monthlyReview.generateKyraReview")
         case .generating(let previous):
             HStack(spacing: AstraSpacing.sm) {
-                ProgressView().tint(AstraColor.accentChampagne)
+                ProgressView().tint(AstraColor.accentChampagneAccessible)
                 VStack(alignment: .leading, spacing: AstraSpacing.xs) {
                     if let previous {
                         Text("Kyra's review").astraText(.headline).foregroundStyle(AstraColor.textPrimary)

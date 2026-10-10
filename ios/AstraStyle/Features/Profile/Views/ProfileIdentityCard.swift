@@ -27,7 +27,7 @@ struct ProfileIdentityCard: View {
             switch viewModel.phase {
             case .loading:
                 HStack(spacing: AstraSpacing.md) {
-                    ProgressView().tint(AstraColor.accentChampagne)
+                    ProgressView().tint(AstraColor.accentChampagneAccessible)
                     Text(String(localized: "Loading your profile.", comment: "Profile identity loading"))
                         .astraText(.callout)
                         .foregroundStyle(AstraColor.textSecondary)
@@ -102,7 +102,7 @@ struct ProfileIdentityCard: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if viewModel.isSaving { ProgressView().tint(AstraColor.accentChampagne) }
+                if viewModel.isSaving { ProgressView().tint(AstraColor.accentChampagneAccessible) }
             }
             if let notice = viewModel.notice {
                 Text(notice)

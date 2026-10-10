@@ -50,3 +50,30 @@ public struct AstraCard<Content: View>: View {
             )
     }
 }
+
+#Preview("AstraCard · dark and light") {
+    HStack(alignment: .top, spacing: AstraSpacing.md) {
+        cardPreviewColumn(colorScheme: .dark)
+        cardPreviewColumn(colorScheme: .light)
+    }
+    .padding(AstraSpacing.md)
+    .background(AstraColor.backgroundPrimary)
+}
+
+@MainActor
+private func cardPreviewColumn(colorScheme: ColorScheme) -> some View {
+    VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+        Text(colorScheme == .dark ? "Dark" : "Light")
+            .astraText(.headline)
+            .foregroundStyle(AstraColor.textPrimary)
+        AstraCard {
+            Text("An elevated surface with adaptive border and shadow treatment.")
+                .astraText(.body)
+                .foregroundStyle(AstraColor.textPrimary)
+        }
+    }
+    .frame(maxWidth: .infinity)
+    .padding(AstraSpacing.sm)
+    .background(AstraColor.backgroundPrimary)
+    .environment(\.colorScheme, colorScheme)
+}

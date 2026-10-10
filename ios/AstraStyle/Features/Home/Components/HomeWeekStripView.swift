@@ -52,16 +52,16 @@ struct HomeWeekStripView: View {
 
     private func dayCell(_ slot: WeekDaySlot) -> some View {
         let isToday = Calendar.current.isDateInToday(slot.date)
-        return VStack(spacing: 4) {
+        return VStack(spacing: AstraSpacing.unit) {
             Text(slot.date.formatted(.dateTime.weekday(.narrow)))
                 .astraText(.caption)
-                .foregroundStyle(isToday ? AstraColor.accentChampagne : AstraColor.textMuted)
+                .foregroundStyle(isToday ? AstraColor.accentChampagneAccessible : AstraColor.textMuted)
             Text(slot.outfit?.name ?? "—")
                 .astraText(.caption)
                 .foregroundStyle(slot.hasLook ? AstraColor.textPrimary : AstraColor.textMuted)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 32, alignment: .top)
+            .frame(maxWidth: .infinity, minHeight: AstraSpacing.xxl, alignment: .top)
             if let headline = slot.occasionHeadline, !headline.isEmpty {
                 Text(headline)
                     .astraText(.caption)

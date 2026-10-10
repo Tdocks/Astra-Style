@@ -1,0 +1,84 @@
+name: Local Kyra acceptance
+
+# This flow calls a local Supabase stack and deterministic provider stub only.
+# It is deliberately manual and main-only so untrusted pull request code can
+# never run on the dedicated self-hosted Mac.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-kyra-acceptance
+  cancel-in-progress: false
+
+jobs:
+  local-kyra:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, macOS, ARM64, astra-local-qa]
+    timeout-minutes: 75
+    steps:
+      - name: Checkout trusted main branch
+        uses: actions/checkout@v7
+
+      - name: Verify prepared local runner
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = "Darwin"
+          command -v xcodegen >/dev/null
+          command -v docker >/dev/null
+          command -v python3 >/dev/null
+          docker info >/dev/null
+          xcodebuild -version
+          python3 scripts/resolve_ios_simulator.py --runtime 26.5 --device 'iPhone 17 Pro' >/dev/null
+
+      - name: Generate project and install reviewed dependencies
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          python3 ../scripts/manage_ios_package_resolution.py --install
+          xcodebuild -resolvePackageDependencies \
+            -project AstraStyle.xcodeproj \
+            -scheme AstraStyle \
+            -onlyUsePackageVersionsFromResolvedFile
+
+      - name: Set local-only bundle defaults when no developer config exists
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          if [ ! -e Config/Secrets.xcconfig ]; then
+            umask 077
+            printf '%s\n' \
+              '// Temporary local acceptance values; removed after this job.' \
+              'SUPABASE_URL = http:/$()/127.0.0.1:54321' \
+              'SUPABASE_ANON_KEY = local-qa-bundle-placeholder' \
+              > Config/Secrets.xcconfig
+            touch "$RUNNER_TEMP/astra-created-local-secrets"
+          fi
+
+      - name: Run real app flow against local Supabase and provider stub
+        env:
+          ASTRA_LOCAL_QA_EVIDENCE_DIR: ${{ runner.temp }}/astra-local-qa-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 scripts/run_local_kyra_acceptance.py
+
+      - name: Upload local acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-kyra-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/astra-local-qa-evidence-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Remove local QA credentials
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -f ios/.local-qa/kyra-fixture.json
+          rmdir ios/.local-qa 2>/dev/null || true
+          if [ -f "$RUNNER_TEMP/astra-created-local-secrets" ]; then
+            rm -f ios/Config/Secrets.xcconfig
+            rm -f "$RUNNER_TEMP/astra-created-local-secrets"
+          fi

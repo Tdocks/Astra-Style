@@ -32,7 +32,7 @@ struct KyraAskButton: View {
                 Circle()
                     .fill(AstraColor.surfaceElevated)
                 Circle()
-                    .strokeBorder(AstraColor.accentChampagne, lineWidth: 1)
+                    .strokeBorder(AstraColor.accentChampagneAccessible, lineWidth: 1)
                 AstraMonogram(size: AstraSpacing.xl + AstraSpacing.xxs)
             }
             .frame(width: Self.diameter, height: Self.diameter)

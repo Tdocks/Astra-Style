@@ -40,7 +40,7 @@ struct SubscriptionManagementView: View {
 
     private var loadingState: some View {
         HStack(spacing: AstraSpacing.sm) {
-            ProgressView().tint(AstraColor.accentChampagne)
+            ProgressView().tint(AstraColor.accentChampagneAccessible)
             Text(String(localized: "Checking your plan.", comment: "Subscription loading state"))
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
@@ -109,7 +109,7 @@ struct SubscriptionManagementView: View {
             } label: {
                 if viewModel.isRestoring {
                     ProgressView()
-                        .tint(AstraColor.accentChampagne)
+                        .tint(AstraColor.accentChampagneAccessible)
                         .frame(maxWidth: .infinity, minHeight: AstraSize.minTapTarget)
                 } else {
                     Text(String(localized: "Restore Purchases", comment: "Restores App Store subscriptions"))

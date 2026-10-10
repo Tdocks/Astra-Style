@@ -302,7 +302,7 @@ private extension StudioGenerationView {
         switch viewModel.phase {
         case .preparing:
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
         case .ready:
             AstraButton(
                 title: String(localized: "Generate", comment: "Starts Studio generation"),
@@ -315,7 +315,7 @@ private extension StudioGenerationView {
         case .generating:
             VStack(alignment: .leading, spacing: AstraSpacing.sm) {
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                 Text(viewModel.progressMessage)
                     .astraText(.callout)
                     .foregroundStyle(AstraColor.textSecondary)

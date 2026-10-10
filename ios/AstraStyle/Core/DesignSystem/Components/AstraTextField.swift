@@ -130,9 +130,8 @@ public struct AstraTextField: View {
             TextField(placeholder, text: $text, axis: axis)
                 .astraText(.body)
                 .foregroundStyle(AstraColor.textPrimary)
-                // The caret is the one place gold is a fill rather than
-                // text, so `accentChampagne` and not the accessible variant.
-                .tint(AstraColor.accentChampagne)
+                // The caret is a thin UI indicator, so it uses the contrast-safe token.
+                .tint(AstraColor.accentChampagneAccessible)
                 .keyboardType(keyboardType)
                 .textContentType(textContentType)
                 .submitLabel(submitLabel)
@@ -236,7 +235,7 @@ public struct AstraDecimalField: View {
                 TextField(placeholder, text: $buffer)
                     .astraText(.body)
                     .foregroundStyle(AstraColor.textPrimary)
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .keyboardType(.decimalPad)
                     .focused($isFocused)
                     .accessibilityLabel(Text(accessibilityLabel))
@@ -429,9 +428,8 @@ private enum AstraFieldBorderState {
     var color: Color {
         switch self {
         case .idle: AstraColor.divider
-        // A border is a fill, not text, so this is `accentChampagne` and
-        // not `accentChampagneAccessible` (spec §3 / docs/07).
-        case .focused: AstraColor.accentChampagne
+        // The focus ring is a thin UI indicator and must remain visible against either surface.
+        case .focused: AstraColor.accentChampagneAccessible
         case .invalid: AstraColor.destructive
         }
     }
@@ -467,4 +465,41 @@ private enum AstraFieldAccessibility {
     static func hint(footnote: String?, errorText: String?) -> String {
         errorText == nil ? (footnote ?? "") : ""
     }
+}
+
+#Preview("AstraTextField · dark and light") {
+    HStack(alignment: .top, spacing: AstraSpacing.md) {
+        textFieldPreviewColumn(colorScheme: .dark)
+        textFieldPreviewColumn(colorScheme: .light)
+    }
+    .padding(AstraSpacing.md)
+    .background(AstraColor.backgroundPrimary)
+}
+
+@MainActor
+private func textFieldPreviewColumn(colorScheme: ColorScheme) -> some View {
+    VStack(alignment: .leading, spacing: AstraSpacing.sm) {
+        Text(colorScheme == .dark ? "Dark" : "Light")
+            .astraText(.headline)
+        AstraTextField(
+            "Garment name",
+            text: .constant("Navy merino sweater"),
+            isRequired: true
+        )
+        AstraTextField(
+            "Notes",
+            text: .constant(""),
+            placeholder: "Add a note"
+        )
+        AstraDecimalField(
+            "Price paid",
+            value: .constant(Decimal(85)),
+            placeholder: "0",
+            currencyCode: "USD"
+        )
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(AstraSpacing.sm)
+    .background(AstraColor.backgroundPrimary)
+    .environment(\.colorScheme, colorScheme)
 }

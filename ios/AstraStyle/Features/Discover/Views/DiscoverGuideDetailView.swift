@@ -12,7 +12,7 @@ struct DiscoverGuideDetailView: View {
             switch viewModel.state {
             case .loading:
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .loaded(let guide):
                 article(guide)
@@ -126,7 +126,7 @@ struct DiscoverGuideDetailView: View {
                 Task { await viewModel.load() }
             }
             .buttonStyle(.borderedProminent)
-            .tint(AstraColor.accentChampagne)
+            .tint(AstraColor.accentChampagneAccessible)
             .accessibilityIdentifier("discover.guide.retry")
         }
     }

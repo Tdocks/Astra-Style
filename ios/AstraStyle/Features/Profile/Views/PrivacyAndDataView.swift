@@ -58,7 +58,7 @@ struct PrivacyAndDataView: View {
                 case .exporting:
                     HStack(spacing: AstraSpacing.sm) {
                         ProgressView()
-                            .tint(AstraColor.accentChampagne)
+                            .tint(AstraColor.accentChampagneAccessible)
                         Text(String(localized: "Preparing your export…", comment: "Personal data export progress"))
                             .astraText(.caption)
                             .foregroundStyle(AstraColor.textSecondary)

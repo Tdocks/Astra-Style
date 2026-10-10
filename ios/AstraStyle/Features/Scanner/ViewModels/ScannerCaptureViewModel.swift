@@ -153,7 +153,7 @@ public final class ScannerCaptureViewModel {
             let jpeg = try await captureSession.captureStillJPEG()
             let prepared = try CapturePreparation.prepareForUpload(jpeg)
             let ready = finishPreparation(prepared)
-            AstraHaptics.success()
+            AstraHaptics.selection()
             phase = .draftReady(ready)
             captureSession.stop()
             qualityTask?.cancel()
@@ -183,7 +183,7 @@ public final class ScannerCaptureViewModel {
         do {
             let prepared = try CapturePreparation.prepareForUpload(data)
             let ready = finishPreparation(prepared)
-            AstraHaptics.success()
+            AstraHaptics.selection()
             phase = .draftReady(ready)
             captureSession.stop()
             qualityTask?.cancel()

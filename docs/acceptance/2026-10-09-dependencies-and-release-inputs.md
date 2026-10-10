@@ -20,6 +20,10 @@ The revision values above were read from the generated lock and matching checkou
 
 For local work, run `python3 scripts/manage_ios_package_resolution.py --install` after XcodeGen and pass `-onlyUsePackageVersionsFromResolvedFile` to Xcode builds and tests. To change a transitive dependency, resolve it deliberately, review the full lock diff and package licenses, then record it with scripts/manage_ios_package_resolution.py --record-reviewed-resolution --reviewed. The helper rejects an unlocked/floating Supabase declaration, malformed lock, duplicate package identities, and a Supabase version that differs from project.yml. Verify that the final archived app and its included package notices satisfy each license's attribution and notice conditions. The exact direct Supabase version alone does not pin its transitive graph; the tracked lock and CI enforcement do.
 
+`ios/AstraStyle/Resources/ThirdPartyNotices.txt` now carries the complete license texts and required upstream NOTICE files for the seven packages above. XcodeGen's `AstraStyle` source tree includes non-Swift resources recursively, so this file is part of the app resource inputs. The generated archive still needs a release check confirming `ThirdPartyNotices.txt` is present in the built `.app`; the current About screen does not yet link to or display it.
+
+Release tooling evidence: `ios/Gemfile` and `ios/Gemfile.lock` pin Fastlane and its Ruby dependency graph; the app release workflow installs XcodeGen with Homebrew's unpinned `brew install xcodegen` command. The XcodeGen binary version is therefore not locked in CI. The dependency graph is reproducible; the full toolchain is not until the XcodeGen version policy is pinned or recorded and enforced.
+
 ## Physical-device acceptance
 
 - [ ] Install the current release candidate from TestFlight on a physical supported iPhone and record model, iOS version, build, date, and tester.

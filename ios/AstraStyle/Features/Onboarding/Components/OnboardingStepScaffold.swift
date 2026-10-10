@@ -85,7 +85,7 @@ struct OnboardingStepScaffold<Content: View>: View {
                         value: Double(position),
                         total: Double(OnboardingStep.answerableSteps.count)
                     )
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .accessibilityLabel(
                         String(
                             format: String(localized: "Step %d of %d",

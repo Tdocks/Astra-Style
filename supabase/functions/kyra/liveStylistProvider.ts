@@ -45,6 +45,8 @@ import {
 
 export interface LiveStylistProviderDeps {
   readonly apiKey: string;
+  /** Local-only OpenAI-compatible endpoint; production uses the fixed vendor URL. */
+  readonly endpointURL?: string;
   /** Tier -> vendor model id. docs/09 §1's policy mapping, owned here. */
   readonly modelForTier: Readonly<Record<ModelTier, string>>;
   readonly fetchImpl?: typeof fetch;
@@ -71,6 +73,7 @@ export class LiveStylistProvider implements StylistReasoningProvider {
   private readonly apiKey: string;
   private readonly modelForTier: Readonly<Record<ModelTier, string>>;
   private readonly fetchImpl: typeof fetch;
+  private readonly endpointURL: string;
   // Ephemeral, request/owner/model-scoped encrypted reasoning replay. Never
   // persisted in messages or logs. Hard bounds and TTL prevent isolate growth.
   private readonly replay = new Map<
@@ -82,6 +85,7 @@ export class LiveStylistProvider implements StylistReasoningProvider {
     this.apiKey = deps.apiKey;
     this.modelForTier = deps.modelForTier;
     this.fetchImpl = deps.fetchImpl ?? fetch;
+    this.endpointURL = deps.endpointURL ?? "https://api.openai.com/v1/responses";
   }
 
   async complete(
@@ -166,7 +170,7 @@ export class LiveStylistProvider implements StylistReasoningProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ctx.timeoutMs);
     try {
-      const response = await this.fetchImpl("https://api.openai.com/v1/responses", {
+      const response = await this.fetchImpl(this.endpointURL, {
         method: "POST",
         signal: controller.signal,
         headers: {

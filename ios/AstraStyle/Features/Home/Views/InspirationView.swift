@@ -48,7 +48,7 @@ struct InspirationView: View {
                     }
                     if viewModel.isPreparing || viewModel.isGenerating {
                         ProgressView(viewModel.isPreparing ? "Gathering your style and plans…" : "Creating your look… This can take a minute.")
-                            .tint(AstraColor.accentChampagne)
+                            .tint(AstraColor.accentChampagneAccessible)
                     }
                     if let error = viewModel.error {
                         Text(error).astraText(.callout).foregroundStyle(AstraColor.textSecondary)
@@ -148,7 +148,7 @@ struct InspirationView: View {
                         if selected { viewModel.selectedItemIDs.insert(item.id) } else { viewModel.selectedItemIDs.remove(item.id) }
                     }
                 ))
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .disabled(viewModel.isGenerating || (!viewModel.selectedItemIDs.contains(item.id) && viewModel.selectedItemIDs.count >= 12))
             }
             }

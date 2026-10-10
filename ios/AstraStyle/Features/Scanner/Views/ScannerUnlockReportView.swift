@@ -43,7 +43,7 @@ struct ScannerUnlockReportView: View {
         switch state {
         case .calculating:
             VStack(spacing: AstraSpacing.sm) {
-                ProgressView().tint(AstraColor.accentChampagne)
+                ProgressView().tint(AstraColor.accentChampagneAccessible)
                 Text(String(localized: "Checking the outfit combinations this adds…",
                             comment: "Scanner is calculating the real outfit unlock count"))
                     .astraText(.body)

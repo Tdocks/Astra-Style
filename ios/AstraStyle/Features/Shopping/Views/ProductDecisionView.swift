@@ -22,7 +22,7 @@ struct ProductDecisionView: View {
             switch viewModel.state {
             case .loading:
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let error):
                 failed(error)

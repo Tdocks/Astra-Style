@@ -43,7 +43,7 @@ struct NotificationSettingsView: View {
         .overlay {
             if isLoading {
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .accessibilityIdentifier("profile.notifications.loading")
             }
         }

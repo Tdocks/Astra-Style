@@ -309,8 +309,8 @@ struct OnboardingFirstItemsView: View {
             ForEach(model.firstItems) { item in
                 AddedItemRow(item: item) {
                     Task {
-                        await model.removeFirstItem(item)
                         AstraHaptics.warning()
+                        await model.removeFirstItem(item)
                     }
                 }
             }

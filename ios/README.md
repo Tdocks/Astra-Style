@@ -6,7 +6,7 @@ Native iPhone app for Astra Style, a premium personal-stylist and wardrobe opera
 
 ## Prerequisites
 
-- macOS with **Xcode 26.6** exactly (CI pins it; matches the owner's machine). The line "Xcode 16 or later" that once lived here is stale.
+- macOS with Xcode and an iOS 26.5 simulator runtime. CI pins Xcode 26.6; the owner's Mac now uses Xcode 27.0. Snapshot verification pins iPhone 17 Pro / iOS 26.5, and CI must verify compatibility between these toolchains.
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
 - A Supabase project (or access to the shared dev project) for `SUPABASE_URL` / `SUPABASE_ANON_KEY`.
 - CocoaPods is **not** used — dependencies are Swift Package Manager only (see `project.yml`'s `packages:` section, currently `supabase-swift`).
@@ -43,7 +43,7 @@ SUPABASE_URL = https:/$()/xyzcompany.supabase.co
 
 ## 3. Run
 
-Select the `AstraStyle` scheme and a simulator or device running iOS 18+, then Cmd-R. The app boots into `AppContainer.live()` (real Supabase networking) by default; SwiftUI previews use `AppContainer.preview()` (in-memory mocks, `Core/Mocks/`) and never touch the network.
+Select the `AstraStyle` scheme and a simulator or device running iOS 18+, then Cmd-R. The app boots into `AppContainer.live()` (real Supabase networking) by default; SwiftUI previews use `AppContainer.preview()` (in-memory mocks, `Core/Mocks/`) and never touch the network. Choose Debug, Staging, or Release in Xcode's build configuration selector. For command-line staging builds, pass `-configuration Staging` to `xcodebuild`.
 
 ## 4. Test
 
@@ -98,7 +98,7 @@ rather than inventing ASC state.
 ```text
 ios/
   project.yml              XcodeGen project definition
-  Config/                  .xcconfig files (Base/Debug/Release/Secrets)
+  Config/                  .xcconfig files (Base/Debug/Staging/Release/Secrets)
   AstraStyle/
     App/                   @main entry, root routing, tab shell, DI container
     Core/
@@ -114,19 +114,36 @@ ios/
       Repositories/        protocol-only seams
       Services/            CompatibilityScoring, WardrobeScoring, OfflineMutationQueue
     Features/
-      Home/                fully implemented — the reference module
-      Onboarding/          Style DNA flow (most complete product flow)
-      Closet/              overview, metrics, filters, detail, manual form — usable end to end
-      Scanner/             capture → hints → review → save; offline queue; unlock report
-      Profile/             guest profile + create-account; signed-in Profile still thin
-      Outfits/ Studio/ Kyra/ Shopping/ Discover/ Subscription/
-                           README-only — zero Swift files yet
-      Slice/               DEBUG vertical slice; throwaway — do not copy as a pattern
+      <11 spec §8 modules>/ each owns Views, ViewModels, Components, Models,
+                           Services, Routing, and Tests directories
     Resources/             Info.plist, entitlements, QuizImagery
     Tests/
-      UnitTests/           Swift Testing
-      UITests/             XCUITest
+      UnitTests/           shared Swift Testing target and test support
+      UITests/             shared XCUITest target and UI test support
 ```
+
+Each feature's `Tests/README.md` indexes its tests in the shared targets under
+`AstraStyle/Tests/`. The directories provide stable ownership and placement
+without introducing separate Xcode test targets. Markdown indexes are excluded
+from the app bundle by `project.yml`.
+
+The “no feature code beyond stubs” acceptance line in P1-INFRA-01 was retired
+with the owner's approval on 2026-10-09. It described the
+initial scaffold state. It does not describe this repository's history: the
+oldest feature commit (`e1718348`, “Groundwork: master spec, build plan, schema,
+iOS scaffold, design system”) already contains substantial Home views, services,
+and models. Later implementation commits build on that starting point; the
+application should not be stripped to recreate a historical scaffold. The
+opt-in DEBUG vertical slice now lives in `App/Diagnostics/Slice`, so `Features/`
+contains exactly the eleven product modules specified in §8.
+
+Build configurations are Debug, Staging, and Release. Staging is a
+release-like configuration and uses the same two allowed client settings as
+the other configurations. CI writes its supplied `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` into the ignored `Secrets.xcconfig`; no credential is
+duplicated in `Staging.xcconfig`. The current CI workflow uses its configured
+Supabase secrets for its builds; a distinct staging Supabase project/secret set
+is an environment provisioning decision outside this project configuration.
 
 ## Code quality bar
 

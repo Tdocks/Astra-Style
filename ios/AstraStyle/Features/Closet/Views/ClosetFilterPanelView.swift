@@ -217,9 +217,7 @@ extension ClosetFilterPanelView {
 
     private func clearAll() {
         filters.clear()
-        // The same haptic archiving uses: this undoes work the user did,
-        // and a selection tick would understate it.
-        AstraHaptics.warning()
+        AstraHaptics.selection()
     }
 }
 
@@ -316,7 +314,7 @@ extension ClosetFilterPanelView {
         }
         // The chevron is an icon, so it takes the plain champagne fill
         // rather than the text token (spec §3 / docs/07).
-        .tint(AstraColor.accentChampagne)
+        .tint(AstraColor.accentChampagneAccessible)
     }
 
     /// The heading, plus what it is doing while it is shut.
@@ -684,9 +682,7 @@ extension ClosetFilterPanelView {
             values: Self.joinedWithOr(values),
             clear: {
                 clear()
-                // Undoing a narrowing, not making one — the same haptic
-                // "Clear all" uses.
-                AstraHaptics.warning()
+                AstraHaptics.selection()
             }
         )
     }

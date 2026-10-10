@@ -1,8 +1,8 @@
 // Base.xcconfig
 //
-// Settings shared by every build configuration. Debug.xcconfig and
-// Release.xcconfig both #include this file and layer environment-specific
-// overrides on top. Secrets.xcconfig (gitignored, see Secrets.example.xcconfig)
+// Settings shared by every build configuration. Debug.xcconfig,
+// Staging.xcconfig, and Release.xcconfig include this file and layer their
+// build settings on top. Secrets.xcconfig (gitignored, see Secrets.example.xcconfig)
 // is included last so it can supply SUPABASE_URL / SUPABASE_ANON_KEY without
 // those values ever being committed.
 

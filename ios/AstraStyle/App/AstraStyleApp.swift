@@ -25,7 +25,7 @@ struct AstraStyleApp: App {
                 switch startupController.state {
                 case .opening:
                     ProgressView("Opening saved data…")
-                        .tint(AstraColor.accentChampagne)
+                        .tint(AstraColor.accentChampagneAccessible)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
                 case .failed:
@@ -90,6 +90,15 @@ struct AstraStyleApp: App {
     }
 
     private func resolveLaunchRoute(using appContainer: AppContainer) async -> AppRouteState {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-astra-local-qa-kyra") {
+            return await restoreLocalKyraFixture(using: appContainer)
+        }
+        #endif
+        return await resolveStandardLaunchRoute(using: appContainer)
+    }
+
+    private func resolveStandardLaunchRoute(using appContainer: AppContainer) async -> AppRouteState {
         if AstraFeatureFlags.resetsStateOnLaunch {
             // Test-only reset is local. Calling Supabase Auth's sign-out here
             // would add a network dependency to UI tests and fail offline.
@@ -183,6 +192,51 @@ struct AstraStyleApp: App {
             return .main
         }
     }
+
+    #if DEBUG
+    private func restoreLocalKyraFixture(using appContainer: AppContainer) async -> AppRouteState {
+        guard AstraEnvironment.current.isLocalQABackend,
+              let fixturePath = ProcessInfo.processInfo.environment["ASTRA_LOCAL_QA_FIXTURE_PATH"] else {
+            return .signedOut
+        }
+        let fixtureURL = URL(fileURLWithPath: fixturePath)
+        guard
+            fixtureURL.isFileURL,
+            let attributes = try? FileManager.default.attributesOfItem(atPath: fixtureURL.path),
+            let fileSize = attributes[.size] as? NSNumber,
+            let permissions = attributes[.posixPermissions] as? NSNumber,
+            fileSize.intValue > 0,
+            fileSize.intValue <= 16_384,
+            (permissions.intValue & 0o077) == 0,
+            let data = try? Data(contentsOf: fixtureURL),
+            let fixture = try? JSONDecoder().decode(LocalKyraUIFixture.self, from: data)
+        else { return .signedOut }
+        guard !fixture.accessToken.isEmpty, !fixture.refreshToken.isEmpty else { return .signedOut }
+
+        do {
+            try await appContainer.sessionStore.installLocalQASession(
+                accessToken: fixture.accessToken,
+                refreshToken: fixture.refreshToken,
+                expectedOwnerID: fixture.userID
+            )
+            return .main
+        } catch {
+            return .signedOut
+        }
+    }
+
+    private struct LocalKyraUIFixture: Decodable {
+        let userID: UUID
+        let accessToken: String
+        let refreshToken: String
+
+        enum CodingKeys: String, CodingKey {
+            case userID = "user_id"
+            case accessToken = "access_token"
+            case refreshToken = "refresh_token"
+        }
+    }
+    #endif
 
     private func observeConnectivityForScannerRecovery(using appContainer: AppContainer) async {
         let mutationDrain = appContainer.offlineMutationDrainCoordinator

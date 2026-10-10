@@ -20,7 +20,7 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            // Vertical-slice bypass (see Features/Slice/README.md): boots
+            // Vertical-slice bypass (see App/Diagnostics/Slice/README.md): boots
             // straight into the temporary end-to-end scaffold screen
             // instead of the normal `AppRouteState` flow below, without
             // changing `AppRouteState`'s meaning or any of its branches for
@@ -115,9 +115,9 @@ private struct SignedOutGateView: View {
 
     var body: some View {
         ZStack {
-            // Spec §3 names the welcome/paywall hero as one of the few surfaces
-            // marble belongs on. Scrimmed so the buttons below stay legible.
-            Color.clear.astraMarbleBackground()
+            // Keep the authentication copy and legal text on a solid surface;
+            // the marble texture is reserved for the splash and paywall hero.
+            AstraColor.backgroundPrimary.ignoresSafeArea()
 
             // Spec §19 requires full Dynamic Type support. At the largest
             // accessibility sizes this screen's content is taller than the

@@ -32,13 +32,13 @@ struct PackingTripView: View {
                         selection: $viewModel.startDate,
                         displayedComponents: .date
                     )
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     DatePicker(
                         String(localized: "Back", comment: "Packing end"),
                         selection: $viewModel.endDate,
                         displayedComponents: .date
                     )
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
 
                     AstraTextField(
                         String(localized: "What's the trip for", comment: "Optional packing activities"),
@@ -51,7 +51,7 @@ struct PackingTripView: View {
                         String(localized: "Laundry where you're going", comment: "Packing laundry access"),
                         isOn: $viewModel.hasLaundryAccess
                     )
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .accessibilityIdentifier("packing.laundry")
 
                     Picker(

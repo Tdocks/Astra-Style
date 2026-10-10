@@ -27,6 +27,8 @@ const REDACTED_MARKER = "[redacted]";
 /** Field-name denylist. Values under these keys are never logged verbatim. */
 const REDACT_KEYS = new Set([
   "prompt",
+  "raw_prompt",
+  "rawPrompt",
   "natural_language_request",
   "naturalLanguageRequest",
   "message",

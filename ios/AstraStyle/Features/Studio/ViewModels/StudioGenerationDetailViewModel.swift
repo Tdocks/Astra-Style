@@ -33,9 +33,9 @@ public final class StudioGenerationDetailViewModel {
     public var descriptionDraft = ""
     public private(set) var isSavingDescription = false
     public private(set) var descriptionError: String?
-    public var pollInterval: Duration = .seconds(2)
-    public var maximumPollInterval: Duration = .seconds(8)
-    public var maximumPollingDuration: Duration = .seconds(180)
+    public var pollInterval: Duration = StudioPollingPolicy.initialDelay
+    public var maximumPollInterval: Duration = StudioPollingPolicy.maximumDelay
+    public var maximumPollingDuration: Duration = StudioPollingPolicy.timeout
 
     let generationID: UUID
     let studioRepository: StudioRepository
@@ -173,7 +173,7 @@ public final class StudioGenerationDetailViewModel {
                     return
                 }
                 state = .loaded(generation)
-                delay = min(delay + delay, maximumPollInterval)
+                delay = StudioPollingPolicy.nextDelay(after: delay, maximum: maximumPollInterval)
             }
 
             guard generation.status == .complete, let path = generation.resultImagePath else {

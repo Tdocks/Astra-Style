@@ -43,6 +43,7 @@ Icon
 
 # === Astra secrets — never commit these ===
 ios/Config/Secrets.xcconfig
+ios/.local-qa/
 .env
 .env.*
 !.env.example
@@ -78,6 +79,7 @@ ios/AstraStyle/Resources/DownloadedAssets/
 *.xcresult
 TestResults/
 __snapshots__/**/*.actual.png
+ios/AstraStyle/Tests/SnapshotBaselines/.record-snapshots
 
 # Screenshots exported out of an .xcresult by the QA / AX5 UI-test walks
 # (`xcrun xcresulttool export attachments`). They are a diagnostic you look at

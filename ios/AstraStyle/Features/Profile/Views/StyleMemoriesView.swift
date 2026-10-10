@@ -78,7 +78,7 @@ struct StyleMemoriesView: View {
         switch viewModel.state {
         case .loading:
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("profile.styleMemories.loading")
         case .loaded(let memories):
@@ -113,7 +113,7 @@ struct StyleMemoriesView: View {
                 Spacer(minLength: AstraSpacing.xs)
                 if viewModel.deletingIDs.contains(memory.id) {
                     ProgressView()
-                        .tint(AstraColor.accentChampagne)
+                        .tint(AstraColor.accentChampagneAccessible)
                         .accessibilityLabel(Text(String(localized: "Deleting memory", comment: "VoiceOver status during deletion")))
                 } else {
                     Button(role: .destructive) {
@@ -141,7 +141,7 @@ struct StyleMemoriesView: View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             Image(systemName: "bookmark")
                 .astraIcon(.feature)
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
             Text(String(localized: "Nothing saved yet", comment: "Empty state for user-visible style memories"))
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)

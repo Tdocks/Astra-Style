@@ -315,7 +315,7 @@ private extension ClosetItemFormView {
                 Spacer(minLength: AstraSpacing.sm)
                 Image(systemName: "chevron.down")
                     .astraIcon(.inline)
-                    .foregroundStyle(AstraColor.accentChampagne)
+                    .foregroundStyle(AstraColor.accentChampagneAccessible)
                     .rotationEffect(.degrees(viewModel.showsMoreDetails ? 180 : 0))
                     .accessibilityHidden(true)
             }
@@ -484,7 +484,7 @@ private extension ClosetItemFormView {
                 )
                 .datePickerStyle(.compact)
                 .labelsHidden()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .frame(minHeight: AstraSize.minTapTarget, alignment: .leading)
                 .accessibilityLabel(Text(label))
                 .accessibilityIdentifier("closet.form.purchaseDate")
@@ -657,7 +657,7 @@ private struct ClosetAddToListField: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         add(trimmed)
-        AstraHaptics.success()
+        AstraHaptics.selection()
     }
 }
 

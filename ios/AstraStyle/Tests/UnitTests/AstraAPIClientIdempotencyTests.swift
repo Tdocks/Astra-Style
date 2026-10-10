@@ -224,6 +224,28 @@ struct AstraAPIClientIdempotencyTests {
         )
         #expect(IdempotencyStubURLProtocol.capturedIdempotencyKeys == [nil])
     }
+    @Test("Live Studio deletion uses the authenticated shared generation deletion route")
+    func studioDeletionUsesCanonicalRoute() async throws {
+        IdempotencyStubURLProtocol.reset()
+        let generationID = UUID()
+        IdempotencyStubURLProtocol.successBody = Data(
+            "{\"data\":{\"id\":\"\(generationID)\",\"status\":\"deleted\"},\"error\":null,\"request_id\":\"delete-test\"}".utf8
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+            session: URLSession(configuration: configuration), retryPolicy: .none)
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+        let repository = LiveStudioRepository(apiClient: client, supabase: AstraSupabaseClientFactory.previewClient)
+
+        try await repository.deleteGeneration(id: generationID)
+
+        let request = try #require(IdempotencyStubURLProtocol.capturedRequests.first)
+        #expect(request.httpMethod == "DELETE")
+        #expect(request.url?.path == "/functions/v1/studio/generations/\(generationID.uuidString.lowercased())")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
+        #expect(IdempotencyStubURLProtocol.capturedRequests.count == 1)
+    }
 }
 
 private struct FixedIdempotencyTokenProvider: AstraAuthTokenProviding {

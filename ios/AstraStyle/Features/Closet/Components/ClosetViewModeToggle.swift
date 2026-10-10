@@ -93,7 +93,7 @@ struct ClosetViewModeToggle: View {
                 // An icon is a fill, not text, so this is the plain
                 // champagne token — the same call the add and scan
                 // buttons beside it make (spec §3 / docs/07).
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
                 .frame(minWidth: AstraSize.minTapTarget, minHeight: AstraSize.minTapTarget)
                 .contentShape(Rectangle())
         }
@@ -157,10 +157,10 @@ private struct ClosetViewModeTogglePreview: View {
                 ClosetViewModeToggle(selection: $mode, showsCutouts: $showsCutouts)
                 Image(systemName: "plus")
                     .astraIcon(.emphasis)
-                    .foregroundStyle(AstraColor.accentChampagne)
+                    .foregroundStyle(AstraColor.accentChampagneAccessible)
                 Image(systemName: "camera.viewfinder")
                     .astraIcon(.emphasis)
-                    .foregroundStyle(AstraColor.accentChampagne)
+                    .foregroundStyle(AstraColor.accentChampagneAccessible)
             }
 
             Text(mode.displayName)

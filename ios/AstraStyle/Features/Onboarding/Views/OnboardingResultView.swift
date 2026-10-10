@@ -101,7 +101,7 @@ struct OnboardingResultView: View {
     private var workingState: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .accessibilityHidden(true)
 
             Text("Reading your answers.")
@@ -205,7 +205,7 @@ struct OnboardingResultView: View {
     private var regeneratingNotice: some View {
         HStack(spacing: AstraSpacing.sm) {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
                 .accessibilityHidden(true)
 
             Text("Reading your new picks.")

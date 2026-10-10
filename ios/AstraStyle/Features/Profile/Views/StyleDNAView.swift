@@ -44,7 +44,7 @@ struct StyleDNAView: View {
     private var workingState: some View {
         VStack(alignment: .leading, spacing: AstraSpacing.sm) {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
             Text(String(localized: "Reading your answers.", comment: "Style DNA loading"))
                 .astraText(.title2)
                 .foregroundStyle(AstraColor.textPrimary)
@@ -78,7 +78,7 @@ struct StyleDNAView: View {
         VStack(alignment: .leading, spacing: AstraSpacing.xxl) {
             if isRegenerating {
                 HStack(spacing: AstraSpacing.sm) {
-                    ProgressView().tint(AstraColor.accentChampagne)
+                    ProgressView().tint(AstraColor.accentChampagneAccessible)
                     Text(String(localized: "Reading your new picks.", comment: "Style DNA regenerating"))
                         .astraText(.callout)
                         .foregroundStyle(AstraColor.textSecondary)

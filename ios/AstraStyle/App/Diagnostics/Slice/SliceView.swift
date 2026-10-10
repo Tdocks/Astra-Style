@@ -28,7 +28,7 @@ struct SliceRootView: View {
                 SliceView(viewModel: viewModel)
             } else {
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
             }
         }
         .onAppear {
@@ -150,7 +150,7 @@ public struct SliceView: View {
             switch viewModel.garmentsState {
             case .loading:
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, AstraSpacing.lg)
 

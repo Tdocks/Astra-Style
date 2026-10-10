@@ -11,9 +11,9 @@
 import Foundation
 
 public enum AstraFeatureFlags {
-    /// When `true`, `RootView` boots straight into `Features/Slice`'s
+    /// When `true`, `RootView` boots straight into `App/Diagnostics/Slice`'s
     /// `SliceRootView` instead of the normal `AppRouteState`-driven flow
-    /// (see `Features/Slice/README.md` for what that module is and why it
+    /// (see `App/Diagnostics/Slice/README.md` for what that module is and why it
     /// exists). Debug-only by construction — the `#if DEBUG` guard means
     /// this always evaluates to `false` in a Release build regardless of
     /// the environment, so the slice can never ship active.

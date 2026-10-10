@@ -12,10 +12,22 @@
 
 import SwiftUI
 
+private struct HomeSnapshotDateKey: EnvironmentKey {
+    static var defaultValue: Date { .now }
+}
+
+extension EnvironmentValues {
+    var homeSnapshotDate: Date {
+        get { self[HomeSnapshotDateKey.self] }
+        set { self[HomeSnapshotDateKey.self] = newValue }
+    }
+}
+
 public struct HomeView: View {
     @State var viewModel: HomeViewModel
     @Environment(AppRouter.self) var router
     @Environment(AppContainer.self) var container
+    @Environment(\.homeSnapshotDate) var snapshotDate
     let shoppingRepository: ShoppingRepository
     @State var inspirationViewModel: InspirationViewModel?
     @State var isPastingLink = false

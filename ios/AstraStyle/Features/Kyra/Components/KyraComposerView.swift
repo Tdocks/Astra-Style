@@ -23,6 +23,7 @@ import SwiftUI
 
 struct KyraComposerView: View {
     @Bindable var viewModel: KyraConversationViewModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var isPickingPhoto = false
     @State private var photoSelection: PhotosPickerItem?
@@ -123,7 +124,7 @@ struct KyraComposerView: View {
         HStack(alignment: .bottom, spacing: AstraSpacing.sm) {
             attachmentMenu
             TextField(
-                String(localized: "Ask Kyra anything about your style", comment: "Composer placeholder"),
+                composerPlaceholder,
                 text: $viewModel.draftText,
                 axis: .vertical
             )
@@ -138,10 +139,21 @@ struct KyraComposerView: View {
                     .fill(AstraColor.backgroundPrimary)
             )
             .disabled(viewModel.isOffline || speechInput.state != .idle)
+            .accessibilityLabel(Text(String(
+                localized: "Ask Kyra anything about your style",
+                comment: "Full accessible label for the Kyra composer"
+            )))
             .accessibilityIdentifier("kyra.composer.field")
             voiceButton
             sendButton
         }
+    }
+
+    private var composerPlaceholder: String {
+        if dynamicTypeSize.isAccessibilitySize {
+            return String(localized: "Ask…", comment: "Short composer placeholder at accessibility text sizes")
+        }
+        return String(localized: "Ask Kyra anything about your style", comment: "Composer placeholder")
     }
 
     private var attachmentMenu: some View {
@@ -257,7 +269,7 @@ struct KyraComposerView: View {
                 .accessibilityIdentifier("kyra.composer.voice.recording")
         case .transcribing:
             HStack(spacing: AstraSpacing.xs) {
-                ProgressView().tint(AstraColor.accentChampagne)
+                ProgressView().tint(AstraColor.accentChampagneAccessible)
                 Text(String(localized: "Transcribing on this device…", comment: "Voice transcription state"))
                     .astraText(.caption)
                     .foregroundStyle(AstraColor.textMuted)

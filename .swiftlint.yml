@@ -129,6 +129,15 @@ custom_rules:
       scripts/check_ui_conventions.py.
     severity: error
 
+  no_raw_design_spacing:
+    included: ".*/Features/.*\\.swift"
+    excluded: ".*/Tests/.*"
+    regex: '\.(?:padding|cornerRadius|lineSpacing)\(\s*(?:\.[A-Za-z]+\s*,\s*)?(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\s*\)|\.frame\([^\n)]*?(?:width|height|minWidth|minHeight|idealWidth|idealHeight)\s*:\s*(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\b|\b(?:VStack|HStack|LazyVStack|LazyHStack|LazyVGrid|LazyHGrid)\([^\n)]*?spacing\s*:\s*(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\b|\bRoundedRectangle\(cornerRadius:\s*(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\b|\bSpacer\(minLength:\s*(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\b'
+    message: >-
+      Raw point value duplicates an Astra spacing, radius or minimum target token. Use
+      AstraSpacing, AstraRadius or AstraSize.
+    severity: error
+
 # ------------------------------------------------------------------------------
 # Tuned defaults
 # ------------------------------------------------------------------------------

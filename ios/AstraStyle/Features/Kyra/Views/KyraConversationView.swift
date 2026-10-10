@@ -103,7 +103,7 @@ public struct KyraConversationView: View {
     private var loadingState: some View {
         VStack(spacing: AstraSpacing.md) {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
             Text(String(localized: "Opening the conversation…", comment: "Kyra history loading state"))
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)

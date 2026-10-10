@@ -48,7 +48,7 @@ struct OnboardingWardrobeGraphView: View {
             .background(AstraColor.surfaceElevated, in: RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
-                    .strokeBorder(selected ? AstraColor.accentChampagne : Color.clear, lineWidth: 2)
+                    .strokeBorder(selected ? AstraColor.accentChampagneAccessible : Color.clear, lineWidth: 2)
             }
         }
         .buttonStyle(.plain)

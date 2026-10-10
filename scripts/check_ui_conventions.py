@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail the build on UI conventions that keep regressing.
 
-Three rules. The first two were violated in shipped-looking code and caught
+Four rules. The first two were violated in shipped-looking code and caught
 only because someone looked at a screenshot. The third is here BEFORE its
 feature ships, because it is the one whose violation would be hardest to
 notice and most damaging.
@@ -33,6 +33,10 @@ notice and most damaging.
    strings written by whoever is on the ticket. There will be hundreds of
    these strings, they will be written quickly, and "flattering" is the single
    most natural word to reach for.
+
+4. NO RAW DESIGN SPACING IN FEATURES. Values already represented by the Astra
+   spacing, radius, and target-size tokens must use their named token in
+   feature code. `.swiftlint.yml` carries the same regex for editor lint.
 
 Run locally:  python3 scripts/check_ui_conventions.py
 CI runs this on every PR (.github/workflows/ios.yml).
@@ -84,6 +88,18 @@ BODY_LANGUAGE = [
 ]
 BODY_LANGUAGE_RULES = [(re.compile(p, re.IGNORECASE), why) for p, why in BODY_LANGUAGE]
 
+RAW_DESIGN_SPACING = re.compile(
+    r"\.(?:padding|cornerRadius|lineSpacing)\(\s*(?:\.[A-Za-z]+\s*,\s*)?"
+    r"(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\s*\)"
+    r"|\.frame\([^\n)]*?(?:width|height|minWidth|minHeight|idealWidth|idealHeight)"
+    r"\s*:\s*(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\b"
+    r"|\b(?:VStack|HStack|LazyVStack|LazyHStack|LazyVGrid|LazyHGrid)\([^\n)]*?"
+    r"spacing\s*:\s*(?:4|8|12|14|16|18|20|24|32|40|44)(?:\.0)?\b"
+    r"|\bRoundedRectangle\(cornerRadius:\s*(?:4|8|12|14|16|18|20|24|32|40|44)"
+    r"(?:\.0)?\b|\bSpacer\(minLength:\s*(?:4|8|12|14|16|18|20|24|32|40|44)"
+    r"(?:\.0)?\b"
+)
+
 # A line may opt out with a trailing `ui-conventions:allow` marker. The only
 # legitimate use is a comment that must QUOTE a banned phrase in order to
 # explain why it is banned — the rule table's header does exactly that, and a
@@ -110,6 +126,7 @@ def main() -> int:
 
     for path in relevant_files():
         rel = path.relative_to(REPO)
+        source_parts = path.relative_to(SOURCE_ROOT).parts
         for n, line in enumerate(path.read_text().splitlines(), 1):
             stripped = line.strip()
 
@@ -139,6 +156,12 @@ def main() -> int:
                 violations.append(
                     f"{rel}:{n}: internal ticket id in a user-facing string. "
                     f"Say what the screen is for instead.\n      {stripped}"
+                )
+
+            if source_parts[0] == "Features" and RAW_DESIGN_SPACING.search(line):
+                violations.append(
+                    f"{rel}:{n}: raw point value duplicates a design-system token. "
+                    f"Use AstraSpacing, AstraRadius, or AstraSize.\n      {stripped}"
                 )
 
     if violations:

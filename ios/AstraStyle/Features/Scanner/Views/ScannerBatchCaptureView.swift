@@ -137,7 +137,7 @@ struct ScannerBatchCaptureView: View {
     private func progress(title: String, detail: String) -> some View {
         VStack(spacing: AstraSpacing.md) {
             ProgressView()
-                .tint(AstraColor.accentChampagne)
+                .tint(AstraColor.accentChampagneAccessible)
             Text(title)
                 .astraText(.headline)
                 .foregroundStyle(AstraColor.textPrimary)

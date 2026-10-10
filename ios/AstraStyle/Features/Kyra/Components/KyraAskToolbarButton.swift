@@ -17,7 +17,7 @@ struct KyraAskToolbarButton: View {
                 Circle()
                     .fill(AstraColor.surfaceElevated)
                 Circle()
-                    .strokeBorder(AstraColor.accentChampagne, lineWidth: 1)
+                    .strokeBorder(AstraColor.accentChampagneAccessible, lineWidth: 1)
                 AstraMonogram(size: AstraSpacing.lg)
             }
             .frame(width: AstraSize.minTapTarget, height: AstraSize.minTapTarget)

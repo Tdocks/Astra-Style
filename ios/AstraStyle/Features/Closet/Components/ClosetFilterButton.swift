@@ -61,7 +61,7 @@ struct ClosetFilterButton: View {
                 // grow one here.
                 .astraIcon(.emphasis)
                 // An icon is a fill, not text (spec §3 / docs/07).
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
                 .frame(minWidth: AstraSize.minTapTarget, minHeight: AstraSize.minTapTarget)
                 .overlay(alignment: .topTrailing) {
                     if activeFacetCount > 0 {

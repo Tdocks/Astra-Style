@@ -1,0 +1,14 @@
+// Staging.xcconfig
+// Release-like staging build. Credentials come from the same ignored local
+// Secrets.xcconfig (or CI-generated file) as the other configurations; this
+// file contains no environment-specific secret values.
+
+#include "Base.xcconfig"
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited)
+ASTRA_ENVIRONMENT_NAME = Staging
+ONLY_ACTIVE_ARCH = NO
+DEBUG_INFORMATION_FORMAT = dwarf-with-dsym
+VALIDATE_PRODUCT = YES
+ENABLE_TESTABILITY = NO
+SWIFT_COMPILATION_MODE = wholemodule

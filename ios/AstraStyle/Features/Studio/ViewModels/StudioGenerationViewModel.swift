@@ -61,9 +61,9 @@ public final class StudioGenerationViewModel {
     /// Nested paywall after the free Visualize trial. First open stays ungated.
     private(set) var quotaSummary = "Preview allowance unavailable"
     public private(set) var pendingPaywall: PaywallContext?
-    public var pollInterval: Duration = .seconds(2)
-    public var maximumPollInterval: Duration = .seconds(8)
-    public var maximumPollingDuration: Duration = .seconds(180)
+    public var pollInterval: Duration = StudioPollingPolicy.initialDelay
+    public var maximumPollInterval: Duration = StudioPollingPolicy.maximumDelay
+    public var maximumPollingDuration: Duration = StudioPollingPolicy.timeout
 
     private let outfitID: UUID?
     private let studioRepository: StudioRepository
@@ -275,7 +275,7 @@ public final class StudioGenerationViewModel {
             }
             job = try await studioRepository.fetchStatus(generationID: job.id)
             generation = job
-            delay = min(delay + delay, maximumPollInterval)
+            delay = StudioPollingPolicy.nextDelay(after: delay, maximum: maximumPollInterval)
         }
         return job
     }

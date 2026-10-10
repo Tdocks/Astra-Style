@@ -18,10 +18,12 @@ import Foundation
 public struct AstraEnvironment: Sendable {
     public let supabaseURL: URL
     public let supabaseAnonKey: String
+    public let isLocalQABackend: Bool
 
-    public init(supabaseURL: URL, supabaseAnonKey: String) {
+    public init(supabaseURL: URL, supabaseAnonKey: String, isLocalQABackend: Bool = false) {
         self.supabaseURL = supabaseURL
         self.supabaseAnonKey = supabaseAnonKey
+        self.isLocalQABackend = isLocalQABackend
     }
 
     /// Edge Functions live under `/functions/v1/` on the Supabase project
@@ -37,6 +39,12 @@ public struct AstraEnvironment: Sendable {
     /// development is preferable to shipping a client that silently can't
     /// reach the backend.
     public static let current: AstraEnvironment = {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-astra-local-qa-kyra") {
+            return localQAEnvironment()
+        }
+        #endif
+
         guard
             let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
             !urlString.isEmpty,
@@ -58,6 +66,34 @@ public struct AstraEnvironment: Sendable {
         }
         return AstraEnvironment(supabaseURL: url, supabaseAnonKey: anonKey)
     }()
+
+    #if DEBUG
+    private static func localQAEnvironment() -> AstraEnvironment {
+        let values = ProcessInfo.processInfo.environment
+        guard
+            let urlString = values["ASTRA_LOCAL_SUPABASE_URL"],
+            let url = URL(string: urlString),
+            isLoopbackHTTPURL(url),
+            let anonKey = values["ASTRA_LOCAL_SUPABASE_ANON_KEY"],
+            !anonKey.isEmpty
+        else {
+            preconditionFailure("Local Kyra QA requires a loopback Supabase URL and its local anon key.")
+        }
+        return AstraEnvironment(supabaseURL: url, supabaseAnonKey: anonKey, isLocalQABackend: true)
+    }
+
+    private static func isLoopbackHTTPURL(_ url: URL) -> Bool {
+        guard
+            url.scheme?.lowercased() == "http",
+            url.user == nil,
+            url.password == nil,
+            url.query == nil,
+            url.fragment == nil
+        else { return false }
+        let host = url.host?.lowercased()
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+    #endif
 
     /// A safe, non-crashing environment for SwiftUI previews and unit
     /// tests, which never have a real Info.plist configured.

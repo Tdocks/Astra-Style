@@ -46,7 +46,7 @@ struct ProfileDashboardCard: View {
 
     private var loadingState: some View {
         HStack(spacing: AstraSpacing.sm) {
-            ProgressView().tint(AstraColor.accentChampagne)
+            ProgressView().tint(AstraColor.accentChampagneAccessible)
             Text(String(localized: "Gathering your closet stats.", comment: "Profile dashboard loading"))
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
@@ -199,7 +199,7 @@ struct StyleJourneyView: View {
                 switch viewModel.phase {
                 case .loading:
                     ProgressView()
-                        .tint(AstraColor.accentChampagne)
+                        .tint(AstraColor.accentChampagneAccessible)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case .ready(let data):
                     if data.journey.isEmpty {

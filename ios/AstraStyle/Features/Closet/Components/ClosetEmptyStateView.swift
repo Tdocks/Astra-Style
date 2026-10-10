@@ -83,7 +83,7 @@ struct ClosetEmptyStateView: View {
 
             Image(systemName: symbolName)
                 .astraIcon(.display)
-                .foregroundStyle(AstraColor.accentChampagne)
+                .foregroundStyle(AstraColor.accentChampagneAccessible)
                 .accessibilityHidden(true)
 
             Text(title)

@@ -30,6 +30,23 @@ public enum AstraMotion {
     public static func aware(_ animation: Animation, reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : animation
     }
+
+    /// Whether a shared hero should morph between layouts. Reduce Motion uses the
+    /// opacity transition in `astraHeroTransition` instead of moving geometry.
+    public static func usesMatchedGeometry(reduceMotion: Bool) -> Bool {
+        !reduceMotion
+    }
+
+    /// A repeating breathing animation is omitted entirely when Reduce Motion is on.
+    public static func breathingAnimation(reduceMotion: Bool) -> Animation? {
+        guard !reduceMotion else { return nil }
+        return breathing.repeatForever(autoreverses: true)
+    }
+
+    /// Spring-settling outfit paging animation, omitted when Reduce Motion is enabled.
+    public static func outfitPagingAnimation(reduceMotion: Bool) -> Animation? {
+        aware(outfitPaging, reduceMotion: reduceMotion)
+    }
 }
 
 /// A Reduce Motion-aware replacement for `View.animation(_:value:)`.
@@ -48,6 +65,62 @@ public extension View {
     /// when the user has Reduce Motion enabled.
     func astraAnimation(_ animation: Animation, value: some Equatable) -> some View {
         modifier(AstraAnimationModifier(animation: animation, value: value))
+    }
+
+    /// Applies a shared-element hero transition. Reduce Motion replaces the geometry
+    /// interpolation with a simple cross-fade.
+    func astraHeroTransition<ID: Hashable>(
+        id: ID,
+        in namespace: Namespace.ID,
+        isSource: Bool = true
+    ) -> some View {
+        modifier(AstraHeroTransitionModifier(id: id, namespace: namespace, isSource: isSource))
+    }
+
+    /// Applies Astra's slow breathing loop to a state-driven visual effect, with a static
+    /// presentation for users who enable Reduce Motion.
+    func astraBreathingAnimation(value: some Equatable) -> some View {
+        modifier(AstraBreathingAnimationModifier(value: value))
+    }
+
+    /// Uses Astra's horizontal outfit paging spring, becoming an immediate state change
+    /// when Reduce Motion is enabled.
+    func astraOutfitPagingAnimation(value: some Equatable) -> some View {
+        modifier(AstraOutfitPagingAnimationModifier(value: value))
+    }
+}
+
+private struct AstraHeroTransitionModifier<ID: Hashable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let id: ID
+    let namespace: Namespace.ID
+    let isSource: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if AstraMotion.usesMatchedGeometry(reduceMotion: reduceMotion) {
+            content.matchedGeometryEffect(id: id, in: namespace, isSource: isSource)
+        } else {
+            content.transition(.opacity)
+        }
+    }
+}
+
+private struct AstraBreathingAnimationModifier<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let value: Value
+
+    func body(content: Content) -> some View {
+        content.animation(AstraMotion.breathingAnimation(reduceMotion: reduceMotion), value: value)
+    }
+}
+
+private struct AstraOutfitPagingAnimationModifier<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let value: Value
+
+    func body(content: Content) -> some View {
+        content.animation(AstraMotion.outfitPagingAnimation(reduceMotion: reduceMotion), value: value)
     }
 }
 

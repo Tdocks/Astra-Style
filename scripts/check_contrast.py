@@ -22,11 +22,13 @@ CI runs it on every PR (.github/workflows/ios.yml).
 from __future__ import annotations
 
 import pathlib
+import json
 import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 COLOR_FILE = REPO / "ios/AstraStyle/Core/DesignSystem/Tokens/AstraColor.swift"
+COLOR_ASSET_ROOT = REPO / "ios/AstraStyle/Resources/Assets.xcassets"
 
 # WCAG 2.1 contrast minimums.
 AA_NORMAL = 4.5   # body text
@@ -34,33 +36,71 @@ AA_LARGE = 3.0    # >=18pt, or >=14pt bold — also the floor for UI components
 
 
 def parse_tokens(source: str) -> dict[str, dict[str, int]]:
-    """Extract `name -> {dark, light}` from the token declarations."""
+    """Extract `name -> {dark, light}` from AstraColor's adaptive assets."""
     tokens: dict[str, dict[str, int]] = {}
 
-    # public static var <name>: Color {
-    #     AstraColorToken(dark: 0xRRGGBB, light: 0xRRGGBB).color
+    # `AstraColor` remains the token-name source of truth; the Asset Catalog is
+    # the value source of truth. Resolve the asset reference from each property
+    # instead of duplicating hex values in this script.
     pattern = re.compile(
-        r"static var (\w+): Color \{\s*"
-        r"AstraColorToken\(dark: 0x([0-9A-Fa-f]{6}), light: 0x([0-9A-Fa-f]{6})\)",
+        r"static var (\w+): Color \{\s*asset\(\"([A-Za-z0-9]+)\"\)",
         re.MULTILINE,
     )
     for match in pattern.finditer(source):
-        tokens[match.group(1)] = {
-            "dark": int(match.group(2), 16),
-            "light": int(match.group(3), 16),
-        }
-
-    # Symmetric tokens: AstraColorToken(fixed: 0xRRGGBB)
-    fixed = re.compile(
-        r"static var (\w+): Color \{\s*"
-        r"AstraColorToken\(fixed: 0x([0-9A-Fa-f]{6})\)",
-        re.MULTILINE,
-    )
-    for match in fixed.finditer(source):
-        value = int(match.group(2), 16)
-        tokens[match.group(1)] = {"dark": value, "light": value}
+        token_name, asset_name = match.groups()
+        tokens[token_name] = read_adaptive_asset(asset_name)
 
     return tokens
+
+
+def read_adaptive_asset(asset_name: str) -> dict[str, int]:
+    """Read universal (light) and dark sRGB colors from a color set."""
+    contents_path = COLOR_ASSET_ROOT / f"{asset_name}.colorset" / "Contents.json"
+    try:
+        contents = json.loads(contents_path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read {contents_path.relative_to(REPO)}: {error}") from error
+
+    entries = contents.get("colors", [])
+    light_entry = next(
+        (entry for entry in entries if "appearances" not in entry and entry.get("idiom") == "universal"),
+        None,
+    )
+    dark_entry = next(
+        (
+            entry for entry in entries
+            if entry.get("idiom") == "universal"
+            and any(
+                appearance.get("appearance") == "luminosity"
+                and appearance.get("value") == "dark"
+                for appearance in entry.get("appearances", [])
+            )
+        ),
+        None,
+    )
+    if light_entry is None or dark_entry is None:
+        raise ValueError(f"{asset_name}.colorset needs universal light and dark entries")
+
+    return {
+        "dark": color_components_to_hex(dark_entry),
+        "light": color_components_to_hex(light_entry),
+    }
+
+
+def color_components_to_hex(entry: dict[str, object]) -> int:
+    color = entry.get("color")
+    if not isinstance(color, dict) or color.get("color-space") != "srgb":
+        raise ValueError("color entry must use sRGB components")
+    components = color.get("components")
+    if not isinstance(components, dict):
+        raise ValueError("color entry has no component map")
+    try:
+        values = [round(float(components[channel]) * 255) for channel in ("red", "green", "blue")]
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"invalid RGB components: {error}") from error
+    if any(value < 0 or value > 255 for value in values):
+        raise ValueError("RGB components must be between 0 and 1")
+    return values[0] << 16 | values[1] << 8 | values[2]
 
 
 def relative_luminance(hex_value: int) -> float:

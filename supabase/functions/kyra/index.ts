@@ -55,9 +55,14 @@ import {
 import { CURRENT_STUDIO_CONSENT_TERMS_VERSION } from "../studio/schema.ts";
 import { buildKyraStore } from "./store.ts";
 import { LiveStylistProvider } from "./liveStylistProvider.ts";
+import { resolveLocalStylistProviderEndpoint } from "./localProviderEndpoint.ts";
 import { finishGeneration, readGenerationPremium, reserveGeneration } from "../outfits/quota.ts";
 
 const env = readEdgeEnv();
+const localStylistEndpoint = resolveLocalStylistProviderEndpoint(
+  Deno.env.get("SUPABASE_URL"),
+  Deno.env.get("ASTRA_LOCAL_STYLIST_PROVIDER_URL"),
+);
 
 // Burst limiter, per isolate, shared across routes — the same best-effort
 // shape every deployed function uses. The BUSINESS limit (3 free
@@ -125,7 +130,8 @@ function buildProvider(): StylistReasoningProvider {
   const sharedOpenAIApiKey = imageProvider === "openai"
     ? Deno.env.get("IMAGE_PROVIDER_API_KEY")?.trim()
     : undefined;
-  const apiKey = dedicatedApiKey || sharedOpenAIApiKey;
+  const apiKey = dedicatedApiKey || sharedOpenAIApiKey ||
+    (localStylistEndpoint ? "local-qa-provider-stub" : undefined);
   if (!apiKey) {
     console.error(
       JSON.stringify({
@@ -137,7 +143,7 @@ function buildProvider(): StylistReasoningProvider {
     );
     return unconfiguredProvider;
   }
-  if (!dedicatedApiKey) {
+  if (!dedicatedApiKey && sharedOpenAIApiKey) {
     console.info(
       JSON.stringify({
         level: "info",
@@ -149,6 +155,7 @@ function buildProvider(): StylistReasoningProvider {
   }
   return new LiveStylistProvider({
     apiKey,
+    ...(localStylistEndpoint ? { endpointURL: localStylistEndpoint } : {}),
     modelForTier: {
       luna: Deno.env.get("STYLIST_PROVIDER_MODEL_LUNA") ?? "gpt-5.6-luna",
       terra: Deno.env.get("STYLIST_PROVIDER_MODEL_TERRA") ?? "gpt-5.6-terra",

@@ -153,7 +153,7 @@ struct ClosetColorTokenList: View {
                 ForEach(colors, id: \.self) { color in
                     Button {
                         remove(color)
-                        AstraHaptics.warning()
+                        AstraHaptics.selection()
                     } label: {
                         HStack(spacing: AstraSpacing.xxs) {
                             ClosetColorSwatch(name: color, size: AstraSpacing.sm)

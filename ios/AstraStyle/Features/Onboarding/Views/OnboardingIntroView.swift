@@ -23,7 +23,7 @@ struct OnboardingIntroView: View {
 
     var body: some View {
         ZStack {
-            Color.clear.astraMarbleBackground()
+            AstraColor.backgroundPrimary.ignoresSafeArea()
 
             VStack(spacing: AstraSpacing.xl) {
                 Spacer()

@@ -33,7 +33,7 @@ struct ScannerCaptureView: View {
             switch viewModel.phase {
             case .starting:
                 ProgressView()
-                    .tint(AstraColor.accentChampagne)
+                    .tint(AstraColor.accentChampagneAccessible)
                     .accessibilityLabel(Text("Starting the camera", comment: "Scanner starting spinner"))
 
             case .capturing, .preparing:
@@ -115,7 +115,7 @@ struct ScannerCaptureView: View {
 
                 if case .preparing = viewModel.phase {
                     ProgressView()
-                        .tint(AstraColor.accentChampagne)
+                        .tint(AstraColor.accentChampagneAccessible)
                         .padding(.bottom, AstraSpacing.md)
                         .accessibilityLabel(Text("Preparing the photo", comment: "Scanner preparing spinner"))
                 }
@@ -133,7 +133,7 @@ struct ScannerCaptureView: View {
     /// slack the `Spacer()` used to, so the controls keep their own room.
     private var framingGuide: some View {
         RoundedRectangle(cornerRadius: AstraRadius.card, style: .continuous)
-            .strokeBorder(AstraColor.accentChampagne.opacity(0.55), lineWidth: 2)
+            .strokeBorder(AstraColor.accentChampagneAccessible, lineWidth: 2)
             .padding(.horizontal, AstraSpacing.xxxl)
             .padding(.vertical, AstraSpacing.lg)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
