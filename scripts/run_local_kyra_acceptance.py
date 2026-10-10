@@ -38,7 +38,9 @@ EXCLUDED = (
 
 
 class HarnessError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, worker_status: int | None = None):
+        super().__init__(message)
+        self.worker_status = worker_status
 
 
 def run(args: list[str], *, cwd: pathlib.Path = ROOT, env=None, timeout=300,
@@ -94,6 +96,57 @@ def wait_http(url: str, *, timeout=120, expected=200):
     raise HarnessError("A required local QA service did not become ready in time.")
 
 
+def classify_worker_probe(status: int, body: bytes) -> str:
+    """Classify a bounded response without trusting a gateway-only status."""
+    body_text = body.decode("utf-8", errors="replace")
+    lowered = body_text.lower()
+    if "boot_error" in lowered or "failed to determine entrypoint" in lowered:
+        return "boot_error"
+    try:
+        envelope = json.loads(body_text)
+    except json.JSONDecodeError:
+        envelope = None
+    structured_validation = (
+        isinstance(envelope, dict)
+        and isinstance(envelope.get("error"), dict)
+        and envelope["error"].get("category") == "validation"
+        and isinstance(envelope.get("request_id"), str)
+    )
+    if status in (404, 405) and structured_validation:
+        return "ready"
+    if status in (502, 503) and "upstream server" in lowered:
+        return "retry"
+    if status >= 500:
+        return "http_error"
+    return "unexpected_response"
+
+
+def extract_acceptance_results(report: dict, selected_test_name: str) -> tuple[list, list]:
+    """Return the selected UI result and leaf results under the privacy suite."""
+    matching_results = []
+    privacy_results = []
+
+    def visit(node, inside_privacy_suite=False):
+        if not isinstance(node, dict):
+            return
+        name = node.get("name", "")
+        is_privacy_suite = inside_privacy_suite or name in {
+            "Analytics event privacy contract",
+            "AnalyticsEventPrivacyTests",
+        }
+        if name.split("(", 1)[0] == selected_test_name:
+            matching_results.append(node.get("result"))
+        children = node.get("children", [])
+        if is_privacy_suite and not children and node.get("result") is not None:
+            privacy_results.append(node.get("result"))
+        for child in children:
+            visit(child, is_privacy_suite)
+
+    for node in report.get("testNodes", []):
+        visit(node)
+    return matching_results, privacy_results
+
+
 def wait_function_worker(api_url: str, anon_key: str, *, timeout=90):
     """Wait for the actual Kyra worker, not just the Functions gateway."""
     url = api_url.rstrip("/") + "/functions/v1/kyra/respond"
@@ -113,25 +166,28 @@ def wait_function_worker(api_url: str, anon_key: str, *, timeout=90):
             time.sleep(1)
             continue
 
-        # A route-level method/not-found response proves the worker booted.
-        # Gateway auth failures and BOOT_ERROR responses do not.
-        body_text = body.decode("utf-8", errors="replace")
-        if "BOOT_ERROR" in body_text or "failed to determine entrypoint" in body_text.lower():
-            raise HarnessError("The local Kyra Edge Function worker failed to boot.")
-        try:
-            envelope = json.loads(body_text)
-        except json.JSONDecodeError:
-            envelope = None
-        if (last_status in (404, 405) and isinstance(envelope, dict)
-                and isinstance(envelope.get("error"), dict)
-                and envelope["error"].get("category") == "validation"
-                and isinstance(envelope.get("request_id"), str)):
-            return
-        if last_status >= 500:
-            raise HarnessError(f"The local Kyra Edge Function worker returned HTTP {last_status} during startup.")
-        time.sleep(1)
+        # Require a handler-shaped error, not just any gateway 404. Kong can
+        # briefly return a generic 502/503 while the runtime attaches.
+        outcome = classify_worker_probe(last_status, body)
+        if outcome == "boot_error":
+            raise HarnessError("The local Kyra Edge Function worker failed to boot.", worker_status=last_status)
+        if outcome == "ready":
+            return last_status
+        if outcome == "retry":
+            time.sleep(1)
+            continue
+        if outcome == "http_error":
+            raise HarnessError(
+                f"The local Kyra Edge Function worker returned HTTP {last_status} during startup.",
+                worker_status=last_status,
+            )
+        raise HarnessError(
+            f"The local Kyra Edge Function worker returned unexpected HTTP {last_status} during startup.",
+            worker_status=last_status,
+        )
     raise HarnessError(
-        f"The local Kyra Edge Function worker did not become ready (last HTTP status {last_status})."
+        f"The local Kyra Edge Function worker did not become ready (last HTTP status {last_status}).",
+        worker_status=last_status,
     )
 
 
@@ -182,6 +238,23 @@ def wait_for_port(host: str, port: int, timeout=30):
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run local Kyra acceptance against disposable local services.")
+    parser.add_argument("--journey", action="store_true", help="Run the connected persistence/wear/review journey.")
+    args = parser.parse_args()
+    mode = "connected" if args.journey else "basic"
+    selected_test_name = (
+        "testKyraOutfitPersistsForTheSignedInFixtureOwner"
+        if args.journey else "testAskKyraRendersOnlyFixtureOwnersClosetItems"
+    )
+    selected_test_path = (
+        "AstraStyleUITests/LocalConnectedJourneyAcceptanceUITests/"
+        "testKyraOutfitPersistsForTheSignedInFixtureOwner"
+        if args.journey else
+        "AstraStyleUITests/LocalKyraAcceptanceUITests/"
+        "testAskKyraRendersOnlyFixtureOwnersClosetItems"
+    )
     if sys.platform != "darwin":
         raise HarnessError("This acceptance runner requires the registered macOS simulator host.")
     if not (IOS / "AstraStyle.xcodeproj").exists():
@@ -241,6 +314,7 @@ def main() -> int:
     stack_stopped = False
     test_passed = False
     failure_reason = None
+    worker_probe_last_status = None
     result_bundle: pathlib.Path | None = None
     function_env: pathlib.Path | None = None
     try:
@@ -362,7 +436,7 @@ def main() -> int:
             stderr=function_log,
             text=True,
         ))
-        wait_function_worker(api_url, anon_key)
+        worker_probe_last_status = wait_function_worker(api_url, anon_key)
 
         fixture_payload = {
             "user_id": user_id,
@@ -399,7 +473,7 @@ def main() -> int:
                     "-resultBundlePath", str(result_bundle),
                     "-only-testing:AstraStyleTests/AnalyticsEventPrivacyTests",
                     "-only-testing:AstraStyleTests/AstraSupabaseClientFactoryTests",
-                    "-only-testing:AstraStyleUITests/LocalKyraAcceptanceUITests",
+                    f"-only-testing:{selected_test_path}",
                 ],
                 cwd=ROOT,
                 text=True,
@@ -422,26 +496,7 @@ def main() -> int:
             report = json.loads(tests_json)
         except json.JSONDecodeError as error:
             raise HarnessError("Could not parse the local Kyra XCTest result report.") from error
-        matching_results = []
-        privacy_results = []
-
-        def visit(node):
-            if not isinstance(node, dict):
-                return
-            name = node.get("name", "")
-            if name.split("(", 1)[0] == "testAskKyraRendersOnlyFixtureOwnersClosetItems":
-                matching_results.append(node.get("result"))
-            if "AnalyticsEventPrivacyTests" in name or name in {
-                "eventPayloadsStayNonSensitive",
-                "adversarialCategoricalInputsAreSanitized",
-                "catalogRetailersUseCanonicalIDs",
-            }:
-                privacy_results.append(node.get("result"))
-            for child in node.get("children", []):
-                visit(child)
-
-        for node in report.get("testNodes", []):
-            visit(node)
+        matching_results, privacy_results = extract_acceptance_results(report, selected_test_name)
         if matching_results != ["Passed"] or not privacy_results or any(value != "Passed" for value in privacy_results):
             raise HarnessError("The result bundle did not prove the local Kyra UI and analytics privacy tests passed.")
         test_passed = True
@@ -450,6 +505,7 @@ def main() -> int:
         print("No production Supabase endpoint or paid provider was used.")
         return 0
     except HarnessError as error:
+        worker_probe_last_status = error.worker_status or worker_probe_last_status
         message = str(error)
         if message == "The local Kyra Edge Function worker failed to boot.":
             failure_reason = "edge_worker_boot_error"
@@ -474,7 +530,7 @@ def main() -> int:
                     headers=cleanup_headers,
                     timeout=10,
                 )
-                if status not in (200, 204):
+                if status not in (200, 204, 404):
                     cleanup_failed = True
                     print("WARNING: local fixture account cleanup did not confirm; local project will be stopped.", file=sys.stderr)
                 else:
@@ -532,7 +588,7 @@ def main() -> int:
         # service logs are never copied into CI artifacts.
         evidence_raw = os.environ.get("ASTRA_LOCAL_QA_EVIDENCE_DIR")
         if evidence_raw:
-            evidence_dir = pathlib.Path(evidence_raw).resolve()
+            evidence_dir = pathlib.Path(evidence_raw).resolve() / mode
         else:
             evidence_dir = pathlib.Path(tempfile.gettempdir()) / f"astra-local-kyra-evidence-{os.getpid()}"
         if evidence_dir == ROOT or ROOT in evidence_dir.parents:
@@ -546,13 +602,15 @@ def main() -> int:
                 "supabase_cli_version": CLI_VERSION,
                 "backend": "disposable local Supabase stack",
                 "provider": "deterministic local Responses stub",
-                "selected_test": "AstraStyleUITests/LocalKyraAcceptanceUITests/testAskKyraRendersOnlyFixtureOwnersClosetItems",
+                "mode": mode,
+                "selected_test": selected_test_path,
                 "test_passed": test_passed,
                 "fixture_owner_deleted_and_rows_empty": cleanup_verified,
                 "isolated_stack_stopped": stack_stopped,
                 "hosted_supabase_called": False,
                 "paid_provider_called": False,
                 "failure_reason": failure_reason,
+                "worker_probe_http_status": worker_probe_last_status,
                 "recorded_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
             write_private(evidence_dir / "acceptance.json", json.dumps(report, indent=2).encode())

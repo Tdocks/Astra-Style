@@ -5,6 +5,15 @@ name: Local Kyra acceptance
 # never run on the dedicated self-hosted Mac.
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Disposable acceptance fixture to run
+        type: choice
+        options:
+          - basic
+          - connected
+        default: basic
+        required: true
 
 permissions:
   contents: read
@@ -61,7 +70,17 @@ jobs:
       - name: Run real app flow against local Supabase and provider stub
         env:
           ASTRA_LOCAL_QA_EVIDENCE_DIR: ${{ runner.temp }}/astra-local-qa-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-        run: python3 scripts/run_local_kyra_acceptance.py
+          ASTRA_LOCAL_QA_SUITE: ${{ inputs.suite }}
+        run: |
+          set -euo pipefail
+          if [ "$ASTRA_LOCAL_QA_SUITE" = connected ]; then
+            python3 scripts/run_local_kyra_acceptance.py --journey
+          elif [ "$ASTRA_LOCAL_QA_SUITE" = basic ]; then
+            python3 scripts/run_local_kyra_acceptance.py
+          else
+            echo "Unsupported local acceptance suite." >&2
+            exit 2
+          fi
 
       - name: Upload local acceptance evidence
         if: always()
