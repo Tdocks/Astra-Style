@@ -210,7 +210,7 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
             "Acknowledging permanent deletion should enable the action."
         )
         delete.tap()
-        let confirm = app.alerts.buttons["Delete Permanently"]
+        let confirm = app.buttons["Delete Permanently"]
         XCTAssertTrue(
             confirm.waitForExistence(timeout: 10),
             "The final deletion confirmation was not shown."
