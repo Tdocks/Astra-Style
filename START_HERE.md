@@ -19,13 +19,26 @@ current brief.
 | Bundle ID | `com.astrastyle.app` |
 | Xcode | **27.0** on the owner's Mac for builds 12–19 (previous release used 26.6) |
 | Marketing version | `1.0.0` (`ios/project.yml`) |
-| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `32`) |
+| Build number | bump `CURRENT_PROJECT_VERSION` before each upload (now `33`) |
 | Public join | https://testflight.apple.com/join/mU5pC1RW |
 | External group | `cdf6feb8-9fcd-451e-87cb-c1f6983600bf` |
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 32 (2026-10-09)
+## Current internal release — build 33 (2026-10-10)
+
+Version **1.0.0 (33)** is VALID and IN_BETA_TESTING in Internal
+(build ID `5e68e692-61c7-4843-ac06-967eb64143b7`). Internal group membership
+and en-US testing notes were read back. Includes all current app source changes:
+foundation/design-system refinements, motion and haptics, large-text Kyra and
+accessibility improvements, Studio polling recovery, privacy-safe analytics, and
+bundled dependency notices. Local acceptance passed 1,193 unit tests, 64 visual
+comparisons and both critical-screen large-text audits. The latest general iOS CI
+run failed; local real-backend Kyra CI and physical-device acceptance remain open.
+This build is for internal device testing. External review remains unsubmitted;
+the public group still uses build 11.
+
+## Previous internal release — build 32 (2026-10-09)
 
 Version **1.0.0 (32)** is VALID and IN_BETA_TESTING in Internal
 (build ID `e95031d0-f90b-4247-8ea7-a47f90df240f`). Internal group membership
