@@ -196,7 +196,14 @@ def main() -> int:
     if fixture_existed:
         raise HarnessError("A local QA fixture already exists; refusing to overwrite another run's credentials.")
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="astra-local-kyra-"))
+    # Colima shares the runner's home directory into the VM used by Docker,
+    # while macOS per-user /var/folders temp roots are not a reliable bind
+    # mount source. Keep the local Supabase project beneath HOME so Edge
+    # Runtime can read its copied function sources.
+    task_cache = pathlib.Path.home() / ".cache" / "astra-local-qa"
+    task_cache.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(task_cache, 0o700)
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="astra-local-kyra-", dir=task_cache))
     os.chmod(temp_root, 0o700)
 
     def handle_termination(signum, _frame):
@@ -233,6 +240,7 @@ def main() -> int:
     cleanup_verified = False
     stack_stopped = False
     test_passed = False
+    failure_reason = None
     result_bundle: pathlib.Path | None = None
     function_env: pathlib.Path | None = None
     try:
@@ -441,6 +449,17 @@ def main() -> int:
         print("Local Kyra acceptance passed against disposable local Supabase and the deterministic provider stub.")
         print("No production Supabase endpoint or paid provider was used.")
         return 0
+    except HarnessError as error:
+        message = str(error)
+        if message == "The local Kyra Edge Function worker failed to boot.":
+            failure_reason = "edge_worker_boot_error"
+        elif message.startswith("The local Kyra Edge Function worker returned HTTP "):
+            failure_reason = "edge_worker_http_error"
+        elif message.startswith("The local Kyra Edge Function worker did not become ready"):
+            failure_reason = "edge_worker_readiness_timeout"
+        else:
+            failure_reason = "local_acceptance_failed"
+        raise
     finally:
         if user_id and api_url and service_key:
             try:
@@ -533,6 +552,7 @@ def main() -> int:
                 "isolated_stack_stopped": stack_stopped,
                 "hosted_supabase_called": False,
                 "paid_provider_called": False,
+                "failure_reason": failure_reason,
                 "recorded_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
             write_private(evidence_dir / "acceptance.json", json.dumps(report, indent=2).encode())
