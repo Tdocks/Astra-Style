@@ -67,12 +67,18 @@ struct StudioHomeView: View {
                     .accessibilityIdentifier("studio.compare.open")
                     Button("Cancel") { isSelectingComparison = false; comparisonIDs = [] }
                 } else {
-                    Button("Saved looks", systemImage: "books.vertical") { router.push(StudioRoute.lookbook) }
-                        .labelStyle(.iconOnly)
-                        // A fixed toolbar glyph avoids SDK-dependent AX scaling;
-                        // the button retains its full accessibility hit target.
-                        .font(.system(size: 20))
-                        .accessibilityIdentifier("studio.lookbooks.open")
+                    Button {
+                        router.push(StudioRoute.lookbook)
+                    } label: {
+                        Image(systemName: "books.vertical")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: AstraSize.toolbarGlyph, height: AstraSize.toolbarGlyph)
+                            .frame(width: AstraSize.minTapTarget, height: AstraSize.minTapTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel(Text("Saved looks", comment: "Open saved Studio looks"))
+                    .accessibilityIdentifier("studio.lookbooks.open")
                     Button("Compare") { isSelectingComparison = true; comparisonIDs = [] }
                         .disabled(!canCompare)
                         .accessibilityIdentifier("studio.compare.select")
