@@ -158,6 +158,7 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
         // is in the current month, so the prior-month count must stay zero.
         app.tapChromeTab("Home")
         let reviewCard = app.descendants(matching: .any)["home.monthlyReview"]
+        reviewCard.scrollIntoView(in: app)
         XCTAssertTrue(
             reviewCard.waitForExistence(timeout: 20),
             "Monthly Review was not reachable from Home."
