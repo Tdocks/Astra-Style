@@ -9,7 +9,7 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
 
     func testKyraOutfitPersistsForTheSignedInFixtureOwner() async throws {
         continueAfterFailure = false
-        guard let path = ProcessInfo.processInfo.environment["ASTRA_LOCAL_QA_FIXTURE_PATH"] else {
+        guard let path = Self.fixturePath() else {
             throw XCTSkip("Local Kyra fixture is not configured for this run.")
         }
         let fixture = try Self.readFixture(at: path)
@@ -226,6 +226,23 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
             "Deletion did not return the app to sign-in."
         )
         try await fixture.waitUntilUnauthorized()
+    }
+
+    private static func fixturePath() -> String? {
+        if let path = ProcessInfo.processInfo.environment["ASTRA_LOCAL_QA_FIXTURE_PATH"] {
+            return path
+        }
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        for _ in 0..<8 {
+            let repoMarker = directory.appendingPathComponent(".git")
+            let fixture = directory.appendingPathComponent("ios/.local-qa/kyra-fixture.json")
+            if FileManager.default.fileExists(atPath: repoMarker.path),
+               FileManager.default.fileExists(atPath: fixture.path) {
+                return fixture.path
+            }
+            directory = directory.deletingLastPathComponent()
+        }
+        return nil
     }
 
     private static func readFixture(at path: String) throws -> Fixture {
