@@ -14,6 +14,12 @@
 name: iOS
 
 on:
+  workflow_dispatch:
+    inputs:
+      visual_only:
+        description: Verify visual regressions without repeating unchanged UI journeys
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -29,7 +35,7 @@ on:
       - "scripts/manage_ios_package_resolution.py"
 
 concurrency:
-  group: ios-${{ github.workflow }}-${{ github.ref }}
+  group: ios-${{ github.workflow }}-${{ github.ref }}${{ inputs.visual_only && '-visual' || '' }}
   cancel-in-progress: true
 
 permissions:
@@ -41,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        partition: [core, onboarding, features]
+        partition: ${{ fromJSON(inputs.visual_only && '["visual"]' || '["core", "onboarding", "features"]') }}
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -317,6 +323,9 @@ jobs:
           # Separate hosts run independently; each simulator remains serial.
           # The features partition includes future UI suites by default.
           case "${{ matrix.partition }}" in
+            visual)
+              partition_args=(-only-testing:AstraStyleTests/MajorScreenSnapshotTests)
+              ;;
             core)
               partition_args=(
                 -only-testing:AstraStyleTests

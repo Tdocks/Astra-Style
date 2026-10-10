@@ -69,6 +69,9 @@ struct StudioHomeView: View {
                 } else {
                     Button("Saved looks", systemImage: "books.vertical") { router.push(StudioRoute.lookbook) }
                         .labelStyle(.iconOnly)
+                        // A fixed toolbar glyph avoids SDK-dependent AX scaling;
+                        // the button retains its full accessibility hit target.
+                        .font(.system(size: 20))
                         .accessibilityIdentifier("studio.lookbooks.open")
                     Button("Compare") { isSelectingComparison = true; comparisonIDs = [] }
                         .disabled(!canCompare)
