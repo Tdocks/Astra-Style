@@ -339,6 +339,9 @@ jobs:
           # Feature suites are selected by method so large suites can be split
           # without losing newly added tests. Local acceptance and controlled
           # performance suites run through their dedicated workflows.
+          if [[ "${{ matrix.partition }}" == "core" || "${{ matrix.partition }}" == "focused" ]]; then
+            xcrun simctl addmedia "$ASTRA_SIM_ID" ../fixtures/vision-pilot/probe-shirt-prepared.jpg
+          fi
           case "${{ matrix.partition }}" in
             visual)
               partition_args=(-only-testing:AstraStyleTests/MajorScreenSnapshotTests)
@@ -377,6 +380,7 @@ jobs:
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioTrackedRemovalLightAccessibility
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioSaveCollectionLightAccessibility
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioTrackedImageRemoval
+                -only-testing:AstraStyleUITests/LuxuryAuditUITests/testScannerImportsPhotoLibraryImageIntoReview
                 -only-testing:AstraStyleUITests/DiscoverEditorialUITests/testEveryEditorialCategoryOpensItsConfiguredArticle
               )
               ;;

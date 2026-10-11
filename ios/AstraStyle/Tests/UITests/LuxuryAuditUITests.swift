@@ -137,6 +137,30 @@ final class LuxuryAuditUITests: XCTestCase {
         anyElement("scanner.capture.close").tap()
     }
 
+    func testScannerImportsPhotoLibraryImageIntoReview() {
+        launchMain()
+        app.tapChromeTab("Closet")
+        awaitElement(anyElement("closet.header.scan"), "Closet scan menu")
+        anyElement("closet.header.scan").tap()
+        app.buttons["Scan One Piece"].tap()
+        let importButton = anyElement("scanner.capture.import")
+        awaitElement(importButton, "Single-item photo import")
+        importButton.tap()
+
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        awaitElement(firstPhoto, "Photo library image")
+        firstPhoto.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        awaitElement(anyElement("scanner.capture.draft"), "Prepared photo preview")
+        XCTAssertTrue(app.staticTexts["Photo ready"].exists)
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(
+            awaitElement(anyElement("scanner.review.name"), "Editable scan review"),
+            "Imported photo never reached the editable review form"
+        )
+        capture("Scanner-Imported-Photo-Review")
+    }
+
     func testDiscoverShopAndProductDecision() {
         launchMain()
         app.tapChromeTab("Discover")
