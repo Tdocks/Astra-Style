@@ -368,7 +368,9 @@ jobs:
               ;;
             focused)
               partition_args=(
-                -only-testing:AstraStyleTests/InspirationViewModelTests
+                # Swift Testing suites do not support class-level -only-testing filters;
+                # selecting the target ensures the focused job actually runs unit tests.
+                -only-testing:AstraStyleTests
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testHomeStyleInspiration
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioCompareGeneratedLooks
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioPrepareShareableEstimate

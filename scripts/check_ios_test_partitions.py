@@ -55,6 +55,12 @@ def main() -> None:
     if "-skip-testing:AstraStyleUITests/PerformanceAcceptanceUITests" not in workflow:
         raise SystemExit("Controlled performance diagnostics must stay separate")
 
+    focused_body = branch_body(workflow, "focused", "focused")
+    if "-only-testing:AstraStyleTests\n" not in focused_body:
+        raise SystemExit("Focused partition must run the unit-test target")
+    if "-only-testing:AstraStyleTests/" in focused_body:
+        raise SystemExit("Swift Testing suites cannot be selected with class-level test filters")
+
     core_suites = suite_selectors(core_body)
     onboarding_suites = suite_selectors(onboarding_body)
     if core_suites != CORE_SUITES:
