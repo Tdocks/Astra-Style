@@ -44,8 +44,8 @@ def main() -> None:
         raise SystemExit("Feature shard generator must receive its matrix partition")
     if "features-extra" not in workflow:
         raise SystemExit("Workflow matrix must include features-extra")
-    if re.search(r"^\s+options:\s*\n\s+- all\s*\n\s+- features\s*$", workflow, re.M) is None:
-        raise SystemExit("Manual partition selector must offer all and features")
+    if re.search(r"^\s+options:\s*\n\s+- all\s*\n\s+- features\s*\n\s+- focused\s*$", workflow, re.M) is None:
+        raise SystemExit("Manual partition selector must offer all, features and focused")
     if "inputs.partition == 'features'" not in workflow:
         raise SystemExit("Manual features choice must dispatch both feature shards")
     if "inputs.visual_only" not in workflow or "'visual'" not in workflow:

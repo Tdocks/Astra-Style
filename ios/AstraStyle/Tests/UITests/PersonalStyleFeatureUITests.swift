@@ -32,7 +32,7 @@ final class PersonalStyleFeatureUITests: XCTestCase {
     private func generateMockInspiration(using button: XCUIElement) {
         let progress = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Creating your look")).firstMatch
         button.scrollIntoView(in: app)
-        XCTAssertTrue(button.isEnabled, "Generate action should be enabled: \(button.debugDescription)")
+        app.waitForInspirationReady(generateButton: button, timeout: timeout)
         button.tap()
         XCTAssertTrue(progress.waitForExistence(timeout: timeout), "Generation never entered its loading state")
         let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: progress)

@@ -29,6 +29,7 @@ final class InspirationViewModel: Identifiable {
     private var preparedOwnerID: UUID?
     private var ownerInvalidated = false
     private var preparationInFlight = false
+    private var preparationRetryRequested = false
     private var weatherSnapshot: WeatherSnapshot?
 
     init(
@@ -55,13 +56,21 @@ final class InspirationViewModel: Identifiable {
     }
 
     func prepare() async {
-        guard !preparationInFlight, !ownerInvalidated,
-              context.isEmpty || (closetOnly && items.isEmpty) else { return }
+        guard !ownerInvalidated, context.isEmpty || (closetOnly && items.isEmpty) else { return }
+        guard !preparationInFlight else {
+            preparationRetryRequested = true
+            return
+        }
         preparationInFlight = true
         isPreparing = true
         defer {
             preparationInFlight = false
             isPreparing = false
+            if preparationRetryRequested, !ownerInvalidated,
+               context.isEmpty || (closetOnly && items.isEmpty) {
+                preparationRetryRequested = false
+                Task { @MainActor [weak self] in await self?.prepare() }
+            }
         }
 
         guard let ownerID = await resolvePreparationOwner(), !Task.isCancelled else { return }
@@ -228,6 +237,7 @@ final class InspirationViewModel: Identifiable {
 
     private func invalidateOwnerContext(message: String) {
         ownerInvalidated = true
+        preparationRetryRequested = false
         preparedOwnerID = nil
         isPreparing = false
         isGenerating = false

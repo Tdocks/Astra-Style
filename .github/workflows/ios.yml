@@ -17,11 +17,12 @@ on:
   workflow_dispatch:
     inputs:
       partition:
-        description: Run all simulator partitions or only the two feature shards
+        description: Run all simulator partitions, both feature shards, or focused regressions
         type: choice
         options:
           - all
           - features
+          - focused
         default: all
       visual_only:
         description: Verify visual regressions without repeating unchanged UI journeys
@@ -46,7 +47,7 @@ on:
       - "scripts/test_ios_feature_test_selectors.py"
 
 concurrency:
-  group: ios-${{ github.workflow }}-${{ github.ref }}-${{ inputs.visual_only && 'visual' || (inputs.partition == 'features' && 'features' || 'all') }}
+  group: ios-${{ github.workflow }}-${{ github.ref }}-${{ inputs.visual_only && 'visual' || (inputs.partition == 'focused' && 'focused' || (inputs.partition == 'features' && 'features' || 'all')) }}
   cancel-in-progress: true
 
 permissions:
@@ -58,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        partition: ${{ fromJSON(inputs.visual_only && '["visual"]' || (inputs.partition == 'features' && '["features", "features-extra"]' || '["core", "onboarding", "features", "features-extra"]')) }}
+        partition: ${{ fromJSON(inputs.visual_only && '["visual"]' || (inputs.partition == 'focused' && '["focused"]' || (inputs.partition == 'features' && '["features", "features-extra"]' || '["core", "onboarding", "features", "features-extra"]'))) }}
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -364,6 +365,16 @@ jobs:
               while IFS= read -r selector; do
                 partition_args+=("$selector")
               done <<< "$selectors"
+              ;;
+            focused)
+              partition_args=(
+                -only-testing:AstraStyleTests/InspirationViewModelTests
+                -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioPrepareShareableEstimate
+                -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioTrackedRemovalLightAccessibility
+                -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioSaveCollectionLightAccessibility
+                -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioTrackedImageRemoval
+                -only-testing:AstraStyleUITests/DiscoverEditorialUITests/testEveryEditorialCategoryOpensItsConfiguredArticle
+              )
               ;;
           esac
           xcodebuild test \

@@ -41,6 +41,29 @@ struct InspirationViewModelTests {
         #expect(model.quotaSummary.contains("20 of 20"))
     }
 
+    @Test("A session change during cancelled preparation schedules the new owner's retry")
+    func preparationRetriesAfterSessionChangeDuringCancellation() async {
+        let owner = OwnerProbe(ownerID: nil)
+        owner.suspend(onCall: 1)
+        let model = InspirationViewModel(
+            closetOnly: false,
+            container: .preview(),
+            currentOwnerID: { await owner.currentOwnerID() }
+        )
+        let initialPreparation = Task { await model.prepare() }
+        await owner.waitForSuspension()
+
+        owner.ownerID = SampleData.userID
+        initialPreparation.cancel()
+        await model.prepare()
+        owner.resume()
+        await initialPreparation.value
+
+        for _ in 0..<100 where !model.canGenerate { await Task.yield() }
+        #expect(model.canGenerate)
+        #expect(model.quotaSummary.contains("20 of 20"))
+    }
+
     @Test("A real account switch still clears prepared inspiration context")
     func accountSwitchInvalidatesPreparedContext() async {
         let owner = OwnerProbe(ownerID: SampleData.userID)

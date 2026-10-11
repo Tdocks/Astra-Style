@@ -8,6 +8,25 @@
 import XCTest
 
 extension XCUIApplication {
+    func waitForInspirationReady(generateButton: XCUIElement, timeout: TimeInterval) {
+        let allowance = staticTexts["home.inspiration.allowance"]
+        let allowanceLoaded = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "20 of 20"),
+            object: allowance
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [allowanceLoaded], timeout: timeout),
+            .completed,
+            "Inspiration context did not finish loading"
+        )
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generateButton)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [enabled], timeout: timeout),
+            .completed,
+            "Generate action should be enabled: \(generateButton.debugDescription)"
+        )
+    }
+
     var chromeTabBar: XCUIElement {
         let tagged = descendants(matching: .any)["main.tabBar"]
         if tagged.exists { return tagged }
@@ -24,14 +43,13 @@ extension XCUIApplication {
     func tapChromeTab(_ title: String, timeout: TimeInterval = 8) {
         let tabID = title.lowercased()
         let tabItem = descendants(matching: .any)["main.tab.\(tabID)"].firstMatch
-        let shortWait = min(timeout, 2)
-        if tabItem.waitForExistence(timeout: shortWait) {
+        if tabItem.waitForExistence(timeout: timeout) {
             tabItem.tap()
             return
         }
 
         let onBar = chromeTabBar.buttons[title]
-        if onBar.waitForExistence(timeout: shortWait) {
+        if onBar.waitForExistence(timeout: timeout) {
             onBar.tap()
             return
         }
@@ -41,7 +59,7 @@ extension XCUIApplication {
             return
         }
 
-        selectChromeTabFromMore(title, timeout: shortWait)
+        selectChromeTabFromMore(title, timeout: timeout)
     }
 
     private func selectChromeTabFromMore(_ title: String, timeout: TimeInterval) {
