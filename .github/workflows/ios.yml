@@ -369,6 +369,8 @@ jobs:
             focused)
               partition_args=(
                 -only-testing:AstraStyleTests/InspirationViewModelTests
+                -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testHomeStyleInspiration
+                -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioCompareGeneratedLooks
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioPrepareShareableEstimate
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioTrackedRemovalLightAccessibility
                 -only-testing:AstraStyleUITests/PersonalStyleFeatureUITests/testStudioSaveCollectionLightAccessibility

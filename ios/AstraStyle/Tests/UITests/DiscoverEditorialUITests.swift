@@ -15,7 +15,8 @@ final class DiscoverEditorialUITests: XCTestCase {
             "-AppleLocale", "en_US",
             "-astra-reset-state",
             "-astra-mock-backend",
-            "-astra-skip-onboarding"
+            "-astra-skip-onboarding",
+            "-astra-show-unfinished-chrome"
         ]
         app.launch()
         XCTAssertTrue(app.chromeTabBar.waitForExistence(timeout: 45), "Mock app should open the tab shell")

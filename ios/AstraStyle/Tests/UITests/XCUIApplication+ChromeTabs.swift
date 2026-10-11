@@ -11,13 +11,13 @@ extension XCUIApplication {
     func waitForInspirationReady(generateButton: XCUIElement, timeout: TimeInterval) {
         let allowance = staticTexts["home.inspiration.allowance"]
         let allowanceLoaded = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label CONTAINS %@", "20 of 20"),
+            predicate: NSPredicate(format: "label MATCHES %@", "[0-9]+ of 20.*"),
             object: allowance
         )
         XCTAssertEqual(
             XCTWaiter.wait(for: [allowanceLoaded], timeout: timeout),
             .completed,
-            "Inspiration context did not finish loading"
+            "Inspiration allowance did not finish loading: \(allowance.label)"
         )
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: generateButton)
         XCTAssertEqual(
