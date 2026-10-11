@@ -87,7 +87,7 @@ extension PersonalStyleFeatureUITests {
         XCTAssertEqual(generate.label, "Try another look")
         let adjustment = app.textFields["home.inspiration.adjustment"]
         adjustment.scrollIntoView(in: app)
-        adjustment.tap()
+        XCTAssertTrue(adjustment.tapAtLeadingEdgeAndWaitForKeyboardFocus(), "Adjustment field should receive keyboard focus before typing")
         adjustment.typeText("More casual")
         XCTAssertEqual(generate.label, "Apply my changes")
         generateMockInspiration(using: generate)

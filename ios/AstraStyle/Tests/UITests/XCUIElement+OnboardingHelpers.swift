@@ -6,6 +6,12 @@
 import XCTest
 
 extension XCUIElement {
+    func tapAtLeadingEdgeAndWaitForKeyboardFocus(timeout: TimeInterval = 5) -> Bool {
+        coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5)).tap()
+        let focused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: self)
+        return XCTWaiter.wait(for: [focused], timeout: timeout) == .completed
+    }
+
     /// Swipes until this element both exists and can be tapped — searching
     /// downward first, then back upward.
     ///
