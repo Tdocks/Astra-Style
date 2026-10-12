@@ -19,6 +19,7 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
         }
 
         let app = launchLocalSession(fixture, path: path)
+        verifySessionSurvivesRelaunch(in: app, fixture: fixture)
         sendKyraRequest(in: app, itemNames: fixture.itemNames)
         let outfitID = try await verifyPersistedKyraOutfit(for: fixture)
         try await markOutfitWorn(outfitID, in: app, fixture: fixture)
@@ -46,6 +47,27 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
             "The signed-in fixture session did not reach Home."
         )
         return app
+    }
+
+    private func verifySessionSurvivesRelaunch(in app: XCUIApplication, fixture: Fixture) {
+        app.terminate()
+        // Keep the local endpoint but bypass fixture credential installation.
+        // Bootstrap must restore the actual saved Keychain session.
+        app.launchArguments.append("-astra-local-qa-restore")
+        app.launchEnvironment.removeValue(forKey: "ASTRA_LOCAL_QA_FIXTURE_PATH")
+        app.launch()
+        XCTAssertTrue(app.chromeTabBar.waitForExistence(timeout: 45),
+                      "Relaunch did not restore the persisted session without fixture injection.")
+        app.tapChromeTab("Closet")
+        for name in fixture.itemNames {
+            let item = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label CONTAINS %@", name)
+            ).firstMatch
+            item.scrollIntoView(in: app)
+            XCTAssertTrue(item.waitForExistence(timeout: 30),
+                          "Restored session did not load its owner's closet.")
+        }
+        app.tapChromeTab("Home")
     }
 
     private func sendKyraRequest(in app: XCUIApplication, itemNames: [String]) {

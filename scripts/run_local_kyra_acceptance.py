@@ -56,9 +56,47 @@ def run(args: list[str], *, cwd: pathlib.Path = ROOT, env=None, timeout=300,
         check=False,
     )
     if check and result.returncode:
-        # Supabase start can print its local keys. Never echo tool output here.
-        raise HarnessError(f"Local QA command failed ({pathlib.Path(args[0]).name}, exit {result.returncode}).")
+        # Supabase start can print keys. Keep only known infrastructure error
+        # lines, redact token-shaped values, and never emit full command output.
+        diagnostics = []
+        for line in ((result.stderr or "") + "\n" + (result.stdout or "")).splitlines():
+            if not re.search(r"error response from daemon|failed to|address already in use|unhealthy|connection refused", line, re.I):
+                continue
+            if re.search(r"api[_ -]?key|service[_ -]?role|authorization|password|secret", line, re.I):
+                continue
+            line = re.sub(r"[A-Za-z0-9_.+/=-]{40,}", "[redacted]", line)
+            diagnostics.append(line[:300])
+        detail = " ".join(diagnostics[-3:])
+        raise HarnessError(f"Local QA command failed ({pathlib.Path(args[0]).name}, exit {result.returncode})." +
+                           (" " + detail if detail else ""))
     return result
+
+
+def available_local_ports(count: int) -> list[int]:
+    sockets = []
+    try:
+        for _ in range(count):
+            listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            listener.bind(("127.0.0.1", 0))
+            sockets.append(listener)
+        return [listener.getsockname()[1] for listener in sockets]
+    finally:
+        for listener in sockets:
+            listener.close()
+
+
+def local_port_config(config: str, api_port: int, db_port: int, shadow_port: int) -> str:
+    for section, values in (("api", {"port": api_port}),
+                            ("db", {"port": db_port, "shadow_port": shadow_port})):
+        pattern = rf"(?ms)^\[{section}\]\s*\n(.*?)(?=^\[|\Z)"
+        match = re.search(pattern, config)
+        block = match.group(1) if match else ""
+        for name, value in values.items():
+            key = rf"(?m)^{name}\s*=.*$"
+            block = re.sub(key, f"{name} = {value}", block) if re.search(key, block) else block + f"{name} = {value}\n"
+        replacement = f"[{section}]\n{block}"
+        config = config[:match.start()] + replacement + config[match.end():] if match else config + "\n" + replacement
+    return config
 
 
 def request_json(url: str, *, method="GET", headers=None, body=None, timeout=15):
@@ -261,9 +299,27 @@ def main() -> int:
         raise HarnessError("Generate the Xcode project and install the reviewed package lock before running this script.")
     if not shutil.which("docker"):
         raise HarnessError("Docker is required for the local Supabase containers.")
-    docker = run(["docker", "info"], timeout=20, check=False)
+    docker = run(["docker", "info", "--format", "{{.MemTotal}}"], timeout=20, check=False)
     if docker.returncode:
         raise HarnessError("Docker is not ready on the local QA runner.")
+    try:
+        docker_memory = int(docker.stdout.strip())
+    except ValueError as error:
+        raise HarnessError("Could not verify Docker memory capacity.") from error
+    if docker_memory < 6 * 1024 ** 3:
+        raise HarnessError("Local Supabase needs at least 6 GiB of Docker memory; use the prepared 8 GiB Astra QA runtime.")
+    # Tags correspond to CLI_VERSION; an unknown/new CLI image set gets the
+    # conservative fresh-pull requirement rather than assuming an old cache fits.
+    cached = run(["docker", "image", "inspect",
+                  "public.ecr.aws/supabase/postgres:17.11.0.004",
+                  "public.ecr.aws/supabase/gotrue:v2.197.0",
+                  "public.ecr.aws/supabase/postgrest:v16.4",
+                  "public.ecr.aws/supabase/kong:2.8.1",
+                  "public.ecr.aws/supabase/edge-runtime:v1.77.4"],
+                 timeout=20, check=False).returncode == 0
+    required_gib = 6 if cached else 15
+    if shutil.disk_usage(ROOT).free < required_gib * 1024 ** 3:
+        raise HarnessError(f"Local acceptance needs at least {required_gib} GiB of free disk space before startup.")
 
     fixture_existed = FIXTURE.exists()
     if fixture_existed:
@@ -296,6 +352,8 @@ def main() -> int:
     )
     if count != 1:
         raise HarnessError("Could not isolate the temporary local Supabase project name.")
+    api_port, db_port, shadow_port, stub_port = available_local_ports(4)
+    rewritten = local_port_config(rewritten, api_port, db_port, shadow_port)
     (supabase_dir / "config.toml").write_text(rewritten)
     (supabase_dir / "migrations").symlink_to(ROOT / "supabase/migrations", target_is_directory=True)
     # Functions are bind-mounted into Docker by `supabase functions serve`.
@@ -366,6 +424,15 @@ def main() -> int:
         if status not in (200, 201) or not isinstance(created, dict) or not created.get("id"):
             raise HarnessError("Could not create the disposable local auth fixture.")
         user_id = str(uuid.UUID(created["id"]))
+        # This suite starts from an onboarded user, including on a standard
+        # saved-session relaunch; it does not claim to exercise onboarding.
+        status, _ = request_json(
+            api_url + "/rest/v1/profiles?id=eq." + user_id,
+            method="PATCH", headers={**headers, "Prefer": "return=minimal"},
+            body={"onboarding_completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat()},
+        )
+        if status != 204:
+            raise HarnessError("Could not prepare the onboarded local profile fixture.")
 
         status, session = request_json(
             api_url + "/auth/v1/token?grant_type=password",
@@ -397,7 +464,6 @@ def main() -> int:
         item_names = [str(row["name"]) for row in rows]
 
         stub_token = secrets.token_urlsafe(40)
-        stub_port = 18765
         stub_env = os.environ.copy()
         stub_env.update({
             "ASTRA_LOCAL_KYRA_STUB_PORT": str(stub_port),
@@ -473,6 +539,8 @@ def main() -> int:
                     "-resultBundlePath", str(result_bundle),
                     "-only-testing:AstraStyleTests/AnalyticsEventPrivacyTests",
                     "-only-testing:AstraStyleTests/AstraSupabaseClientFactoryTests",
+                    "-only-testing:AstraStyleTests/SessionRestoreTests",
+                    "-only-testing:AstraStyleTests/GuestAuthTests",
                     f"-only-testing:{selected_test_path}",
                 ],
                 cwd=ROOT,

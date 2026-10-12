@@ -211,6 +211,17 @@ extension AppContainer {
         let scannerSaveRecoveryService: ScannerSaveRecoveryService
     }
 
+    private static func sessionKeychain(for environment: AstraEnvironment) -> KeychainTokenStore {
+        #if DEBUG
+        if environment.isLocalQABackend {
+            return KeychainTokenStore(
+                service: "com.astrastyle.app.local-qa.\(environment.supabaseURL.port ?? 0)"
+            )
+        }
+        #endif
+        return KeychainTokenStore()
+    }
+
     /// Production dependency graph. Talks to Supabase Edge Functions per
     /// spec §8; the client never talks to a model provider directly.
     public static func live() throws -> AppContainer {
@@ -220,7 +231,7 @@ extension AppContainer {
         let modelContainer = try AstraModelContainer.live()
         let environment = AstraEnvironment.current
         let apiClient = AstraAPIClient(environment: environment)
-        let sessionStore = SessionStore(apiClient: apiClient)
+        let sessionStore = SessionStore(apiClient: apiClient, keychain: sessionKeychain(for: environment))
         let analyticsClient = LiveAnalyticsClient()
         let weatherService = LiveWeatherService(currentUserID: { await sessionStore.currentUserID() })
         let calendarService = LiveCalendarService()

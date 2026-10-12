@@ -1,0 +1,42 @@
+{
+  "devicesAndConfigurations": [
+    {
+      "device": {
+        "architecture": "arm64",
+        "deviceId": "AFA1FED1-75E9-404E-B026-AA7895A274BF",
+        "deviceName": "iPhone 17 Pro",
+        "modelName": "iPhone 17 Pro",
+        "osBuildNumber": "23F77",
+        "osVersion": "26.5",
+        "platform": "iOS Simulator"
+      },
+      "expectedFailures": 0,
+      "failedTests": 0,
+      "passedTests": 5,
+      "skippedTests": 0,
+      "testPlanConfiguration": {
+        "configurationId": "1",
+        "configurationName": "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription": "AstraStyle \u00b7 Built with macOS 27.2",
+  "expectedFailures": 0,
+  "failedTests": 0,
+  "finishTime": 1791847630.325,
+  "passedTests": 5,
+  "result": "Passed",
+  "runtimeWarnings": [
+    {
+      "issueType": "Runtime Warning",
+      "message": "Initial session emitted after attempting to refresh the local stored session.\nThis is incorrect behavior and will be fixed in the next major release since it's a breaking change.\nTo opt-in to the new behavior now, set `emitLocalSessionAsInitialSession: true` in your AuthClient configuration.\nThe new behavior ensures that the locally stored session is always emitted, regardless of its validity or expiration.\nIf you rely on the initial session to opt users in, you need to add an additional check for `session.isExpired` in the session.\n\nCheck https://github.com/supabase/supabase-swift/pull/822 for more information."
+    }
+  ],
+  "skippedTests": 0,
+  "startTime": 1791847495.042,
+  "statistics": [],
+  "testFailures": [],
+  "title": "Test - AstraStyle",
+  "topInsights": [],
+  "totalTestCount": 5
+}

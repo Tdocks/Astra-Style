@@ -163,13 +163,14 @@ public final class SessionStore: AstraAuthTokenProviding {
         }
 
         guard stored.isExpired else {
+            try await restoreLocalSDKSession(stored, revision: revision)
             currentSession = stored
             return stored
         }
 
         do {
             let refreshed = try await sessionRefresher.resolveSession(userID: stored.userID, refreshToken: stored.refreshToken)
-            guard sessionRevision == revision else { return nil }
+            guard sessionRevision == revision, !Task.isCancelled else { return nil }
             guard refreshed.userID == stored.userID, refreshed.expiresAt > .now else {
                 throw AstraError.auth("Please sign in again.")
             }
@@ -190,6 +191,21 @@ public final class SessionStore: AstraAuthTokenProviding {
             currentSession = nil
             return nil
         }
+    }
+
+    private func restoreLocalSDKSession(_ stored: AuthSession, revision: UUID) async throws {
+        #if DEBUG
+        // QA SDK storage is volatile; use only the isolated saved Keychain.
+        if AstraEnvironment.current.isLocalQABackend {
+            let sdkSession = try await supabase.auth.setSession(
+                accessToken: stored.accessToken, refreshToken: stored.refreshToken
+            )
+            guard sdkSession.user.id == stored.userID else {
+                throw AstraError.auth("The restored local session owner changed.")
+            }
+        }
+        #endif
+        guard sessionRevision == revision, !Task.isCancelled else { throw CancellationError() }
     }
 
     public func adopt(_ session: AuthSession) throws {
@@ -218,13 +234,12 @@ public final class SessionStore: AstraAuthTokenProviding {
             try? await supabase.auth.signOut()
             throw AstraError.auth("The local QA session owner did not match its fixture.")
         }
-        invalidatePendingRefresh()
-        currentSession = AuthSession(
+        try persist(AuthSession(
             userID: sdkSession.user.id,
             accessToken: sdkSession.accessToken,
             refreshToken: sdkSession.refreshToken,
             expiresAt: Date(timeIntervalSince1970: sdkSession.expiresAt)
-        )
+        ))
         #else
         throw AstraError.auth("Local QA sessions are unavailable in this build.")
         #endif

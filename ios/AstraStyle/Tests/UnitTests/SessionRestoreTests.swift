@@ -209,6 +209,61 @@ struct SessionRestoreTests {
         #expect(store.isRestoring == false)
     }
 
+    @Test("An offline restore can recover on retry without signing in again")
+    func retryAfterOfflineRestore() async throws {
+        let keychain = uniqueKeychain()
+        defer { try? keychain.clear() }
+        let userID = UUID()
+        try keychain.save(AuthSession(userID: userID, accessToken: "expired", refreshToken: "retry",
+                                     expiresAt: .now.addingTimeInterval(-1)))
+        let offline = makeSessionStore(keychain: keychain,
+                                      refresher: StubRefresher(result: .failure(.network("Offline"))))
+        #expect(try await offline.restoreSession() == nil)
+        let online = makeSessionStore(keychain: keychain, refresher: StubRefresher(result: .success(
+            RefreshedSession(userID: userID, accessToken: "renewed", refreshToken: "rotated",
+                             expiresAt: .now.addingTimeInterval(3600)))))
+        #expect(try await online.restoreSession()?.userID == userID)
+        #expect(try keychain.load()?.refreshToken == "rotated")
+    }
+
+    @Test("A pending launch restore cannot overwrite a newly signed-in account")
+    func pendingRestoreCannotReplaceNewAccount() async throws {
+        let keychain = uniqueKeychain()
+        defer { try? keychain.clear() }
+        let oldID = UUID()
+        try keychain.save(AuthSession(userID: oldID, accessToken: "expired", refreshToken: "old",
+                                     expiresAt: .now.addingTimeInterval(-1)))
+        let refresher = PausedRefresher(userID: oldID)
+        let store = makeSessionStore(keychain: keychain, refresher: refresher)
+        let restore = Task { try await store.restoreSession() }
+        await refresher.waitUntilStarted()
+        let newAccount = AuthSession(userID: UUID(), accessToken: "new-account", refreshToken: "new",
+                                     expiresAt: .now.addingTimeInterval(3600))
+        try store.adopt(newAccount)
+        await refresher.finish()
+        #expect(try await restore.value == nil)
+        #expect(store.currentSession?.userID == newAccount.userID)
+        #expect(try keychain.load()?.userID == newAccount.userID)
+    }
+
+    @Test("A cancelled launch restore cannot install credentials after the launch deadline")
+    func cancelledRestoreCannotAdoptLateSession() async throws {
+        let keychain = uniqueKeychain()
+        defer { try? keychain.clear() }
+        let userID = UUID()
+        try keychain.save(AuthSession(userID: userID, accessToken: "expired", refreshToken: "retry",
+                                     expiresAt: .now.addingTimeInterval(-1)))
+        let refresher = PausedRefresher(userID: userID)
+        let store = makeSessionStore(keychain: keychain, refresher: refresher)
+        let restore = Task { try await store.restoreSession() }
+        await refresher.waitUntilStarted()
+        restore.cancel()
+        await refresher.finish()
+        #expect(try await restore.value == nil)
+        #expect(store.currentSession == nil)
+        #expect(try keychain.load()?.refreshToken == "retry")
+    }
+
     @Test("No stored session returns nil without ever calling the refresher")
     func absentSessionReturnsNilWithoutRefreshing() async throws {
         let keychain = uniqueKeychain()

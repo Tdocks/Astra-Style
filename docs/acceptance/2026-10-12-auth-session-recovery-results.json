@@ -1,0 +1,43 @@
+{
+  "devicesAndConfigurations": [
+    {
+      "device": {
+        "architecture": "arm64",
+        "deviceId": "AFA1FED1-75E9-404E-B026-AA7895A274BF",
+        "deviceName": "iPhone 17 Pro",
+        "modelName": "iPhone 17 Pro",
+        "osBuildNumber": "23F77",
+        "osVersion": "26.5",
+        "platform": "iOS Simulator"
+      },
+      "expectedFailures": 0,
+      "failedTests": 0,
+      "passedTests": 25,
+      "skippedTests": 0,
+      "testPlanConfiguration": {
+        "configurationId": "1",
+        "configurationName": "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription": "AstraStyle \u00b7 Built with macOS 27.2",
+  "expectedFailures": 0,
+  "failedTests": 0,
+  "finishTime": 1791846101.708,
+  "passedTests": 25,
+  "result": "Passed",
+  "runtimeWarnings": [],
+  "skippedTests": 0,
+  "startTime": 1791846085.139,
+  "statistics": [],
+  "testFailures": [],
+  "title": "Test - AstraStyle",
+  "topInsights": [
+    {
+      "category": "Longest Test Runs",
+      "impact": "60% of duration",
+      "text": "1 longest test run with outlier durations exceeding 0.15s (three standard deviations)"
+    }
+  ],
+  "totalTestCount": 25
+}

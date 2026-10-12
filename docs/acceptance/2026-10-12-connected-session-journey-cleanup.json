@@ -1,0 +1,15 @@
+{
+  "supabase_cli_version": "2.120.0",
+  "backend": "disposable local Supabase stack",
+  "provider": "deterministic local Responses stub",
+  "mode": "connected",
+  "selected_test": "AstraStyleUITests/LocalConnectedJourneyAcceptanceUITests/testKyraOutfitPersistsForTheSignedInFixtureOwner",
+  "test_passed": true,
+  "fixture_owner_deleted_and_rows_empty": true,
+  "isolated_stack_stopped": true,
+  "hosted_supabase_called": false,
+  "paid_provider_called": false,
+  "failure_reason": null,
+  "worker_probe_http_status": 405,
+  "recorded_at_utc": "2026-10-12T23:27:13.470863+00:00"
+}

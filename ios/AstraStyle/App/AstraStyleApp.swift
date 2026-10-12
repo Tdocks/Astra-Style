@@ -91,7 +91,8 @@ struct AstraStyleApp: App {
 
     private func resolveLaunchRoute(using appContainer: AppContainer) async -> AppRouteState {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-astra-local-qa-kyra") {
+        if ProcessInfo.processInfo.arguments.contains("-astra-local-qa-kyra"),
+           !ProcessInfo.processInfo.arguments.contains("-astra-local-qa-restore") {
             return await restoreLocalKyraFixture(using: appContainer)
         }
         #endif

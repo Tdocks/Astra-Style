@@ -61,8 +61,9 @@ public enum AstraSupabaseClientFactory {
 #if DEBUG
 /// Supabase SDK auth state for local UI fixtures must die with the app
 /// process. All SDK clients share this instance. The lock protects synchronous
-/// storage callbacks from concurrent auth requests; no fixture credential
-/// reaches Keychain or disk.
+/// storage callbacks from concurrent auth requests. SDK storage itself never
+/// reaches disk; SessionStore separately uses an isolated QA Keychain so
+/// connected tests can exercise persisted-session relaunch.
 private final class LocalQAVolatileAuthStorage: AuthLocalStorage, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: Data] = [:]
