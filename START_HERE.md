@@ -25,7 +25,19 @@ current brief.
 | Supabase project ref | `anutsdzbxycaavmmkewo` (confirm with owner if unsure) |
 | Twin docs | `docs/12-testflight-cut.md`, `ios/CLI_BUILD_AND_TESTFLIGHT.md` |
 
-## Current internal release — build 33 (2026-10-10)
+## Current internal release — build 34 (2026-10-11)
+
+Version **1.0.0 (34)** is **VALID** and **IN_BETA_TESTING** in the Internal
+group (build ID `e3a4145e-da04-406b-a0bf-09fe1823ceb9`). App Store Connect
+readback confirmed the build is assigned to the Internal group, which has
+automatic access to all builds. Build 34 includes the Home scroll clearance
+change for accessibility text sizes. The Release archive and TestFlight upload
+succeeded; the latest broad simulator CI still has unresolved UI failures, so
+this is not a full-app acceptance pass. External beta review remains unsubmitted;
+the public External group continues on build 11. Physical-device, live-provider,
+purchase, and legal acceptance remain open.
+
+## Previous internal release — build 33 (2026-10-10)
 
 Version **1.0.0 (33)** is VALID and IN_BETA_TESTING in Internal
 (build ID `5e68e692-61c7-4843-ac06-967eb64143b7`). Internal group membership
