@@ -20,6 +20,7 @@
 // ============================================================================
 
 import { ProviderError, type ProviderRequestContext } from "./types.ts";
+import { resolveGarmentPattern } from "./garmentPattern.ts";
 import type {
   GarmentAnalysisRequest,
   GarmentAnalysisResult,
@@ -47,11 +48,13 @@ export const RESULT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
+    "construction_evidence",
     "category",
     "subcategory",
     "confidence",
     "primary_color_name",
     "secondary_color_names",
+    "pattern_evidence",
     "pattern",
     "material",
     "formality_score",
@@ -72,6 +75,14 @@ export const RESULT_SCHEMA = {
     "water_resistance_score",
   ],
   properties: {
+    construction_evidence: {
+      type: "string",
+      description: "Before category, describe visible collar, closure/placket, cuffs, hem, " +
+        "pockets and lining/structure in one short sentence. A shirt has a shirt collar and " +
+        "narrow center placket, often sleeve cuffs; a blazer has a tailored lapel/rolled opening " +
+        "and jacket structure. An unbuttoned shirt collar is not evidence of blazer lapels. " +
+        "Do not infer a blazer from ornate fabric or a hanger; state uncertainty if construction is hidden.",
+    },
     // Closed vocabulary, because `closet/mapper.ts` has one and free text does
     // not survive the trip. Asked for a bare string this returned "menswear
     // top" — a better description of the garment than "top", and worthless:
@@ -93,7 +104,9 @@ export const RESULT_SCHEMA = {
         "dress",
         "skirt",
       ],
-      description: "The garment's slot. Use the closest match; do not invent a finer term.",
+      description: "The garment layer: coats, coatigans, blazers, jackets and long substantial " +
+        "belted/open-front outer-layer cardigans are outerwear. Lightweight waist-length " +
+        "knit cardigans are top. Classify by construction and length, not knitted material alone.",
     },
     // Free text on purpose — this is the one field where specificity is the
     // point, and nothing downstream matches it against a vocabulary.
@@ -108,10 +121,41 @@ export const RESULT_SCHEMA = {
       type: "number",
       description: "Probability in 0-1 that the category and subcategory are right. Not 0-100.",
     },
-    primary_color_name: { type: "string" },
+    primary_color_name: {
+      type: "string",
+      description: "Dominant garment BODY color by visible area, excluding shadows/background. " +
+        "Use white for neutral off-white; retain ivory/cream for warm yellow-beige whites. Compare " +
+        "the garment with nearby neutral white surfaces when available, without using their color as " +
+        "the garment color. Black for near-black " +
+        "fabric rather than a small green cast. For checks use the largest base area, not the " +
+        "brightest stripe. Use a stable everyday color name, not lighting-dependent descriptors.",
+    },
     secondary_color_names: { type: "array", items: { type: "string" } },
+    pattern_evidence: {
+      type: "string",
+      description:
+        "Before selecting pattern, describe in one short sentence the visible colored motifs " +
+        "inside the garment outline: shapes, line directions and repetition, or their absence. " +
+        "Ignore motifs outside the garment. Describe observed pixels, not a guessed material " +
+        "or the pattern enum label. Distinguish printed color changes from shadows, wrinkles " +
+        "and single-color surface texture.",
+    },
     pattern: {
       type: "string",
+      description:
+        "Pattern on the garment itself, excluding the floor, bedding, wall, hanger and other " +
+        "objects. Use the dominant garment-body design; a small isolated brand logo does not " +
+        "make an otherwise plain garment a print. solid includes plain fabric, plain leather, " +
+        "isolated small logos and color-block panels; ignore seams, wrinkles, leather creases " +
+        "and lighting highlights. " +
+        "stripe: repeated parallel colored lines. check: crossing colored lines, plaid, " +
+        "tartan, gingham, houndstooth (broken checks) or buffalo checks. print: camouflage, " +
+        "large graphics/lettering, floral " +
+        "or geometric colored motifs that are not stripes/checks. herringbone: genuine " +
+        "repeated V-shaped weave. texture-only: relief/knit/weave without a colored motif; " +
+        "only use it for clearly visible structural ribbing, cable knitting or an identifiable " +
+        "weave across the body, not ordinary leather grain or creases. Never use it merely " +
+        "because a printed or plaid fabric also has texture.",
       enum: ["solid", "stripe", "check", "herringbone", "print", "texture-only"],
     },
     material: { type: "array", items: { type: "string" } },
@@ -278,6 +322,25 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
     const hints = request.deviceHints;
     const system =
       "You are Astra Style's garment classifier. Return ONLY JSON matching the schema. " +
+      "First identify the main garment's outline and inspect only its fabric area. " +
+      "Write construction_evidence before category. Distinguish button-up shirts from blazers " +
+      "using closure, collar and cuffs: patterned fabric, an open collar, or hanging shape " +
+      "alone does not imply a blazer. Do not hallucinate lapels or suit pockets. " +
+      "Write pattern_evidence from that region before selecting the matching pattern enum. " +
+      "Exclude patterns/colors on bedding, rugs, floors, walls, hangers and nearby garments. " +
+      "Cross-check pattern against the visible garment and your subcategory description: " +
+      "a camouflage/graphic garment is print; plaid/checked flannel is check, not texture-only. " +
+      "Distinguish colored motifs from tactile fabric texture; a patterned fabric can have both, " +
+      "but report the colored motif. Color-block panels alone are solid. If the garment pattern " +
+      "is absent across the body, use solid even with a small chest logo, plain leather grain " +
+      "or creases. Houndstooth is check; a genuine chevron weave is herringbone. If the pattern " +
+      "cannot be distinguished from background or fabric detail, include pattern in " +
+      "fields_below_confidence_threshold rather than implying certainty. " +
+      "For boots inspect actual repeated colored motifs: seams, panels, leather creases and " +
+      "reflections are solid, never print. Small same-color embroidered stitching on the shaft " +
+      "does not make a plain leather boot a print; use the dominant body pattern. Ornamental " +
+      "repeated colored loops, medallions or paisley on coats are print, not checks. For knit coats inspect whether repeated contrasting " +
+      "yarn forms checks/houndstooth rather than calling every knitted motif print. " +
       "Classify menswear finely. Prefer device OCR text for brand/size over re-reading pixels. " +
       "Calibrate confidence honestly — a wrong high-confidence brand is worse than a low guess. " +
       "Two different numeric conventions live in this schema and mixing them is the most " +
@@ -334,7 +397,7 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
                 { type: "text", text: userText },
                 {
                   type: "image_url",
-                  image_url: { url: `data:image/jpeg;base64,${base64}` },
+                  image_url: { url: `data:image/jpeg;base64,${base64}`, detail: "high" },
                 },
               ],
             },
@@ -396,22 +459,37 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
         ? { name: asString(brandObj["name"]), confidence: asNumber(brandObj["confidence"], 0) }
         : null;
 
-      const primary = asString(body["primary_color_name"], "navy");
+      const rawPrimary = asString(body["primary_color_name"], "navy");
+      const primary = /^off[- ]white$/i.test(rawPrimary.trim()) ? "white" : rawPrimary;
       const secondary = asStringArray(body["secondary_color_names"]);
       const seasonality = asStringArray(body["seasonality"]);
       const fit = asString(body["fit"]);
       const size = asString(body["size"]);
+      const rawCategory = asString(body["category"], hints?.approximateCategory ?? "top");
+      const subcategory = asString(body["subcategory"], "Garment");
+      const category =
+        rawCategory === "top" && /\b(coat|coatigan|blazer|jacket)\b/i.test(subcategory)
+          ? "outerwear"
+          : rawCategory;
+      const pattern = resolveGarmentPattern(
+        mapPattern(asString(body["pattern"], "solid")),
+        asString(body["pattern_evidence"]),
+        category,
+      );
+      const uncertainFields = new Set(asStringArray(body["fields_below_confidence_threshold"]));
+      if (pattern.corrected) uncertainFields.add("pattern");
+      if (category !== rawCategory) uncertainFields.add("category");
 
       return {
-        category: asString(body["category"], hints?.approximateCategory ?? "top"),
-        subcategory: asString(body["subcategory"], "Garment"),
+        category,
+        subcategory,
         confidence: asNumber(body["confidence"], 0.5),
         // No colorLch, deliberately. This adapter never sees a pixel value —
         // it asks the model for a colour *name* and hands that to the mapper,
         // which is the only colour the closet actually stores. What stood here
         // was a hardcoded `{ l: 50, c: 20, h: 240 }`, returned for every
         // garment ever scanned. See the field's comment in `visionAnalysis.ts`.
-        pattern: mapPattern(asString(body["pattern"], "solid")),
+        pattern: pattern.value,
         material: asStringArray(body["material"]),
         formalityAnchorLow: { label: "casual", score: 20 },
         formalityAnchorHigh: { label: "smart_casual", score: 45 },
@@ -421,7 +499,7 @@ export class OpenAIVisionAnalysisProvider implements VisionAnalysisProvider {
         normalizedTitle: asString(body["normalized_title"], "Garment"),
         condition: mapCondition(asString(body["condition"], "good")),
         conditionConfidence: asNumber(body["condition_confidence"], 0.5),
-        fieldsBelowConfidenceThreshold: asStringArray(body["fields_below_confidence_threshold"]),
+        fieldsBelowConfidenceThreshold: [...uncertainFields],
         fitGuess: fit ? { value: fit, confidence: 0.6 } : undefined,
         sizeGuess: size ? { value: size, confidence: 0.6 } : undefined,
         seasonality: seasonality.map((value) => ({ value, confidence: 0.7 })),

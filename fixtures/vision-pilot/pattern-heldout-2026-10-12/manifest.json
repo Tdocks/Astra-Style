@@ -1,0 +1,193 @@
+{
+  "source_repository": "https://github.com/alexeygrigorev/clothing-dataset",
+  "license": "CC0-1.0",
+  "selection": "Next two adult images in T-Shirt, Shirt, Shorts and Outwear; not previously scanned; labels frozen before calls.",
+  "items": [
+    {
+      "id": 17,
+      "image": "17-t-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/4c8f245e-a039-46fd-a6b9-1bb51e83fc05.jpg",
+      "source_label": "T-Shirt",
+      "sha256": "221b5131b6bd806d35886e723331e7246ec605d09586b36ed136d653fd473559",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ],
+        [
+          "tee"
+        ]
+      ],
+      "primaryColor": [
+        "white"
+      ],
+      "pattern": [
+        "solid",
+        "print"
+      ],
+      "formality": 15,
+      "annotation_note": "Small chest graphic: solid/print both predeclared acceptable; not a decisive print test."
+    },
+    {
+      "id": 18,
+      "image": "18-t-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/95609fcf-b2c2-4f35-8454-a308262e30ea.jpg",
+      "source_label": "T-Shirt",
+      "sha256": "9f0e46d7cd206e1384b7fb860cd4c014920e176ad805825c03fdbd2f92a2ff62",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ],
+        [
+          "tee"
+        ]
+      ],
+      "primaryColor": [
+        "white"
+      ],
+      "pattern": [
+        "print"
+      ],
+      "formality": 15
+    },
+    {
+      "id": 19,
+      "image": "19-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/09f4ffb6-ed86-42b6-ac23-6f8f2359460f.jpg",
+      "source_label": "Shirt",
+      "sha256": "d96a17868188bc9091fa3bd4d3596247221e4f668695b2169dbacd27f19cf3f5",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ]
+      ],
+      "primaryColor": [
+        "white"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 45
+    },
+    {
+      "id": 20,
+      "image": "20-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/b951618d-f10d-4c12-82a4-9b18ee12aa2c.jpg",
+      "source_label": "Shirt",
+      "sha256": "7f32e6e5c99d99ceb128dfdc5e354949746bde307416b8e8fe3cea589c1e6915",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ]
+      ],
+      "primaryColor": [
+        "pink",
+        "white",
+        "multicolor"
+      ],
+      "pattern": [
+        "check"
+      ],
+      "formality": 35,
+      "annotation_note": "Multicolored plaid has an ambiguous dominant color; pink/white/multicolor accepted before scanning."
+    },
+    {
+      "id": 21,
+      "image": "21-shorts.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/5dc34a85-d7f8-45bc-b922-2eae1a704f4b.jpg",
+      "source_label": "Shorts",
+      "sha256": "58e43a89b1f0d67c7748e78ce05928f3759559220ecf7054c1017ecd00ec46f8",
+      "category": "bottom",
+      "subcategoryAlternatives": [
+        [
+          "short"
+        ]
+      ],
+      "primaryColor": [
+        "black"
+      ],
+      "pattern": [
+        "check"
+      ],
+      "formality": 25
+    },
+    {
+      "id": 22,
+      "image": "22-shorts.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/5f2c69cd-918b-4ee0-9e74-7fa12d5095ab.jpg",
+      "source_label": "Shorts",
+      "sha256": "c311c2a2f98635b8dd1067858d1de7989aca28ec987dd78b90ade15dd0efee5c",
+      "category": "bottom",
+      "subcategoryAlternatives": [
+        [
+          "short"
+        ]
+      ],
+      "primaryColor": [
+        "blue"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 20
+    },
+    {
+      "id": 23,
+      "image": "23-outwear.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/ff231d91-0ff6-4485-98e7-a05c26f09fec.jpg",
+      "source_label": "Outwear",
+      "sha256": "7fdaa1ac7dbac8d955ad5aff1d935dd318f5c1ca6059c979c54d81f355ceb09f",
+      "category": "outerwear",
+      "subcategoryAlternatives": [
+        [
+          "jacket"
+        ],
+        [
+          "bomber"
+        ]
+      ],
+      "primaryColor": [
+        "olive",
+        "green",
+        "gray",
+        "grey"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 35
+    },
+    {
+      "id": 24,
+      "image": "24-outwear.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/44bf7760-a7c2-41c2-9eb4-1d12bd5c235c.jpg",
+      "source_label": "Outwear",
+      "sha256": "f837066eb30f22319dffd75c2bf91700fea7c2135cb784f197d61bd51bc966c6",
+      "category": "outerwear",
+      "subcategoryAlternatives": [
+        [
+          "parka"
+        ],
+        [
+          "coat"
+        ],
+        [
+          "jacket"
+        ]
+      ],
+      "primaryColor": [
+        "white",
+        "cream",
+        "gray",
+        "grey"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 35
+    }
+  ]
+}

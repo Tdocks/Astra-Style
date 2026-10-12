@@ -1,0 +1,271 @@
+{
+  "complete": true,
+  "photos": 3,
+  "repetitions": 3,
+  "provider_errors": null,
+  "accuracy": {
+    "category": 1.0,
+    "subcategory": 1.0,
+    "primaryColor": 1.0,
+    "pattern": 0.4444444444444444,
+    "formality": 0.8888888888888888
+  },
+  "bars": {
+    "category": 0.98,
+    "subcategory": 0.8,
+    "primaryColor": 0.9,
+    "pattern": 0.85,
+    "formality": 0.85
+  },
+  "latency_ms": {
+    "p50": 4633,
+    "p95": 6738
+  },
+  "raw_value_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.3333333333333333,
+    "primaryColor": 0.0,
+    "pattern": 0.3333333333333333
+  },
+  "criterion_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.0,
+    "primaryColor": 0.0,
+    "pattern": 0.3333333333333333,
+    "formality": 0.3333333333333333
+  },
+  "gate_passed": false,
+  "cleanup": {
+    "storage_empty": true,
+    "user_deleted": true
+  },
+  "observations": [
+    {
+      "image_id": 3,
+      "repetition": 1,
+      "elapsed_ms": 4633,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "yellow",
+        "pattern": "solid",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 3,
+      "repetition": 2,
+      "elapsed_ms": 4594,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "yellow",
+        "pattern": "solid",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 3,
+      "repetition": 3,
+      "elapsed_ms": 5085,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "yellow",
+        "pattern": "solid",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "material composition",
+        "size"
+      ]
+    },
+    {
+      "image_id": 13,
+      "repetition": 1,
+      "elapsed_ms": 5435,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "long patterned coat",
+        "primary_color": "charcoal gray",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.82,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "material",
+        "seasonality",
+        "size"
+      ]
+    },
+    {
+      "image_id": 13,
+      "repetition": 2,
+      "elapsed_ms": 6738,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": false
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "long patterned coatigan",
+        "primary_color": "charcoal gray",
+        "pattern": "print",
+        "formality_score": 35
+      },
+      "category_confidence": 0.84,
+      "low_confidence_fields": [
+        "material"
+      ]
+    },
+    {
+      "image_id": 13,
+      "repetition": 3,
+      "elapsed_ms": 5362,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "long patterned open-front coat",
+        "primary_color": "charcoal gray",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.9,
+      "low_confidence_fields": [
+        "brand",
+        "exact material composition",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 15,
+      "repetition": 1,
+      "elapsed_ms": 4171,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "heeled ankle boot",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 55
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "size"
+      ]
+    },
+    {
+      "image_id": 15,
+      "repetition": 2,
+      "elapsed_ms": 4340,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "heeled ankle boot",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 55
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "size"
+      ]
+    },
+    {
+      "image_id": 15,
+      "repetition": 3,
+      "elapsed_ms": 4136,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "heeled ankle boot",
+        "primary_color": "black",
+        "pattern": "solid",
+        "formality_score": 68
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "size"
+      ]
+    }
+  ],
+  "closet_version": 29
+}

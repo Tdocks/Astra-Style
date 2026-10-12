@@ -1,0 +1,374 @@
+{
+  "source_repository": "https://github.com/alexeygrigorev/clothing-dataset",
+  "license": "CC0-1.0",
+  "selection": "First two non-kids entries of each of eight classes; annotations frozen before provider calls.",
+  "items": [
+    {
+      "id": 1,
+      "image": "01-t-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/ea7b6656-3f84-4eb3-9099-23e623fc1018.jpg",
+      "source_label": "T-Shirt",
+      "sha256": "c93a7d3e6346629ec2575a5bfba183cfbd94c926bc728ffd680564d049840f8a",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "t-shirt"
+        ],
+        [
+          "tee"
+        ]
+      ],
+      "primaryColor": [
+        "red",
+        "burgundy",
+        "maroon"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 15
+    },
+    {
+      "id": 2,
+      "image": "02-t-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/ea2ffd4d-9b25-4ca8-9dc2-bd27f1cc59fa.jpg",
+      "source_label": "T-Shirt",
+      "sha256": "dcdf02dd07c8abea89cd7112354accba3dabe50b7cc3e9be9ba7b193b549ba8f",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "t-shirt"
+        ],
+        [
+          "tee"
+        ]
+      ],
+      "primaryColor": [
+        "black",
+        "gray",
+        "grey"
+      ],
+      "pattern": [
+        "print"
+      ],
+      "formality": 10
+    },
+    {
+      "id": 3,
+      "image": "03-polo.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/ce5e1ff5-b923-462b-b897-c26d7c571ece.jpg",
+      "source_label": "Polo",
+      "sha256": "62805bc12363ddd0dcc3ff9e316b40f12a4e9875a769c795142dc66cab299097",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "polo"
+        ]
+      ],
+      "primaryColor": [
+        "yellow"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 30
+    },
+    {
+      "id": 4,
+      "image": "04-polo.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/f937d0b8-1c6f-432f-86a8-dac89c03b890.jpg",
+      "source_label": "Polo",
+      "sha256": "deb5629fd92c2d8e03e76a501e47e8f448cdbf68da1f4f1229cba859df645fdc",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "polo"
+        ]
+      ],
+      "primaryColor": [
+        "white"
+      ],
+      "pattern": [
+        "stripe"
+      ],
+      "formality": 30
+    },
+    {
+      "id": 5,
+      "image": "05-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/b0c03127-9dfb-4573-8934-1958396937bf.jpg",
+      "source_label": "Shirt",
+      "sha256": "a7df5ac66f5a33cdc25b8291a1fdb286480b03ee903eba37315d877ed8dce4b1",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ]
+      ],
+      "primaryColor": [
+        "red"
+      ],
+      "pattern": [
+        "check"
+      ],
+      "formality": 35
+    },
+    {
+      "id": 6,
+      "image": "06-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/d8445328-a318-434b-9c4e-fa29cf04be41.jpg",
+      "source_label": "Shirt",
+      "sha256": "977a7ca7ea3c35655bc0c2dde9d9e45206822781100637c9acd91deb55765724",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ]
+      ],
+      "primaryColor": [
+        "green",
+        "olive"
+      ],
+      "pattern": [
+        "print",
+        "check"
+      ],
+      "formality": 40
+    },
+    {
+      "id": 7,
+      "image": "07-pants.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/c995c900-693d-4dd6-8995-43f3051ec488.jpg",
+      "source_label": "Pants",
+      "sha256": "d6d49fe2ed9e25b179bb3883e6d4b416f62efeba3dbe35281ca5a09bc97119e2",
+      "category": "bottom",
+      "subcategoryAlternatives": [
+        [
+          "jogger"
+        ],
+        [
+          "sweatpant"
+        ],
+        [
+          "track",
+          "pant"
+        ]
+      ],
+      "primaryColor": [
+        "navy",
+        "blue",
+        "black"
+      ],
+      "pattern": [
+        "print",
+        "solid"
+      ],
+      "formality": 10
+    },
+    {
+      "id": 8,
+      "image": "08-pants.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/97074b7f-706a-4c17-b875-bd9baa5bed0e.jpg",
+      "source_label": "Pants",
+      "sha256": "76de0d9d761e68943bfccdd6c1a354ffeb2b664577d342a0fa5aad22179c0343",
+      "category": "bottom",
+      "subcategoryAlternatives": [
+        [
+          "jean"
+        ]
+      ],
+      "primaryColor": [
+        "blue"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 25
+    },
+    {
+      "id": 9,
+      "image": "09-shorts.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/5d3a1404-697f-479f-9090-c1ecd0413d27.jpg",
+      "source_label": "Shorts",
+      "sha256": "49a4b4ecd8a509870eb47686045faba627d0ac2da0e14c2944e75734a61dd0df",
+      "category": "bottom",
+      "subcategoryAlternatives": [
+        [
+          "short"
+        ]
+      ],
+      "primaryColor": [
+        "navy",
+        "blue",
+        "black"
+      ],
+      "pattern": [
+        "print"
+      ],
+      "formality": 10
+    },
+    {
+      "id": 10,
+      "image": "10-shorts.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/5dcffea5-5111-4397-b9ed-313b41bdeea8.jpg",
+      "source_label": "Shorts",
+      "sha256": "07f9763da91ce894b44d1970bfeeaab62474fa0fa012672b25d1d7a2ecd8806e",
+      "category": "bottom",
+      "subcategoryAlternatives": [
+        [
+          "short"
+        ]
+      ],
+      "primaryColor": [
+        "beige",
+        "khaki",
+        "tan"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 25
+    },
+    {
+      "id": 11,
+      "image": "11-outwear.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/1b2ace0a-382e-4b87-8e9d-35cbcfac636b.jpg",
+      "source_label": "Outwear",
+      "sha256": "2b4fee163c08b4bff95cc22cc1e25148b9b0d668272796dc24917b0362bd1b8a",
+      "category": "outerwear",
+      "subcategoryAlternatives": [
+        [
+          "jacket"
+        ],
+        [
+          "windbreaker"
+        ]
+      ],
+      "primaryColor": [
+        "blue",
+        "navy"
+      ],
+      "pattern": [
+        "solid",
+        "print"
+      ],
+      "formality": 20
+    },
+    {
+      "id": 12,
+      "image": "12-outwear.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/e580170f-d447-4d58-ac33-3d40b3771c8f.jpg",
+      "source_label": "Outwear",
+      "sha256": "3e4b09ce88476140b4b8b9511fc46b54503def52ac68d5c9a4fd7ff59016116e",
+      "category": "outerwear",
+      "subcategoryAlternatives": [
+        [
+          "coat"
+        ],
+        [
+          "trench"
+        ]
+      ],
+      "primaryColor": [
+        "brown",
+        "taupe"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 55
+    },
+    {
+      "id": 13,
+      "image": "13-blazer.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/396cdf47-f336-491c-919c-ae80cf1d02ba.jpg",
+      "source_label": "Blazer",
+      "sha256": "2114d00eea0ebf506305e21644f0c28f96542dd418ae061be15b2324291ecf64",
+      "category": "outerwear",
+      "subcategoryAlternatives": [
+        [
+          "coat"
+        ]
+      ],
+      "primaryColor": [
+        "gray",
+        "grey",
+        "black"
+      ],
+      "pattern": [
+        "check",
+        "textured"
+      ],
+      "formality": 55,
+      "annotation_note": "Source Blazer label corrected before model calls: image shows a long belted coat."
+    },
+    {
+      "id": 14,
+      "image": "14-blazer.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/5008492c-339e-454c-b741-a676d22f1f5c.jpg",
+      "source_label": "Blazer",
+      "sha256": "a9dea9545785a2bfd30c8e06348f3c36f820ffa9f44d37a7fd059898ed2ad31e",
+      "category": "outerwear",
+      "subcategoryAlternatives": [
+        [
+          "blazer"
+        ],
+        [
+          "jacket"
+        ]
+      ],
+      "primaryColor": [
+        "beige",
+        "cream",
+        "ivory"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 65
+    },
+    {
+      "id": 15,
+      "image": "15-shoes.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/3b86d877-2b9e-4c8b-a6a2-1d87513309d0.jpg",
+      "source_label": "Shoes",
+      "sha256": "abc389284695dabd49fcf87556437ff9a315ad2fbf8f9e2dca1ae90877da6988",
+      "category": "shoes",
+      "subcategoryAlternatives": [
+        [
+          "boot"
+        ]
+      ],
+      "primaryColor": [
+        "black"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 65
+    },
+    {
+      "id": 16,
+      "image": "16-shoes.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/bf78527f-0734-44fd-a968-f6c32c12d61e.jpg",
+      "source_label": "Shoes",
+      "sha256": "fd3db115ead43089a60d4ddcc12518ff8dce37ea4b79b3fab473528a29dd1fc1",
+      "category": "shoes",
+      "subcategoryAlternatives": [
+        [
+          "sneaker"
+        ],
+        [
+          "trainer"
+        ]
+      ],
+      "primaryColor": [
+        "black"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 20
+    }
+  ]
+}

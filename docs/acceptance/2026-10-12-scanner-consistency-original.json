@@ -1,0 +1,1250 @@
+{
+  "complete": true,
+  "photos": 16,
+  "repetitions": 3,
+  "provider_errors": null,
+  "accuracy": {
+    "category": 1.0,
+    "subcategory": 0.9375,
+    "primaryColor": 0.9375,
+    "pattern": 0.9166666666666666,
+    "formality": 0.9791666666666666
+  },
+  "bars": {
+    "category": 0.98,
+    "subcategory": 0.8,
+    "primaryColor": 0.9,
+    "pattern": 0.85,
+    "formality": 0.85
+  },
+  "latency_ms": {
+    "p50": 5030,
+    "p95": 7787
+  },
+  "raw_value_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.75,
+    "primaryColor": 0.125,
+    "pattern": 0.125
+  },
+  "criterion_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.0,
+    "primaryColor": 0.0,
+    "pattern": 0.0625,
+    "formality": 0.0625
+  },
+  "gate_passed": true,
+  "cleanup": {
+    "storage_empty": true,
+    "user_deleted": true
+  },
+  "observations": [
+    {
+      "image_id": 1,
+      "repetition": 1,
+      "elapsed_ms": 6462,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "short-sleeve T-shirt",
+        "primary_color": "burgundy",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 1,
+      "repetition": 2,
+      "elapsed_ms": 4393,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "short-sleeve T-shirt",
+        "primary_color": "burgundy",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 1,
+      "repetition": 3,
+      "elapsed_ms": 4342,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "short-sleeve T-shirt",
+        "primary_color": "burgundy",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 2,
+      "repetition": 1,
+      "elapsed_ms": 5030,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "graphic camouflage t-shirt",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 5
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand",
+        "exact material composition",
+        "size"
+      ]
+    },
+    {
+      "image_id": 2,
+      "repetition": 2,
+      "elapsed_ms": 5308,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "graphic camouflage T-shirt",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 2,
+      "repetition": 3,
+      "elapsed_ms": 4360,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "graphic camouflage t-shirt",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size",
+        "water_resistance_score"
+      ]
+    },
+    {
+      "image_id": 3,
+      "repetition": 1,
+      "elapsed_ms": 5867,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "yellow",
+        "pattern": "solid",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 3,
+      "repetition": 2,
+      "elapsed_ms": 4075,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "yellow",
+        "pattern": "solid",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "size"
+      ]
+    },
+    {
+      "image_id": 3,
+      "repetition": 3,
+      "elapsed_ms": 4048,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "yellow",
+        "pattern": "solid",
+        "formality_score": 35
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 4,
+      "repetition": 1,
+      "elapsed_ms": 4194,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "striped polo shirt",
+        "primary_color": "white",
+        "pattern": "stripe",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 4,
+      "repetition": 2,
+      "elapsed_ms": 4008,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "white",
+        "pattern": "stripe",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 4,
+      "repetition": 3,
+      "elapsed_ms": 5495,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "polo shirt",
+        "primary_color": "white",
+        "pattern": "stripe",
+        "formality_score": 40
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "fit",
+        "size"
+      ]
+    },
+    {
+      "image_id": 5,
+      "repetition": 1,
+      "elapsed_ms": 4208,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "flannel shirt",
+        "primary_color": "red",
+        "pattern": "check",
+        "formality_score": 30
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 5,
+      "repetition": 2,
+      "elapsed_ms": 4183,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "flannel shirt",
+        "primary_color": "red",
+        "pattern": "check",
+        "formality_score": 30
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 5,
+      "repetition": 3,
+      "elapsed_ms": 4830,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "plaid flannel button-down shirt",
+        "primary_color": "red",
+        "pattern": "check",
+        "formality_score": 30
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "material"
+      ]
+    },
+    {
+      "image_id": 6,
+      "repetition": 1,
+      "elapsed_ms": 5286,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve patterned button-up shirt",
+        "primary_color": "dark green",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.96,
+      "low_confidence_fields": [
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 6,
+      "repetition": 2,
+      "elapsed_ms": 6097,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve patterned button-down shirt",
+        "primary_color": "dark green",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "material blend",
+        "size"
+      ]
+    },
+    {
+      "image_id": 6,
+      "repetition": 3,
+      "elapsed_ms": 6861,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "printed button-up shirt",
+        "primary_color": "dark green",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.94,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size",
+        "water_resistance_score"
+      ]
+    },
+    {
+      "image_id": 7,
+      "repetition": 1,
+      "elapsed_ms": 6339,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "men's track pants",
+        "primary_color": "navy",
+        "pattern": "solid",
+        "formality_score": 10
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "material composition",
+        "size"
+      ]
+    },
+    {
+      "image_id": 7,
+      "repetition": 2,
+      "elapsed_ms": 5248,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "athletic jogger track pants",
+        "primary_color": "navy",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "exact material composition",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 7,
+      "repetition": 3,
+      "elapsed_ms": 4642,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "athletic jogger pants",
+        "primary_color": "navy",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 8,
+      "repetition": 1,
+      "elapsed_ms": 4809,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "skinny jeans",
+        "primary_color": "light blue",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 8,
+      "repetition": 2,
+      "elapsed_ms": 5455,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "jeans",
+        "primary_color": "light blue",
+        "pattern": "solid",
+        "formality_score": 22
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 8,
+      "repetition": 3,
+      "elapsed_ms": 4384,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "jeans",
+        "primary_color": "light blue",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 9,
+      "repetition": 1,
+      "elapsed_ms": 4057,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "casual shorts",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.96,
+      "low_confidence_fields": [
+        "material",
+        "water_resistance_score"
+      ]
+    },
+    {
+      "image_id": 9,
+      "repetition": 2,
+      "elapsed_ms": 4194,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "printed casual shorts",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size",
+        "water_resistance_score"
+      ]
+    },
+    {
+      "image_id": 9,
+      "repetition": 3,
+      "elapsed_ms": 4804,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "geometric swim shorts",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 10,
+      "repetition": 1,
+      "elapsed_ms": 6266,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "casual drawstring shorts",
+        "primary_color": "beige",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "exact material composition",
+        "size"
+      ]
+    },
+    {
+      "image_id": 10,
+      "repetition": 2,
+      "elapsed_ms": 4010,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "casual drawstring shorts",
+        "primary_color": "beige",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 10,
+      "repetition": 3,
+      "elapsed_ms": 4271,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "casual drawstring shorts",
+        "primary_color": "beige",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 11,
+      "repetition": 1,
+      "elapsed_ms": 5812,
+      "scores": {
+        "category": true,
+        "subcategory": false,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "hooded puffer vest",
+        "primary_color": "blue",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.96,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 11,
+      "repetition": 2,
+      "elapsed_ms": 6242,
+      "scores": {
+        "category": true,
+        "subcategory": false,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "hooded insulated puffer vest",
+        "primary_color": "blue",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size",
+        "water_resistance_score"
+      ]
+    },
+    {
+      "image_id": 11,
+      "repetition": 3,
+      "elapsed_ms": 4832,
+      "scores": {
+        "category": true,
+        "subcategory": false,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "insulated hooded vest",
+        "primary_color": "blue",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 12,
+      "repetition": 1,
+      "elapsed_ms": 6435,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "men's belted coat",
+        "primary_color": "brown",
+        "pattern": "solid",
+        "formality_score": 45
+      },
+      "category_confidence": 0.78,
+      "low_confidence_fields": [
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 12,
+      "repetition": 2,
+      "elapsed_ms": 5697,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "belted coat",
+        "primary_color": "brown",
+        "pattern": "solid",
+        "formality_score": 50
+      },
+      "category_confidence": 0.9,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 12,
+      "repetition": 3,
+      "elapsed_ms": 6478,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "belted trench coat",
+        "primary_color": "dark brown",
+        "pattern": "solid",
+        "formality_score": 50
+      },
+      "category_confidence": 0.88,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 13,
+      "repetition": 1,
+      "elapsed_ms": 7787,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "patterned knit coatigan",
+        "primary_color": "gray",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.94,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 13,
+      "repetition": 2,
+      "elapsed_ms": 9150,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "long patterned open-front coatigan",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.9,
+      "low_confidence_fields": [
+        "brand_guess",
+        "exact material fiber composition",
+        "material",
+        "size",
+        "water_resistance_score"
+      ]
+    },
+    {
+      "image_id": 13,
+      "repetition": 3,
+      "elapsed_ms": 7426,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "patterned open-front coatigan",
+        "primary_color": "gray",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.94,
+      "low_confidence_fields": [
+        "brand",
+        "exact pattern classification",
+        "fiber composition",
+        "material",
+        "pattern",
+        "size"
+      ]
+    },
+    {
+      "image_id": 14,
+      "repetition": 1,
+      "elapsed_ms": 8650,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "blazer",
+        "primary_color": "white",
+        "pattern": "solid",
+        "formality_score": 68
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 14,
+      "repetition": 2,
+      "elapsed_ms": 5157,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "blazer",
+        "primary_color": "white",
+        "pattern": "solid",
+        "formality_score": 65
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 14,
+      "repetition": 3,
+      "elapsed_ms": 4477,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "blazer",
+        "primary_color": "white",
+        "pattern": "solid",
+        "formality_score": 65
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 15,
+      "repetition": 1,
+      "elapsed_ms": 6603,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "heeled ankle boot",
+        "primary_color": "black",
+        "pattern": "solid",
+        "formality_score": 65
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 15,
+      "repetition": 2,
+      "elapsed_ms": 6408,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": false
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "heeled embroidered western ankle boot",
+        "primary_color": "black",
+        "pattern": "solid",
+        "formality_score": 45
+      },
+      "category_confidence": 0.96,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "size"
+      ]
+    },
+    {
+      "image_id": 15,
+      "repetition": 3,
+      "elapsed_ms": 4821,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": false,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "heeled ankle boot",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 65
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "size"
+      ]
+    },
+    {
+      "image_id": 16,
+      "repetition": 1,
+      "elapsed_ms": 5426,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "low-top sneakers",
+        "primary_color": "black",
+        "pattern": "solid",
+        "formality_score": 25
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 16,
+      "repetition": 2,
+      "elapsed_ms": 4506,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "low-top leather sneakers",
+        "primary_color": "black",
+        "pattern": "solid",
+        "formality_score": 25
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 16,
+      "repetition": 3,
+      "elapsed_ms": 4577,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "shoes",
+        "subcategory": "men's low-top leather sneakers",
+        "primary_color": "black",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "original_report": "2026-10-12-scanner-detail-original.json",
+  "annotation_change": {
+    "image_id": 13,
+    "original_pattern": [
+      "check",
+      "textured"
+    ],
+    "visually_adjudicated_pattern": [
+      "print"
+    ],
+    "reason": "Visible repeating ornamental loops/medallions within garment body; not crossing lines/checks. Review made before v32 live calls. Original manifest and scores retained."
+  },
+  "adjudicated_pattern_accuracy": 1.0,
+  "original_gate_passed": false,
+  "note": "Category failure is unaffected by pattern adjudication. This is a separate post-annotation assessment, not the frozen benchmark score."
+}

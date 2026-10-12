@@ -1,0 +1,243 @@
+{
+  "complete": true,
+  "photos": 4,
+  "repetitions": 2,
+  "provider_errors": null,
+  "accuracy": {
+    "category": 1.0,
+    "subcategory": 1.0,
+    "primaryColor": 1.0,
+    "pattern": 1.0,
+    "formality": 1.0
+  },
+  "bars": {
+    "category": 0.98,
+    "subcategory": 0.8,
+    "primaryColor": 0.9,
+    "pattern": 0.85,
+    "formality": 0.85
+  },
+  "latency_ms": {
+    "p50": 4512,
+    "p95": 5143
+  },
+  "raw_value_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.75,
+    "primaryColor": 0.0,
+    "pattern": 0.0
+  },
+  "criterion_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.0,
+    "primaryColor": 0.0,
+    "pattern": 0.0,
+    "formality": 0.0
+  },
+  "gate_passed": true,
+  "cleanup": {
+    "storage_empty": true,
+    "user_deleted": true
+  },
+  "observations": [
+    {
+      "image_id": 2,
+      "repetition": 1,
+      "elapsed_ms": 4397,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "short-sleeve graphic camouflage t-shirt",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 2,
+      "repetition": 2,
+      "elapsed_ms": 4527,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "graphic t-shirt",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 5
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": []
+    },
+    {
+      "image_id": 5,
+      "repetition": 1,
+      "elapsed_ms": 5055,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "flannel shirt",
+        "primary_color": "red",
+        "pattern": "check",
+        "formality_score": 30
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 5,
+      "repetition": 2,
+      "elapsed_ms": 3768,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "plaid flannel button-down shirt",
+        "primary_color": "red",
+        "pattern": "check",
+        "formality_score": 30
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 6,
+      "repetition": 1,
+      "elapsed_ms": 3733,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve patterned button-down shirt",
+        "primary_color": "dark olive green",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 6,
+      "repetition": 2,
+      "elapsed_ms": 4598,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve patterned button-down shirt",
+        "primary_color": "dark olive green",
+        "pattern": "print",
+        "formality_score": 45
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 9,
+      "repetition": 1,
+      "elapsed_ms": 4512,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "swim shorts",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 5
+      },
+      "category_confidence": 0.9,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 9,
+      "repetition": 2,
+      "elapsed_ms": 5143,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "men's casual shorts",
+        "primary_color": "black",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.93,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size",
+        "subcategory"
+      ]
+    }
+  ],
+  "closet_version": 28
+}

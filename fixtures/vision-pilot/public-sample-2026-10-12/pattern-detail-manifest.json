@@ -1,0 +1,71 @@
+{
+  "source_repository": "https://github.com/alexeygrigorev/clothing-dataset",
+  "license": "CC0-1.0",
+  "selection": "First two non-kids entries of each of eight classes; annotations frozen before provider calls.",
+  "items": [
+    {
+      "id": 3,
+      "image": "03-polo.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/ce5e1ff5-b923-462b-b897-c26d7c571ece.jpg",
+      "source_label": "Polo",
+      "sha256": "62805bc12363ddd0dcc3ff9e316b40f12a4e9875a769c795142dc66cab299097",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "polo"
+        ]
+      ],
+      "primaryColor": [
+        "yellow"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 30
+    },
+    {
+      "id": 13,
+      "image": "13-blazer.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/396cdf47-f336-491c-919c-ae80cf1d02ba.jpg",
+      "source_label": "Blazer",
+      "sha256": "2114d00eea0ebf506305e21644f0c28f96542dd418ae061be15b2324291ecf64",
+      "category": "outerwear",
+      "subcategoryAlternatives": [
+        [
+          "coat"
+        ]
+      ],
+      "primaryColor": [
+        "gray",
+        "grey",
+        "black"
+      ],
+      "pattern": [
+        "check",
+        "textured"
+      ],
+      "formality": 55,
+      "annotation_note": "Source Blazer label corrected before model calls: image shows a long belted coat."
+    },
+    {
+      "id": 15,
+      "image": "15-shoes.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/3b86d877-2b9e-4c8b-a6a2-1d87513309d0.jpg",
+      "source_label": "Shoes",
+      "sha256": "abc389284695dabd49fcf87556437ff9a315ad2fbf8f9e2dca1ae90877da6988",
+      "category": "shoes",
+      "subcategoryAlternatives": [
+        [
+          "boot"
+        ]
+      ],
+      "primaryColor": [
+        "black"
+      ],
+      "pattern": [
+        "solid"
+      ],
+      "formality": 65
+    }
+  ]
+}

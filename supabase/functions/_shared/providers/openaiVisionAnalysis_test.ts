@@ -164,3 +164,11 @@ Deno.test("the fields the mapper reads are all present in the schema", () => {
     assert(field in schema.properties!, `schema is missing ${field}, which the mapper reads`);
   }
 });
+
+Deno.test("visible construction evidence precedes category without changing closet vocabulary", () => {
+  const properties = RESULT_SCHEMA.properties;
+  assertEquals(Object.keys(properties)[0], "construction_evidence");
+  assert(RESULT_SCHEMA.required.includes("construction_evidence"));
+  assert(properties.construction_evidence.description.includes("unbuttoned shirt collar"));
+  assert(properties.construction_evidence.description.includes("tailored lapel"));
+});

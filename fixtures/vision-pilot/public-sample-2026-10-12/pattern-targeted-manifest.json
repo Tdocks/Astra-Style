@@ -1,0 +1,96 @@
+{
+  "source_repository": "https://github.com/alexeygrigorev/clothing-dataset",
+  "license": "CC0-1.0",
+  "selection": "First two non-kids entries of each of eight classes; annotations frozen before provider calls.",
+  "items": [
+    {
+      "id": 2,
+      "image": "02-t-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/ea2ffd4d-9b25-4ca8-9dc2-bd27f1cc59fa.jpg",
+      "source_label": "T-Shirt",
+      "sha256": "dcdf02dd07c8abea89cd7112354accba3dabe50b7cc3e9be9ba7b193b549ba8f",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "t-shirt"
+        ],
+        [
+          "tee"
+        ]
+      ],
+      "primaryColor": [
+        "black",
+        "gray",
+        "grey"
+      ],
+      "pattern": [
+        "print"
+      ],
+      "formality": 10
+    },
+    {
+      "id": 5,
+      "image": "05-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/b0c03127-9dfb-4573-8934-1958396937bf.jpg",
+      "source_label": "Shirt",
+      "sha256": "a7df5ac66f5a33cdc25b8291a1fdb286480b03ee903eba37315d877ed8dce4b1",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ]
+      ],
+      "primaryColor": [
+        "red"
+      ],
+      "pattern": [
+        "check"
+      ],
+      "formality": 35
+    },
+    {
+      "id": 6,
+      "image": "06-shirt.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/d8445328-a318-434b-9c4e-fa29cf04be41.jpg",
+      "source_label": "Shirt",
+      "sha256": "977a7ca7ea3c35655bc0c2dde9d9e45206822781100637c9acd91deb55765724",
+      "category": "top",
+      "subcategoryAlternatives": [
+        [
+          "shirt"
+        ]
+      ],
+      "primaryColor": [
+        "green",
+        "olive"
+      ],
+      "pattern": [
+        "print",
+        "check"
+      ],
+      "formality": 40
+    },
+    {
+      "id": 9,
+      "image": "09-shorts.jpg",
+      "source_url": "https://raw.githubusercontent.com/alexeygrigorev/clothing-dataset/master/images/5d3a1404-697f-479f-9090-c1ecd0413d27.jpg",
+      "source_label": "Shorts",
+      "sha256": "49a4b4ecd8a509870eb47686045faba627d0ac2da0e14c2944e75734a61dd0df",
+      "category": "bottom",
+      "subcategoryAlternatives": [
+        [
+          "short"
+        ]
+      ],
+      "primaryColor": [
+        "navy",
+        "blue",
+        "black"
+      ],
+      "pattern": [
+        "print"
+      ],
+      "formality": 10
+    }
+  ]
+}

@@ -1,0 +1,634 @@
+{
+  "complete": true,
+  "photos": 8,
+  "repetitions": 3,
+  "provider_errors": null,
+  "accuracy": {
+    "category": 1.0,
+    "subcategory": 1.0,
+    "primaryColor": 0.7916666666666666,
+    "pattern": 1.0,
+    "formality": 0.9166666666666666
+  },
+  "bars": {
+    "category": 0.98,
+    "subcategory": 0.8,
+    "primaryColor": 0.9,
+    "pattern": 0.85,
+    "formality": 0.85
+  },
+  "latency_ms": {
+    "p50": 4646,
+    "p95": 5708
+  },
+  "raw_value_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.75,
+    "primaryColor": 0.625,
+    "pattern": 0.0
+  },
+  "criterion_disagreement": {
+    "category": 0.0,
+    "subcategory": 0.0,
+    "primaryColor": 0.5,
+    "pattern": 0.0,
+    "formality": 0.125
+  },
+  "gate_passed": false,
+  "cleanup": {
+    "storage_empty": true,
+    "user_deleted": true
+  },
+  "observations": [
+    {
+      "image_id": 17,
+      "repetition": 1,
+      "elapsed_ms": 5147,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "short-sleeve graphic T-shirt",
+        "primary_color": "off-white",
+        "pattern": "print",
+        "formality_score": 0
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "pattern",
+        "size"
+      ]
+    },
+    {
+      "image_id": 17,
+      "repetition": 2,
+      "elapsed_ms": 4234,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "short-sleeve graphic t-shirt",
+        "primary_color": "white",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 17,
+      "repetition": 3,
+      "elapsed_ms": 6700,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "short-sleeve graphic t-shirt",
+        "primary_color": "white",
+        "pattern": "print",
+        "formality_score": 5
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "size"
+      ]
+    },
+    {
+      "image_id": 18,
+      "repetition": 1,
+      "elapsed_ms": 5001,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "cropped graphic T-shirt",
+        "primary_color": "off-white",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 18,
+      "repetition": 2,
+      "elapsed_ms": 3783,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "graphic t-shirt",
+        "primary_color": "white",
+        "pattern": "print",
+        "formality_score": 10
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 18,
+      "repetition": 3,
+      "elapsed_ms": 5012,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "cropped graphic T-shirt",
+        "primary_color": "white",
+        "pattern": "print",
+        "formality_score": 0
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "material blend",
+        "size"
+      ]
+    },
+    {
+      "image_id": 19,
+      "repetition": 1,
+      "elapsed_ms": 4313,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": false
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve button-down dress shirt",
+        "primary_color": "white",
+        "pattern": "solid",
+        "formality_score": 65
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "pattern",
+        "size"
+      ]
+    },
+    {
+      "image_id": 19,
+      "repetition": 2,
+      "elapsed_ms": 4533,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "men's long-sleeve button-down shirt",
+        "primary_color": "white",
+        "pattern": "solid",
+        "formality_score": 50
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": []
+    },
+    {
+      "image_id": 19,
+      "repetition": 3,
+      "elapsed_ms": 5645,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": false
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "men's dress shirt",
+        "primary_color": "white",
+        "pattern": "solid",
+        "formality_score": 65
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "size"
+      ]
+    },
+    {
+      "image_id": 20,
+      "repetition": 1,
+      "elapsed_ms": 4803,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve plaid button-down shirt",
+        "primary_color": "pink",
+        "pattern": "check",
+        "formality_score": 45
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "material composition",
+        "size"
+      ]
+    },
+    {
+      "image_id": 20,
+      "repetition": 2,
+      "elapsed_ms": 4013,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve plaid button-down shirt",
+        "primary_color": "pink",
+        "pattern": "check",
+        "formality_score": 30
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 20,
+      "repetition": 3,
+      "elapsed_ms": 4679,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "top",
+        "subcategory": "long-sleeve plaid button-down shirt",
+        "primary_color": "pink",
+        "pattern": "check",
+        "formality_score": 30
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "brand",
+        "material composition",
+        "size"
+      ]
+    },
+    {
+      "image_id": 21,
+      "repetition": 1,
+      "elapsed_ms": 5061,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "high-waisted plaid shorts",
+        "primary_color": "black",
+        "pattern": "check",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 21,
+      "repetition": 2,
+      "elapsed_ms": 3740,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "high-waisted plaid lace-up shorts",
+        "primary_color": "black",
+        "pattern": "check",
+        "formality_score": 20
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand_guess",
+        "fit",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 21,
+      "repetition": 3,
+      "elapsed_ms": 5708,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "high-waisted plaid lace-up shorts",
+        "primary_color": "dark green",
+        "pattern": "check",
+        "formality_score": 15
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "brand",
+        "material composition",
+        "size"
+      ]
+    },
+    {
+      "image_id": 22,
+      "repetition": 1,
+      "elapsed_ms": 4326,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "denim shorts",
+        "primary_color": "medium blue",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand",
+        "size"
+      ]
+    },
+    {
+      "image_id": 22,
+      "repetition": 2,
+      "elapsed_ms": 4157,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "denim shorts",
+        "primary_color": "medium blue",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.99,
+      "low_confidence_fields": [
+        "brand",
+        "size"
+      ]
+    },
+    {
+      "image_id": 22,
+      "repetition": 3,
+      "elapsed_ms": 4663,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "bottom",
+        "subcategory": "denim shorts",
+        "primary_color": "blue",
+        "pattern": "solid",
+        "formality_score": 15
+      },
+      "category_confidence": 0.98,
+      "low_confidence_fields": [
+        "brand",
+        "material",
+        "pattern",
+        "size"
+      ]
+    },
+    {
+      "image_id": 23,
+      "repetition": 1,
+      "elapsed_ms": 4774,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "bomber jacket",
+        "primary_color": "olive green",
+        "pattern": "solid",
+        "formality_score": 25
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 23,
+      "repetition": 2,
+      "elapsed_ms": 5234,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "shearling-collar bomber jacket",
+        "primary_color": "olive green",
+        "pattern": "solid",
+        "formality_score": 25
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 23,
+      "repetition": 3,
+      "elapsed_ms": 4578,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "shearling-collar bomber jacket",
+        "primary_color": "olive green",
+        "pattern": "solid",
+        "formality_score": 25
+      },
+      "category_confidence": 0.96,
+      "low_confidence_fields": [
+        "material"
+      ]
+    },
+    {
+      "image_id": 24,
+      "repetition": 1,
+      "elapsed_ms": 3947,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": true,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "hooded parka",
+        "primary_color": "ivory white",
+        "pattern": "solid",
+        "formality_score": 20
+      },
+      "category_confidence": 0.94,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size"
+      ]
+    },
+    {
+      "image_id": 24,
+      "repetition": 2,
+      "elapsed_ms": 4638,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "men's hooded parka",
+        "primary_color": "off-white",
+        "pattern": "solid",
+        "formality_score": 25
+      },
+      "category_confidence": 0.96,
+      "low_confidence_fields": [
+        "material",
+        "pattern"
+      ]
+    },
+    {
+      "image_id": 24,
+      "repetition": 3,
+      "elapsed_ms": 4646,
+      "scores": {
+        "category": true,
+        "subcategory": true,
+        "primaryColor": false,
+        "pattern": true,
+        "formality": true
+      },
+      "values": {
+        "category": "outerwear",
+        "subcategory": "hooded parka",
+        "primary_color": "off-white",
+        "pattern": "solid",
+        "formality_score": 25
+      },
+      "category_confidence": 0.97,
+      "low_confidence_fields": [
+        "brand_guess",
+        "material",
+        "size",
+        "water_resistance_score"
+      ]
+    }
+  ],
+  "closet_version": 28
+}
