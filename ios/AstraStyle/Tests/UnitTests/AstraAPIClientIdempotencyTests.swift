@@ -38,6 +38,97 @@ struct AstraAPIClientIdempotencyTests {
         }
     }
 
+    @Test("Transient responses honor Retry-After", arguments: [429, 503])
+    func honorsRetryAfter(status: Int) async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 1
+        IdempotencyStubURLProtocol.failureStatus = status
+        IdempotencyStubURLProtocol.failureHeaders = ["Retry-After": "3"]
+        IdempotencyStubURLProtocol.successBody = Data(#"{"data":{},"error":null}"#.utf8)
+        let delays = RetryDelayRecorder()
+        let client = retryClient(delays: delays)
+        _ = try await client.send(.exportPersonalData, as: AstraEmptyPayload.self)
+        #expect(await delays.values == [3])
+        #expect(IdempotencyStubURLProtocol.capturedRequests.count == 2)
+    }
+
+    @Test("Invalid retry hints fall back to backoff; long hints surface without another request",
+           arguments: ["invalid", "-1", "NaN", "3600"])
+    func boundsRetryAfter(header: String) async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 1
+        IdempotencyStubURLProtocol.failureHeaders = ["Retry-After": header]
+        IdempotencyStubURLProtocol.successBody = Data(#"{"data":{},"error":null}"#.utf8)
+        let delays = RetryDelayRecorder()
+        let client = retryClient(delays: delays)
+        do {
+            _ = try await client.send(.exportPersonalData, as: AstraEmptyPayload.self)
+            #expect(header != "3600")
+        } catch let error as AstraError {
+            #expect(header == "3600")
+            #expect(error.retryAfter == 3600)
+        }
+        let recorded = await delays.values
+        if header == "3600" {
+            #expect(recorded.isEmpty)
+            #expect(IdempotencyStubURLProtocol.capturedRequests.count == 1)
+        } else {
+            #expect(recorded.count == 1)
+            #expect(recorded.first.map { $0 >= 0.5 && $0 <= 0.6 } == true)
+        }
+    }
+
+    @Test("HTTP-date retry hint delays a recovered request")
+    func honorsHTTPDate() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 1
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
+        IdempotencyStubURLProtocol.failureHeaders = [
+            "Retry-After": formatter.string(from: .now.addingTimeInterval(10))
+        ]
+        IdempotencyStubURLProtocol.successBody = Data(#"{"data":{},"error":null}"#.utf8)
+        let delays = RetryDelayRecorder()
+        let client = retryClient(delays: delays)
+        _ = try await client.send(.exportPersonalData, as: AstraEmptyPayload.self)
+        let delay = try #require(await delays.values.first)
+        #expect(delay > 5 && delay <= 10)
+    }
+
+    @Test("Cancellation during backoff stops retries even when the sleeper returns normally")
+    func cancellationStopsRetry() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 10
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+            session: URLSession(configuration: configuration), retrySleep: { _ in
+                withUnsafeCurrentTask { $0?.cancel() }
+            })
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+        let task = Task {
+            try await client.send(.exportPersonalData, as: AstraEmptyPayload.self)
+        }
+        do {
+            _ = try await task.value
+            Issue.record("Cancelled retry must stop")
+        } catch is CancellationError {
+            #expect(IdempotencyStubURLProtocol.capturedRequests.count == 1)
+        }
+    }
+
+    private func retryClient(delays: RetryDelayRecorder) -> AstraAPIClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IdempotencyStubURLProtocol.self]
+        let client = AstraAPIClient(environment: .preview,
+            session: URLSession(configuration: configuration),
+            retrySleep: { await delays.record($0) })
+        client.setAuthTokenProvider(FixedIdempotencyTokenProvider(token: "test-token"))
+        return client
+    }
+
     @Test("Retry stops immediately after recovery without an extra sleep or request")
     func retryStopsAfterRecovery() async throws {
         IdempotencyStubURLProtocol.reset()
@@ -256,6 +347,17 @@ private struct FixedIdempotencyTokenProvider: AstraAuthTokenProviding {
 final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var _failTimes = 0
+    nonisolated(unsafe) private static var _failureStatus = 503
+    nonisolated(unsafe) private static var _failureHeaders: [String: String] = [:]
+
+    static var failureStatus: Int {
+        get { lock.withLock { _failureStatus } }
+        set { lock.withLock { _failureStatus = newValue } }
+    }
+    static var failureHeaders: [String: String] {
+        get { lock.withLock { _failureHeaders } }
+        set { lock.withLock { _failureHeaders = newValue } }
+    }
     nonisolated(unsafe) private static var _successBody = Data()
     nonisolated(unsafe) private static var _keys: [String?] = []
     nonisolated(unsafe) private static var _requests: [URLRequest] = []
@@ -281,6 +383,8 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
     static func reset() {
         lock.withLock {
             _failTimes = 0
+            _failureStatus = 503
+            _failureHeaders = [:]
             _successBody = Data()
             _keys = []
             _authorization = []
@@ -316,14 +420,16 @@ final class IdempotencyStubURLProtocol: URLProtocol, @unchecked Sendable {
             }
             return (false, Self._successBody)
         }
-        let status = shouldFail ? 503 : 200
+        let status = shouldFail ? Self.failureStatus : 200
+        var headers = ["Content-Type": "application/json"]
+        if shouldFail { headers.merge(Self.failureHeaders) { _, new in new } }
         guard
             let url = request.url,
             let response = HTTPURLResponse(
                 url: url,
                 statusCode: status,
                 httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Type": "application/json"]
+                headerFields: headers
             )
         else {
             client?.urlProtocol(self, didFailWithError: URLError(.badURL))

@@ -114,6 +114,7 @@ public final class AstraAPIClient: @unchecked Sendable {
 
         var attempt = 0
         while true {
+            try Task.checkCancellation()
             do {
                 return try await performOnce(
                     endpoint,
@@ -127,7 +128,14 @@ public final class AstraAPIClient: @unchecked Sendable {
                 guard error.isRetryable, attempt <= policy.maxAttempts else {
                     throw error
                 }
-                let delay = policy.delay(forAttempt: attempt)
+                let backoff = policy.delay(forAttempt: attempt)
+                // Avoid hammering a throttled service, while keeping a bad or
+                // unusually long upstream hint from blocking the UI indefinitely.
+                if let retryAfter = error.retryAfter, retryAfter > 30 {
+                    throw error
+                }
+                let delay = max(backoff, error.retryAfter ?? 0)
+                try Task.checkCancellation()
                 try await retrySleep(delay)
                 continue
             }
@@ -152,6 +160,8 @@ public final class AstraAPIClient: @unchecked Sendable {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch is CancellationError {
+            throw AstraError.cancelled
         } catch let urlError as URLError where urlError.code == .cancelled {
             throw AstraError.cancelled
         } catch {
@@ -235,14 +245,24 @@ public final class AstraAPIClient: @unchecked Sendable {
             if let error = serverEnvelopeError(), error.category == .subscriptionLimitReached {
                 throw error
             }
-            throw AstraError.rateLimited(requestID: requestID)
+            throw AstraError(
+                category: .rateLimited,
+                message: "Too many requests. Please try again shortly.",
+                underlyingStatusCode: statusCode,
+                requestID: requestID,
+                retryAfter: Self.retryAfter(response.value(forHTTPHeaderField: "Retry-After"))
+            )
         case 500..<600:
-            throw serverEnvelopeError()
-                ?? AstraError.server(
-                    "The server encountered an error.",
-                    statusCode: statusCode,
-                    requestID: requestID
-                )
+            let retryAfter = Self.retryAfter(response.value(forHTTPHeaderField: "Retry-After"))
+            if let error = serverEnvelopeError() {
+                throw error.applying(retryAfter: retryAfter)
+            }
+            throw AstraError.server(
+                "The server encountered an error.",
+                statusCode: statusCode,
+                requestID: requestID,
+                retryAfter: retryAfter
+            )
         default:
             // Prefer the server's envelope when present — a mis-routed slug
             // often returns 404 with a careful message (ADR 0013). Swallowing
@@ -254,6 +274,23 @@ public final class AstraAPIClient: @unchecked Sendable {
                     requestID: requestID
                 )
         }
+    }
+
+    /// Parses both delta-seconds and HTTP-date forms defined for Retry-After.
+    private static func retryAfter(_ header: String?) -> TimeInterval? {
+        guard let value = header?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        if let seconds = TimeInterval(value), seconds.isFinite, seconds >= 0 {
+            return seconds
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
+        guard let date = formatter.date(from: value) else { return nil }
+        return max(0, date.timeIntervalSinceNow)
     }
 
     /// Maps a 404 onto `.unimplemented` rather than `.server`.

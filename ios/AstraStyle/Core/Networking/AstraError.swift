@@ -58,19 +58,23 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
     /// request ID and latency").
     public let requestID: String?
     public let quotaDetails: AstraQuotaDetails?
+    /// Server-provided minimum delay before retrying a throttled or transient request.
+    public let retryAfter: TimeInterval?
 
     public init(
         category: Category,
         message: String,
         underlyingStatusCode: Int? = nil,
         requestID: String? = nil,
-        quotaDetails: AstraQuotaDetails? = nil
+        quotaDetails: AstraQuotaDetails? = nil,
+        retryAfter: TimeInterval? = nil
     ) {
         self.category = category
         self.message = message
         self.underlyingStatusCode = underlyingStatusCode
         self.requestID = requestID
         self.quotaDetails = quotaDetails
+        self.retryAfter = retryAfter
     }
 
     public var errorDescription: String? { message }
@@ -91,6 +95,18 @@ public struct AstraError: Error, Sendable, Equatable, LocalizedError {
             && lhs.underlyingStatusCode == rhs.underlyingStatusCode
             && lhs.requestID == rhs.requestID
             && lhs.quotaDetails == rhs.quotaDetails
+            && lhs.retryAfter == rhs.retryAfter
+    }
+
+    func applying(retryAfter: TimeInterval?) -> AstraError {
+        AstraError(
+            category: category,
+            message: message,
+            underlyingStatusCode: underlyingStatusCode,
+            requestID: requestID,
+            quotaDetails: quotaDetails,
+            retryAfter: retryAfter
+        )
     }
 }
 
@@ -122,8 +138,19 @@ extension AstraError {
         AstraError(category: .validation, message: message, requestID: requestID)
     }
 
-    public static func server(_ message: String, statusCode: Int? = nil, requestID: String? = nil) -> AstraError {
-        AstraError(category: .server, message: message, underlyingStatusCode: statusCode, requestID: requestID)
+    public static func server(
+        _ message: String,
+        statusCode: Int? = nil,
+        requestID: String? = nil,
+        retryAfter: TimeInterval? = nil
+    ) -> AstraError {
+        AstraError(
+            category: .server,
+            message: message,
+            underlyingStatusCode: statusCode,
+            requestID: requestID,
+            retryAfter: retryAfter
+        )
     }
 
     public static func provider(_ message: String, requestID: String? = nil) -> AstraError {
