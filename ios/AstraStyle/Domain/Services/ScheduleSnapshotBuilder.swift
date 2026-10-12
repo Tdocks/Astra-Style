@@ -39,12 +39,13 @@ public enum ScheduleSnapshotBuilder {
 
     /// Conservative title keywords; unknown calendar titles stay unclassified.
     private static func inferFormality(from title: String) -> FormalityLevel? {
-        let value = title.lowercased()
-        if ["black tie", "gala", "wedding", "formal"].contains(where: { value.contains($0) }) { return .veryFormal }
-        if ["interview", "client meeting", "presentation", "board meeting", "court"].contains(where: { value.contains($0) }) { return .formal }
-        if ["meeting", "office", "work", "conference"].contains(where: { value.contains($0) }) { return .balanced }
-        if ["date", "dinner", "restaurant", "drinks"].contains(where: { value.contains($0) }) { return .casual }
-        if ["gym", "workout", "run", "practice"].contains(where: { value.contains($0) }) { return .veryCasual }
+        let words = title.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+        let normalized = " \(words.joined(separator: " ")) "
+        if ["black tie", "gala", "wedding", "formal"].contains(where: { normalized.contains(" \($0) ") }) { return .veryFormal }
+        if ["interview", "client meeting", "presentation", "board meeting", "court"].contains(where: { normalized.contains(" \($0) ") }) { return .formal }
+        if ["meeting", "office", "work", "conference"].contains(where: { normalized.contains(" \($0) ") }) { return .balanced }
+        if ["date", "dinner", "restaurant", "drinks"].contains(where: { normalized.contains(" \($0) ") }) { return .casual }
+        if ["gym", "workout", "run", "practice"].contains(where: { normalized.contains(" \($0) ") }) { return .veryCasual }
         return nil
     }
 }

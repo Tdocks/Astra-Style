@@ -47,6 +47,15 @@ struct ScheduleSnapshotBuilderTests {
         #expect(snapshot.headline == "One event coming up today")
     }
 
+    @Test("Brunch is not mistaken for a run by the calendar heuristic")
+    func brunchDoesNotMatchRunSubstring() {
+        let brunch = ScheduleSnapshotBuilder.build(from: [event(title: "Brunch with friends", startsIn: 60)])
+        let run = ScheduleSnapshotBuilder.build(from: [event(title: "Morning run", startsIn: 60)])
+
+        #expect(brunch.earliestFormalityLevel == nil)
+        #expect(run.earliestFormalityLevel == .veryCasual)
+    }
+
     private func event(title: String, startsIn seconds: TimeInterval, dressCode: DressCode? = nil) -> Occasion {
         Occasion(
             id: UUID(),
