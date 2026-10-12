@@ -28,6 +28,7 @@ public struct HomeView: View {
     @Environment(AppRouter.self) var router
     @Environment(AppContainer.self) var container
     @Environment(\.homeSnapshotDate) var snapshotDate
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let shoppingRepository: ShoppingRepository
     @State var inspirationViewModel: InspirationViewModel?
     @State var isPastingLink = false
@@ -49,7 +50,12 @@ public struct HomeView: View {
 
                 content
             }
+            // The iOS 26 glass tab bar floats over scroll content. At
+            // accessibility text sizes the final Home actions can otherwise
+            // remain directly underneath it even after scrolling to the end.
+            // Reserve enough scrollable space for those controls to clear it.
             .padding(.vertical, AstraSpacing.pagePadding)
+            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 104 : 0)
         }
         .background(AstraColor.backgroundPrimary.ignoresSafeArea())
         .scrollIndicators(.hidden)

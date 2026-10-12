@@ -7,11 +7,14 @@ TestFlight build 32 predates these changes.
 
 ## Evidence available before final CI
 
-- Signed simulator Swift Testing run: 1,190 tests across 187 suites passed.
+- Signed final simulator Swift Testing run: 1,193 tests across 188 suites passed.
   The unsigned test-host attempt failed Keychain access; signing restored the
   existing authentication tests without changing their production behavior.
 - Onboarding, closet-generated outfit and mark-worn UI tests passed. Onboarding
   now reads back a persisted completion timestamp and repository write count.
+- The final native batch also passed both dark/light AX5 UI audits (309 seconds)
+  and all three snapshot checks, including the backing-pixel-size regression.
+  Result: `/tmp/astra-inspiration-build/Logs/Test/Test-AstraStyle-2026.10.09_20-58-39--0400.xcresult`.
 - 64 image baselines cover eight major screens in light/dark appearance,
   default/AX3/AX5 populated states and default empty states. Recording and an
   independent comparison both passed; the comparator rejects a one-pixel change.
@@ -71,3 +74,14 @@ The local Kyra run must execute (a skip fails the harness), render the seeded
 items, remove the disposable account and rows, and stop its isolated stack.
 The dedicated runner accepts only manually dispatched trusted main-branch code.
 Credentials are temporary, owner-readable only, and excluded from evidence.
+
+## Hosted deployment
+
+The shared logging aliases are deployed in all fourteen functions. Current
+versions: account 5, outfits 22, profile 23, style-dna 16, closet 26,
+daily-brief 20, products 20, studio 27, subscriptions 10, packing 11,
+Kyra 28, lookbook 5, app-store 6, studio-retention 6. The twelve authenticated
+functions retain platform JWT verification and reject unsigned requests with
+HTTP 401. App Store and retention retain their existing custom authentication.
+Retrieved deployed Kyra source contains the raw-prompt redaction aliases and
+the local-stub hosted-runtime rejection. No provider secret was changed.
