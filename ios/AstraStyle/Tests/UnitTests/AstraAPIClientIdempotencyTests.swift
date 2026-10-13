@@ -129,6 +129,44 @@ struct AstraAPIClientIdempotencyTests {
         return client
     }
 
+    @Test("Exhausted wear retries enqueue the same identity sent to the server")
+    func wearIdentitySurvivesOfflineFallback() async throws {
+        IdempotencyStubURLProtocol.reset()
+        IdempotencyStubURLProtocol.failTimes = 10
+        let client = retryClient(delays: RetryDelayRecorder())
+        let ownerID = UUID()
+        let queue = InMemoryOfflineMutationQueue()
+        let repository = LiveOutfitRepository(apiClient: client, offlineQueue: queue,
+            supabase: AstraSupabaseClientFactory.previewClient,
+            writer: SupabaseOutfitWriter(supabase: AstraSupabaseClientFactory.previewClient),
+            cache: InMemoryOutfitCache(), currentUserID: { ownerID })
+        let wear = try await repository.recordWear(outfitID: UUID(), wornAt: .now,
+                                                  occasion: nil, rating: nil, feedback: nil)
+        let requests = IdempotencyStubURLProtocol.capturedRequests
+        #expect(requests.count == 4)
+        for request in requests {
+            let data = try #require(request.httpBody)
+            let envelope = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let body = try #require(envelope["body"] as? [String: Any])
+            #expect((body["wear_id"] as? String)?.lowercased() == wear.id.uuidString.lowercased())
+        }
+        let mutation = try #require(await queue.pendingMutations().first)
+        let queued = try JSONDecoder.astraDefault.decode(OutfitWear.self, from: mutation.payloadData)
+        #expect(queued.id == wear.id)
+    }
+
+    @Test("Postgres empty weather defaults decode as an absent wear observation")
+    func emptyWearWeatherDecodes() throws {
+        let original = OutfitWear(id: UUID(), outfitID: UUID(), userID: UUID(), wornAt: .now)
+        let data = try JSONEncoder.astraDefault.encode(original)
+        var stored = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        stored["weather_snapshot"] = [String: String]()
+        let decoded = try JSONDecoder.astraDefault.decode(OutfitWear.self,
+            from: JSONSerialization.data(withJSONObject: stored))
+        #expect(decoded.id == original.id)
+        #expect(decoded.weatherSnapshot == nil)
+    }
+
     @Test("Retry stops immediately after recovery without an extra sleep or request")
     func retryStopsAfterRecovery() async throws {
         IdempotencyStubURLProtocol.reset()

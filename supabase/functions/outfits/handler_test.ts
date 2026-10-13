@@ -659,7 +659,7 @@ Deno.test("record-wear: Wear This stays ungated regardless of prior wear count",
     buildDeps({
       insertWear: (row) => {
         inserts.push(row);
-        return Promise.resolve({ id: "wear-1", ...row });
+        return Promise.resolve({ ...row });
       },
     }),
   );
@@ -915,4 +915,61 @@ Deno.test("P7-SUB-04 an empty result releases quota instead of consuming one gen
   assertEquals(response.status, 200);
   assertEquals((await response.json()).data, []);
   assertEquals(outcomes, [false]);
+});
+
+Deno.test("record-wear preserves retry identity and accepts a durable client wear ID", async () => {
+  const ids: string[] = [];
+  const deps = buildDeps({
+    insertWear: (row) => {
+      ids.push(row.id);
+      return Promise.resolve({ ...row });
+    },
+  });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await handleRecordWear(
+      requestFor("record-wear", WEAR_ENVELOPE, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+      deps,
+    );
+    assertEquals(response.status, 200);
+  }
+  assertEquals(ids[0], ids[1]);
+  const response = await handleRecordWear(
+    requestFor("record-wear", {
+      ...WEAR_ENVELOPE,
+      body: { ...WEAR_ENVELOPE.body, wear_id: TOP_A.toUpperCase() },
+    }, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    deps,
+  );
+  assertEquals(response.status, 200);
+  assertEquals(ids[2], TOP_A);
+});
+
+Deno.test("record-wear rejects malformed durable identities before inserting", async () => {
+  let inserts = 0;
+  const response = await handleRecordWear(
+    requestFor("record-wear", {
+      ...WEAR_ENVELOPE,
+      body: { ...WEAR_ENVELOPE.body, wear_id: "invalid" },
+    }, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps({
+      insertWear: (row) => {
+        inserts++;
+        return Promise.resolve({ ...row });
+      },
+    }),
+  );
+  assertEquals(response.status, 400);
+  assertEquals(inserts, 0);
+});
+
+Deno.test("record-wear sends absent weather as null for existing native clients", async () => {
+  const response = await handleRecordWear(
+    requestFor("record-wear", WEAR_ENVELOPE, { Authorization: `Bearer ${VALID_LOOKING_JWT_A}` }),
+    buildDeps({
+      insertWear: (row) => Promise.resolve({ ...row, weather_snapshot: {} }),
+    }),
+  );
+  assertEquals(response.status, 200);
+  const envelope = await response.json();
+  assertEquals(envelope.data.weather_snapshot, null);
 });

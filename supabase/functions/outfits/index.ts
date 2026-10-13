@@ -50,7 +50,7 @@ import {
   handleRecordWear,
 } from "./handler.ts";
 import type { ClosetItemMapperRow } from "../_shared/scoring/closetItemMapper.ts";
-import { serverError } from "../_shared/errors.ts";
+import { badRequest, serverError } from "../_shared/errors.ts";
 import { preferenceContextFromRow } from "./scoringContext.ts";
 import { readAllUserIdBatches, readAllUserPages } from "./readPagination.ts";
 import { finishGeneration, readGenerationPremium, reserveGeneration } from "./quota.ts";
@@ -313,6 +313,22 @@ function recordWearRoute(req: Request): Promise<Response> {
         })
         .select()
         .single();
+      if (error?.code === "23505") {
+        // The original response may have been lost after INSERT committed.
+        // Read through caller RLS; never update an existing row or rerun wear triggers.
+        const { data: existing, error: readError } = await supabase.from("outfit_wears")
+          .select().eq("id", row.id).single();
+        if (readError || !existing) throw serverError("Couldn't recover that wear.");
+        if (
+          existing.user_id !== row.user_id || existing.outfit_id !== row.outfit_id ||
+          Date.parse(existing.worn_at) !== Date.parse(row.worn_at) ||
+          existing.occasion !== row.occasion || existing.rating !== row.rating ||
+          existing.feedback !== row.feedback
+        ) {
+          throw badRequest("That wear identity is already used for another record.");
+        }
+        return existing as Record<string, unknown>;
+      }
       if (error || !data) throw serverError("Couldn't record that wear.");
       return data as Record<string, unknown>;
     },

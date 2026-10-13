@@ -225,6 +225,7 @@ export function parseRankOutfitsBody(rawBody: unknown): RankOutfitsRequestBody {
 }
 
 export interface RecordWearRequestBody {
+  readonly wearId?: string;
   readonly outfitId: string;
   readonly wornAt: string;
   readonly occasion?: string;
@@ -235,6 +236,10 @@ export interface RecordWearRequestBody {
 export function parseRecordWearBody(rawBody: unknown): RecordWearRequestBody {
   if (!isRecord(rawBody)) {
     throw badRequest('Request envelope must contain a JSON object at "body".');
+  }
+  const wearId = rawBody["wear_id"];
+  if (wearId !== undefined && !isUUID(wearId)) {
+    throw badRequest("body.wear_id must be a UUID string.");
   }
   const outfitId = rawBody["outfit_id"];
   if (!isUUID(outfitId)) {
@@ -251,7 +256,8 @@ export function parseRecordWearBody(rawBody: unknown): RecordWearRequestBody {
     }
   }
   return {
-    outfitId,
+    wearId: typeof wearId === "string" ? wearId.toLowerCase() : undefined,
+    outfitId: outfitId.toLowerCase(),
     wornAt,
     occasion: optionalString(rawBody["occasion"], "body.occasion", 200),
     rating: typeof rating === "number" ? rating : undefined,

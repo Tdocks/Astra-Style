@@ -50,12 +50,20 @@ struct SupabaseOutfitWriter: OutfitWriting {
     }
 
     func createWear(_ wear: OutfitWear) async throws -> OutfitWear {
+        // A response can be lost after the live write or a previous replay
+        // committed. Ignore the existing ID rather than firing wear triggers twice.
         try await supabase.from("outfit_wears")
-            .insert(wear)
-            .select()
-            .single()
+            .upsert(wear, onConflict: "id", ignoreDuplicates: true)
             .execute()
-            .value
+        let stored: OutfitWear = try await supabase.from("outfit_wears")
+            .select().eq("id", value: wear.id).single().execute().value
+        guard stored.userID == wear.userID, stored.outfitID == wear.outfitID,
+              abs(stored.wornAt.timeIntervalSince(wear.wornAt)) < 0.001,
+              stored.occasion == wear.occasion, stored.rating == wear.rating,
+              stored.feedback == wear.feedback else {
+            throw AstraError.validation("That wear record could not be safely recovered.")
+        }
+        return stored
     }
 
     func createFeedback(_ feedback: StyleFeedback) async throws -> StyleFeedback {

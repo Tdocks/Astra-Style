@@ -280,7 +280,10 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Run local Kyra acceptance against disposable local services.")
     parser.add_argument("--journey", action="store_true", help="Run the connected persistence/wear/review journey.")
+    parser.add_argument("--degraded-network", action="store_true", help="Inject latency, transient failures and a lost wear response into the connected journey.")
     args = parser.parse_args()
+    if args.degraded_network:
+        args.journey = True
     mode = "connected" if args.journey else "basic"
     selected_test_name = (
         "testKyraOutfitPersistsForTheSignedInFixtureOwner"
@@ -293,6 +296,10 @@ def main() -> int:
         "AstraStyleUITests/LocalKyraAcceptanceUITests/"
         "testAskKyraRendersOnlyFixtureOwnersClosetItems"
     )
+    if args.degraded_network:
+        mode = "degraded-network"
+        selected_test_name = "testDegradedNetworkConnectedJourney"
+        selected_test_path = "AstraStyleUITests/LocalConnectedJourneyAcceptanceUITests/" + selected_test_name
     if sys.platform != "darwin":
         raise HarnessError("This acceptance runner requires the registered macOS simulator host.")
     if not (IOS / "AstraStyle.xcodeproj").exists():
@@ -352,7 +359,7 @@ def main() -> int:
     )
     if count != 1:
         raise HarnessError("Could not isolate the temporary local Supabase project name.")
-    api_port, db_port, shadow_port, stub_port = available_local_ports(4)
+    api_port, db_port, shadow_port, stub_port, proxy_port = available_local_ports(5)
     rewritten = local_port_config(rewritten, api_port, db_port, shadow_port)
     (supabase_dir / "config.toml").write_text(rewritten)
     (supabase_dir / "migrations").symlink_to(ROOT / "supabase/migrations", target_is_directory=True)
@@ -512,6 +519,17 @@ def main() -> int:
             "supabase_anon_key": anon_key,
             "item_names": item_names,
         }
+        if args.degraded_network:
+            proxy_token = secrets.token_urlsafe(40)
+            proxy_env = {**os.environ, "ASTRA_QA_PROXY_UPSTREAM": api_url,
+                         "ASTRA_QA_PROXY_TOKEN": proxy_token, "ASTRA_QA_PROXY_PORT": str(proxy_port)}
+            child_processes.append(subprocess.Popen(
+                [sys.executable, str(ROOT / "scripts/local_network_fault_proxy.py")],
+                env=proxy_env, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            wait_for_port("127.0.0.1", proxy_port)
+            fixture_payload.update(supabase_url=f"http://127.0.0.1:{proxy_port}",
+                                   upstream_url=api_url, network_control_token=proxy_token)
         write_private(FIXTURE, json.dumps(fixture_payload, separators=(",", ":")).encode())
         fixture_written = True
 
@@ -542,6 +560,8 @@ def main() -> int:
                     "-only-testing:AstraStyleTests/SessionRestoreTests",
                     "-only-testing:AstraStyleTests/GuestAuthTests",
                     f"-only-testing:{selected_test_path}",
+                    *(["-only-testing:AstraStyleTests/AstraAPIClientIdempotencyTests",
+                       "-only-testing:AstraStyleTests/OutfitOfflineDrainWiringTests"] if args.degraded_network else []),
                 ],
                 cwd=ROOT,
                 text=True,

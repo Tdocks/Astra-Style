@@ -8,6 +8,14 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
     private let prompt = "Make an outfit using my local test closet."
 
     func testKyraOutfitPersistsForTheSignedInFixtureOwner() async throws {
+        try await runJourney(degraded: false)
+    }
+
+    func testDegradedNetworkConnectedJourney() async throws {
+        try await runJourney(degraded: true)
+    }
+
+    private func runJourney(degraded: Bool) async throws {
         continueAfterFailure = false
         guard let path = Self.fixturePath() else {
             throw XCTSkip("Local Kyra fixture is not configured for this run.")
@@ -19,12 +27,21 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
         }
 
         let app = launchLocalSession(fixture, path: path)
+        if degraded { try await fixture.inject("closet-read", method: "GET", path: "/rest/v1/closet_items") }
         verifySessionSurvivesRelaunch(in: app, fixture: fixture)
-        sendKyraRequest(in: app, itemNames: fixture.itemNames)
+        if degraded { try await fixture.inject("kyra-send", method: "POST", path: "/functions/v1/kyra/respond") }
+        sendKyraRequest(in: app, itemNames: fixture.itemNames, retryFailure: degraded)
         let outfitID = try await verifyPersistedKyraOutfit(for: fixture)
+        if degraded {
+            try await fixture.inject("wear-response-lost", method: "POST",
+                                     path: "/functions/v1/outfits/record-wear", mode: "drop_after")
+        }
         try await markOutfitWorn(outfitID, in: app, fixture: fixture)
+        if degraded { try await verifyOfflineWearReplay(in: app, outfitID: outfitID, fixture: fixture) }
         verifyMonthlyReview(in: app)
+        if degraded { try await fixture.inject("delete-retry", method: "DELETE", path: "/functions/v1/account") }
         try await deleteFixtureAccount(in: app, fixture: fixture)
+        if degraded { try await fixture.verifyFaultsConsumed() }
         app.terminate()
     }
 
@@ -70,7 +87,7 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
         app.tapChromeTab("Home")
     }
 
-    private func sendKyraRequest(in app: XCUIApplication, itemNames: [String]) {
+    private func sendKyraRequest(in app: XCUIApplication, itemNames: [String], retryFailure: Bool = false) {
         let ask = app.descendants(matching: .any)["kyra.ask"]
         XCTAssertTrue(
             ask.waitForExistence(timeout: 30),
@@ -85,6 +102,11 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
         let send = app.buttons["kyra.composer.send"]
         XCTAssertTrue(send.waitForExistence(timeout: 10), "The Kyra request was not ready to send.")
         send.tap()
+        if retryFailure {
+            let retry = app.buttons["kyra.message.retry"].firstMatch
+            XCTAssertTrue(retry.waitForExistence(timeout: 30), "Failed Kyra turn must expose a retry.")
+            retry.tap()
+        }
 
         let card = app.descendants(matching: .any)["kyra.card.outfit"].firstMatch
         XCTAssertTrue(
@@ -124,6 +146,7 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
             XCTFail("Kyra's rendered outfit was not persisted for the signed-in owner.")
             throw JourneyError.requestFailed
         }
+        XCTAssertEqual(outfits.count, 1, "Retry must not create duplicate Kyra outfits.")
         XCTAssertEqual(outfit["user_id"] as? String, ownerID)
         XCTAssertEqual(outfit["source"] as? String, "kyra_suggested")
 
@@ -144,6 +167,7 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
             query: "select=id,user_id,thread_id,role,content,structured_payload" +
                 "&user_id=eq.\(ownerID)&role=eq.assistant&order=created_at.desc&limit=10"
         )
+        XCTAssertEqual(assistantMessages.count, 1, "Retry must not create duplicate assistant replies.")
         XCTAssertTrue(assistantMessages.contains { row in
             row["user_id"] as? String == ownerID
                 && row["content"] is String
@@ -173,6 +197,39 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
         )
         markWorn.tap()
         try await fixture.waitForWear(outfitID: outfitID)
+        let completed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: markWorn)
+        XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 30), .completed,
+                       "Wear recovery did not finish.")
+        try await fixture.waitForWear(outfitID: outfitID)
+    }
+
+    private func verifyOfflineWearReplay(in app: XCUIApplication, outfitID: String, fixture: Fixture) async throws {
+        try await fixture.inject("wear-offline-fallback", method: "POST",
+                                 path: "/functions/v1/outfits/record-wear", count: 4)
+        let mark = app.descendants(matching: .any)["outfitDetail.action.markWorn"]
+        mark.tap()
+        let started = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == false"), object: mark)
+        XCTAssertEqual(XCTWaiter.wait(for: [started], timeout: 10), .completed)
+        // The queue fallback completes only after all four attempts fail.
+        let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: mark)
+        XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 30), .completed)
+        try await fixture.inject("offline-replay-response-lost", method: "POST",
+                                 path: "/rest/v1/outfit_wears", mode: "drop_after")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.chromeTabBar.waitForExistence(timeout: 45))
+        try await fixture.waitForWear(outfitID: outfitID, expectedCount: 2)
+        // Relaunch again after the first replay committed but lost its response.
+        // Durable replay must reconcile that ID without another wear-stat increment.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.chromeTabBar.waitForExistence(timeout: 45))
+        app.tapChromeTab("Closet")
+        let look = app.buttons["closet.looks.open"].firstMatch
+        XCTAssertTrue(look.waitForExistence(timeout: 30))
+        look.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["outfitDetail.action.markWorn"].waitForExistence(timeout: 30))
+        try await fixture.waitForWear(outfitID: outfitID, expectedCount: 2)
     }
 
     private func verifyMonthlyReview(in app: XCUIApplication) {
@@ -299,6 +356,8 @@ private struct Fixture: Decodable {
     let supabaseURL: String
     let supabaseAnonKey: String
     let itemNames: [String]
+    let upstreamURL: String?
+    let networkControlToken: String?
 
     enum CodingKeys: String, CodingKey {
         case userID = "user_id"
@@ -306,10 +365,47 @@ private struct Fixture: Decodable {
         case supabaseURL = "supabase_url"
         case supabaseAnonKey = "supabase_anon_key"
         case itemNames = "item_names"
+        case upstreamURL = "upstream_url"
+        case networkControlToken = "network_control_token"
+    }
+
+    func inject(_ id: String, method: String, path: String, mode: String = "503", count: Int = 1) async throws {
+        _ = try await control(body: ["id": id, "method": method, "path": path, "mode": mode, "count": String(count)])
+    }
+
+    func verifyFaultsConsumed() async throws {
+        let rules = try await control(body: nil)
+        XCTAssertEqual(rules.count, 6)
+        for rule in rules {
+            if rule["mode"] as? String == "drop_after" {
+                XCTAssertGreaterThanOrEqual(rule["requests"] as? Int ?? 0, 2,
+                                            "The lost response must exercise a real retry.")
+                XCTAssertTrue([200, 201, 204].contains(rule["upstream_status"] as? Int ?? 0),
+                               "Lost-response test must discard a successful committed write.")
+            }
+            XCTAssertEqual(rule["injected"] as? Int, Int(rule["count"] as? String ?? "1"),
+                           "The intended journey fault was not exercised: \(rule["id"] ?? "unknown")")
+        }
+    }
+
+    private func control(body: [String: String]?) async throws -> [[String: Any]] {
+        guard let token = networkControlToken,
+              let url = URL(string: supabaseURL + "/__qa/faults"),
+              url.host == "127.0.0.1" else { throw JourneyError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = body == nil ? "GET" : "POST"
+        request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body) }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              let rules = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw JourneyError.requestFailed
+        }
+        return rules
     }
 
     func requestRows(table: String, query: String) async throws -> [[String: Any]] {
-        var components = URLComponents(string: supabaseURL + "/rest/v1/" + table)
+        var components = URLComponents(string: (upstreamURL ?? supabaseURL) + "/rest/v1/" + table)
         components?.percentEncodedQuery = query
         guard let url = components?.url else {
             throw JourneyError.invalidURL
@@ -326,7 +422,7 @@ private struct Fixture: Decodable {
         return rows
     }
 
-    func waitForWear(outfitID: String) async throws {
+    func waitForWear(outfitID: String, expectedCount: Int = 1) async throws {
         let ownerID = userID.uuidString.lowercased()
         let query = "select=id,user_id,outfit_id,worn_at&user_id=eq.\(ownerID)" +
             "&outfit_id=eq.\(outfitID)&order=worn_at.desc&limit=5"
@@ -334,6 +430,12 @@ private struct Fixture: Decodable {
             if let wear = try await requestRows(table: "outfit_wears", query: query).first,
                wear["user_id"] as? String == ownerID,
                wear["outfit_id"] as? String == outfitID {
+                let allWears = try await requestRows(table: "outfit_wears", query: query)
+                if allWears.count < expectedCount {
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                    continue
+                }
+                XCTAssertEqual(allWears.count, expectedCount, "Recovery must not duplicate the recorded wear.")
                 return
             }
             try await Task.sleep(nanoseconds: 500_000_000)
@@ -342,7 +444,7 @@ private struct Fixture: Decodable {
     }
 
     func waitUntilUnauthorized() async throws {
-        guard let url = URL(string: supabaseURL + "/auth/v1/user") else {
+        guard let url = URL(string: (upstreamURL ?? supabaseURL) + "/auth/v1/user") else {
             throw JourneyError.invalidURL
         }
         var request = URLRequest(url: url)

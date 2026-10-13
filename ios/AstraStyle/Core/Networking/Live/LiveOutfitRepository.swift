@@ -294,13 +294,16 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
 
     @discardableResult
     public func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
+        let wearID = UUID()
         struct Body: Encodable, Sendable {
+            let wearID: UUID
             let outfitID: UUID
             let wornAt: Date
             let occasion: String?
             let rating: Int?
             let feedback: String?
             enum CodingKeys: String, CodingKey {
+                case wearID = "wear_id"
                 case outfitID = "outfit_id"
                 case wornAt = "worn_at"
                 case occasion
@@ -312,6 +315,7 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
             let recorded = try await apiClient.send(
                 .recordWear,
                 body: Body(
+                    wearID: wearID,
                     outfitID: outfitID,
                     wornAt: wornAt,
                     occasion: occasion,
@@ -329,7 +333,7 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
                 throw AstraError.auth("Sign in again to save that wear record.")
             }
             let wear = OutfitWear(
-                id: UUID(),
+                id: wearID,
                 outfitID: outfitID,
                 userID: userID,
                 wornAt: wornAt,

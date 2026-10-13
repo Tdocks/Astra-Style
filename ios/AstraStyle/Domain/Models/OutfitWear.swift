@@ -42,6 +42,25 @@ public struct OutfitWear: Identifiable, Codable, Hashable, Sendable {
         self.weatherSnapshot = weatherSnapshot
     }
 
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        outfitID = try values.decode(UUID.self, forKey: .outfitID)
+        userID = try values.decode(UUID.self, forKey: .userID)
+        wornAt = try values.decode(Date.self, forKey: .wornAt)
+        occasion = try values.decodeIfPresent(String.self, forKey: .occasion)
+        rating = try values.decodeIfPresent(Int.self, forKey: .rating)
+        feedback = try values.decodeIfPresent(String.self, forKey: .feedback)
+        // Postgres defaults missing weather to {}. It means no observation,
+        // not a corrupt wear record or a reason to retry a committed write.
+        let weather = try values.decodeIfPresent([String: AstraJSONValue].self, forKey: .weatherSnapshot)
+        if let weather, !weather.isEmpty {
+            weatherSnapshot = try values.decode(WeatherSnapshot.self, forKey: .weatherSnapshot)
+        } else {
+            weatherSnapshot = nil
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case outfitID = "outfit_id"

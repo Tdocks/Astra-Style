@@ -177,6 +177,7 @@ export interface HandlerDeps {
     ): Promise<void>;
   };
   insertWear?: (row: {
+    id: string;
     user_id: string;
     outfit_id: string;
     worn_at: string;
@@ -547,7 +548,14 @@ export async function handleRecordWear(req: Request, deps: HandlerDeps): Promise
     if (!deps.insertWear) {
       throw serverError("Couldn't record that wear.");
     }
+    // Old clients retain one request ID across HTTP retries. New clients also
+    // supply the durable wear ID used by their offline queue.
+    const hash = await requestFingerprint({ userId, requestId });
+    const legacyId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-8${
+      hash.slice(17, 20)
+    }-${hash.slice(20, 32)}`;
     const row = await deps.insertWear({
+      id: body.wearId ?? legacyId,
       user_id: userId,
       outfit_id: body.outfitId,
       worn_at: body.wornAt,
@@ -560,7 +568,16 @@ export async function handleRecordWear(req: Request, deps: HandlerDeps): Promise
       user_id: userId,
       latency_ms: deps.now().getTime() - startedAtMs,
     });
-    return jsonResponse(row, { status: 200, requestId, extraHeaders: CORS_HEADERS });
+    // Stored {} means unknown weather. Null keeps existing clients from
+    // decoding it as a complete forecast and retrying a successful write.
+    const weather = row["weather_snapshot"];
+    const responseRow = {
+      ...row,
+      weather_snapshot: weather && typeof weather === "object" && Object.keys(weather).length > 0
+        ? weather
+        : null,
+    };
+    return jsonResponse(responseRow, { status: 200, requestId, extraHeaders: CORS_HEADERS });
   } catch (err) {
     return handleOutfitsError(err, "outfits_record_wear", logger, requestId, startedAtMs, deps);
   }
