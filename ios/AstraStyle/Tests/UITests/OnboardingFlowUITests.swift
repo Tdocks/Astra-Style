@@ -895,3 +895,22 @@ private extension OnboardingFlowUITests {
         capture("31b-Onboarding-Finished-MainShell")
     }
 }
+
+@MainActor
+extension OnboardingFlowUITests {
+    func testWalkRecoversFromStyleDNAFailure() {
+        app.launchArguments.append("-astra-test-onboarding-dna-fail-once")
+        enterOnboarding()
+        guard walkIntro(capture: capture) else { return }
+        walkWardrobeGraph()
+        walkIdentity()
+        walkPreferenceQuiz()
+        walkFirstItems()
+        let retry = app.buttons["onboarding.result.retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: timeout))
+        retry.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["onboarding.result.identity"].waitForExistence(timeout: timeout))
+        walkResult()
+    }
+
+}

@@ -207,6 +207,12 @@ struct ScannerReviewView: View {
                         comment: "Scanner queued explanation"))
                 .astraText(.callout)
                 .foregroundStyle(AstraColor.textSecondary)
+            Button(String(localized: "Retry analysis", comment: "Retry a queued scan after a temporary network failure")) {
+                Task { await viewModel.retryPendingAnalysis() }
+            }
+            .buttonStyle(.astraSecondary)
+            .disabled(viewModel.isOffline || viewModel.isRetryingPendingAnalysis)
+            .accessibilityIdentifier("scanner.review.retryPending")
         }
         .padding(AstraSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -215,6 +221,7 @@ struct ScannerReviewView: View {
                 .fill(AstraColor.surfaceElevated)
         )
         .padding(.horizontal, AstraSpacing.pagePadding)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("scanner.review.pendingAnalysis")
     }
 

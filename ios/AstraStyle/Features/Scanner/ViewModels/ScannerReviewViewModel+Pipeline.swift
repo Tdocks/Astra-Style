@@ -110,15 +110,23 @@ extension ScannerReviewViewModel {
         guard connectivityTask == nil else { return }
         let updates = networkMonitor.connectivityUpdates()
         connectivityTask = Task { [weak self] in
-            for await isOnline in updates where isOnline {
-                await self?.resumePendingAnalysisIfNeeded()
+            for await isOnline in updates {
+                self?.isOffline = !isOnline
+                if isOnline { await self?.resumePendingAnalysisIfNeeded() }
             }
         }
     }
 
+    public func retryPendingAnalysis() async {
+        await resumePendingAnalysisIfNeeded()
+    }
+
     func resumePendingAnalysisIfNeeded() async {
-        guard phase == .pendingAnalysis else { return }
-        guard !(await networkMonitor.isOffline()) else { return }
+        guard phase == .pendingAnalysis, !isRetryingPendingAnalysis else { return }
+        isRetryingPendingAnalysis = true
+        defer { isRetryingPendingAnalysis = false }
+        isOffline = await networkMonitor.isOffline()
+        guard !isOffline else { return }
         let pending = await pendingScanQueue.pendingScans()
         guard let scan = pending.first(where: { $0.id == draftID }) else { return }
 

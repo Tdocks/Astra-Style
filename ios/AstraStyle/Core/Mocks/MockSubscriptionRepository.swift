@@ -8,9 +8,11 @@
 import Foundation
 
 public actor MockSubscriptionRepository: SubscriptionRepository {
+    private var syncFailures: Int
     private var subscription: Subscription
 
-    public init(status: SubscriptionStatus = .active) {
+    public init(status: SubscriptionStatus = .active, syncFailures: Int = 0) {
+        self.syncFailures = syncFailures
         subscription = Subscription(
             userID: SampleData.userID,
             appStoreOriginalTransactionID: "preview-original-transaction",
@@ -24,6 +26,10 @@ public actor MockSubscriptionRepository: SubscriptionRepository {
     public func fetchCurrentSubscription() async throws -> Subscription { subscription }
 
     public func syncTransaction(_ payload: AppStoreTransactionPayload) async throws -> Subscription {
+        if syncFailures > 0 {
+            syncFailures -= 1
+            throw AstraError.network("Your purchase is complete, but Premium could not be activated. Please retry when connected.")
+        }
         subscription = Subscription(
             userID: SampleData.userID,
             appStoreOriginalTransactionID: payload.originalTransactionID,

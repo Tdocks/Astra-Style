@@ -44,6 +44,9 @@ struct AstraStyleApp: App {
                         .task {
                             await observeConnectivityForScannerRecovery(using: appContainer)
                         }
+                        .task(id: appContainer.sessionStore.currentSession?.userID) {
+                            await appContainer.observePurchaseTransactions()
+                        }
                         .onChange(of: appContainer.sessionStore.currentSession?.userID) { _, ownerID in
                             guard let ownerID else { return }
                             let recovery = appContainer.scannerSaveRecoveryService
@@ -249,6 +252,7 @@ struct AstraStyleApp: App {
             guard isOnline else { continue }
             guard let ownerID = await appContainer.sessionStore.currentUserID() else { continue }
             await appContainer.scannerSaveRecoveryService.recover(ownerID: ownerID)
+            await appContainer.recoverUnfinishedPurchases()
         }
     }
 }

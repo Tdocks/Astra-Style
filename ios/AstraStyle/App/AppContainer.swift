@@ -35,6 +35,12 @@ public final class AppContainer {
 
     // MARK: - Session / Auth
 
+    @ObservationIgnored
+    lazy var purchaseTransactionObserver: any SubscriptionTransactionObserving = StoreKitTransactionObserver(
+        subscriptionRepository: subscriptionRepository,
+        currentUserID: { [weak self] in await self?.sessionStore.currentUserID() }
+    )
+
     public let sessionStore: SessionStore
 
     // MARK: - Repositories (Domain/Repositories protocols)
@@ -434,17 +440,14 @@ extension AppContainer {
             "-astra-test-shop-the-look-candidate"
         )
 
-        let mockClosetRepository = MockClosetRepository(
-            items: AstraFeatureFlags.usesPerformanceClosetFixture
-                ? PerformanceClosetFixture.items
-                : SampleData.closetItems
-        )
+        let mockClosetRepository = makePreviewClosetRepository()
         var referenceBody = SampleData.bodyProfile
         let referencePath = ProcessInfo.processInfo.arguments.contains("-astra-test-reference-photo")
             ? "users/\(SampleData.userID.uuidString.lowercased())/references/\(UUID().uuidString.lowercased()).jpg" : nil
         if let referencePath { referenceBody.appearance.referenceSelfiePaths = [referencePath] }
         let chatPreviewID = ProcessInfo.processInfo.arguments.contains("-astra-test-chat-preview") ? UUID() : nil
         let mockStudioRepository = MockStudioRepository(
+            failFirstGeneration: ProcessInfo.processInfo.arguments.contains("-astra-test-studio-fail-once"),
             pendingImageDeletionCount: ProcessInfo.processInfo.arguments.contains("-astra-test-pending-image-removal") ? 1 : 0,
             referencePhotoPath: referencePath, chatPreviewID: chatPreviewID
         )
@@ -453,7 +456,8 @@ extension AppContainer {
         // 30-item cap while exercising add flows against SampleData's
         // ~25-item wardrobe. Free-tier enforcement is covered by unit
         // tests with an explicit non-entitled fixture.
-        let subscriptionRepository = MockSubscriptionRepository(status: .active)
+        let subscriptionRepository = MockSubscriptionRepository(status: .active,
+            syncFailures: ProcessInfo.processInfo.arguments.contains("-astra-test-purchase-sync-fail-once") ? 1 : 0)
         let freeTierCappedClosetRepository = FreeTierCappedClosetRepository(
             base: mockClosetRepository,
             isEntitledToPremium: {
@@ -486,6 +490,16 @@ extension AppContainer {
         ))
     }
 
+    private static func makePreviewClosetRepository() -> MockClosetRepository {
+        return MockClosetRepository(
+            items: AstraFeatureFlags.usesPerformanceClosetFixture
+                ? PerformanceClosetFixture.items
+                : SampleData.closetItems,
+            analysisFailures: ProcessInfo.processInfo.arguments.contains("-astra-test-scanner-fail-once") ? 1 : 0,
+            saveFailures: ProcessInfo.processInfo.arguments.contains("-astra-test-scanner-fail-once") ? 1 : 0
+        )
+    }
+
     private static var mockOutfitGenerationError: AstraError? {
         guard AstraFeatureFlags.simulatesDailyOutfitQuota else { return nil }
         return AstraError(
@@ -510,6 +524,7 @@ extension AppContainer {
                 studioRepository: dependencies.studioRepository,
                 initialDNAGenerationFailures: ProcessInfo.processInfo.arguments.contains(
                     "-astra-test-taste-refinement-dna-fail-once"
+                ) || ProcessInfo.processInfo.arguments.contains("-astra-test-onboarding-dna-fail-once"
                 ) ? 1 : 0
             ),
             closetRepository: dependencies.closetRepository,

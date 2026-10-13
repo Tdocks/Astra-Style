@@ -28,6 +28,17 @@ struct PaywallView: View {
                             .foregroundStyle(AstraColor.destructive)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("paywall.error")
+                        Button(viewModel.hasPendingPurchaseSync ? String(localized: "Retry activating Premium") : String(localized: "Reload plans")) {
+                            Task {
+                                if viewModel.hasPendingPurchaseSync {
+                                    await viewModel.retryPurchaseSync()
+                                } else {
+                                    await viewModel.onAppear()
+                                }
+                            }
+                        }
+                        .buttonStyle(.astraSecondary)
+                        .accessibilityIdentifier("paywall.retry")
                     }
                     restoreButton
                     if viewModel.showsLegalLinks {
@@ -100,7 +111,7 @@ struct PaywallView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(viewModel.state == .purchasing || viewModel.state == .loading)
+                .disabled(viewModel.state == .purchasing || viewModel.state == .loading || viewModel.hasPendingPurchaseSync)
                 .accessibilityIdentifier("paywall.plan.\(offering.id.rawValue)")
             }
         }

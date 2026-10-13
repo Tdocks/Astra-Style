@@ -25,6 +25,9 @@ public final class PaywallViewModel {
     public private(set) var offerings: [PaywallOffering] = []
     public private(set) var subscription: Subscription?
 
+    private var pendingTransaction: AppStoreTransactionPayload?
+    public var hasPendingPurchaseSync: Bool { pendingTransaction != nil }
+
     private let purchasing: StoreKitPurchasing
     private let subscriptionRepository: SubscriptionRepository
 
@@ -48,14 +51,15 @@ public final class PaywallViewModel {
     }
 
     public func purchase(_ productID: AstraProductID) async {
+        guard state != .purchasing, state != .succeeded else { return }
+        if hasPendingPurchaseSync { await retryPurchaseSync(); return }
         state = .purchasing
         do {
             guard let payload = try await purchasing.purchase(productID) else {
                 state = .ready
                 return
             }
-            subscription = try await subscriptionRepository.syncTransaction(payload)
-            state = .succeeded
+            try await reconcile(payload)
         } catch let error as AstraError {
             state = .failed(error.message)
         } catch {
@@ -64,12 +68,16 @@ public final class PaywallViewModel {
     }
 
     public func restore() async {
+        guard state != .purchasing else { return }
+        if hasPendingPurchaseSync { await retryPurchaseSync(); return }
         state = .purchasing
         do {
             let payloads = try await purchasing.restoreEntitlements()
-            if let payload = payloads.last {
-                subscription = try await subscriptionRepository.syncTransaction(payload)
-                state = .succeeded
+            if !payloads.isEmpty {
+                for payload in payloads.sorted(by: { $0.purchaseDate < $1.purchaseDate }) {
+                    try await reconcile(payload, complete: false)
+                }
+                updateReconciliationState()
                 return
             }
             subscription = try await subscriptionRepository.restorePurchases()
@@ -79,6 +87,31 @@ public final class PaywallViewModel {
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    /// Retry delivery of the already paid transaction; never open another purchase.
+    public func retryPurchaseSync() async {
+        guard state != .purchasing, let payload = pendingTransaction else { return }
+        state = .purchasing
+        do {
+            try await reconcile(payload)
+        } catch {
+            state = .failed(error.localizedDescription)
+        }
+    }
+
+    private func reconcile(_ payload: AppStoreTransactionPayload, complete: Bool = true) async throws {
+        pendingTransaction = payload
+        subscription = try await subscriptionRepository.syncTransaction(payload)
+        await purchasing.finishTransaction(payload)
+        pendingTransaction = nil
+        if complete { updateReconciliationState() }
+    }
+
+    private func updateReconciliationState() {
+        state = subscription?.isEntitledToPremium == true
+            ? .succeeded
+            : .failed(String(localized: "This purchase does not currently provide Premium access. Try restoring your purchases."))
     }
 
     public var showsLegalLinks: Bool { AstraLegal.isPublished }

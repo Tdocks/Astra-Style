@@ -27,13 +27,26 @@ public protocol StoreKitPurchasing: Sendable {
     func offerings() async throws -> [PaywallOffering]
     func purchase(_ productID: AstraProductID) async throws -> AppStoreTransactionPayload?
     func restoreEntitlements() async throws -> [AppStoreTransactionPayload]
+    func finishTransaction(_ payload: AppStoreTransactionPayload) async
+}
+
+extension StoreKitPurchasing {
+    public func finishTransaction(_ payload: AppStoreTransactionPayload) async {}
 }
 
 public struct LiveStoreKitPurchasing: StoreKitPurchasing {
     private let appAccountTokenProvider: @Sendable () async -> UUID?
+    private let restoreSync: @Sendable () async throws -> Void
 
     public init(appAccountTokenProvider: @escaping @Sendable () async -> UUID? = { nil }) {
         self.appAccountTokenProvider = appAccountTokenProvider
+        self.restoreSync = { try await AppStore.sync() }
+    }
+
+    init(appAccountTokenProvider: @escaping @Sendable () async -> UUID?,
+         restoreSync: @escaping @Sendable () async throws -> Void) {
+        self.appAccountTokenProvider = appAccountTokenProvider
+        self.restoreSync = restoreSync
     }
 
     public func offerings() async throws -> [PaywallOffering] {
@@ -64,7 +77,6 @@ public struct LiveStoreKitPurchasing: StoreKitPurchasing {
         case .success(let verification):
             let transaction = try Self.verifiedTransaction(from: verification)
             let payload = Self.payload(from: transaction.transaction, signedInfo: transaction.signedInfo)
-            await transaction.transaction.finish()
             return payload
         case .userCancelled, .pending:
             return nil
@@ -74,16 +86,28 @@ public struct LiveStoreKitPurchasing: StoreKitPurchasing {
     }
 
     public func restoreEntitlements() async throws -> [AppStoreTransactionPayload] {
-        try await AppStore.sync()
+        try await restoreSync()
         var payloads: [AppStoreTransactionPayload] = []
         for await verification in Transaction.currentEntitlements {
             let transaction = try Self.verifiedTransaction(from: verification)
-            payloads.append(Self.payload(from: transaction.transaction, signedInfo: transaction.signedInfo))
+            let verified = transaction.transaction
+            guard verified.revocationDate == nil, !verified.isUpgraded,
+                  verified.expirationDate.map({ $0 > .now }) ?? true else { continue }
+            payloads.append(Self.payload(from: verified, signedInfo: transaction.signedInfo))
         }
         return payloads
     }
 
-    private static func verifiedTransaction(
+    public func finishTransaction(_ payload: AppStoreTransactionPayload) async {
+        for await result in Transaction.unfinished {
+            guard case .verified(let transaction) = result,
+                  String(transaction.id) == payload.transactionID else { continue }
+            await transaction.finish()
+            return
+        }
+    }
+
+    static func verifiedTransaction(
         from result: VerificationResult<Transaction>
     ) throws -> (transaction: Transaction, signedInfo: String) {
         switch result {
@@ -94,7 +118,7 @@ public struct LiveStoreKitPurchasing: StoreKitPurchasing {
         }
     }
 
-    private static func payload(
+    static func payload(
         from transaction: Transaction,
         signedInfo: String
     ) -> AppStoreTransactionPayload {

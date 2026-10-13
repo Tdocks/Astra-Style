@@ -137,6 +137,9 @@ public final class ScannerReviewViewModel {
     public var warmthScoreText: String = ""
     public var waterResistanceScoreText: String = ""
 
+    public internal(set) var isOffline = false
+    public internal(set) var isRetryingPendingAnalysis = false
+
     public var canSave: Bool {
         switch phase {
         case .ready, .saveFailed, .capReached: break

@@ -21,6 +21,7 @@ ONBOARDING_SUITES = {
 }
 SEPARATE_SUITES = {
     "PerformanceAcceptanceUITests",
+    "VoiceOverAcceptanceUITests",
     "LocalConnectedJourneyAcceptanceUITests",
     "LocalKyraAcceptanceUITests",
 }

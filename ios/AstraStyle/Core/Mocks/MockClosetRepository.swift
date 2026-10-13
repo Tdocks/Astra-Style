@@ -9,6 +9,8 @@
 import Foundation
 
 public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
+    private var analysisFailures: Int
+    private var saveFailures: Int
     private var items: [UUID: ClosetItem]
     private let previewBatchFailureIndex: Int?
     private var imagesByItemID: [UUID: [ClosetItemImage]]
@@ -40,8 +42,11 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     public init(
         items: [ClosetItem] = SampleData.closetItems,
         previewBatchFailureIndex: Int? = 3,
-        imagesByItemID: [UUID: [ClosetItemImage]] = [:]
+        imagesByItemID: [UUID: [ClosetItemImage]] = [:],
+        analysisFailures: Int = 0, saveFailures: Int = 0
     ) {
+        self.analysisFailures = analysisFailures
+        self.saveFailures = saveFailures
         self.items = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         self.previewBatchFailureIndex = previewBatchFailureIndex
         self.imagesByItemID = imagesByItemID
@@ -129,7 +134,8 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     }
 
     public func analyzeItem(_ request: ClosetItemAnalysisRequest) async throws -> ClosetItemAnalysisResult {
-        Self.cannedAnalysis
+        if analysisFailures > 0 { analysisFailures -= 1; throw AstraError.network("The analysis connection was interrupted. Please try again.") }
+        return Self.cannedAnalysis
     }
 
     /// `nonisolated static` so the batch fan-out's child tasks can build it
@@ -199,6 +205,7 @@ public actor MockClosetRepository: ClosetRepository, ScannerSaveRemoteWriting {
     }
 
     public func createItem(_ item: ClosetItem, images: [ClosetItemImage]) async throws -> ClosetItem {
+        if saveFailures > 0 { saveFailures -= 1; throw AstraError.network("The save connection was interrupted. Please try again.") }
         items[item.id] = item
         return item
     }

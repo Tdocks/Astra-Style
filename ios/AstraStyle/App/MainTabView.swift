@@ -315,7 +315,8 @@ struct MainTabView: View {
                         displayPrice: "TEST ONLY — not billed"
                     )
                 ],
-                purchasePayload: nil
+                purchasePayload: ProcessInfo.processInfo.arguments.contains("-astra-test-purchase-sync-fail-once")
+                    ? MockStoreKitPurchasing().purchasePayload : nil
             )
         }
         #endif
