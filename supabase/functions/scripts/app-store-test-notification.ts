@@ -8,12 +8,18 @@ const required = (name: string): string => {
 
 const privateKeyPath = required("APP_STORE_SERVER_PRIVATE_KEY_PATH");
 const privateKey = await Deno.readTextFile(privateKeyPath);
+// TestFlight purchases use Sandbox. Production API access requires a released app.
+const environmentName = Deno.env.get("APP_STORE_SERVER_ENVIRONMENT")?.trim().toLowerCase() ??
+  "sandbox";
+if (environmentName !== "sandbox" && environmentName !== "production") {
+  throw new Error("APP_STORE_SERVER_ENVIRONMENT must be sandbox or production.");
+}
 const client = new AppStoreServerAPIClient(
   privateKey,
   required("APP_STORE_SERVER_KEY_ID"),
   required("APP_STORE_CONNECT_ISSUER_ID"),
   required("APP_STORE_BUNDLE_ID"),
-  Environment.PRODUCTION,
+  environmentName === "production" ? Environment.PRODUCTION : Environment.SANDBOX,
 );
 
 try {
@@ -22,7 +28,7 @@ try {
     throw new Error("Apple accepted the request but returned no status token.");
   }
 
-  console.log("Apple accepted the production TEST notification request.");
+  console.log(`Apple accepted the ${environmentName} TEST notification request.`);
   for (let attempt = 0; attempt < 12; attempt += 1) {
     try {
       const status = await client.getTestNotificationStatus(testNotificationToken);

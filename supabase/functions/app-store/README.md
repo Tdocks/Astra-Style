@@ -28,7 +28,14 @@ remain idempotent and receive a success response. Request logs contain only requ
 endpoint, status, outcome category, and duration; signed payloads, transaction IDs, and account IDs
 are not logged.
 
-Deployment and URL configuration are verified. Apple signed test-notification acceptance and
-end-to-end sandbox purchase, renewal, expiration, refund, and restore checks remain open. Do not
-treat the deployed endpoint as proof that Apple-to-server delivery or the complete purchase
-lifecycle has been accepted.
+Apple signed sandbox TEST delivery is verified: a fresh request on 2026-10-12 reported `SUCCESS`.
+See `docs/acceptance/2026-10-12-app-store-sandbox-webhook.md`. The hosted runtime compatibility
+adapter is documented in ADR 0047 and covered by signed-fixture tests on Deno 2.1.4 in CI. Device
+sandbox purchase, renewal, expiration, refund, and restore acceptance remains open.
+
+`scripts/app-store-test-notification.ts` defaults to Sandbox, the environment used by TestFlight.
+Set `APP_STORE_SERVER_ENVIRONMENT=production` only to check a released app's production delivery.
+Supply `APP_STORE_SERVER_PRIVATE_KEY_PATH`, `APP_STORE_SERVER_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`
+and `APP_STORE_BUNDLE_ID` through the local environment. The private key stays outside the
+repository and is used locally to authenticate Apple's test request; the webhook verifies Apple's
+signed data using public trust roots.

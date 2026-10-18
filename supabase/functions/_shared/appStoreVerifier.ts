@@ -1,6 +1,7 @@
 /// <reference types="npm:@types/node" />
 
 import { Buffer } from "node:buffer";
+import { EdgeAppStoreVerifier } from "./edgeAppStoreVerifier.ts";
 import {
   Environment,
   SignedDataVerifier,
@@ -97,7 +98,7 @@ function makeVerifier(environment: AppStoreEnvironment): SignedDataVerifier {
   const roots = readRootCertificates();
   const bundleId = Deno.env.get("APP_STORE_BUNDLE_ID") ?? "com.astrastyle.app";
   if (environment === "production") {
-    return new SignedDataVerifier(
+    return new EdgeAppStoreVerifier(
       roots,
       true,
       Environment.PRODUCTION,
@@ -105,7 +106,7 @@ function makeVerifier(environment: AppStoreEnvironment): SignedDataVerifier {
       requiredAppAppleID(),
     );
   }
-  return new SignedDataVerifier(roots, true, Environment.SANDBOX, bundleId);
+  return new EdgeAppStoreVerifier(roots, true, Environment.SANDBOX, bundleId);
 }
 
 export const appStoreSignedDataVerifier: AppStoreSignedDataVerifier = {
@@ -136,6 +137,18 @@ export const appStoreSignedDataVerifier: AppStoreSignedDataVerifier = {
 };
 
 function wrapVerificationError(error: unknown): AppStoreVerificationError {
+  // Static diagnostics only: never log JWS, transactions, certificate bytes or IDs.
+  if (error instanceof VerificationException) {
+    console.warn(JSON.stringify({
+      event: "app_store_verification.failed",
+      verification_status: error.status,
+      cause_type: error.cause?.name ?? "none",
+      reason: error.cause?.message.startsWith("edge_verifier:") ? error.cause.message : undefined,
+      unsupported_api: error.cause?.message.startsWith("Not implemented:")
+        ? error.cause.message.slice(0, 150)
+        : undefined,
+    }));
+  }
   const retryable = error instanceof VerificationException &&
     error.status === VerificationStatus.RETRYABLE_VERIFICATION_FAILURE;
   return new AppStoreVerificationError(retryable, error);

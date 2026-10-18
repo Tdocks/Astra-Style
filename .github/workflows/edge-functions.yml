@@ -34,6 +34,19 @@ env:
   DENO_VERSION: "2.9.4"
 
 jobs:
+  hosted-crypto-compatibility:
+    name: App Store crypto on hosted Deno 2.1.4
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "2.1.4"
+      # Modern Deno checks types below. The older runtime cannot read lockfile v5.
+      - run: >-
+          deno test --no-lock --no-check --config supabase/functions/deno.json
+          --allow-env --allow-read supabase/functions/_shared/edgeAppStoreVerifier_test.ts
+
   check-test-fmt-lint:
     name: deno check / test / fmt / lint
     runs-on: ubuntu-latest
