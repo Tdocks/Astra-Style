@@ -41,3 +41,29 @@ The full native unit target also passed locally: 1,196 Swift Testing cases acros
 GitHub Actions run [38179133072](https://github.com/Tdocks/Astra-Style/actions/runs/38179133072) completed successfully on `e79846bd`. The corrected focused selector ran the complete Swift Testing target: 1,196 tests across 188 suites passed, alongside 37 XCTest cases and 7 focused UI tests. This verifies the CI selector fix that previously risked silently omitting Swift Testing cases. The local focused UI test `LuxuryAuditUITests.testClosetDetailsFiltersAndScannerDoors` also passed on an iPhone 17 Pro simulator, confirming the closet filter/detail flow and that batch and single-scan screens open. It did not capture a real photo or call the live vision provider. No feature ticket is closed by this UI navigation check; physical capture, real-photo batch accuracy, and live-provider performance remain open.
 
 The scanner import path now has a direct simulator acceptance: `LuxuryAuditUITests.testScannerImportsPhotoLibraryImageIntoReview` selected the repository's consented chenille-shirt fixture from Photos on a fresh disposable iPhone 17 Pro simulator, prepared the capture draft, continued into the editable review form, and passed with the mock backend. The focused workflow seeds that fixture and selects this test so future core/focused CI runs can exercise the same path. `scripts/check_ios_test_partitions.py` and strict SwiftLint passed after the additions. This is photo-picker/draft/review UI coverage only; analysis used the mock repository, and no provider, hosted Supabase, or real camera capture was exercised.
+
+
+## 2026-10-18 CI and phone-free follow-up
+
+- Astra native CI passed all four partitions (core, onboarding, features,
+  features-extra) at `6d3d6f60269f00e10c071ba02d9d38963e471625`:
+  https://github.com/Tdocks/Astra-Style/actions/runs/39164193864.
+- Gravis simulator CI passed at `1a703fdd624d9e455fa100597fbcd553747ecfef`:
+  https://github.com/Tdocks/gravis-os/actions/runs/39156679542.
+- Astra backend CI, including actual Deno 2.1.4 signature fixtures, passed:
+  https://github.com/Tdocks/Astra-Style/actions/runs/39156726169.
+  RLS CI also passed at the unchanged backend revision:
+  https://github.com/Tdocks/Astra-Style/actions/runs/39156726151.
+- Native CI corrections: split oversized bodies for strict lint; boot the selected
+  simulator before seeding photos in every partition; run artifact uploads after
+  tests; bound first-boot/Photos preparation at ten minutes and the full job at
+  sixty. UI scrolling now waits for stable controls clear of the visible tab bar;
+  onboarding explicitly reveals the primary-style choice before tapping it.
+  Endpoint mapping excludes admin scripts while retaining unknown-function checks.
+- The App Store compatibility fix and public rejection fixtures are preserved in
+  Git; 34 focused backend tests and all 1,114 backend tests passed locally, with
+  type, format and lint checks clean. See ADR 0047 and the sandbox-webhook report.
+
+These results do not establish physical camera/notification delivery, complete
+VoiceOver gestures, Apple device purchase lifecycle, legal approval or App Store
+release readiness. No TestFlight upload or new backend deployment was performed.
