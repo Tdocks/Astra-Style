@@ -691,7 +691,13 @@ private extension OnboardingFlowUITests {
         )
 
         // Re-nominate the primary explicitly, exercising the second stage.
-        app.buttons["onboarding.primary.minimalist"].tap()
+        let primary = app.buttons["onboarding.primary.minimalist"]
+        primary.scrollIntoView(in: app)
+        primary.waitForStableFrame()
+        XCTAssertTrue(primary.isHittable, "Primary style choice must be reachable before tapping")
+        primary.tap()
+        XCTAssertTrue(app.buttons["onboarding.identity.minimalist"].exists,
+                      "Choosing a primary style must remain on the identity step")
         capture("25-Onboarding-Identity-Primary")
         app.buttons["onboarding.advance"].tap()
     }

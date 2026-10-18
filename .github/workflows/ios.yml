@@ -316,17 +316,6 @@ jobs:
           python3 scripts/check_ios_binary_secrets.py \
             "$RUNNER_TEMP/astra-staging/Build/Products/Staging-iphonesimulator/AstraStyle.app"
 
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: xcodebuild-build-log-${{ matrix.partition }}
-          path: |
-            ${{ runner.temp }}/xcodebuild-build.log
-            ${{ runner.temp }}/xcodebuild-staging-build.log
-          if-no-files-found: ignore
-          retention-days: 14
-
       - name: Test (AstraStyleTests + AstraStyleUITests, iOS Simulator)
         working-directory: ios
         run: |
@@ -339,9 +328,10 @@ jobs:
           # Feature suites are selected by method so large suites can be split
           # without losing newly added tests. Local acceptance and controlled
           # performance suites run through their dedicated workflows.
-          if [[ "${{ matrix.partition }}" == "core" || "${{ matrix.partition }}" == "focused" ]]; then
-            xcrun simctl addmedia "$ASTRA_SIM_ID" ../fixtures/vision-pilot/probe-shirt-prepared.jpg
-          fi
+          # addmedia requires a booted simulator. Every partition may contain
+          # photo-import tests, including the scanner recovery feature shard.
+          xcrun simctl bootstatus "$ASTRA_SIM_ID" -b
+          xcrun simctl addmedia "$ASTRA_SIM_ID" ../fixtures/vision-pilot/probe-shirt-prepared.jpg
           case "${{ matrix.partition }}" in
             visual)
               partition_args=(-only-testing:AstraStyleTests/MajorScreenSnapshotTests)
@@ -397,6 +387,17 @@ jobs:
             -collect-test-diagnostics never \
             -resultBundlePath "$RUNNER_TEMP/AstraStyle.xcresult" \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcodebuild-build-log-${{ matrix.partition }}
+          path: |
+            ${{ runner.temp }}/xcodebuild-build.log
+            ${{ runner.temp }}/xcodebuild-staging-build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload test log and result bundle
         if: always()
