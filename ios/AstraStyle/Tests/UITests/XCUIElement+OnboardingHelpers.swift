@@ -46,6 +46,7 @@ extension XCUIElement {
             app.swipeDown(velocity: .slow)
             swipes += 1
         }
+        if exists, isHittable { waitForStableFrame() }
     }
 
     private func centerIsInScrollViewport(in app: XCUIApplication) -> Bool {
@@ -61,6 +62,12 @@ extension XCUIElement {
             return true
         }
         var viewport = scrollView.frame.insetBy(dx: 0, dy: 8)
+        // A partially exposed button can already be hittable while its lower
+        // edge remains behind iOS's floating tab bar. Keep scrolling until
+        // the control clears that bar; the accessibility audit checks its
+        // entire frame, not only its tappable center.
+        let tabBar = app.chromeTabBar
+        if tabBar.exists, tabBar.isHittable, elementFrame.intersects(tabBar.frame) { return false }
         let forwardButton = app.buttons["onboarding.advance"]
         if forwardButton.exists {
             let footerFrame = forwardButton.frame
