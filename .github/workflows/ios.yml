@@ -319,7 +319,8 @@ jobs:
             "$RUNNER_TEMP/astra-staging/Build/Products/Staging-iphonesimulator/AstraStyle.app"
 
       - name: Boot selected simulator and seed garment photo
-        timeout-minutes: 5
+        # Hosted first boot plus Photos migration has exceeded five minutes.
+        timeout-minutes: 10
         working-directory: ios
         run: |
           set -euo pipefail
