@@ -164,7 +164,8 @@ struct EndpointDeploymentMappingTests {
             // `_shared/` is a library the functions import, not a
             // deployable function — the Supabase CLI skips underscore-
             // prefixed directories, and so does this check.
-            return isDir && !url.lastPathComponent.hasPrefix("_")
+            // scripts/ contains operator tooling, not an Edge Function entrypoint.
+            return isDir && !url.lastPathComponent.hasPrefix("_") && url.lastPathComponent != "scripts"
         }.map(\.lastPathComponent)
 
         // Direction 1: no function directory the client can't reach. A

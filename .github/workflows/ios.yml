@@ -61,7 +61,9 @@ jobs:
       matrix:
         partition: ${{ fromJSON(inputs.visual_only && '["visual"]' || (inputs.partition == 'focused' && '["focused"]' || (inputs.partition == 'features' && '["features", "features-extra"]' || '["core", "onboarding", "features", "features-extra"]'))) }}
     runs-on: macos-26
-    timeout-minutes: 45
+    # Full accessibility/photo journeys plus Debug and Staging builds can
+    # exceed 45 minutes on hosted runners. Startup is bounded separately.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -316,6 +318,14 @@ jobs:
           python3 scripts/check_ios_binary_secrets.py \
             "$RUNNER_TEMP/astra-staging/Build/Products/Staging-iphonesimulator/AstraStyle.app"
 
+      - name: Boot selected simulator and seed garment photo
+        timeout-minutes: 5
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          xcrun simctl bootstatus "$ASTRA_SIM_ID" -b
+          xcrun simctl addmedia "$ASTRA_SIM_ID" ../fixtures/vision-pilot/probe-shirt-prepared.jpg
+
       - name: Test (AstraStyleTests + AstraStyleUITests, iOS Simulator)
         working-directory: ios
         run: |
@@ -328,10 +338,6 @@ jobs:
           # Feature suites are selected by method so large suites can be split
           # without losing newly added tests. Local acceptance and controlled
           # performance suites run through their dedicated workflows.
-          # addmedia requires a booted simulator. Every partition may contain
-          # photo-import tests, including the scanner recovery feature shard.
-          xcrun simctl bootstatus "$ASTRA_SIM_ID" -b
-          xcrun simctl addmedia "$ASTRA_SIM_ID" ../fixtures/vision-pilot/probe-shirt-prepared.jpg
           case "${{ matrix.partition }}" in
             visual)
               partition_args=(-only-testing:AstraStyleTests/MajorScreenSnapshotTests)
