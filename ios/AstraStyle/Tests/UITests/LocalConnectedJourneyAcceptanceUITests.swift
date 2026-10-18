@@ -203,6 +203,10 @@ final class LocalConnectedJourneyAcceptanceUITests: XCTestCase {
         try await fixture.waitForWear(outfitID: outfitID)
     }
 
+}
+
+@MainActor
+extension LocalConnectedJourneyAcceptanceUITests {
     private func verifyOfflineWearReplay(in app: XCUIApplication, outfitID: String, fixture: Fixture) async throws {
         try await fixture.inject("wear-offline-fallback", method: "POST",
                                  path: "/functions/v1/outfits/record-wear", count: 4)

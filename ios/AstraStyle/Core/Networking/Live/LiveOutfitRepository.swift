@@ -295,26 +295,10 @@ public final class LiveOutfitRepository: OutfitRepository, @unchecked Sendable {
     @discardableResult
     public func recordWear(outfitID: UUID, wornAt: Date, occasion: String?, rating: Int?, feedback: String?) async throws -> OutfitWear {
         let wearID = UUID()
-        struct Body: Encodable, Sendable {
-            let wearID: UUID
-            let outfitID: UUID
-            let wornAt: Date
-            let occasion: String?
-            let rating: Int?
-            let feedback: String?
-            enum CodingKeys: String, CodingKey {
-                case wearID = "wear_id"
-                case outfitID = "outfit_id"
-                case wornAt = "worn_at"
-                case occasion
-                case rating
-                case feedback
-            }
-        }
         do {
             let recorded = try await apiClient.send(
                 .recordWear,
-                body: Body(
+                body: RecordWearBody(
                     wearID: wearID,
                     outfitID: outfitID,
                     wornAt: wornAt,
@@ -373,5 +357,22 @@ struct GenerateOutfitsBody: Encodable, Sendable {
         case excludedClosetItemIDs = "excluded_closet_item_ids"
         case desiredCount = "desired_count"
         case weatherContext = "weather_context"
+    }
+}
+
+private struct RecordWearBody: Encodable, Sendable {
+    let wearID: UUID
+    let outfitID: UUID
+    let wornAt: Date
+    let occasion: String?
+    let rating: Int?
+    let feedback: String?
+    enum CodingKeys: String, CodingKey {
+        case wearID = "wear_id"
+        case outfitID = "outfit_id"
+        case wornAt = "worn_at"
+        case occasion
+        case rating
+        case feedback
     }
 }

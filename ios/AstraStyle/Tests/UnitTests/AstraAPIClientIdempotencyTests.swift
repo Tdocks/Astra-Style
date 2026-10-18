@@ -167,6 +167,9 @@ struct AstraAPIClientIdempotencyTests {
         #expect(decoded.weatherSnapshot == nil)
     }
 
+}
+
+extension AstraAPIClientIdempotencyTests {
     @Test("Retry stops immediately after recovery without an extra sleep or request")
     func retryStopsAfterRecovery() async throws {
         IdempotencyStubURLProtocol.reset()
