@@ -306,6 +306,9 @@ def main() -> int:
         raise HarnessError("Generate the Xcode project and install the reviewed package lock before running this script.")
     if not shutil.which("docker"):
         raise HarnessError("Docker is required for the local Supabase containers.")
+    context = run(["docker", "context", "show"], timeout=10).stdout.strip()
+    if context != "colima-astra-local-qa" or os.environ.get("DOCKER_HOST") or os.environ.get("DOCKER_CONTEXT") not in (None, "colima-astra-local-qa"):
+        raise HarnessError("Use the existing colima-astra-local-qa context without Docker endpoint overrides; this runner never switches engines.")
     docker = run(["docker", "info", "--format", "{{.MemTotal}}"], timeout=20, check=False)
     if docker.returncode:
         raise HarnessError("Docker is not ready on the local QA runner.")
@@ -534,16 +537,14 @@ def main() -> int:
         fixture_written = True
 
         simulator = run(
-            [sys.executable, str(ROOT / "scripts/resolve_ios_simulator.py"), "--runtime", "26.5", "--device", "iPhone 17 Pro"],
+            [sys.executable, str(ROOT / "scripts/resolve_ios_simulator.py"), "--runtime", "27.0", "--device", "iPhone 18 Pro"],
             timeout=30,
         ).stdout.strip()
         if not re.fullmatch(r"[0-9A-Fa-f-]{36}", simulator):
-            raise HarnessError("The pinned iOS 26.5 iPhone 17 Pro simulator could not be resolved.")
+            raise HarnessError("The pinned iOS 27.0 iPhone 18 Pro simulator could not be resolved.")
         result_bundle = temp_root / "LocalKyraAcceptance.xcresult"
         log_path = temp_root / "xcodebuild.log"
-        derived_data = pathlib.Path(
-            os.environ.get("ASTRA_LOCAL_QA_DERIVED_DATA", "/tmp/astra-inspiration-build")
-        ).expanduser()
+        derived_data = IOS / "build" / "DerivedData"
         derived_data.mkdir(mode=0o700, parents=True, exist_ok=True)
         with log_path.open("w", encoding="utf-8") as log:
             os.chmod(log_path, 0o600)
@@ -662,7 +663,7 @@ def main() -> int:
             function_env.unlink(missing_ok=True)
         if stack_started:
             stopped = run([
-                "npx", "--yes", f"supabase@{CLI_VERSION}", "stop", "--no-backup", "--yes",
+                "npx", "--yes", f"supabase@{CLI_VERSION}", "stop", "--yes",
                 "--workdir", str(temp_root),
             ], timeout=180, check=False)
             if stopped.returncode:
@@ -685,7 +686,9 @@ def main() -> int:
         else:
             evidence_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
             if result_bundle is not None and result_bundle.exists():
-                shutil.copytree(result_bundle, evidence_dir / "LocalKyraAcceptance.xcresult")
+                # Preserve the original bundle without temporarily doubling its
+                # disk footprint. Both locations normally share the Mac volume.
+                shutil.move(str(result_bundle), str(evidence_dir / "LocalKyraAcceptance.xcresult"))
             report = {
                 "supabase_cli_version": CLI_VERSION,
                 "backend": "disposable local Supabase stack",
@@ -695,6 +698,8 @@ def main() -> int:
                 "test_passed": test_passed,
                 "fixture_owner_deleted_and_rows_empty": cleanup_verified,
                 "isolated_stack_stopped": stack_stopped,
+                "docker_context": "colima-astra-local-qa",
+                "database_backup_preserved": stack_stopped,
                 "hosted_supabase_called": False,
                 "paid_provider_called": False,
                 "failure_reason": failure_reason,

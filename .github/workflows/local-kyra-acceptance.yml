@@ -38,9 +38,10 @@ jobs:
           command -v xcodegen >/dev/null
           command -v docker >/dev/null
           command -v python3 >/dev/null
+          test "$(docker context show)" = "colima-astra-local-qa"
           docker info >/dev/null
           xcodebuild -version
-          python3 scripts/resolve_ios_simulator.py --runtime 26.5 --device 'iPhone 17 Pro' >/dev/null
+          python3 scripts/resolve_ios_simulator.py --runtime 27.0 --device 'iPhone 18 Pro' >/dev/null
 
       - name: Generate project and install reviewed dependencies
         working-directory: ios

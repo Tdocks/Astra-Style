@@ -8,12 +8,17 @@ ASC_KEY_PATH = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_#{ASC_K
 IOS_DIR = File.expand_path("..", __dir__)
 
 platform :ios do
-  desc "Unit tests on the booted simulator"
+  desc "Tests on the existing iPhone 18 Pro / iOS 27.0 simulator"
   lane :tests do
+    simulator = sh("python3", File.join(IOS_DIR, "../scripts/resolve_ios_simulator.py"),
+                   "--runtime", "27.0", "--device", "iPhone 18 Pro", log: false).strip
     run_tests(
       project: File.join(IOS_DIR, "AstraStyle.xcodeproj"),
       scheme: "AstraStyle",
-      device: ENV["FASTLANE_DEVICE"] || "iPhone 17 Pro"
+      destination: "platform=iOS Simulator,id=#{simulator}",
+      derived_data_path: File.join(IOS_DIR, "build/DerivedData"),
+      parallel_testing: false,
+      disable_concurrent_testing: true
     )
   end
 

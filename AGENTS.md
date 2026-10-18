@@ -30,3 +30,23 @@ This repo already includes:
 - **MCP config:** `.cursor/mcp.json` → `cloudflare`, `cloudflare-docs`, `cloudflare-bindings`, `cloudflare-builds`, `cloudflare-observability`
 
 After pull: **restart the agent / Cursor** so MCP servers load, then complete Cloudflare OAuth on first tool use. `cloudflare-docs` needs no auth.
+
+## Local Mac storage policy
+
+- Reuse the existing **iPhone 18 Pro / iOS 27.0** simulator. Never create a
+  simulator or install a runtime for local tests. Compile-only checks may use
+  `generic/platform=iOS Simulator`. Keep the app minimum iOS version unchanged;
+  older-OS coverage remains in hosted CI.
+- Local container work uses the existing **colima-astra-local-qa** Docker context
+  and **astra-local-qa** Colima profile. Never start Docker Desktop, create a
+  profile, or silently change engines/context. Explain any engine exception first.
+- Reuse **ios/build/DerivedData** for this project's local device and simulator
+  builds. Do not allocate per-run DerivedData directories.
+- Before deleting any simulator, runtime, Docker image, volume, VM or release
+  artifact, identify its owner and contents and ask the owner. Never run broad
+  Docker prune commands or delete Docker Desktop files as cache cleanup.
+- Proposed retention rule (requires owner approval before deletion): keep release
+  archives and final acceptance evidence; keep the latest successful and latest
+  failed disposable test bundles per suite, with a seven-day window for other
+  disposable outputs. Inventory size/ownership before proposing cleanup. No
+  automated deletion is authorized by this proposal.

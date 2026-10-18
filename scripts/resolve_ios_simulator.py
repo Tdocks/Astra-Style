@@ -123,12 +123,16 @@ def self_test() -> None:
         ],
         "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
             {"name": "iPhone 18", "udid": "phone-270"},
+            {"name": "iPhone 18 Pro", "udid": "pro-270"},
         ],
         "com.apple.CoreSimulator.SimRuntime.iOS-26-5-beta": [
             {"name": "iPad Pro", "udid": "ipad-265"},
         ],
     }
     assert select_device(fixture) == ((27, 0), {"name": "iPhone 18", "udid": "phone-270"})
+    assert select_device(fixture, (27, 0), "iPhone 18 Pro") == (
+        (27, 0), {"name": "iPhone 18 Pro", "udid": "pro-270"}
+    )
     assert select_device(fixture, (26, 5), "iPhone 17 Pro") == (
         (26, 5), {"name": "iPhone 17 Pro", "udid": "pro-265"}
     )
