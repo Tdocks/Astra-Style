@@ -27,6 +27,7 @@ public final class LiveCaptureSessionController: NSObject, CaptureSessionControl
 
     private let lock = NSLock()
     private var frameContinuation: AsyncStream<LuminancePlane>.Continuation?
+    private var frameStreamID: UUID?
     private var photoContinuation: CheckedContinuation<Data, Error>?
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var isConfigured = false
@@ -99,26 +100,37 @@ public final class LiveCaptureSessionController: NSObject, CaptureSessionControl
                 self.session.stopRunning()
             }
             self.lock.lock()
-            self.frameContinuation?.finish()
+            let frames = self.frameContinuation
+            let photo = self.photoContinuation
             self.frameContinuation = nil
-            if let photo = self.photoContinuation {
-                self.photoContinuation = nil
-                photo.resume(throwing: CaptureSessionError.captureFailed)
-            }
+            self.frameStreamID = nil
+            self.photoContinuation = nil
             self.lock.unlock()
+            // finish invokes onTermination synchronously, which also acquires lock.
+            frames?.finish()
+            photo?.resume(throwing: CaptureSessionError.captureFailed)
         }
     }
 
     public func qualityFrames() -> AsyncStream<LuminancePlane> {
         AsyncStream { continuation in
-            self.lock.lock()
-            self.frameContinuation = continuation
-            self.lock.unlock()
+            let streamID = UUID()
             continuation.onTermination = { [weak self] _ in
-                self?.lock.lock()
-                self?.frameContinuation = nil
-                self?.lock.unlock()
+                guard let self else { return }
+                self.lock.lock()
+                if self.frameStreamID == streamID {
+                    self.frameContinuation = nil
+                    self.frameStreamID = nil
+                }
+                self.lock.unlock()
             }
+            self.lock.lock()
+            let previous = self.frameContinuation
+            self.frameContinuation = continuation
+            self.frameStreamID = streamID
+            self.lock.unlock()
+            // An older stream's termination must not detach its replacement.
+            previous?.finish()
         }
     }
 
