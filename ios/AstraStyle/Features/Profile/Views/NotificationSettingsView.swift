@@ -6,17 +6,26 @@ struct NotificationSettingsView: View {
     @State private var authorization: ReminderAuthorization = .notDetermined
     @State private var reminderTime = Calendar.current.date(from: DateComponents(hour: 7, minute: 30)) ?? .now
     @State private var isLoading = true
+    @State private var isUpdating = false
     @State private var message: String?
 
     var body: some View {
         Form {
             Section {
                 DatePicker("Morning reminder time", selection: $reminderTime, displayedComponents: .hourAndMinute)
-                    .disabled(!preferences.isEnabled(.dailyOutfit))
+                    .disabled(isLoading || isUpdating || !preferences.isEnabled(.dailyOutfit))
                     .onChange(of: reminderTime) { _, value in
+                        guard !isLoading else { return }
                         Task {
+                            isUpdating = true
+                            defer { isUpdating = false }
+                            message = nil
                             let parts = Calendar.current.dateComponents([.hour, .minute], from: value)
-                            try? await service.setMorningTime(hour: parts.hour ?? 7, minute: parts.minute ?? 30)
+                            do {
+                                try await service.setMorningTime(hour: parts.hour ?? 7, minute: parts.minute ?? 30)
+                            } catch {
+                                message = "The reminder time couldn't be saved. Please try again."
+                            }
                             preferences = service.preferences()
                         }
                     }
@@ -64,7 +73,7 @@ struct NotificationSettingsView: View {
             }
         }
         .tint(AstraColor.accentChampagneAccessible)
-        .disabled(isLoading)
+        .disabled(isLoading || isUpdating)
         .accessibilityIdentifier("profile.reminder.\(kind.rawValue)")
     }
 
@@ -81,6 +90,9 @@ struct NotificationSettingsView: View {
 
     @MainActor
     private func setEnabled(_ kind: ReminderKind, enabled: Bool) async {
+        guard !isUpdating else { return }
+        isUpdating = true
+        defer { isUpdating = false }
         message = nil
         do {
             authorization = try await service.setEnabled(kind, enabled: enabled)

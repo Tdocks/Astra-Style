@@ -3,7 +3,7 @@ import UserNotifications
 
 @MainActor
 public final class LiveReminderService: ReminderService {
-    private let center: UNUserNotificationCenter
+    private let scheduler: any ReminderNotificationScheduling
     private let defaults: UserDefaults
     private let preferencesKey = "astra.reminderPreferences"
     private var upcomingEventDates: [Date] = []
@@ -12,18 +12,17 @@ public final class LiveReminderService: ReminderService {
         center: UNUserNotificationCenter = .current(),
         defaults: UserDefaults = .standard
     ) {
-        self.center = center
+        self.scheduler = SystemReminderNotificationScheduler(center: center)
+        self.defaults = defaults
+    }
+
+    init(scheduler: any ReminderNotificationScheduling, defaults: UserDefaults) {
+        self.scheduler = scheduler
         self.defaults = defaults
     }
 
     public func authorization() async -> ReminderAuthorization {
-        let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
-        case .notDetermined: return .notDetermined
-        case .authorized, .provisional, .ephemeral: return .authorized
-        case .denied: return .denied
-        @unknown default: return .denied
-        }
+        await scheduler.authorization()
     }
 
     public func preferences() -> ReminderPreferences {
@@ -39,7 +38,7 @@ public final class LiveReminderService: ReminderService {
         if enabled {
             var status = await authorization()
             if status == .notDetermined {
-                let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                let granted = try await scheduler.requestAuthorization()
                 status = granted ? .authorized : .denied
             }
             guard status == .authorized else { return status }
@@ -47,8 +46,7 @@ public final class LiveReminderService: ReminderService {
         } else {
             preferences.enabledKinds.remove(kind)
         }
-        save(preferences)
-        await rescheduleRecurring(preferences)
+        try await updateRecurring(preferences)
         await refreshOccasionReminders(eventDates: upcomingEventDates)
         return await authorization()
     }
@@ -57,16 +55,15 @@ public final class LiveReminderService: ReminderService {
         var preferences = preferences()
         preferences.morningHour = min(max(hour, 0), 23)
         preferences.morningMinute = min(max(minute, 0), 59)
-        save(preferences)
-        await rescheduleRecurring(preferences)
+        try await updateRecurring(preferences)
     }
 
     public func refreshOccasionReminders(eventDates: [Date]) async {
         upcomingEventDates = eventDates
         let preferences = preferences()
-        let ids = await center.pendingNotificationRequests().map(\.identifier)
+        let ids = await scheduler.pendingIdentifiers()
             .filter { $0.hasPrefix("astra.occasion.") }
-        center.removePendingNotificationRequests(withIdentifiers: ids)
+        scheduler.removePending(withIdentifiers: ids)
         guard preferences.isEnabled(.upcomingOccasion), await authorization() == .authorized else { return }
 
         for date in eventDates where date > .now.addingTimeInterval(60 * 30) {
@@ -82,7 +79,7 @@ public final class LiveReminderService: ReminderService {
                 repeats: false
             )
             let identifier = "astra.occasion.\(Int(date.timeIntervalSince1970))"
-            try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+            try? await scheduler.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
     }
 
@@ -98,20 +95,32 @@ public final class LiveReminderService: ReminderService {
             dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: reminderDate),
             repeats: false
         )
-        try? await center.add(UNNotificationRequest(
+        try? await scheduler.add(UNNotificationRequest(
             identifier: "astra.packing.\(Int(date.timeIntervalSince1970))",
             content: content,
             trigger: trigger
         ))
     }
 
-    private func rescheduleRecurring(_ preferences: ReminderPreferences) async {
+    private func updateRecurring(_ preferences: ReminderPreferences) async throws {
+        let previous = self.preferences()
+        do {
+            try await rescheduleRecurring(preferences)
+            save(preferences)
+        } catch {
+            // Restore the previous schedule when possible; never persist a failed opt-in.
+            try? await rescheduleRecurring(previous)
+            throw error
+        }
+    }
+
+    private func rescheduleRecurring(_ preferences: ReminderPreferences) async throws {
         let recurringIDs = ["astra.daily", "astra.monthly", "astra.laundry"]
-        center.removePendingNotificationRequests(withIdentifiers: recurringIDs)
+        scheduler.removePending(withIdentifiers: recurringIDs)
         guard await authorization() == .authorized else { return }
 
         if preferences.isEnabled(.dailyOutfit) {
-            await schedule(
+            try await schedule(
                 id: "astra.daily",
                 title: "Today's look is ready",
                 body: "Open Astra Style for an outfit that fits your day.",
@@ -120,7 +129,7 @@ public final class LiveReminderService: ReminderService {
             )
         }
         if preferences.isEnabled(.monthlyReview) {
-            await schedule(
+            try await schedule(
                 id: "astra.monthly",
                 title: "Your monthly review is ready",
                 body: "See what you wore, added, and want to try next.",
@@ -129,7 +138,7 @@ public final class LiveReminderService: ReminderService {
             )
         }
         if preferences.isEnabled(.laundry) {
-            await schedule(
+            try await schedule(
                 id: "astra.laundry",
                 title: "A quick closet check",
                 body: "Update laundry status to keep your outfit options current.",
@@ -139,13 +148,13 @@ public final class LiveReminderService: ReminderService {
         }
     }
 
-    private func schedule(id: String, title: String, body: String, components: DateComponents, repeats: Bool) async {
+    private func schedule(id: String, title: String, body: String, components: DateComponents, repeats: Bool) async throws {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: repeats)
-        try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        try await scheduler.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
     }
 
     private func save(_ preferences: ReminderPreferences) {
